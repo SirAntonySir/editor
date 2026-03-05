@@ -10,7 +10,6 @@ uniform float u_contrast;    // -1 to 1
 uniform float u_saturation;  // -1 to 1
 uniform float u_hue;         // radians
 uniform float u_temperature; // -1 to 1
-uniform float u_tint;        // -1 to 1
 
 vec3 rgb2hsl(vec3 c) {
   float maxC = max(c.r, max(c.g, c.b));
@@ -76,9 +75,6 @@ void main() {
   // Temperature (shift blue-orange axis)
   color.r += u_temperature * 0.1;
   color.b -= u_temperature * 0.1;
-
-  // Tint (shift green-magenta axis)
-  color.g += u_tint * 0.1;
 
   fragColor = vec4(clamp(color, 0.0, 1.0), texel.a);
 }

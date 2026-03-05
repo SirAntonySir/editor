@@ -6,6 +6,7 @@ out vec4 fragColor;
 
 uniform sampler2D u_texture;
 uniform float u_kelvin; // 1000 to 15000
+uniform float u_tint;   // -1 to 1
 
 // Convert color temperature (Kelvin) to RGB using Tanner Helland's algorithm
 // based on the Planckian locus approximation
@@ -58,6 +59,9 @@ void main() {
   vec3 multiplier = kelvinColor / daylight;
 
   color *= multiplier;
+
+  // Tint (shift green-magenta axis)
+  color.g += u_tint * 0.1;
 
   fragColor = vec4(clamp(color, 0.0, 1.0), texel.a);
 }

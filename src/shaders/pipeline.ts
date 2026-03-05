@@ -112,7 +112,6 @@ export class WebGLPipeline {
         gl.uniform1f(gl.getUniformLocation(program, 'u_saturation'), (p.saturation as number ?? 0) / 100);
         gl.uniform1f(gl.getUniformLocation(program, 'u_hue'), (p.hue as number ?? 0) * Math.PI / 180);
         gl.uniform1f(gl.getUniformLocation(program, 'u_temperature'), (p.temperature as number ?? 0) / 100);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_tint'), (p.tint as number ?? 0) / 100);
       },
     });
 
@@ -170,6 +169,7 @@ export class WebGLPipeline {
       setUniforms: (gl, program, adj) => {
         const p = adj.params;
         gl.uniform1f(gl.getUniformLocation(program, 'u_kelvin'), p.kelvin as number ?? 6500);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_tint'), (p.tint as number ?? 0) / 100);
       },
     });
   }
@@ -266,7 +266,6 @@ export class WebGLPipeline {
       gl.uniform1f(gl.getUniformLocation(basic.program, 'u_saturation'), 0);
       gl.uniform1f(gl.getUniformLocation(basic.program, 'u_hue'), 0);
       gl.uniform1f(gl.getUniformLocation(basic.program, 'u_temperature'), 0);
-      gl.uniform1f(gl.getUniformLocation(basic.program, 'u_tint'), 0);
     }
 
     gl.bindVertexArray(this.vao);

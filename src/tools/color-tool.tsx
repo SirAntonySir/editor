@@ -6,7 +6,6 @@ import { useAdjustmentParam } from '@/lib/use-adjustment';
 function ColorPanel() {
   const [saturation, setSaturation] = useAdjustmentParam('basic', 'saturation', 0);
   const [hue, setHue] = useAdjustmentParam('basic', 'hue', 0);
-  const [tint, setTint] = useAdjustmentParam('basic', 'tint', 0);
 
   return (
     <div className="p-3 flex flex-col gap-3">
@@ -24,13 +23,6 @@ function ColorPanel() {
         max={360}
         onChange={setHue}
         formatValue={(v) => `${Math.round(v)}°`}
-      />
-      <AdjustmentSlider
-        label="Tint"
-        value={tint}
-        min={-100}
-        max={100}
-        onChange={setTint}
       />
     </div>
   );

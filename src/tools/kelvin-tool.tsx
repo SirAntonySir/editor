@@ -5,6 +5,7 @@ import { useAdjustmentParam } from '@/lib/use-adjustment';
 
 function KelvinPanel() {
   const [kelvin, setKelvin] = useAdjustmentParam('kelvin', 'kelvin', 6500);
+  const [tint, setTint] = useAdjustmentParam('kelvin', 'tint', 0);
 
   return (
     <div className="p-3 flex flex-col gap-3">
@@ -15,6 +16,13 @@ function KelvinPanel() {
         max={12000}
         onChange={setKelvin}
         formatValue={(v) => `${Math.round(v)}K`}
+      />
+      <AdjustmentSlider
+        label="Tint"
+        value={tint}
+        min={-100}
+        max={100}
+        onChange={setTint}
       />
     </div>
   );

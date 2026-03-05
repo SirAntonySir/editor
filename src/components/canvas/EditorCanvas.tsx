@@ -3,6 +3,7 @@ import * as fabric from 'fabric';
 import { useEditorStore } from '@/store';
 import { useEditor } from '@/components/EditorProvider';
 import { ToolRegistry } from '@/lib/tool-registry';
+import { useAdjustmentPipeline } from './useAdjustmentPipeline';
 
 interface EditorCanvasProps {
   canvasRef: React.MutableRefObject<fabric.Canvas | null>;
@@ -16,6 +17,9 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
   const spaceHeld = useRef(false);
 
   const { toolContext } = useEditor();
+
+  // Connect WebGL adjustment pipeline
+  useAdjustmentPipeline(canvasRef);
 
   // Initialize Fabric canvas
   useEffect(() => {
@@ -208,7 +212,7 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
   return (
     <div
       ref={containerRef}
-      className="flex-1 relative overflow-hidden bg-canvas-bg"
+      className="absolute inset-0 overflow-hidden bg-canvas-bg"
       onDrop={handleDrop}
       onDragOver={(e) => e.preventDefault()}
     >

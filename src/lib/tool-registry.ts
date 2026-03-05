@@ -3,7 +3,8 @@ import type { ToolDefinition } from '@/types/tool';
 class ToolRegistryImpl {
   private tools = new Map<string, ToolDefinition>();
 
-  register(tool: ToolDefinition): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  register(tool: ToolDefinition<any>): void {
     this.tools.set(tool.name, tool);
   }
 

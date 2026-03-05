@@ -16,11 +16,13 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
     layerId: string | null;
     adjustments: Adjustment[] | undefined;
     layerHash: string;
+    pixelVersion: number;
   }>({
     mode: '',
     layerId: null,
     adjustments: undefined,
     layerHash: '',
+    pixelVersion: -1,
   });
 
   useEffect(() => {
@@ -69,7 +71,7 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
     LayerCompositor.setCompositeCallback(updateFabricImage);
 
     const unsubscribe = useEditorStore.subscribe((state) => {
-      const { activeLayerId, editorMode, layers } = state;
+      const { activeLayerId, editorMode, layers, pixelVersion } = state;
 
       if (editorMode === 'develop') {
         // Develop mode: render only the active layer through its adjustment pipeline
@@ -79,7 +81,8 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
         if (
           prevRef.current.mode === editorMode &&
           prevRef.current.layerId === activeLayerId &&
-          prevRef.current.adjustments === adjustments
+          prevRef.current.adjustments === adjustments &&
+          prevRef.current.pixelVersion === pixelVersion
         ) {
           return;
         }
@@ -88,6 +91,7 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
           layerId: activeLayerId,
           adjustments,
           layerHash: '',
+          pixelVersion,
         };
 
         if (!activeLayerId) return;
@@ -114,7 +118,8 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
         if (
           prevRef.current.mode === editorMode &&
           prevRef.current.layerHash === layerHash &&
-          prevRef.current.adjustments === activeAdj
+          prevRef.current.adjustments === activeAdj &&
+          prevRef.current.pixelVersion === pixelVersion
         ) {
           return;
         }
@@ -123,6 +128,7 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
           layerId: activeLayerId,
           adjustments: activeAdj,
           layerHash,
+          pixelVersion,
         };
 
         LayerCompositor.requestComposite();

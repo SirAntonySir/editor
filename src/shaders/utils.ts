@@ -61,6 +61,34 @@ export function createTexture(
   return texture;
 }
 
+export function createTexture3D(
+  gl: WebGL2RenderingContext,
+  size: number,
+  data: Float32Array,
+): WebGLTexture {
+  const texture = gl.createTexture();
+  if (!texture) throw new Error('Failed to create 3D texture');
+  gl.bindTexture(gl.TEXTURE_3D, texture);
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+  // Convert RGB Float32Array to RGBA Uint8Array
+  const count = size * size * size;
+  const rgba = new Uint8Array(count * 4);
+  for (let i = 0; i < count; i++) {
+    rgba[i * 4] = Math.round(Math.min(255, Math.max(0, data[i * 3] * 255)));
+    rgba[i * 4 + 1] = Math.round(Math.min(255, Math.max(0, data[i * 3 + 1] * 255)));
+    rgba[i * 4 + 2] = Math.round(Math.min(255, Math.max(0, data[i * 3 + 2] * 255)));
+    rgba[i * 4 + 3] = 255;
+  }
+
+  gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA, size, size, size, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+  return texture;
+}
+
 export function createFramebuffer(
   gl: WebGL2RenderingContext,
   texture: WebGLTexture,

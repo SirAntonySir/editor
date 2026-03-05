@@ -1,10 +1,13 @@
-import { createProgram, createTexture, createFramebuffer } from './utils';
+import { createProgram, createTexture, createTexture3D, createFramebuffer } from './utils';
 import { fullscreenQuadVertex } from './vertex.glsl.ts';
 import { basicAdjustmentsFragment } from './basic-adjustments.glsl.ts';
 import { curvesFragment } from './curves.glsl.ts';
 import { levelsFragment } from './levels.glsl.ts';
 import { kelvinFragment } from './kelvin.glsl.ts';
-import type { Adjustment } from '@/store/layer-slice';
+import { lutFragment } from './lut.glsl.ts';
+import { blendFragment } from './blend.glsl.ts';
+import { LutRegistry } from '@/lib/lut-registry';
+import type { Adjustment, BlendMode } from '@/store/layer-slice';
 
 interface FBO {
   framebuffer: WebGLFramebuffer;
@@ -16,6 +19,17 @@ interface ShaderPass {
   setUniforms: (gl: WebGL2RenderingContext, program: WebGLProgram, adj: Adjustment) => void;
   extraTextures?: (gl: WebGL2RenderingContext, program: WebGLProgram, adj: Adjustment) => WebGLTexture[];
 }
+
+const BLEND_MODE_INDEX: Record<BlendMode, number> = {
+  'normal': 0,
+  'multiply': 1,
+  'screen': 2,
+  'overlay': 3,
+  'darken': 4,
+  'lighten': 5,
+  'soft-light': 6,
+  'hard-light': 7,
+};
 
 const QUAD_VERTICES = new Float32Array([
   // position   texCoord
@@ -29,9 +43,12 @@ export class WebGLPipeline {
   private gl: WebGL2RenderingContext;
   private fboA: FBO;
   private fboB: FBO;
+  private fboC: FBO; // used for blend intermediate
   private vao: WebGLVertexArrayObject;
   private shaders: Map<string, ShaderPass> = new Map();
+  private blendProgram: WebGLProgram;
   private sourceTexture: WebGLTexture | null = null;
+  private lutTextureCache = new Map<string, WebGLTexture>();
   private width = 0;
   private height = 0;
   private outputCanvas: HTMLCanvasElement;
@@ -45,10 +62,11 @@ export class WebGLPipeline {
     if (!gl) throw new Error('WebGL2 not supported');
     this.gl = gl;
 
-    // Placeholder FBOs — will be resized when source is set
     this.fboA = this.createFBO(1, 1);
     this.fboB = this.createFBO(1, 1);
+    this.fboC = this.createFBO(1, 1);
     this.vao = this.createQuadVAO();
+    this.blendProgram = createProgram(gl, fullscreenQuadVertex, blendFragment);
     this.initShaders();
   }
 
@@ -64,8 +82,10 @@ export class WebGLPipeline {
     const { gl } = this;
     this.deleteFBO(this.fboA);
     this.deleteFBO(this.fboB);
+    this.deleteFBO(this.fboC);
     this.fboA = this.createFBO(width, height);
     this.fboB = this.createFBO(width, height);
+    this.fboC = this.createFBO(width, height);
     this.outputCanvas.width = width;
     this.outputCanvas.height = height;
     gl.viewport(0, 0, width, height);
@@ -172,6 +192,31 @@ export class WebGLPipeline {
         gl.uniform1f(gl.getUniformLocation(program, 'u_tint'), (p.tint as number ?? 0) / 100);
       },
     });
+
+    // LUT filter shader
+    const lutProgram = createProgram(gl, fullscreenQuadVertex, lutFragment);
+    this.shaders.set('lut', {
+      program: lutProgram,
+      setUniforms: (gl, program, adj) => {
+        gl.uniform1f(gl.getUniformLocation(program, 'u_lutSize'), adj.params.lutSize as number);
+      },
+      extraTextures: (gl, program, adj) => {
+        // Get or create cached 3D LUT texture
+        let lutTex = this.lutTextureCache.get(adj.id);
+        if (!lutTex) {
+          const lutData = LutRegistry.get(adj.id);
+          if (!lutData) return [];
+          lutTex = createTexture3D(gl, lutData.size, lutData.data);
+          this.lutTextureCache.set(adj.id, lutTex);
+        }
+
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_3D, lutTex);
+        gl.uniform1i(gl.getUniformLocation(program, 'u_lut'), 1);
+
+        return []; // cached — don't delete
+      },
+    });
   }
 
   setSource(source: HTMLCanvasElement | HTMLImageElement | OffscreenCanvas | ImageBitmap): void {
@@ -198,14 +243,13 @@ export class WebGLPipeline {
 
     const enabled = adjustments.filter((a) => a.enabled);
     if (enabled.length === 0) {
-      // No adjustments — just copy source to output
       this.drawPass(this.sourceTexture, null, null);
       return this.outputCanvas;
     }
 
-    let readTexture = this.sourceTexture;
-    let writeFBO = this.fboA;
-    let readFBO = this.fboB;
+    let currentTex = this.sourceTexture;
+    const pingPong = [this.fboA, this.fboB];
+    let ppIdx = 0;
 
     for (let i = 0; i < enabled.length; i++) {
       const adj = enabled[i];
@@ -213,23 +257,62 @@ export class WebGLPipeline {
       if (!shader) continue;
 
       const isLast = i === enabled.length - 1;
-      const target = isLast ? null : writeFBO.framebuffer;
+      const needsBlend = adj.blendMode !== 'normal' || adj.opacity < 1;
 
-      const tempTextures = this.drawPass(readTexture, target, shader, adj);
+      if (!needsBlend) {
+        // Direct pass — apply adjustment, output becomes new current
+        const target = isLast ? null : pingPong[ppIdx].framebuffer;
+        const temps = this.drawPass(currentTex, target, shader, adj);
+        for (const t of temps) gl.deleteTexture(t);
 
-      for (const tex of tempTextures) {
-        gl.deleteTexture(tex);
-      }
+        if (!isLast) {
+          currentTex = pingPong[ppIdx].texture;
+          ppIdx = 1 - ppIdx;
+        }
+      } else {
+        // Blend pass: apply adjustment to fboC, then blend currentTex + fboC
+        const temps = this.drawPass(currentTex, this.fboC.framebuffer, shader, adj);
+        for (const t of temps) gl.deleteTexture(t);
 
-      if (!isLast) {
-        readTexture = writeFBO.texture;
-        const tmp = writeFBO;
-        writeFBO = readFBO;
-        readFBO = tmp;
+        const blendTarget = isLast ? null : pingPong[ppIdx].framebuffer;
+        this.drawBlendPass(currentTex, this.fboC.texture, blendTarget, adj.blendMode, adj.opacity);
+
+        if (!isLast) {
+          currentTex = pingPong[ppIdx].texture;
+          ppIdx = 1 - ppIdx;
+        }
       }
     }
 
     return this.outputCanvas;
+  }
+
+  private drawBlendPass(
+    baseTex: WebGLTexture,
+    blendTex: WebGLTexture,
+    targetFramebuffer: WebGLFramebuffer | null,
+    blendMode: BlendMode,
+    opacity: number,
+  ): void {
+    const { gl } = this;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, targetFramebuffer);
+    gl.viewport(0, 0, this.width, this.height);
+    gl.useProgram(this.blendProgram);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, baseTex);
+    gl.uniform1i(gl.getUniformLocation(this.blendProgram, 'u_base'), 0);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, blendTex);
+    gl.uniform1i(gl.getUniformLocation(this.blendProgram, 'u_blend'), 1);
+
+    gl.uniform1f(gl.getUniformLocation(this.blendProgram, 'u_opacity'), opacity);
+    gl.uniform1i(gl.getUniformLocation(this.blendProgram, 'u_blendMode'), BLEND_MODE_INDEX[blendMode] ?? 0);
+
+    gl.bindVertexArray(this.vao);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.bindVertexArray(null);
   }
 
   private drawPass(
@@ -247,7 +330,6 @@ export class WebGLPipeline {
     if (shader && adj) {
       gl.useProgram(shader.program);
 
-      // Bind source texture to unit 0
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, inputTexture);
       gl.uniform1i(gl.getUniformLocation(shader.program, 'u_texture'), 0);
@@ -275,6 +357,20 @@ export class WebGLPipeline {
     return tempTextures;
   }
 
+  clearLutCache(adjustmentId?: string): void {
+    const { gl } = this;
+    if (adjustmentId) {
+      const tex = this.lutTextureCache.get(adjustmentId);
+      if (tex) {
+        gl.deleteTexture(tex);
+        this.lutTextureCache.delete(adjustmentId);
+      }
+    } else {
+      for (const tex of this.lutTextureCache.values()) gl.deleteTexture(tex);
+      this.lutTextureCache.clear();
+    }
+  }
+
   getOutputCanvas(): HTMLCanvasElement {
     return this.outputCanvas;
   }
@@ -283,10 +379,13 @@ export class WebGLPipeline {
     const { gl } = this;
     this.deleteFBO(this.fboA);
     this.deleteFBO(this.fboB);
+    this.deleteFBO(this.fboC);
     if (this.sourceTexture) gl.deleteTexture(this.sourceTexture);
     for (const shader of this.shaders.values()) {
       gl.deleteProgram(shader.program);
     }
     this.shaders.clear();
+    gl.deleteProgram(this.blendProgram);
+    this.clearLutCache();
   }
 }

@@ -19,8 +19,8 @@ export const useEditorStore = create<EditorState>()(
       {
         limit: 50,
         partialize: (state) => {
-          const { layers, activeLayerId } = state;
-          return { layers, activeLayerId };
+          const { layers, activeLayerId, pixelVersion } = state;
+          return { layers, activeLayerId, pixelVersion };
         },
       }
     )

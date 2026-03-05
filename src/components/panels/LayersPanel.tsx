@@ -1,10 +1,43 @@
 import { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, EyeOff, Plus, Trash2, GripVertical } from 'lucide-react';
+import {
+  Eye,
+  EyeOff,
+  Plus,
+  Trash2,
+  GripVertical,
+  Sun,
+  Palette,
+  Spline,
+  SlidersHorizontal,
+  Thermometer,
+  Sparkles,
+  ChevronRight,
+} from 'lucide-react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useEditorStore } from '@/store';
 import { CanvasRegistry } from '@/lib/canvas-registry';
-import type { Layer } from '@/store/layer-slice';
+import { LutRegistry } from '@/lib/lut-registry';
+import type { Layer, Adjustment, BlendMode } from '@/store/layer-slice';
+
+const ADJUSTMENT_ICONS: Record<Adjustment['type'], typeof Sun> = {
+  basic: Sun,
+  curves: Spline,
+  levels: SlidersHorizontal,
+  kelvin: Thermometer,
+  lut: Sparkles,
+};
+
+const BLEND_MODE_LABELS: Record<BlendMode, string> = {
+  'normal': 'Normal',
+  'multiply': 'Multiply',
+  'screen': 'Screen',
+  'overlay': 'Overlay',
+  'darken': 'Darken',
+  'lighten': 'Lighten',
+  'soft-light': 'Soft Light',
+  'hard-light': 'Hard Light',
+};
 
 export function LayersPanel() {
   const layers = useEditorStore((s) => s.layers);
@@ -106,6 +139,9 @@ function LayerRow({
   onDelete,
   onDuplicate,
 }: LayerRowProps) {
+  const [expanded, setExpanded] = useState(true);
+  const adjustments = layer.adjustmentStack.adjustments;
+
   const handleContextAction = useCallback(
     (action: string) => {
       switch (action) {
@@ -125,30 +161,54 @@ function LayerRow({
           initial={{ opacity: 0, x: -8 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -8 }}
-          className={`flex items-center gap-1 px-2 py-1.5 cursor-pointer border-b border-separator
-            transition-colors text-xs
-            ${isActive ? 'bg-accent/10' : 'hover:bg-surface-secondary'}`}
-          onClick={onSelect}
         >
-          <GripVertical size={12} className="text-text-secondary/40 flex-shrink-0 cursor-grab" />
-
-          {/* Thumbnail */}
-          <LayerThumbnail layerId={layer.id} visible={layer.visible} />
-
-          <span
-            className={`flex-1 truncate ${
-              layer.visible ? 'text-text-primary' : 'text-text-secondary'
-            }`}
+          {/* Pixel layer row */}
+          <div
+            className={`flex items-center gap-1 px-2 py-1.5 cursor-pointer border-b border-separator
+              transition-colors text-xs
+              ${isActive ? 'bg-accent/10' : 'hover:bg-surface-secondary'}`}
+            onClick={onSelect}
           >
-            {layer.name}
-          </span>
+            {adjustments.length > 0 ? (
+              <button
+                onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+                className="p-0 text-text-secondary/40 flex-shrink-0"
+              >
+                <ChevronRight
+                  size={12}
+                  className={`transition-transform ${expanded ? 'rotate-90' : ''}`}
+                />
+              </button>
+            ) : (
+              <GripVertical size={12} className="text-text-secondary/40 flex-shrink-0 cursor-grab" />
+            )}
 
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}
-            className="p-0.5 rounded hover:bg-surface-secondary text-text-secondary flex-shrink-0"
-          >
-            {layer.visible ? <Eye size={12} /> : <EyeOff size={12} />}
-          </button>
+            <LayerThumbnail layerId={layer.id} visible={layer.visible} />
+
+            <span
+              className={`flex-1 truncate ${
+                layer.visible ? 'text-text-primary' : 'text-text-secondary'
+              }`}
+            >
+              {layer.name}
+            </span>
+
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}
+              className="p-0.5 rounded hover:bg-surface-secondary text-text-secondary flex-shrink-0"
+            >
+              {layer.visible ? <Eye size={12} /> : <EyeOff size={12} />}
+            </button>
+          </div>
+
+          {/* Adjustment layers (nested) */}
+          {isActive && expanded && adjustments.length > 0 && (
+            <div className="border-b border-separator">
+              {adjustments.map((adj) => (
+                <AdjustmentRow key={adj.id} layerId={layer.id} adjustment={adj} />
+              ))}
+            </div>
+          )}
         </motion.div>
       </ContextMenu.Trigger>
 
@@ -176,6 +236,94 @@ function LayerRow({
         </ContextMenu.Content>
       </ContextMenu.Portal>
     </ContextMenu.Root>
+  );
+}
+
+function AdjustmentRow({ layerId, adjustment }: { layerId: string; adjustment: Adjustment }) {
+  const updateMeta = useEditorStore((s) => s.updateAdjustmentMeta);
+  const removeAdj = useEditorStore((s) => s.removeAdjustment);
+
+  const Icon = ADJUSTMENT_ICONS[adjustment.type] ?? Sun;
+
+  const handleToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    updateMeta(layerId, adjustment.id, { enabled: !adjustment.enabled });
+  };
+
+  const handleRemove = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (adjustment.type === 'lut') {
+      LutRegistry.remove(adjustment.id);
+    }
+    removeAdj(layerId, adjustment.id);
+  };
+
+  const handleBlendChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    e.stopPropagation();
+    updateMeta(layerId, adjustment.id, { blendMode: e.target.value as BlendMode });
+  };
+
+  const handleOpacityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    updateMeta(layerId, adjustment.id, { opacity: parseFloat(e.target.value) });
+  };
+
+  return (
+    <div className="group">
+      <div
+        className={`flex items-center gap-1 pl-5 pr-2 py-1 text-[11px] transition-colors
+          ${adjustment.enabled ? 'text-text-primary' : 'text-text-secondary/50'}
+          hover:bg-surface-secondary/40`}
+      >
+        <Icon size={11} className="flex-shrink-0 text-text-secondary" />
+
+        <span className="flex-1 truncate">{adjustment.name}</span>
+
+        {adjustment.opacity < 1 && (
+          <span className="text-[9px] text-text-secondary tabular-nums">
+            {Math.round(adjustment.opacity * 100)}%
+          </span>
+        )}
+
+        <button
+          onClick={handleToggle}
+          className="p-0.5 rounded hover:bg-surface-secondary text-text-secondary flex-shrink-0"
+        >
+          {adjustment.enabled ? <Eye size={10} /> : <EyeOff size={10} />}
+        </button>
+
+        <button
+          onClick={handleRemove}
+          className="p-0.5 rounded hover:bg-surface-secondary text-text-secondary flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <Trash2 size={10} />
+        </button>
+      </div>
+
+      {/* Inline blend mode + opacity controls (only for non-normal or when interacting) */}
+      {(adjustment.blendMode !== 'normal' || adjustment.opacity < 1) && (
+        <div className="flex items-center gap-1 pl-5 pr-2 pb-1 text-[10px]" onClick={(e) => e.stopPropagation()}>
+          <select
+            value={adjustment.blendMode}
+            onChange={handleBlendChange}
+            className="bg-transparent text-text-secondary text-[10px] outline-none cursor-pointer"
+          >
+            {Object.entries(BLEND_MODE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={adjustment.opacity}
+            onChange={handleOpacityChange}
+            className="flex-1 h-1 accent-accent"
+          />
+        </div>
+      )}
+    </div>
   );
 }
 

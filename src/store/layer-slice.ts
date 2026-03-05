@@ -3,8 +3,12 @@ import type { StateCreator } from 'zustand';
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'soft-light' | 'hard-light';
 
 export interface Adjustment {
-  type: 'basic' | 'curves' | 'levels' | 'kelvin';
+  id: string;
+  type: 'basic' | 'curves' | 'levels' | 'kelvin' | 'lut';
+  name: string;
   enabled: boolean;
+  blendMode: BlendMode;
+  opacity: number;
   params: Record<string, number | Float32Array>;
 }
 
@@ -23,22 +27,49 @@ export interface Layer {
   adjustmentStack: AdjustmentStack;
 }
 
+const ADJUSTMENT_NAMES: Record<Adjustment['type'], string> = {
+  basic: 'Light & Color',
+  curves: 'Curves',
+  levels: 'Levels',
+  kelvin: 'White Balance',
+  lut: 'Filter',
+};
+
 export interface LayerSlice {
   layers: Layer[];
   activeLayerId: string | null;
+  pixelVersion: number;
 
   addLayer: (layer: Omit<Layer, 'order' | 'adjustmentStack'>) => void;
   removeLayer: (id: string) => void;
   setActiveLayer: (id: string | null) => void;
   updateLayer: (id: string, updates: Partial<Omit<Layer, 'id'>>) => void;
   reorderLayers: (fromIndex: number, toIndex: number) => void;
+
+  // Singleton adjustment (finds by type, creates if missing)
   setAdjustment: (layerId: string, type: Adjustment['type'], params: Partial<Adjustment['params']>) => void;
+  // Add a new adjustment layer (for LUTs and stackable adjustments)
+  addAdjustment: (layerId: string, adjustment: Adjustment) => void;
+  // Remove an adjustment layer by ID
+  removeAdjustment: (layerId: string, adjustmentId: string) => void;
+  // Update adjustment layer metadata by ID
+  updateAdjustmentMeta: (
+    layerId: string,
+    adjustmentId: string,
+    updates: Partial<Pick<Adjustment, 'blendMode' | 'opacity' | 'enabled' | 'name'>>,
+  ) => void;
+  // Toggle by type (for singleton adjustments)
   toggleAdjustment: (layerId: string, type: Adjustment['type'], enabled: boolean) => void;
+  // Reorder adjustment layers
+  reorderAdjustments: (layerId: string, fromIndex: number, toIndex: number) => void;
+
+  bumpPixelVersion: () => void;
 }
 
 export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never]], []> = (set) => ({
   layers: [],
   activeLayerId: null,
+  pixelVersion: 0,
 
   addLayer: (layer) =>
     set((state) => {
@@ -52,7 +83,6 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
       const index = state.layers.findIndex((l) => l.id === id);
       if (index === -1) return;
       state.layers.splice(index, 1);
-      // Re-index order
       state.layers.forEach((l, i) => {
         l.order = i;
       });
@@ -92,10 +122,41 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
         Object.assign(existing.params, params);
       } else {
         layer.adjustmentStack.adjustments.push({
+          id: crypto.randomUUID(),
           type,
+          name: ADJUSTMENT_NAMES[type],
           enabled: true,
+          blendMode: 'normal',
+          opacity: 1,
           params: { ...params } as Record<string, number | Float32Array>,
         });
+      }
+    }),
+
+  addAdjustment: (layerId, adjustment) =>
+    set((state) => {
+      const layer = state.layers.find((l) => l.id === layerId);
+      if (!layer) return;
+      layer.adjustmentStack.adjustments.push(adjustment);
+    }),
+
+  removeAdjustment: (layerId, adjustmentId) =>
+    set((state) => {
+      const layer = state.layers.find((l) => l.id === layerId);
+      if (!layer) return;
+      const idx = layer.adjustmentStack.adjustments.findIndex((a) => a.id === adjustmentId);
+      if (idx !== -1) {
+        layer.adjustmentStack.adjustments.splice(idx, 1);
+      }
+    }),
+
+  updateAdjustmentMeta: (layerId, adjustmentId, updates) =>
+    set((state) => {
+      const layer = state.layers.find((l) => l.id === layerId);
+      if (!layer) return;
+      const adj = layer.adjustmentStack.adjustments.find((a) => a.id === adjustmentId);
+      if (adj) {
+        Object.assign(adj, updates);
       }
     }),
 
@@ -107,5 +168,19 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
       if (adj) {
         adj.enabled = enabled;
       }
+    }),
+
+  reorderAdjustments: (layerId, fromIndex, toIndex) =>
+    set((state) => {
+      const layer = state.layers.find((l) => l.id === layerId);
+      if (!layer) return;
+      const arr = layer.adjustmentStack.adjustments;
+      const [moved] = arr.splice(fromIndex, 1);
+      arr.splice(toIndex, 0, moved);
+    }),
+
+  bumpPixelVersion: () =>
+    set((state) => {
+      state.pixelVersion += 1;
     }),
 });

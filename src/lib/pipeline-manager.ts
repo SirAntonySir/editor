@@ -9,6 +9,7 @@ class PipelineManagerImpl {
   private pendingRender = false;
   private onRender: ((canvas: HTMLCanvasElement) => void) | null = null;
   private currentAdjustments: Adjustment[] = [];
+  private listeners = new Set<(canvas: HTMLCanvasElement) => void>();
 
   private getPipeline(): WebGLPipeline {
     if (!this.pipeline) {
@@ -55,7 +56,13 @@ class PipelineManagerImpl {
     }
     const output = pipeline.render(this.currentAdjustments);
     this.onRender?.(output);
+    for (const cb of this.listeners) cb(output);
     return output;
+  }
+
+  subscribe(cb: (canvas: HTMLCanvasElement) => void): () => void {
+    this.listeners.add(cb);
+    return () => { this.listeners.delete(cb); };
   }
 
   dispose(): void {

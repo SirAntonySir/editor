@@ -1,5 +1,4 @@
-import { CanvasRegistry } from './canvas-registry';
-import { PipelineManager } from './pipeline-manager';
+import { LayerCompositor } from './layer-compositor';
 import { useEditorStore } from '@/store';
 
 export type ExportFormat = 'png' | 'jpeg' | 'webp';
@@ -7,27 +6,25 @@ export type ExportFormat = 'png' | 'jpeg' | 'webp';
 interface ExportOptions {
   format: ExportFormat;
   quality: number; // 0..1
-  layerId?: string;
+  layerId?: string; // Export a single layer, or all visible layers if omitted
 }
 
 export async function exportImage(options: ExportOptions): Promise<Blob | null> {
   const { format, quality, layerId } = options;
   const state = useEditorStore.getState();
-  const targetLayerId = layerId ?? state.activeLayerId;
-  if (!targetLayerId) return null;
 
-  const layer = state.layers.find((l) => l.id === targetLayerId);
-  if (!layer) return null;
-
-  // Render through pipeline at full resolution
-  const adjustments = layer.adjustmentStack.adjustments;
   let sourceCanvas: HTMLCanvasElement | OffscreenCanvas | undefined;
 
-  if (adjustments.length > 0) {
-    sourceCanvas = PipelineManager.renderSync(adjustments);
+  if (layerId) {
+    // Export a single specific layer through its adjustments
+    const layer = state.layers.find((l) => l.id === layerId);
+    if (!layer) return null;
+    sourceCanvas = LayerCompositor.renderLayer(layer) ?? undefined;
   } else {
-    sourceCanvas = CanvasRegistry.get(targetLayerId);
+    // Export all visible layers composited
+    sourceCanvas = LayerCompositor.compositeSync();
   }
+
   if (!sourceCanvas) return null;
 
   // Convert to blob

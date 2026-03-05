@@ -1,4 +1,4 @@
-import type { ToolDefinition } from '@/types/tool';
+import type { ToolDefinition, EditorMode } from '@/types/tool';
 
 class ToolRegistryImpl {
   private tools = new Map<string, ToolDefinition>();
@@ -14,6 +14,14 @@ class ToolRegistryImpl {
 
   getAll(): ToolDefinition[] {
     return Array.from(this.tools.values());
+  }
+
+  /** Get tools available in the given editor mode. */
+  getForMode(mode: EditorMode): ToolDefinition[] {
+    return this.getAll().filter((t) => {
+      if (!t.modes) return true; // available in all modes by default
+      return t.modes.includes(mode);
+    });
   }
 
   getByCategory(category: ToolDefinition['category']): ToolDefinition[] {

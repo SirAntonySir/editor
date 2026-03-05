@@ -1,4 +1,6 @@
+import { useRef } from 'react';
 import * as Slider from '@radix-ui/react-slider';
+import { useEditorStore } from '@/store';
 
 interface AdjustmentSliderProps {
   label: string;
@@ -20,6 +22,23 @@ export function AdjustmentSlider({
   formatValue,
 }: AdjustmentSliderProps) {
   const display = formatValue ? formatValue(value) : String(Math.round(value));
+  const dragging = useRef(false);
+
+  const handleValueChange = ([v]: number[]) => {
+    if (!dragging.current) {
+      dragging.current = true;
+      useEditorStore.temporal.getState().pause();
+    }
+    onChange(v);
+  };
+
+  const handleValueCommit = ([v]: number[]) => {
+    dragging.current = false;
+    const temporal = useEditorStore.temporal.getState();
+    temporal.resume();
+    // Trigger one final write so zundo captures the committed value
+    onChange(v);
+  };
 
   return (
     <div className="flex flex-col gap-1">
@@ -33,7 +52,8 @@ export function AdjustmentSlider({
         min={min}
         max={max}
         step={step}
-        onValueChange={([v]) => onChange(v)}
+        onValueChange={handleValueChange}
+        onValueCommit={handleValueCommit}
       >
         <Slider.Track className="relative h-[3px] grow rounded-full bg-separator">
           <Slider.Range className="absolute h-full rounded-full bg-accent" />

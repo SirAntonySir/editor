@@ -119,6 +119,7 @@ export const BrushTool: ToolDefinition = {
   label: 'Brush',
   icon: Paintbrush,
   category: 'draw',
+  modes: ['compose'],
   shortcut: 'P',
   cursor: 'crosshair',
   OptionsPanel: BrushPanel,

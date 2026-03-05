@@ -1,8 +1,9 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, Plus, Trash2, GripVertical } from 'lucide-react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useEditorStore } from '@/store';
+import { CanvasRegistry } from '@/lib/canvas-registry';
 import type { Layer } from '@/store/layer-slice';
 
 export function LayersPanel() {
@@ -131,11 +132,8 @@ function LayerRow({
         >
           <GripVertical size={12} className="text-text-secondary/40 flex-shrink-0 cursor-grab" />
 
-          {/* Thumbnail placeholder */}
-          <div
-            className={`w-6 h-6 rounded-sm border flex-shrink-0
-              ${layer.visible ? 'border-separator bg-surface-secondary' : 'border-separator/50 bg-surface-secondary/50'}`}
-          />
+          {/* Thumbnail */}
+          <LayerThumbnail layerId={layer.id} visible={layer.visible} />
 
           <span
             className={`flex-1 truncate ${
@@ -178,5 +176,42 @@ function LayerRow({
         </ContextMenu.Content>
       </ContextMenu.Portal>
     </ContextMenu.Root>
+  );
+}
+
+function LayerThumbnail({ layerId, visible }: { layerId: string; visible: boolean }) {
+  const [src, setSrc] = useState<string>('');
+
+  useEffect(() => {
+    const working = CanvasRegistry.get(layerId);
+    if (!working) return;
+
+    const thumbW = 24;
+    const thumbH = Math.round((working.height / working.width) * thumbW) || 24;
+    const tmp = document.createElement('canvas');
+    tmp.width = thumbW;
+    tmp.height = thumbH;
+    const ctx = tmp.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(working, 0, 0, thumbW, thumbH);
+    setSrc(tmp.toDataURL());
+  }, [layerId]);
+
+  if (!src) {
+    return (
+      <div
+        className={`w-6 h-6 rounded-sm border flex-shrink-0
+          ${visible ? 'border-separator bg-surface-secondary' : 'border-separator/50 bg-surface-secondary/50'}`}
+      />
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt=""
+      className={`w-6 h-6 rounded-sm border flex-shrink-0 object-cover
+        ${visible ? 'border-separator' : 'border-separator/50 opacity-50'}`}
+    />
   );
 }

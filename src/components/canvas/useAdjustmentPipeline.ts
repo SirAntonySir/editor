@@ -2,16 +2,29 @@ import { useEffect, useRef } from 'react';
 import type * as fabric from 'fabric';
 import { useEditorStore } from '@/store';
 import { PipelineManager } from '@/lib/pipeline-manager';
+import { LayerCompositor } from '@/lib/layer-compositor';
 import type { Adjustment } from '@/store/layer-slice';
 
-export function useAdjustmentPipeline(canvasRef: React.MutableRefObject<fabric.Canvas | null>) {
-  const prevRef = useRef<{ layerId: string | null; adjustments: Adjustment[] | undefined }>({
+/**
+ * Connects the Zustand store to the WebGL pipeline and layer compositor.
+ * - Develop mode: renders the active layer through adjustments, updates Fabric image.
+ * - Compose mode: composites all visible layers (each through its own adjustments), updates Fabric image.
+ */
+export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas | null>) {
+  const prevRef = useRef<{
+    mode: string;
+    layerId: string | null;
+    adjustments: Adjustment[] | undefined;
+    layerHash: string;
+  }>({
+    mode: '',
     layerId: null,
     adjustments: undefined,
+    layerHash: '',
   });
 
   useEffect(() => {
-    PipelineManager.setRenderCallback((outputCanvas) => {
+    const updateFabricImage = (outputCanvas: HTMLCanvasElement) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
 
@@ -30,26 +43,71 @@ export function useAdjustmentPipeline(canvasRef: React.MutableRefObject<fabric.C
 
       fabricImg.setElement(tempCanvas);
       canvas.requestRenderAll();
-    });
+    };
+
+    // Set callbacks
+    PipelineManager.setRenderCallback(updateFabricImage);
+    LayerCompositor.setCompositeCallback(updateFabricImage);
 
     const unsubscribe = useEditorStore.subscribe((state) => {
-      const { activeLayerId } = state;
-      const layer = state.layers.find((l) => l.id === activeLayerId);
-      const adjustments = layer?.adjustmentStack.adjustments;
+      const { activeLayerId, editorMode, layers } = state;
 
-      // Skip if nothing changed
-      if (
-        prevRef.current.layerId === activeLayerId &&
-        prevRef.current.adjustments === adjustments
-      ) {
-        return;
+      if (editorMode === 'develop') {
+        // Develop mode: render only the active layer through its adjustment pipeline
+        const layer = layers.find((l) => l.id === activeLayerId);
+        const adjustments = layer?.adjustmentStack.adjustments;
+
+        if (
+          prevRef.current.mode === editorMode &&
+          prevRef.current.layerId === activeLayerId &&
+          prevRef.current.adjustments === adjustments
+        ) {
+          return;
+        }
+        prevRef.current = {
+          mode: editorMode,
+          layerId: activeLayerId,
+          adjustments,
+          layerHash: '',
+        };
+
+        if (!activeLayerId) return;
+
+        if (!adjustments || adjustments.length === 0) {
+          // No adjustments — show working canvas directly
+          LayerCompositor.requestComposite();
+          return;
+        }
+
+        PipelineManager.setSource(activeLayerId);
+        PipelineManager.requestRender([...adjustments]);
+      } else {
+        // Compose mode: composite all visible layers
+        // Build a hash of layer states to detect changes
+        const visibleLayers = layers.filter((l) => l.visible);
+        const layerHash = visibleLayers
+          .map((l) => `${l.id}:${l.opacity}:${l.blendMode}:${l.order}:${l.adjustmentStack.adjustments.length}`)
+          .join('|');
+
+        // Also check individual adjustment params by reference
+        const activeAdj = layers.find((l) => l.id === activeLayerId)?.adjustmentStack.adjustments;
+
+        if (
+          prevRef.current.mode === editorMode &&
+          prevRef.current.layerHash === layerHash &&
+          prevRef.current.adjustments === activeAdj
+        ) {
+          return;
+        }
+        prevRef.current = {
+          mode: editorMode,
+          layerId: activeLayerId,
+          adjustments: activeAdj,
+          layerHash,
+        };
+
+        LayerCompositor.requestComposite();
       }
-      prevRef.current = { layerId: activeLayerId, adjustments };
-
-      if (!activeLayerId || !adjustments || adjustments.length === 0) return;
-
-      PipelineManager.setSource(activeLayerId);
-      PipelineManager.requestRender([...adjustments]);
     });
 
     return () => {

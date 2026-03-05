@@ -102,6 +102,7 @@ export const TextTool: ToolDefinition = {
   label: 'Text',
   icon: Type,
   category: 'draw',
+  modes: ['compose'],
   shortcut: 'T',
   cursor: 'text',
   OptionsPanel: TextPanel,

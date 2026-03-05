@@ -14,16 +14,32 @@ interface ShortcutEntry {
 function buildShortcuts(): ShortcutEntry[] {
   const shortcuts: ShortcutEntry[] = [];
 
-  // Tool shortcuts from registry
+  // Tool shortcuts from registry (only for tools available in current mode)
   for (const tool of ToolRegistry.getAll()) {
     if (tool.shortcut) {
       shortcuts.push({
         key: tool.shortcut.toLowerCase(),
-        action: () => useEditorStore.getState().setActiveTool(tool.name),
+        action: () => {
+          const state = useEditorStore.getState();
+          // Only activate if tool is available in current mode
+          if (!tool.modes || tool.modes.includes(state.editorMode)) {
+            state.setActiveTool(tool.name);
+          }
+        },
         label: tool.label,
       });
     }
   }
+
+  // Mode toggle: Tab to switch between develop/compose
+  shortcuts.push({
+    key: 'tab',
+    action: () => {
+      const state = useEditorStore.getState();
+      state.setEditorMode(state.editorMode === 'develop' ? 'compose' : 'develop');
+    },
+    label: 'Toggle Mode',
+  });
 
   // Global shortcuts
   shortcuts.push({

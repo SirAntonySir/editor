@@ -3,6 +3,7 @@ import * as fabric from 'fabric';
 import { useEditorStore } from '@/store';
 import { useEditor } from '@/components/EditorProvider';
 import { ToolRegistry } from '@/lib/tool-registry';
+import { CanvasRegistry } from '@/lib/canvas-registry';
 import { useAdjustmentPipeline } from './useAdjustmentPipeline';
 
 interface EditorCanvasProps {
@@ -271,8 +272,7 @@ export async function loadImageToCanvas(file: File, canvas: fabric.Canvas | null
     locked: false,
   });
 
-  // Register pixel data
-  const { CanvasRegistry } = await import('@/lib/canvas-registry');
+  // Register pixel data (creates source + working copies)
   CanvasRegistry.register(layerId, offscreen);
 
   bitmap.close();

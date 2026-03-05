@@ -1,8 +1,9 @@
 import type { ComponentType, RefObject } from 'react';
 import type * as fabric from 'fabric';
 import type { EditorState } from '@/store';
+import type { EditorMode } from '@/store/tool-slice';
 
-export type { EditorState };
+export type { EditorState, EditorMode };
 
 export interface CanvasPointerEvent {
   x: number;
@@ -43,6 +44,8 @@ export interface ToolDefinition<TConfig = unknown> {
   label: string;
   icon: ComponentType<{ size?: number }>;
   category: 'select' | 'draw' | 'adjust' | 'filter' | 'ai' | 'transform';
+  /** Which editor modes this tool is available in. Defaults to both. */
+  modes?: EditorMode[];
   shortcut?: string;
   cursor?: string;
   defaultConfig?: TConfig;

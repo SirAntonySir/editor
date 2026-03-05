@@ -15,7 +15,8 @@ export function Toolbar() {
   const { registry } = useEditor();
   const activeTool = useEditorStore((s) => s.activeTool);
   const setActiveTool = useEditorStore((s) => s.setActiveTool);
-  const tools = registry.getAll();
+  const editorMode = useEditorStore((s) => s.editorMode);
+  const tools = registry.getForMode(editorMode);
 
   const grouped = useMemo(() => {
     const groups: { category: string; tools: ToolDefinition[] }[] = [];

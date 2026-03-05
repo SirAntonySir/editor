@@ -7,6 +7,7 @@ import { useStore } from 'zustand';
 import { Undo2, Redo2, SlidersHorizontal, Layers, Sparkles, RotateCcw } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { useEditorStore } from '@/store';
+import { usePreferencesStore } from '@/store/preferences-store';
 import { loadImageToCanvas } from '@/components/canvas/EditorCanvas';
 import { exportImage, saveAs } from '@/lib/export';
 import { ToolRegistry } from '@/lib/tool-registry';
@@ -224,6 +225,7 @@ function EditMenu() {
   const undo = useCallback(() => useEditorStore.temporal.getState().undo(), []);
   const redo = useCallback(() => useEditorStore.temporal.getState().redo(), []);
   const hasLayers = useEditorStore((s) => s.layers.length > 0);
+  const openPreferences = useCallback(() => usePreferencesStore.getState().setShowPreferences(true), []);
 
   return (
     <Menubar.Menu>
@@ -256,6 +258,10 @@ function EditMenu() {
           </Item>
           <Item keys={['mod', 'D']} disabled>
             Deselect
+          </Item>
+          <Sep />
+          <Item keys={['mod', ',']} onSelect={openPreferences}>
+            Preferences...
           </Item>
         </Menubar.Content>
       </Menubar.Portal>

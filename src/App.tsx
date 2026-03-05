@@ -9,9 +9,11 @@ import { MenuBar } from '@/components/toolbar/MenuBar';
 import { InspectorPanel } from '@/components/inspector/InspectorPanel';
 import { LayersPanel } from '@/components/panels/LayersPanel';
 import { HistoryPanel } from '@/components/panels/HistoryPanel';
+import { PreferencesPage } from '@/components/PreferencesPage';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { useEditorStore } from '@/store';
+import { usePreferencesStore, applyPreferences } from '@/store/preferences-store';
 import { SelectTool } from '@/tools/select-tool';
 import { CropTool } from '@/tools/crop-tool';
 import { LightTool } from '@/tools/light-tool';
@@ -50,6 +52,7 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
   const editorMode = useEditorStore((s) => s.editorMode);
   const showHistoryPanel = useEditorStore((s) => s.showHistoryPanel);
   const layers = useEditorStore((s) => s.layers);
+  const showPreferences = usePreferencesStore((s) => s.showPreferences);
   const toolDef = getActiveTool();
 
   const handleFileOpen = useCallback(() => {
@@ -143,6 +146,11 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
         </>
       )}
       </div>{/* end main canvas area */}
+
+      {/* Preferences overlay */}
+      <AnimatePresence>
+        {showPreferences && <PreferencesPage />}
+      </AnimatePresence>
     </div>
   );
 }
@@ -151,6 +159,9 @@ function ZoomDisplay() {
   const zoom = useEditorStore((s) => s.zoom);
   return <span>{Math.round(zoom * 100)}%</span>;
 }
+
+// Apply persisted preferences on initial load
+applyPreferences(usePreferencesStore.getState());
 
 export default function App() {
   const canvasRef = useRef<fabric.Canvas | null>(null);

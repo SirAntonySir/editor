@@ -1,5 +1,6 @@
 import { ToolRegistry } from './tool-registry';
 import { useEditorStore } from '@/store';
+import { usePreferencesStore } from '@/store/preferences-store';
 import { revertToOriginal } from '@/lib/revert';
 
 const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent);
@@ -65,6 +66,16 @@ function buildShortcuts(): ShortcutEntry[] {
     shift: true,
     action: () => revertToOriginal(),
     label: 'Revert to Original',
+  });
+
+  shortcuts.push({
+    key: ',',
+    ctrl: true,
+    action: () => {
+      const prefs = usePreferencesStore.getState();
+      prefs.setShowPreferences(!prefs.showPreferences);
+    },
+    label: 'Preferences',
   });
 
   return shortcuts;

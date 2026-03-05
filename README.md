@@ -1,73 +1,94 @@
-# React + TypeScript + Vite
+# Photo Editor
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A high-fidelity, browser-based photo editor built with React, Fabric.js, and a custom WebGL shader pipeline. Features non-destructive editing, multi-layer compositing, and an extensible tool system.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+| Layer | Technology |
+|---|---|
+| Framework | React 19 + Vite + TypeScript (strict) |
+| Canvas | Fabric.js v7 |
+| Filters | Custom WebGL shaders (ping-pong framebuffers) |
+| State | Zustand v5 + Immer + zundo (undo/redo) |
+| UI | shadcn/ui, Radix UI, Tailwind CSS, Framer Motion, Floating UI |
+| Icons | Lucide React |
+| Cropping | react-advanced-cropper |
 
-## React Compiler
+## Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+# Install dependencies
+npm install
 
-## Expanding the ESLint configuration
+# Start dev server
+npm run dev
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+# Type-check
+npx tsc --noEmit
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+# Lint
+npm run lint
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+# Production build
+npm run build
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Preview production build
+npm run preview
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Project Structure
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+src/
+  components/           # React UI
+    canvas/             #   EditorCanvas, CropOverlay, adjustment pipeline
+    inspector/          #   Adjustment sliders, tool options
+    panels/             #   Layers panel
+    toolbar/            #   Main toolbar
+    ui/                 #   shadcn/ui primitives
+  tools/                # Self-contained ToolDefinition objects
+    select-tool.ts      #   Selection / move
+    brush-tool.tsx      #   Freehand drawing (pressure-sensitive)
+    text-tool.tsx       #   Editable, movable text layers
+    crop-tool.tsx       #   Crop with aspect ratio presets
+    light-tool.tsx      #   Exposure, contrast, highlights, shadows
+    color-tool.tsx      #   Saturation, vibrance
+    kelvin-tool.tsx     #   White balance (temperature + tint)
+    curves-tool.tsx     #   RGB curves
+    levels-tool.tsx     #   Levels with live histogram
+    filters-tool.tsx    #   LUT-based colour grading
+  store/                # Zustand slices
+    layer-slice.ts      #   Layers, adjustments, text metadata
+    tool-slice.ts       #   Active tool, editor mode
+    viewport-slice.ts   #   Zoom, pan, canvas dimensions
+  shaders/              # GLSL shader sources (as TS template literals)
+  lib/                  # Core utilities
+    canvas-registry.ts  #   Pixel data store (source + working canvases)
+    layer-compositor.ts #   Multi-layer compositing with blend modes
+    pipeline-manager.ts #   WebGL render pipeline orchestration
+    tool-registry.ts    #   Tool registration and lookup
+    lut-registry.ts     #   LUT filter management
+    lut-parser.ts       #   .cube LUT file parser
+  types/                # Shared TypeScript interfaces
+```
+
+## Architecture
+
+- **Non-destructive editing** — adjustments are stored as metadata on each layer, not as pixel mutations. The original pixels are always preserved.
+- **CanvasRegistry** — pixel data (OffscreenCanvas pairs: source + working) lives outside Zustand to avoid serialisation overhead.
+- **Tool Registry** — tools are self-contained `ToolDefinition` objects registered at startup. Adding a tool requires no changes to existing code (Open/Closed Principle).
+- **WebGL pipeline** — shaders are chained via ping-pong framebuffers. Each layer's adjustment stack is rendered independently, then composited with 2D Canvas blend modes.
+- **Layer compositing** — layers are sorted by order, each rendered through its own adjustment pipeline, then drawn onto a shared output canvas with per-layer opacity and blend mode.
+
+## Branch Strategy
+
+| Branch | Purpose |
+|---|---|
+| `main` | Stable, production-ready code |
+| `dev` | Active development |
+| `testing` | QA and integration testing |
+| `staging` | Pre-production validation |
+
+## License
+
+Private — all rights reserved.

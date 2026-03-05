@@ -253,8 +253,8 @@ export async function loadImageToCanvas(file: File, canvas: fabric.Canvas | null
   img.set({
     scaleX: scale,
     scaleY: scale,
-    left: (canvasWidth - bitmap.width * scale) / 2,
-    top: (canvasHeight - bitmap.height * scale) / 2,
+    left: canvasWidth / 2,
+    top: canvasHeight / 2,
   });
 
   canvas.add(img);

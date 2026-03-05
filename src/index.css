@@ -86,6 +86,11 @@ html, body, #root {
   border-radius: var(--radius-panel);
 }
 
+/* react-advanced-cropper theme overrides */
+.cropper-themed.advanced-cropper {
+  background: var(--color-canvas-bg);
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

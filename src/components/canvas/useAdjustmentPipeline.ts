@@ -41,7 +41,26 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
       if (!ctx) return;
       ctx.drawImage(outputCanvas, 0, 0);
 
+      // Check if dimensions changed (e.g. after crop)
+      const oldW = fabricImg.width;
+      const oldH = fabricImg.height;
+
       fabricImg.setElement(tempCanvas);
+
+      // If the source dimensions changed, re-fit and center
+      if (fabricImg.width !== oldW || fabricImg.height !== oldH) {
+        const canvasW = canvas.getWidth();
+        const canvasH = canvas.getHeight();
+        const scale = Math.min(canvasW / fabricImg.width, canvasH / fabricImg.height) * 0.9;
+        fabricImg.set({
+          scaleX: scale,
+          scaleY: scale,
+          left: canvasW / 2,
+          top: canvasH / 2,
+        });
+        fabricImg.setCoords();
+      }
+
       canvas.requestRenderAll();
     };
 

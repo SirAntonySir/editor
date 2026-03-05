@@ -1,5 +1,5 @@
 import { useRef, useCallback, useMemo, useState } from 'react';
-import { Cropper, type CropperRef } from 'react-advanced-cropper';
+import { Cropper, type CropperRef, ImageRestriction } from 'react-advanced-cropper';
 import 'react-advanced-cropper/dist/style.css';
 import * as fabric from 'fabric';
 import {
@@ -24,9 +24,6 @@ const ASPECT_RATIOS = [
 
 const btnClass =
   'flex items-center justify-center w-7 h-7 rounded-[var(--radius-button)] text-text-secondary hover:text-text-primary hover:bg-surface-secondary/60 transition-colors cursor-default';
-
-const activeBtnClass =
-  'flex items-center justify-center w-7 h-7 rounded-[var(--radius-button)] bg-accent text-white cursor-default';
 
 export function CropOverlay({ ctx }: CanvasOverlayProps) {
   const cropperRef = useRef<CropperRef | null>(null);
@@ -60,7 +57,6 @@ export function CropOverlay({ ctx }: CanvasOverlayProps) {
     const canvas = ctx.canvasRef.current;
     if (!canvas) return;
 
-    // getCanvas returns a pre-rendered HTMLCanvasElement with crop + transforms applied
     const resultCanvas = cropper.getCanvas();
     if (!resultCanvas) return;
 
@@ -70,14 +66,12 @@ export function CropOverlay({ ctx }: CanvasOverlayProps) {
     const cropW = resultCanvas.width;
     const cropH = resultCanvas.height;
 
-    // Update CanvasRegistry
     const croppedOffscreen = new OffscreenCanvas(cropW, cropH);
     const croppedCtx = croppedOffscreen.getContext('2d');
     if (!croppedCtx) return;
     croppedCtx.drawImage(resultCanvas, 0, 0);
     CanvasRegistry.replaceSource(activeLayerId, croppedOffscreen);
 
-    // Replace the Fabric image
     const canvasWidth = canvas.getWidth();
     const canvasHeight = canvas.getHeight();
     const scale = Math.min(canvasWidth / cropW, canvasHeight / cropH) * 0.9;
@@ -86,8 +80,8 @@ export function CropOverlay({ ctx }: CanvasOverlayProps) {
     const newImg = new fabric.FabricImage(resultCanvas, {
       scaleX: scale,
       scaleY: scale,
-      left: (canvasWidth - cropW * scale) / 2,
-      top: (canvasHeight - cropH * scale) / 2,
+      left: canvasWidth / 2,
+      top: canvasHeight / 2,
     });
     canvas.add(newImg);
     canvas.renderAll();
@@ -104,11 +98,13 @@ export function CropOverlay({ ctx }: CanvasOverlayProps) {
   return (
     <div className="absolute inset-0 z-10 flex flex-col bg-canvas-bg">
       {/* Cropper */}
-      <div className="flex-1 min-h-0 relative">
+      <div className="flex-1 min-h-0">
         <Cropper
           ref={cropperRef}
           src={src}
-          className="h-full w-full"
+          className="h-full w-full cropper-themed"
+          backgroundClassName="cropper-themed"
+          imageRestriction={ImageRestriction.stencil}
           stencilProps={{
             aspectRatio: aspectRatio || undefined,
             grid: true,
@@ -116,61 +112,61 @@ export function CropOverlay({ ctx }: CanvasOverlayProps) {
         />
       </div>
 
-      {/* Bottom toolbar */}
-      <div className="flex-none flex items-center justify-center gap-3 py-2 px-4">
-        {/* Aspect ratio pills */}
-        <div className="flex items-center gap-0.5">
-          {ASPECT_RATIOS.map((r) => (
-            <button
-              key={r.label}
-              onClick={() => setAspectRatio(r.value)}
-              className={`px-2 py-0.5 text-[11px] rounded-[var(--radius-button)] transition-colors cursor-default
-                ${aspectRatio === r.value
-                  ? 'bg-accent text-white'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-secondary/60'
-                }`}
-            >
-              {r.label}
+      {/* Floating HUD toolbar */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+        <div className="glass-panel flex items-center gap-3 px-3 py-1.5">
+          {/* Aspect ratio pills */}
+          <div className="flex items-center gap-0.5">
+            {ASPECT_RATIOS.map((r) => (
+              <button
+                key={r.label}
+                onClick={() => setAspectRatio(r.value)}
+                className={`px-2 py-0.5 text-[11px] rounded-[var(--radius-button)] transition-colors cursor-default
+                  ${aspectRatio === r.value
+                    ? 'bg-accent text-white'
+                    : 'text-text-secondary hover:text-text-primary hover:bg-surface-secondary/60'
+                  }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="w-px h-5 bg-separator" />
+
+          {/* Rotate / Flip */}
+          <div className="flex items-center gap-0.5">
+            <button onClick={() => handleRotate(-90)} className={btnClass} title="Rotate left">
+              <RotateCcw size={15} />
             </button>
-          ))}
+            <button onClick={() => handleRotate(90)} className={btnClass} title="Rotate right">
+              <RotateCw size={15} />
+            </button>
+            <button onClick={() => handleFlip(true, false)} className={btnClass} title="Flip horizontal">
+              <FlipHorizontal2 size={15} />
+            </button>
+            <button onClick={() => handleFlip(false, true)} className={btnClass} title="Flip vertical">
+              <FlipVertical2 size={15} />
+            </button>
+          </div>
+
+          <div className="w-px h-5 bg-separator" />
+
+          {/* Cancel / Apply */}
+          <button
+            onClick={handleCancel}
+            className="px-3 py-0.5 text-[11px] text-text-secondary hover:text-text-primary transition-colors cursor-default"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleApply}
+            className="bg-accent text-white px-3 py-0.5 text-[11px] hover:bg-accent-hover transition-colors cursor-default"
+            style={{ borderRadius: 'var(--radius-button)' }}
+          >
+            Apply
+          </button>
         </div>
-
-        {/* Separator */}
-        <div className="w-px h-5 bg-separator" />
-
-        {/* Rotate / Flip */}
-        <div className="flex items-center gap-0.5">
-          <button onClick={() => handleRotate(-90)} className={btnClass} title="Rotate left">
-            <RotateCcw size={15} />
-          </button>
-          <button onClick={() => handleRotate(90)} className={btnClass} title="Rotate right">
-            <RotateCw size={15} />
-          </button>
-          <button onClick={() => handleFlip(true, false)} className={btnClass} title="Flip horizontal">
-            <FlipHorizontal2 size={15} />
-          </button>
-          <button onClick={() => handleFlip(false, true)} className={btnClass} title="Flip vertical">
-            <FlipVertical2 size={15} />
-          </button>
-        </div>
-
-        {/* Separator */}
-        <div className="w-px h-5 bg-separator" />
-
-        {/* Cancel / Apply */}
-        <button
-          onClick={handleCancel}
-          className="glass-panel px-3 py-1 text-[11px] text-text-primary hover:bg-surface-secondary transition-colors cursor-default"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleApply}
-          className="bg-accent text-white px-3 py-1 text-[11px] hover:bg-accent-hover transition-colors cursor-default"
-          style={{ borderRadius: 'var(--radius-button)' }}
-        >
-          Apply
-        </button>
       </div>
     </div>
   );

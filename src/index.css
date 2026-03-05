@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+/* Apple HIG Font Stack */
+@theme {
+  /* 8pt spacing grid */
+  --spacing: 8px;
+
+  /* Color tokens - light mode defaults */
+  --color-glass-bg: rgba(255, 255, 255, 0.72);
+  --color-glass-border: rgba(0, 0, 0, 0.12);
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f5f5f7;
+  --color-text-primary: #1d1d1f;
+  --color-text-secondary: #6e6e73;
+  --color-accent: #0071e3;
+  --color-accent-hover: #0077ed;
+  --color-separator: rgba(0, 0, 0, 0.1);
+  --color-canvas-bg: #e8e8ed;
+
+  /* Corner radius tokens */
+  --radius-panel: 12px;
+  --radius-button: 8px;
+  --radius-sm: 6px;
+
+  /* Shadows - Apple-style multi-layer */
+  --shadow-panel: 0 2px 8px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.05);
+  --shadow-button: 0 1px 3px rgba(0, 0, 0, 0.08), 0 0 0 0.5px rgba(0, 0, 0, 0.05);
+
+  /* Animation tokens */
+  --ease-apple: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+
+  /* Font family */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+}
+
+/* Dark mode color overrides */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-glass-bg: rgba(30, 30, 30, 0.72);
+    --color-glass-border: rgba(255, 255, 255, 0.12);
+    --color-surface: #1c1c1e;
+    --color-surface-secondary: #2c2c2e;
+    --color-text-primary: #f5f5f7;
+    --color-text-secondary: #98989d;
+    --color-separator: rgba(255, 255, 255, 0.1);
+    --color-canvas-bg: #1a1a1a;
+  }
+}
+
+[data-theme="dark"] {
+  --color-glass-bg: rgba(30, 30, 30, 0.72);
+  --color-glass-border: rgba(255, 255, 255, 0.12);
+  --color-surface: #1c1c1e;
+  --color-surface-secondary: #2c2c2e;
+  --color-text-primary: #f5f5f7;
+  --color-text-secondary: #98989d;
+  --color-separator: rgba(255, 255, 255, 0.1);
+  --color-canvas-bg: #1a1a1a;
+}
+
+/* Base styles */
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
+  background: var(--color-canvas-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Glass panel utility */
+.glass-panel {
+  background: var(--color-glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 0.5px solid var(--color-glass-border);
+  box-shadow: var(--shadow-panel);
+  border-radius: var(--radius-panel);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

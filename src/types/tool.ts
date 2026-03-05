@@ -1,0 +1,63 @@
+import type { ComponentType, RefObject } from 'react';
+import type * as fabric from 'fabric';
+import type { EditorState } from '@/store';
+
+export type { EditorState };
+
+export interface CanvasPointerEvent {
+  x: number;
+  y: number;
+  rawEvent: PointerEvent;
+  fabricEvent?: fabric.TPointerEventInfo;
+}
+
+export interface ToolContext {
+  canvasRef: RefObject<fabric.Canvas | null>;
+  getState: () => EditorState;
+  setState: (partial: Partial<EditorState> | ((state: EditorState) => void)) => void;
+  dispatchCommand: (toolName: string, commandName: string, payload?: unknown) => void;
+}
+
+export interface ToolOptionsPanelProps<TConfig = unknown> {
+  config: TConfig;
+  onConfigChange: (config: Partial<TConfig>) => void;
+  ctx: ToolContext;
+}
+
+export interface CanvasOverlayProps {
+  ctx: ToolContext;
+}
+
+export interface ToolModalProps {
+  ctx: ToolContext;
+  onClose: () => void;
+}
+
+export interface EditorCommand<TState = EditorState> {
+  execute: (state: TState, payload?: unknown) => { newState: Partial<TState>; undoData?: unknown };
+  undo: (state: TState, undoData: unknown) => Partial<TState>;
+}
+
+export interface ToolDefinition<TConfig = unknown> {
+  name: string;
+  label: string;
+  icon: ComponentType<{ size?: number }>;
+  category: 'select' | 'draw' | 'adjust' | 'filter' | 'ai' | 'transform';
+  shortcut?: string;
+  cursor?: string;
+  defaultConfig?: TConfig;
+
+  OptionsPanel?: ComponentType<ToolOptionsPanelProps<TConfig>>;
+  CanvasOverlay?: ComponentType<CanvasOverlayProps>;
+  Modal?: ComponentType<ToolModalProps>;
+  ToolbarExtras?: ComponentType;
+
+  onActivate?: (ctx: ToolContext) => void | (() => void);
+  onDeactivate?: (ctx: ToolContext) => void;
+
+  onPointerDown?: (e: CanvasPointerEvent, ctx: ToolContext) => void;
+  onPointerMove?: (e: CanvasPointerEvent, ctx: ToolContext) => void;
+  onPointerUp?: (e: CanvasPointerEvent, ctx: ToolContext) => void;
+
+  commands?: Record<string, EditorCommand>;
+}

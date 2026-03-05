@@ -7,7 +7,6 @@ import {
   Trash2,
   GripVertical,
   Sun,
-  Palette,
   Spline,
   SlidersHorizontal,
   Thermometer,

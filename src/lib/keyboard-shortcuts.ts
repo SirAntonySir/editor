@@ -32,12 +32,14 @@ function buildShortcuts(): ShortcutEntry[] {
     }
   }
 
-  // Mode toggle: Tab to switch between develop/compose
+  // Mode toggle: Tab to cycle develop → compose → ai
   shortcuts.push({
     key: 'tab',
     action: () => {
       const state = useEditorStore.getState();
-      state.setEditorMode(state.editorMode === 'develop' ? 'compose' : 'develop');
+      const modes = ['develop', 'compose', 'ai'] as const;
+      const idx = modes.indexOf(state.editorMode);
+      state.setEditorMode(modes[(idx + 1) % modes.length]);
     },
     label: 'Toggle Mode',
   });

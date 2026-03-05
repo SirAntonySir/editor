@@ -8,6 +8,7 @@ import { Toolbar } from '@/components/toolbar/Toolbar';
 import { MenuBar } from '@/components/toolbar/MenuBar';
 import { InspectorPanel } from '@/components/inspector/InspectorPanel';
 import { LayersPanel } from '@/components/panels/LayersPanel';
+import { HistoryPanel } from '@/components/panels/HistoryPanel';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { useEditorStore } from '@/store';
@@ -47,6 +48,7 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
   const { toolContext, getActiveTool } = useEditor();
   const activeTool = useEditorStore((s) => s.activeTool);
   const editorMode = useEditorStore((s) => s.editorMode);
+  const showHistoryPanel = useEditorStore((s) => s.showHistoryPanel);
   const layers = useEditorStore((s) => s.layers);
   const toolDef = getActiveTool();
 
@@ -114,24 +116,32 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
         )}
       </AnimatePresence>
 
-      {/* Top toolbar */}
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
-        <Toolbar />
-      </div>
+      {/* HUDs — hidden in AI mode */}
+      {editorMode !== 'ai' && (
+        <>
+          {/* Top toolbar */}
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
+            <Toolbar />
+          </div>
 
-      {/* Layers panel — only in compose mode */}
-      {editorMode === 'compose' && layers.length > 0 && <LayersPanel />}
+          {/* Layers panel — only in compose mode */}
+          {editorMode === 'compose' && layers.length > 0 && <LayersPanel />}
 
-      {/* Inspector panel */}
-      <InspectorPanel />
+          {/* History panel — toggled via View menu */}
+          {showHistoryPanel && layers.length > 0 && <HistoryPanel />}
 
-      {/* Status bar */}
-      <div className="absolute bottom-0 right-0 z-20 flex items-center gap-2
-        px-2 py-0.5 text-xs text-text-secondary bg-surface/70 backdrop-blur-sm rounded-tl-sm">
-        <span className="capitalize">{activeTool}</span>
-        <span className="text-separator">|</span>
-        <ZoomDisplay />
-      </div>
+          {/* Inspector panel */}
+          <InspectorPanel />
+
+          {/* Status bar */}
+          <div className="absolute bottom-0 right-0 z-20 flex items-center gap-2
+            px-2 py-0.5 text-xs text-text-secondary bg-surface/70 backdrop-blur-sm rounded-tl-sm">
+            <span className="capitalize">{activeTool}</span>
+            <span className="text-separator">|</span>
+            <ZoomDisplay />
+          </div>
+        </>
+      )}
       </div>{/* end main canvas area */}
     </div>
   );

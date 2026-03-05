@@ -338,5 +338,8 @@ export async function loadImageToCanvas(file: File, canvas: fabric.Canvas | null
   // Register pixel data (creates source + working copies)
   CanvasRegistry.register(layerId, offscreen);
 
+  // Clear undo history so "load image" becomes the baseline
+  useEditorStore.temporal.getState().clear();
+
   bitmap.close();
 }

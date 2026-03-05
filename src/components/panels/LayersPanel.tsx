@@ -10,7 +10,7 @@ import {
   Spline,
   SlidersHorizontal,
   Thermometer,
-  Sparkles,
+  Image as ImageIcon,
   ChevronRight,
   ChevronDown,
   Image,
@@ -35,7 +35,7 @@ const ADJUSTMENT_ICONS: Record<Adjustment['type'], typeof Sun> = {
   curves: Spline,
   levels: SlidersHorizontal,
   kelvin: Thermometer,
-  lut: Sparkles,
+  lut: ImageIcon,
 };
 
 const BLEND_MODE_LABELS: Record<BlendMode, string> = {

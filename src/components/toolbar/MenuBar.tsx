@@ -4,7 +4,7 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 import { Point } from 'fabric';
 import type * as fabric from 'fabric';
 import { useStore } from 'zustand';
-import { Undo2, Redo2, SlidersHorizontal, Layers, RotateCcw } from 'lucide-react';
+import { Undo2, Redo2, SlidersHorizontal, Layers, Sparkles, RotateCcw } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { useEditorStore } from '@/store';
 import { loadImageToCanvas } from '@/components/canvas/EditorCanvas';
@@ -162,9 +162,6 @@ export function MenuBar({ canvasRef }: { canvasRef: React.RefObject<fabric.Canva
 
         {/* Undo / Redo */}
         <UndoRedoButtons />
-
-        {/* Separator */}
-        <div className="w-px h-3 bg-separator mx-1.5" />
 
         {/* Mode switcher */}
         <ModeSwitcherButtons />
@@ -411,6 +408,8 @@ function LayerMenu() {
 function ViewMenu({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | null> }) {
   const editorMode = useEditorStore((s) => s.editorMode);
   const setEditorMode = useEditorStore((s) => s.setEditorMode);
+  const showHistoryPanel = useEditorStore((s) => s.showHistoryPanel);
+  const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel);
 
   const applyZoom = useCallback(
     (newZoom: number) => {
@@ -489,6 +488,13 @@ function ViewMenu({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | nu
           <Item onSelect={() => applyZoom(2)}>200%</Item>
           <Item onSelect={() => applyZoom(0.5)}>50%</Item>
           <Sep />
+          <CheckItem
+            checked={showHistoryPanel}
+            onCheckedChange={() => toggleHistoryPanel()}
+          >
+            History
+          </CheckItem>
+          <Sep />
           <Menubar.Label className={labelClass}>Mode</Menubar.Label>
           <CheckItem
             checked={editorMode === 'develop'}
@@ -503,6 +509,13 @@ function ViewMenu({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | nu
             keys={['tab']}
           >
             Compose
+          </CheckItem>
+          <CheckItem
+            checked={editorMode === 'ai'}
+            onCheckedChange={() => setEditorMode('ai')}
+            keys={['tab']}
+          >
+            AI
           </CheckItem>
         </Menubar.Content>
       </Menubar.Portal>
@@ -637,9 +650,6 @@ function UndoRedoButtons() {
             </Tooltip.Content>
           </Tooltip.Portal>
         </Tooltip.Root>
-
-        <div className="w-px h-3 bg-separator mx-0.5" />
-
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button disabled={!hasLayers} onClick={revertToOriginal} className={btnClass}>
@@ -670,6 +680,7 @@ function ModeSwitcherButtons() {
       <div className="flex items-center gap-px">
         <ModeBtn mode="develop" label="Develop" icon={<SlidersHorizontal size={11} />} isActive={editorMode === 'develop'} onClick={() => setEditorMode('develop')} />
         <ModeBtn mode="compose" label="Compose" icon={<Layers size={11} />} isActive={editorMode === 'compose'} onClick={() => setEditorMode('compose')} />
+        <ModeBtn mode="ai" label="AI" icon={<Sparkles size={11} />} isActive={editorMode === 'ai'} onClick={() => setEditorMode('ai')} />
       </div>
     </Tooltip.Provider>
   );

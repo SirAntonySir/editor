@@ -1,4 +1,4 @@
-import { Sparkles } from 'lucide-react';
+import { Image as ImageIcon } from 'lucide-react';
 import type { ToolDefinition } from '@/types/tool';
 import { useEditorStore } from '@/store';
 import { CanvasRegistry } from '@/lib/canvas-registry';
@@ -120,7 +120,7 @@ function FiltersPanel() {
 export const FiltersTool: ToolDefinition = {
   name: 'filters',
   label: 'Filters',
-  icon: Sparkles,
+  icon: ImageIcon,
   category: 'filter',
   OptionsPanel: FiltersPanel,
 };

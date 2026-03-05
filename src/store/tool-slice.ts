@@ -1,22 +1,25 @@
 import type { StateCreator } from 'zustand';
 
-export type EditorMode = 'develop' | 'compose';
+export type EditorMode = 'develop' | 'compose' | 'ai';
 
 export interface ToolSlice {
   activeTool: string;
   editorMode: EditorMode;
   toolConfigs: Record<string, unknown>;
+  showHistoryPanel: boolean;
 
   setActiveTool: (name: string) => void;
   setEditorMode: (mode: EditorMode) => void;
   setToolConfig: (toolName: string, config: unknown) => void;
   getToolConfig: <T = unknown>(toolName: string) => T | undefined;
+  toggleHistoryPanel: () => void;
 }
 
 export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]], []> = (set, get) => ({
   activeTool: 'crop',
   editorMode: 'develop',
   toolConfigs: {},
+  showHistoryPanel: false,
 
   setActiveTool: (name) =>
     set((state) => {
@@ -26,7 +29,7 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   setEditorMode: (mode) =>
     set((state) => {
       state.editorMode = mode;
-      state.activeTool = mode === 'compose' ? 'select' : 'crop';
+      if (mode === 'compose') state.activeTool = 'select';
     }),
 
   setToolConfig: (toolName, config) =>
@@ -37,4 +40,9 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   getToolConfig: <T = unknown>(toolName: string) => {
     return get().toolConfigs[toolName] as T | undefined;
   },
+
+  toggleHistoryPanel: () =>
+    set((state) => {
+      state.showHistoryPanel = !state.showHistoryPanel;
+    }),
 });

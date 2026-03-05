@@ -22,6 +22,10 @@ export const useEditorStore = create<EditorState>()(
           const { layers, activeLayerId, pixelVersion } = state;
           return { layers, activeLayerId, pixelVersion };
         },
+        equality: (pastState, currentState) =>
+          pastState.layers === currentState.layers &&
+          pastState.activeLayerId === currentState.activeLayerId &&
+          pastState.pixelVersion === currentState.pixelVersion,
       }
     )
   )

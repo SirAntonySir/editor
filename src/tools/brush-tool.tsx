@@ -3,31 +3,55 @@ import type { ToolDefinition, CanvasPointerEvent, ToolContext } from '@/types/to
 import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
 import { useEditorStore } from '@/store';
 import { CanvasRegistry } from '@/lib/canvas-registry';
-import { PixelHistoryManager } from '@/lib/pixel-history';
 import { useState } from 'react';
 
-interface BrushState {
-  isDrawing: boolean;
-  points: { x: number; y: number; pressure: number }[];
-  snapshotId: string | null;
+// Module-level state (not in React — shared with pointer handlers)
+let currentBrushLayerId: string | null = null;
+let isDrawing = false;
+let points: { x: number; y: number; pressure: number }[] = [];
+
+const brushConfig = { size: 10, opacity: 1, hardness: 0.8, color: '#000000' };
+
+function getBaseImageSize(): { width: number; height: number } | null {
+  const { layers } = useEditorStore.getState();
+  for (const layer of layers) {
+    if (layer.type !== 'image') continue;
+    const working = CanvasRegistry.get(layer.id);
+    if (working && working.width > 0) return { width: working.width, height: working.height };
+  }
+  return null;
 }
 
-const brushState: BrushState = {
-  isDrawing: false,
-  points: [],
-  snapshotId: null,
-};
+function getPixelCoords(e: CanvasPointerEvent, ctx: ToolContext): { x: number; y: number } | null {
+  const canvas = ctx.canvasRef.current;
+  if (!canvas) return null;
+  const obj = canvas.getObjects()[0];
+  if (!obj) return null;
 
-function drawStroke(
+  const left = obj.left ?? 0;
+  const top = obj.top ?? 0;
+  const scaleX = obj.scaleX ?? 1;
+  const scaleY = obj.scaleY ?? 1;
+  const w = obj.width ?? 0;
+  const h = obj.height ?? 0;
+
+  // Fabric.js v7 uses center origin — adjust to top-left pixel coords
+  return {
+    x: (e.x - left) / scaleX + w / 2,
+    y: (e.y - top) / scaleY + h / 2,
+  };
+}
+
+function drawStrokeSegment(
   offscreen: OffscreenCanvas,
-  points: { x: number; y: number; pressure: number }[],
+  pts: { x: number; y: number; pressure: number }[],
   size: number,
   opacity: number,
   color: string,
   hardness: number,
 ): void {
   const ctx = offscreen.getContext('2d');
-  if (!ctx || points.length < 2) return;
+  if (!ctx || pts.length < 2) return;
 
   ctx.save();
   ctx.globalAlpha = opacity;
@@ -36,23 +60,20 @@ function drawStroke(
   ctx.lineJoin = 'round';
 
   ctx.beginPath();
-  ctx.moveTo(points[0].x, points[0].y);
+  ctx.moveTo(pts[0].x, pts[0].y);
 
-  for (let i = 1; i < points.length; i++) {
-    const p = points[i];
-    const prevP = points[i - 1];
-    const lineWidth = size * (0.5 + 0.5 * p.pressure);
-
-    ctx.lineWidth = lineWidth;
+  for (let i = 1; i < pts.length; i++) {
+    const p = pts[i];
+    const prevP = pts[i - 1];
+    ctx.lineWidth = size * (0.5 + 0.5 * p.pressure);
 
     if (hardness < 1) {
-      ctx.shadowBlur = (1 - hardness) * lineWidth;
+      ctx.shadowBlur = (1 - hardness) * ctx.lineWidth;
       ctx.shadowColor = color;
     }
 
-    // Catmull-Rom smoothing
     if (i >= 2) {
-      const p0 = points[i - 2];
+      const p0 = pts[i - 2];
       const cpx = prevP.x + (p.x - p0.x) / 6;
       const cpy = prevP.y + (p.y - p0.y) / 6;
       ctx.quadraticCurveTo(cpx, cpy, (prevP.x + p.x) / 2, (prevP.y + p.y) / 2);
@@ -65,22 +86,34 @@ function drawStroke(
   ctx.restore();
 }
 
-function getPixelCoords(e: CanvasPointerEvent, ctx: ToolContext): { x: number; y: number } | null {
-  const canvas = ctx.canvasRef.current;
-  if (!canvas) return null;
-  const obj = canvas.getObjects()[0];
-  if (!obj) return null;
+function ensureBrushLayer(): string | null {
+  if (currentBrushLayerId && CanvasRegistry.has(currentBrushLayerId)) {
+    return currentBrushLayerId;
+  }
 
-  // Convert canvas scene coords to image pixel coords
-  const left = obj.left ?? 0;
-  const top = obj.top ?? 0;
-  const scaleX = obj.scaleX ?? 1;
-  const scaleY = obj.scaleY ?? 1;
+  const size = getBaseImageSize();
+  if (!size) return null;
 
-  return {
-    x: (e.x - left) / scaleX,
-    y: (e.y - top) / scaleY,
-  };
+  const id = crypto.randomUUID();
+  const offscreen = new OffscreenCanvas(size.width, size.height);
+
+  // Register with a transparent source
+  CanvasRegistry.register(id, offscreen);
+
+  const store = useEditorStore.getState();
+  const brushCount = store.layers.filter((l) => l.type === 'brush').length;
+  store.addLayer({
+    id,
+    type: 'brush',
+    name: `Brush ${brushCount + 1}`,
+    visible: true,
+    opacity: 1,
+    blendMode: 'normal',
+    locked: false,
+  });
+
+  currentBrushLayerId = id;
+  return id;
 }
 
 function BrushPanel() {
@@ -89,8 +122,10 @@ function BrushPanel() {
   const [hardness, setHardness] = useState(80);
   const [color, setColor] = useState('#000000');
 
-  // Store in a global ref for the pointer handlers
-  (window as unknown as Record<string, unknown>).__brushConfig = { size, opacity: opacity / 100, hardness: hardness / 100, color };
+  brushConfig.size = size;
+  brushConfig.opacity = opacity / 100;
+  brushConfig.hardness = hardness / 100;
+  brushConfig.color = color;
 
   return (
     <div className="p-3 flex flex-col gap-3">
@@ -110,16 +145,11 @@ function BrushPanel() {
   );
 }
 
-function getBrushConfig(): { size: number; opacity: number; hardness: number; color: string } {
-  return (window as unknown as Record<string, unknown>).__brushConfig as { size: number; opacity: number; hardness: number; color: string } ?? { size: 10, opacity: 1, hardness: 0.8, color: '#000000' };
-}
-
 export const BrushTool: ToolDefinition = {
   name: 'brush',
   label: 'Brush',
   icon: Paintbrush,
   category: 'draw',
-  modes: ['compose'],
   shortcut: 'P',
   cursor: 'crosshair',
   OptionsPanel: BrushPanel,
@@ -132,6 +162,7 @@ export const BrushTool: ToolDefinition = {
       obj.selectable = false;
       obj.evented = false;
     });
+    currentBrushLayerId = null;
   },
 
   onDeactivate: (ctx) => {
@@ -142,66 +173,41 @@ export const BrushTool: ToolDefinition = {
       obj.selectable = true;
       obj.evented = true;
     });
+    currentBrushLayerId = null;
   },
 
-  onPointerDown: async (e, ctx) => {
+  onPointerDown: (e, ctx) => {
     const pt = getPixelCoords(e, ctx);
     if (!pt) return;
 
-    const { activeLayerId } = useEditorStore.getState();
-    if (!activeLayerId) return;
-    const offscreen = CanvasRegistry.get(activeLayerId);
-    if (!offscreen) return;
+    const layerId = ensureBrushLayer();
+    if (!layerId) return;
 
-    // Capture snapshot before drawing
-    const snapshotId = await PixelHistoryManager.captureFullCanvas(activeLayerId, offscreen);
-
-    brushState.isDrawing = true;
-    brushState.snapshotId = snapshotId;
-    brushState.points = [{ x: pt.x, y: pt.y, pressure: e.rawEvent.pressure || 0.5 }];
+    isDrawing = true;
+    points = [{ x: pt.x, y: pt.y, pressure: e.rawEvent.pressure || 0.5 }];
   },
 
   onPointerMove: (e, ctx) => {
-    if (!brushState.isDrawing) return;
+    if (!isDrawing || !currentBrushLayerId) return;
     const pt = getPixelCoords(e, ctx);
     if (!pt) return;
 
-    brushState.points.push({ x: pt.x, y: pt.y, pressure: e.rawEvent.pressure || 0.5 });
+    points.push({ x: pt.x, y: pt.y, pressure: e.rawEvent.pressure || 0.5 });
 
-    // Draw incrementally
-    const { activeLayerId } = useEditorStore.getState();
-    if (!activeLayerId) return;
-    const offscreen = CanvasRegistry.get(activeLayerId);
+    const offscreen = CanvasRegistry.get(currentBrushLayerId);
     if (!offscreen) return;
 
-    const config = getBrushConfig();
-    const points = brushState.points;
     if (points.length >= 2) {
-      const last2 = points.slice(-2);
-      drawStroke(offscreen, last2, config.size, config.opacity, config.color, config.hardness);
-
-      // Update fabric canvas
-      const canvas = ctx.canvasRef.current;
-      if (canvas) {
-        const fabricImg = canvas.getObjects()[0];
-        if (fabricImg) {
-          const tmp = document.createElement('canvas');
-          tmp.width = offscreen.width;
-          tmp.height = offscreen.height;
-          const tmpCtx = tmp.getContext('2d');
-          if (tmpCtx) {
-            tmpCtx.drawImage(offscreen, 0, 0);
-            (fabricImg as import('fabric').FabricImage).setElement(tmp);
-            canvas.requestRenderAll();
-          }
-        }
-      }
+      drawStrokeSegment(offscreen, points.slice(-3), brushConfig.size, brushConfig.opacity, brushConfig.color, brushConfig.hardness);
+      useEditorStore.getState().bumpPixelVersion();
     }
   },
 
   onPointerUp: () => {
-    brushState.isDrawing = false;
-    brushState.points = [];
-    brushState.snapshotId = null;
+    if (isDrawing) {
+      isDrawing = false;
+      points = [];
+      useEditorStore.getState().bumpPixelVersion();
+    }
   },
 };

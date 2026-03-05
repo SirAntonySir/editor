@@ -13,12 +13,21 @@ import {
   Thermometer,
   Sparkles,
   ChevronRight,
+  Image,
+  Paintbrush,
+  Type,
 } from 'lucide-react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useEditorStore } from '@/store';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { LutRegistry } from '@/lib/lut-registry';
-import type { Layer, Adjustment, BlendMode } from '@/store/layer-slice';
+import type { Layer, LayerType, Adjustment, BlendMode } from '@/store/layer-slice';
+
+const LAYER_TYPE_ICONS: Record<LayerType, typeof Sun> = {
+  image: Image,
+  brush: Paintbrush,
+  text: Type,
+};
 
 const ADJUSTMENT_ICONS: Record<Adjustment['type'], typeof Sun> = {
   basic: Sun,
@@ -64,6 +73,7 @@ export function LayersPanel() {
               const id = crypto.randomUUID();
               useEditorStore.getState().addLayer({
                 id,
+                type: 'image',
                 name: `Layer ${layers.length + 1}`,
                 visible: true,
                 opacity: 1,
@@ -105,6 +115,7 @@ export function LayersPanel() {
                 const id = crypto.randomUUID();
                 useEditorStore.getState().addLayer({
                   id,
+                  type: layer.type,
                   name: `${layer.name} copy`,
                   visible: layer.visible,
                   opacity: layer.opacity,
@@ -183,7 +194,16 @@ function LayerRow({
               <GripVertical size={12} className="text-text-secondary/40 flex-shrink-0 cursor-grab" />
             )}
 
-            <LayerThumbnail layerId={layer.id} visible={layer.visible} />
+            {layer.type === 'image' ? (
+              <LayerThumbnail layerId={layer.id} visible={layer.visible} />
+            ) : (
+              (() => { const Icon = LAYER_TYPE_ICONS[layer.type]; return (
+                <div className={`w-6 h-6 rounded-sm border flex-shrink-0 flex items-center justify-center
+                  ${layer.visible ? 'border-separator bg-surface-secondary' : 'border-separator/50 bg-surface-secondary/50 opacity-50'}`}>
+                  <Icon size={12} className="text-text-secondary" />
+                </div>
+              ); })()
+            )}
 
             <span
               className={`flex-1 truncate ${

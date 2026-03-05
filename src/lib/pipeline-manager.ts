@@ -43,10 +43,10 @@ class PipelineManagerImpl {
 
   renderSync(adjustments: Adjustment[]): HTMLCanvasElement {
     this.currentAdjustments = adjustments;
-    return this.executeRender();
+    return this.executeRender(true);
   }
 
-  private executeRender(): HTMLCanvasElement {
+  private executeRender(silent = false): HTMLCanvasElement {
     const pipeline = this.getPipeline();
     if (this.currentLayerId) {
       const source = CanvasRegistry.get(this.currentLayerId);
@@ -55,8 +55,10 @@ class PipelineManagerImpl {
       }
     }
     const output = pipeline.render(this.currentAdjustments);
-    this.onRender?.(output);
-    for (const cb of this.listeners) cb(output);
+    if (!silent) {
+      this.onRender?.(output);
+      for (const cb of this.listeners) cb(output);
+    }
     return output;
   }
 

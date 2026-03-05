@@ -8,8 +8,8 @@ import { CanvasRegistry } from '@/lib/canvas-registry';
 import { PipelineManager } from '@/lib/pipeline-manager';
 
 function drawHistogram(source: HTMLCanvasElement | OffscreenCanvas, target: HTMLCanvasElement) {
-  const sampleW = Math.min(source.width, 512);
-  const sampleH = Math.min(source.height, 512);
+  const sampleW = Math.min(source.width, 256);
+  const sampleH = Math.min(source.height, 256);
   const sampleCanvas = new OffscreenCanvas(sampleW, sampleH);
   const sampleCtx = sampleCanvas.getContext('2d');
   if (!sampleCtx) return;
@@ -64,15 +64,30 @@ function drawHistogram(source: HTMLCanvasElement | OffscreenCanvas, target: HTML
   drawChannel(lum, 'rgba(180, 180, 180, 0.4)');
 }
 
+const HISTOGRAM_THROTTLE_MS = 150;
+
 function Histogram() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
+  const pendingSource = useRef<HTMLCanvasElement | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushHistogram = useCallback(() => {
+    const canvas = canvasRef.current;
+    const source = pendingSource.current;
+    if (!canvas || !source) return;
+    pendingSource.current = null;
+    drawHistogram(source, canvas);
+  }, []);
 
   const updateHistogram = useCallback((output: HTMLCanvasElement) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    drawHistogram(output, canvas);
-  }, []);
+    pendingSource.current = output;
+    if (timerRef.current) return; // already scheduled
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      flushHistogram();
+    }, HISTOGRAM_THROTTLE_MS);
+  }, [flushHistogram]);
 
   // Draw initial histogram from working canvas
   useEffect(() => {
@@ -85,7 +100,11 @@ function Histogram() {
 
   // Subscribe to pipeline renders for live updates
   useEffect(() => {
-    return PipelineManager.subscribe(updateHistogram);
+    const unsub = PipelineManager.subscribe(updateHistogram);
+    return () => {
+      unsub();
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, [updateHistogram]);
 
   return (

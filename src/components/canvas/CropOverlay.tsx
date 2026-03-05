@@ -83,6 +83,7 @@ export function CropOverlay({ ctx }: CanvasOverlayProps) {
       left: canvasWidth / 2,
       top: canvasHeight / 2,
     });
+    newImg.setControlVisible('mtr', false);
     canvas.add(newImg);
     canvas.renderAll();
 

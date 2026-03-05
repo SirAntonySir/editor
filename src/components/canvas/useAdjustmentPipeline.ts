@@ -96,8 +96,10 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
 
         if (!activeLayerId) return;
 
-        if (!adjustments || adjustments.length === 0) {
-          // No adjustments — show working canvas directly
+        const multipleVisibleLayers = layers.filter((l) => l.visible).length > 1;
+
+        if (multipleVisibleLayers || !adjustments || adjustments.length === 0) {
+          // Multiple layers or no adjustments — use compositor
           LayerCompositor.requestComposite();
           return;
         }

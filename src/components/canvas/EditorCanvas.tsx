@@ -317,6 +317,7 @@ export async function loadImageToCanvas(file: File, canvas: fabric.Canvas | null
     left: canvasWidth / 2,
     top: canvasHeight / 2,
   });
+  img.setControlVisible('mtr', false);
 
   canvas.add(img);
   canvas.setActiveObject(img);
@@ -326,6 +327,7 @@ export async function loadImageToCanvas(file: File, canvas: fabric.Canvas | null
   const layerId = crypto.randomUUID();
   useEditorStore.getState().addLayer({
     id: layerId,
+    type: 'image',
     name: file.name,
     visible: true,
     opacity: 1,

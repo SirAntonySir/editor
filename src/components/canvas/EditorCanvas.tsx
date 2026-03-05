@@ -88,6 +88,67 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
     };
   }, [canvasRef]);
 
+  // Zoom keyboard shortcuts (Cmd/Ctrl +/-/0)
+  useEffect(() => {
+    const isMac = /Mac/.test(navigator.userAgent);
+
+    const handleZoomKey = (e: KeyboardEvent) => {
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (!mod) return;
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      let newZoom: number | null = null;
+      let fit = false;
+
+      if (e.key === '=' || e.key === '+') {
+        newZoom = canvas.getZoom() * 1.25;
+      } else if (e.key === '-') {
+        newZoom = canvas.getZoom() / 1.25;
+      } else if (e.key === '0') {
+        fit = true;
+      } else if (e.key === '1') {
+        newZoom = 1;
+      } else {
+        return;
+      }
+
+      e.preventDefault();
+
+      if (fit) {
+        const obj = canvas.getObjects()[0];
+        if (!obj) return;
+        canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+        const canvasW = canvas.getWidth();
+        const canvasH = canvas.getHeight();
+        const objW = obj.width * (obj.scaleX ?? 1);
+        const objH = obj.height * (obj.scaleY ?? 1);
+        const z = Math.min(canvasW / objW, canvasH / objH) * 0.9;
+        const center = new fabric.Point(canvasW / 2, canvasH / 2);
+        canvas.zoomToPoint(center, z);
+        const objCenter = obj.getCenterPoint();
+        const vpt = canvas.viewportTransform;
+        if (vpt) {
+          vpt[4] = canvasW / 2 - objCenter.x * z;
+          vpt[5] = canvasH / 2 - objCenter.y * z;
+        }
+        useEditorStore.getState().setZoom(z);
+        useEditorStore.getState().setFitMode('fit');
+        useEditorStore.getState().setPan(vpt?.[4] ?? 0, vpt?.[5] ?? 0);
+      } else if (newZoom !== null) {
+        const clamped = Math.max(0.1, Math.min(32, newZoom));
+        const center = new fabric.Point(canvas.getWidth() / 2, canvas.getHeight() / 2);
+        canvas.zoomToPoint(center, clamped);
+        useEditorStore.getState().setZoom(clamped);
+      }
+      canvas.requestRenderAll();
+    };
+
+    document.addEventListener('keydown', handleZoomKey);
+    return () => document.removeEventListener('keydown', handleZoomKey);
+  }, [canvasRef]);
+
   // Pan with middle-click or space+drag
   useEffect(() => {
     const canvas = canvasRef.current;

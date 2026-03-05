@@ -3,6 +3,7 @@ import { fullscreenQuadVertex } from './vertex.glsl.ts';
 import { basicAdjustmentsFragment } from './basic-adjustments.glsl.ts';
 import { curvesFragment } from './curves.glsl.ts';
 import { levelsFragment } from './levels.glsl.ts';
+import { kelvinFragment } from './kelvin.glsl.ts';
 import type { Adjustment } from '@/store/layer-slice';
 
 interface FBO {
@@ -159,6 +160,16 @@ export class WebGLPipeline {
         gl.uniform1f(gl.getUniformLocation(program, 'u_gamma'), p.gamma as number ?? 1.0);
         gl.uniform1f(gl.getUniformLocation(program, 'u_outBlack'), (p.outBlack as number ?? 0) / 255);
         gl.uniform1f(gl.getUniformLocation(program, 'u_outWhite'), (p.outWhite as number ?? 255) / 255);
+      },
+    });
+
+    // Kelvin white balance shader
+    const kelvinProgram = createProgram(gl, fullscreenQuadVertex, kelvinFragment);
+    this.shaders.set('kelvin', {
+      program: kelvinProgram,
+      setUniforms: (gl, program, adj) => {
+        const p = adj.params;
+        gl.uniform1f(gl.getUniformLocation(program, 'u_kelvin'), p.kelvin as number ?? 6500);
       },
     });
   }

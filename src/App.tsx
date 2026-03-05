@@ -13,10 +13,9 @@ import { ToolRegistry } from '@/lib/tool-registry';
 import { useEditorStore } from '@/store';
 import { SelectTool } from '@/tools/select-tool';
 import { CropTool } from '@/tools/crop-tool';
-import { BrightnessTool } from '@/tools/brightness-tool';
-import { ContrastTool } from '@/tools/contrast-tool';
-import { SaturationTool } from '@/tools/saturation-tool';
-import { HueTool } from '@/tools/hue-tool';
+import { LightTool } from '@/tools/light-tool';
+import { ColorTool } from '@/tools/color-tool';
+import { KelvinTool } from '@/tools/kelvin-tool';
 import { CurvesTool } from '@/tools/curves-tool';
 import { LevelsTool } from '@/tools/levels-tool';
 import { BrushTool } from '@/tools/brush-tool';
@@ -35,10 +34,9 @@ import {
 // Register tools
 ToolRegistry.register(SelectTool);
 ToolRegistry.register(CropTool);
-ToolRegistry.register(BrightnessTool);
-ToolRegistry.register(ContrastTool);
-ToolRegistry.register(SaturationTool);
-ToolRegistry.register(HueTool);
+ToolRegistry.register(LightTool);
+ToolRegistry.register(ColorTool);
+ToolRegistry.register(KelvinTool);
 ToolRegistry.register(CurvesTool);
 ToolRegistry.register(LevelsTool);
 ToolRegistry.register(BrushTool);

@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import * as Menubar from '@radix-ui/react-menubar';
 import * as Tooltip from '@radix-ui/react-tooltip';
+import { Point } from 'fabric';
 import type * as fabric from 'fabric';
 import { useStore } from 'zustand';
 import { Undo2, Redo2, SlidersHorizontal, Layers } from 'lucide-react';
@@ -9,6 +10,7 @@ import { useEditorStore } from '@/store';
 import { loadImageToCanvas } from '@/components/canvas/EditorCanvas';
 import { exportImage, saveAs } from '@/lib/export';
 import { ToolRegistry } from '@/lib/tool-registry';
+import { CanvasRegistry } from '@/lib/canvas-registry';
 import type { EditorMode } from '@/store/tool-slice';
 
 /* ------------------------------------------------------------------ */
@@ -147,9 +149,9 @@ export function MenuBar({ canvasRef }: { canvasRef: React.RefObject<fabric.Canva
         <Menubar.Root className="flex items-center gap-0 text-sm text-text-primary">
           <FileMenu onOpen={handleOpen} onExport={handleExport} />
           <EditMenu />
-          <ImageMenu />
+          <ImageMenu canvasRef={canvasRef} />
           <LayerMenu />
-          <ViewMenu />
+          <ViewMenu canvasRef={canvasRef} />
           <FilterMenu />
           <HelpMenu />
         </Menubar.Root>
@@ -262,7 +264,65 @@ function EditMenu() {
 /*  Image                                                             */
 /* ------------------------------------------------------------------ */
 
-function ImageMenu() {
+function ImageMenu({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | null> }) {
+  const layers = useEditorStore((s) => s.layers);
+  const hasLayers = layers.length > 0;
+
+  const transformImage = useCallback(
+    (mode: 'rotateCW' | 'rotateCCW' | 'flipH' | 'flipV') => {
+      const { activeLayerId } = useEditorStore.getState();
+      if (!activeLayerId) return;
+      const source = CanvasRegistry.get(activeLayerId);
+      if (!source) return;
+
+      const srcW = source.width;
+      const srcH = source.height;
+      const isRotate = mode === 'rotateCW' || mode === 'rotateCCW';
+      const dstW = isRotate ? srcH : srcW;
+      const dstH = isRotate ? srcW : srcH;
+
+      const dst = new OffscreenCanvas(dstW, dstH);
+      const ctx = dst.getContext('2d')!;
+      ctx.save();
+      ctx.translate(dstW / 2, dstH / 2);
+
+      if (mode === 'rotateCW') ctx.rotate(Math.PI / 2);
+      else if (mode === 'rotateCCW') ctx.rotate(-Math.PI / 2);
+      else if (mode === 'flipH') ctx.scale(-1, 1);
+      else if (mode === 'flipV') ctx.scale(1, -1);
+
+      ctx.drawImage(source, -srcW / 2, -srcH / 2);
+      ctx.restore();
+
+      CanvasRegistry.replaceSource(activeLayerId, dst);
+
+      // Update Fabric image
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const fabricImg = canvas.getObjects()[0] as import('fabric').FabricImage | undefined;
+      if (!fabricImg) return;
+
+      const tmp = document.createElement('canvas');
+      tmp.width = dstW;
+      tmp.height = dstH;
+      tmp.getContext('2d')!.drawImage(dst, 0, 0);
+
+      fabricImg.setElement(tmp);
+      const canvasW = canvas.getWidth();
+      const canvasH = canvas.getHeight();
+      const scale = Math.min(canvasW / dstW, canvasH / dstH) * 0.9;
+      fabricImg.set({
+        scaleX: scale,
+        scaleY: scale,
+        left: canvasW / 2,
+        top: canvasH / 2,
+      });
+      fabricImg.setCoords();
+      canvas.requestRenderAll();
+    },
+    [canvasRef],
+  );
+
   return (
     <Menubar.Menu>
       <TriggerButton>Image</TriggerButton>
@@ -280,10 +340,18 @@ function ImageMenu() {
           <Item disabled>Image Size...</Item>
           <Item disabled>Canvas Size...</Item>
           <Sep />
-          <Item disabled>Rotate 90 CW</Item>
-          <Item disabled>Rotate 90 CCW</Item>
-          <Item disabled>Flip Horizontal</Item>
-          <Item disabled>Flip Vertical</Item>
+          <Item disabled={!hasLayers} onSelect={() => transformImage('rotateCW')}>
+            Rotate 90° CW
+          </Item>
+          <Item disabled={!hasLayers} onSelect={() => transformImage('rotateCCW')}>
+            Rotate 90° CCW
+          </Item>
+          <Item disabled={!hasLayers} onSelect={() => transformImage('flipH')}>
+            Flip Horizontal
+          </Item>
+          <Item disabled={!hasLayers} onSelect={() => transformImage('flipV')}>
+            Flip Vertical
+          </Item>
         </Menubar.Content>
       </Menubar.Portal>
     </Menubar.Menu>
@@ -334,33 +402,86 @@ function LayerMenu() {
 /*  View                                                              */
 /* ------------------------------------------------------------------ */
 
-function ViewMenu() {
-  const zoom = useEditorStore((s) => s.zoom);
-  const setZoom = useEditorStore((s) => s.setZoom);
-  const setFitMode = useEditorStore((s) => s.setFitMode);
+function ViewMenu({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | null> }) {
   const editorMode = useEditorStore((s) => s.editorMode);
   const setEditorMode = useEditorStore((s) => s.setEditorMode);
+
+  const applyZoom = useCallback(
+    (newZoom: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const clamped = Math.max(0.1, Math.min(32, newZoom));
+      const center = new Point(canvas.getWidth() / 2, canvas.getHeight() / 2);
+      canvas.zoomToPoint(center, clamped);
+      useEditorStore.getState().setZoom(clamped);
+      canvas.requestRenderAll();
+    },
+    [canvasRef],
+  );
+
+  const fitOnScreen = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const obj = canvas.getObjects()[0];
+    if (!obj) return;
+
+    // Reset viewport first
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+
+    const canvasW = canvas.getWidth();
+    const canvasH = canvas.getHeight();
+    const objW = obj.width * (obj.scaleX ?? 1);
+    const objH = obj.height * (obj.scaleY ?? 1);
+    const zoom = Math.min(canvasW / objW, canvasH / objH) * 0.9;
+
+    // Zoom to center
+    const center = new Point(canvasW / 2, canvasH / 2);
+    canvas.zoomToPoint(center, zoom);
+
+    // Pan so object center is at canvas center
+    const objCenter = obj.getCenterPoint();
+    const vpt = canvas.viewportTransform;
+    if (vpt) {
+      vpt[4] = canvasW / 2 - objCenter.x * zoom;
+      vpt[5] = canvasH / 2 - objCenter.y * zoom;
+    }
+
+    useEditorStore.getState().setZoom(zoom);
+    useEditorStore.getState().setFitMode('fit');
+    useEditorStore.getState().setPan(vpt?.[4] ?? 0, vpt?.[5] ?? 0);
+    canvas.requestRenderAll();
+  }, [canvasRef]);
+
+  const zoomIn = useCallback(() => {
+    const currentZoom = canvasRef.current?.getZoom() ?? 1;
+    applyZoom(currentZoom * 1.25);
+  }, [canvasRef, applyZoom]);
+
+  const zoomOut = useCallback(() => {
+    const currentZoom = canvasRef.current?.getZoom() ?? 1;
+    applyZoom(currentZoom / 1.25);
+  }, [canvasRef, applyZoom]);
 
   return (
     <Menubar.Menu>
       <TriggerButton>View</TriggerButton>
       <Menubar.Portal>
         <Menubar.Content className={menuContentClass} align="start" sideOffset={4}>
-          <Item keys={['mod', '+']} onSelect={() => setZoom(zoom * 1.25)}>
+          <Item keys={['mod', '+']} onSelect={zoomIn}>
             Zoom In
           </Item>
-          <Item keys={['mod', '-']} onSelect={() => setZoom(zoom / 1.25)}>
+          <Item keys={['mod', '-']} onSelect={zoomOut}>
             Zoom Out
           </Item>
           <Sep />
-          <Item keys={['mod', '0']} onSelect={() => setFitMode('fit')}>
+          <Item keys={['mod', '0']} onSelect={fitOnScreen}>
             Fit on Screen
           </Item>
-          <Item keys={['mod', '1']} onSelect={() => setZoom(1)}>
+          <Item keys={['mod', '1']} onSelect={() => applyZoom(1)}>
             Actual Pixels (100%)
           </Item>
-          <Item onSelect={() => setZoom(2)}>200%</Item>
-          <Item onSelect={() => setZoom(0.5)}>50%</Item>
+          <Item onSelect={() => applyZoom(2)}>200%</Item>
+          <Item onSelect={() => applyZoom(0.5)}>50%</Item>
           <Sep />
           <Menubar.Label className={labelClass}>Mode</Menubar.Label>
           <CheckItem

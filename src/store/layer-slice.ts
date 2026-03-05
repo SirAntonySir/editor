@@ -3,7 +3,7 @@ import type { StateCreator } from 'zustand';
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'soft-light' | 'hard-light';
 
 export interface Adjustment {
-  type: 'basic' | 'curves' | 'levels';
+  type: 'basic' | 'curves' | 'levels' | 'kelvin';
   enabled: boolean;
   params: Record<string, number | Float32Array>;
 }

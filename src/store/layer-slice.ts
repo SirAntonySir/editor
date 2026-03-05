@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand';
 
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'soft-light' | 'hard-light';
+export type LayerType = 'image' | 'brush' | 'text';
 
 export interface Adjustment {
   id: string;
@@ -16,8 +17,20 @@ export interface AdjustmentStack {
   adjustments: Adjustment[];
 }
 
+export interface TextMeta {
+  text: string;
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  fontWeight: string;
+  fontStyle: string;
+  x: number;
+  y: number;
+}
+
 export interface Layer {
   id: string;
+  type: LayerType;
   name: string;
   visible: boolean;
   opacity: number;
@@ -25,6 +38,7 @@ export interface Layer {
   locked: boolean;
   order: number;
   adjustmentStack: AdjustmentStack;
+  textMeta?: TextMeta;
 }
 
 const ADJUSTMENT_NAMES: Record<Adjustment['type'], string> = {

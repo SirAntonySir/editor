@@ -1,8 +1,13 @@
 import { useRef, useCallback } from 'react';
 import type * as fabric from 'fabric';
+import { AnimatePresence } from 'framer-motion';
 import { EditorProvider, useEditor } from '@/components/EditorProvider';
 import { EditorCanvas, loadImageToCanvas } from '@/components/canvas/EditorCanvas';
+import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 import { Toolbar } from '@/components/toolbar/Toolbar';
+import { InspectorPanel } from '@/components/inspector/InspectorPanel';
+import { LayersPanel } from '@/components/panels/LayersPanel';
+import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { useEditorStore } from '@/store';
 import { SelectTool } from '@/tools/select-tool';
@@ -46,8 +51,14 @@ function EditorContent({ canvasRef }: { canvasRef: React.MutableRefObject<fabric
 
   return (
     <div className="relative h-full">
+      <KeyboardShortcuts />
+
       {/* Canvas — fullscreen, behind everything */}
-      <EditorCanvas canvasRef={canvasRef} />
+      <CanvasContextMenu>
+        <div className="absolute inset-0">
+          <EditorCanvas canvasRef={canvasRef} />
+        </div>
+      </CanvasContextMenu>
 
       {/* Tool canvas overlay */}
       {toolDef?.CanvasOverlay && (
@@ -55,42 +66,36 @@ function EditorContent({ canvasRef }: { canvasRef: React.MutableRefObject<fabric
       )}
 
       {/* Empty state */}
-      {layers.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-          <button
-            onClick={handleFileOpen}
-            className="glass-panel flex flex-col items-center gap-2 px-6 py-5 pointer-events-auto
-              text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
-          >
-            <Upload size={32} />
-            <span className="text-sm">Open an image or drag & drop</span>
-          </button>
-        </div>
-      )}
+      <AnimatePresence>
+        {layers.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <button
+              onClick={handleFileOpen}
+              className="glass-panel flex flex-col items-center gap-2 px-6 py-5 pointer-events-auto
+                text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+            >
+              <Upload size={32} />
+              <span className="text-sm">Open an image or drag & drop</span>
+            </button>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Top toolbar */}
       <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
         <Toolbar />
       </div>
 
+      {/* Layers panel */}
+      {layers.length > 0 && <LayersPanel />}
+
       {/* Inspector panel */}
-      {toolDef?.OptionsPanel && (
-        <div className="absolute top-12 right-2 bottom-8 z-20 w-56 glass-panel overflow-y-auto">
-          <div className="px-3 py-2 text-xs font-medium text-text-secondary border-b border-separator">
-            {toolDef.label}
-          </div>
-          <toolDef.OptionsPanel
-            config={toolDef.defaultConfig ?? {}}
-            onConfigChange={() => {}}
-            ctx={toolContext}
-          />
-        </div>
-      )}
+      <InspectorPanel />
 
       {/* Status bar */}
       <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center justify-between
         px-2 py-0.5 text-xs text-text-secondary bg-surface/70 backdrop-blur-sm">
-        <span>{activeTool}</span>
+        <span className="capitalize">{activeTool}</span>
         <ZoomDisplay />
       </div>
     </div>

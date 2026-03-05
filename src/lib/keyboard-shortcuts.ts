@@ -1,5 +1,6 @@
 import { ToolRegistry } from './tool-registry';
 import { useEditorStore } from '@/store';
+import { revertToOriginal } from '@/lib/revert';
 
 const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent);
 
@@ -54,6 +55,14 @@ function buildShortcuts(): ShortcutEntry[] {
     shift: true,
     action: () => useEditorStore.temporal.getState().redo(),
     label: 'Redo',
+  });
+
+  shortcuts.push({
+    key: 'r',
+    ctrl: true,
+    shift: true,
+    action: () => revertToOriginal(),
+    label: 'Revert to Original',
   });
 
   return shortcuts;

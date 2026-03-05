@@ -12,11 +12,13 @@ import {
   Thermometer,
   Sparkles,
   ChevronRight,
+  ChevronDown,
   Image,
   Paintbrush,
   Type,
 } from 'lucide-react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useEditorStore } from '@/store';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { LutRegistry } from '@/lib/lut-registry';
@@ -47,9 +49,56 @@ const BLEND_MODE_LABELS: Record<BlendMode, string> = {
   'hard-light': 'Hard Light',
 };
 
+function OpacityInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState('');
+  const inputRef = useCallback((el: HTMLInputElement | null) => {
+    if (el) { el.focus(); el.select(); }
+  }, []);
+
+  const commit = () => {
+    setEditing(false);
+    const parsed = parseInt(text, 10);
+    if (!isNaN(parsed)) {
+      onChange(Math.max(0, Math.min(100, parsed)) / 100);
+    }
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') setEditing(false);
+        }}
+        className="w-10 text-right text-[10px] tabular-nums bg-surface-secondary border border-accent rounded-sm px-1 py-0 text-text-primary outline-none"
+      />
+    );
+  }
+
+  return (
+    <span
+      className="text-[10px] text-text-secondary tabular-nums w-7 text-right cursor-text hover:text-text-primary transition-colors"
+      onClick={() => { setText(String(Math.round(value * 100))); setEditing(true); }}
+    >
+      {Math.round(value * 100)}%
+    </span>
+  );
+}
+
+const LAYER_BLEND_MODES: BlendMode[] = [
+  'normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'soft-light', 'hard-light',
+];
+
 export function LayersPanel() {
   const layers = useEditorStore((s) => s.layers);
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
+  const activeLayer = useEditorStore((s) => s.layers.find((l) => l.id === s.activeLayerId));
   const setActiveLayer = useEditorStore((s) => s.setActiveLayer);
   const updateLayer = useEditorStore((s) => s.updateLayer);
   const removeLayer = useEditorStore((s) => s.removeLayer);
@@ -94,6 +143,46 @@ export function LayersPanel() {
           )}
         </div>
       </div>
+
+      {/* Opacity + Blend Mode for active layer */}
+      {activeLayer && (
+        <div className="px-2 py-1.5 border-b border-separator flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5">
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <button className="flex items-center justify-between flex-1 px-1.5 py-0.5 text-[10px]
+                  bg-surface-secondary rounded-sm border border-separator
+                  hover:bg-separator transition-colors text-text-primary capitalize cursor-default">
+                  {activeLayer.blendMode.replace('-', ' ')}
+                  <ChevronDown size={10} />
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content className="glass-panel p-1 min-w-[120px] z-50" sideOffset={4}>
+                  {LAYER_BLEND_MODES.map((mode) => (
+                    <DropdownMenu.Item
+                      key={mode}
+                      className={`px-2 py-0.5 text-[10px] rounded-sm cursor-pointer outline-none capitalize
+                        ${activeLayer.blendMode === mode
+                          ? 'bg-accent text-white'
+                          : 'text-text-primary hover:bg-surface-secondary'
+                        }`}
+                      onSelect={() => updateLayer(activeLayerId!, { blendMode: mode })}
+                    >
+                      {mode.replace('-', ' ')}
+                    </DropdownMenu.Item>
+                  ))}
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+
+            <OpacityInput
+              value={activeLayer.opacity}
+              onChange={(v) => updateLayer(activeLayerId!, { opacity: v })}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto">
         <AnimatePresence>

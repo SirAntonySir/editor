@@ -4,13 +4,14 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 import { Point } from 'fabric';
 import type * as fabric from 'fabric';
 import { useStore } from 'zustand';
-import { Undo2, Redo2, SlidersHorizontal, Layers } from 'lucide-react';
+import { Undo2, Redo2, SlidersHorizontal, Layers, RotateCcw } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { useEditorStore } from '@/store';
 import { loadImageToCanvas } from '@/components/canvas/EditorCanvas';
 import { exportImage, saveAs } from '@/lib/export';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { CanvasRegistry } from '@/lib/canvas-registry';
+import { revertToOriginal } from '@/lib/revert';
 import type { EditorMode } from '@/store/tool-slice';
 
 /* ------------------------------------------------------------------ */
@@ -225,6 +226,7 @@ function FileMenu({
 function EditMenu() {
   const undo = useCallback(() => useEditorStore.temporal.getState().undo(), []);
   const redo = useCallback(() => useEditorStore.temporal.getState().redo(), []);
+  const hasLayers = useEditorStore((s) => s.layers.length > 0);
 
   return (
     <Menubar.Menu>
@@ -236,6 +238,10 @@ function EditMenu() {
           </Item>
           <Item keys={['mod', 'shift', 'Z']} onSelect={redo}>
             Redo
+          </Item>
+          <Sep />
+          <Item keys={['mod', 'shift', 'R']} disabled={!hasLayers} onSelect={revertToOriginal}>
+            Revert to Original
           </Item>
           <Sep />
           <Item keys={['mod', 'X']} disabled>
@@ -599,6 +605,7 @@ function UndoRedoButtons() {
   const canRedo = useTemporalStore((s) => s.futureStates.length > 0);
   const undo = useTemporalStore((s) => s.undo);
   const redo = useTemporalStore((s) => s.redo);
+  const hasLayers = useEditorStore((s) => s.layers.length > 0);
 
   const btnClass =
     'flex items-center justify-center w-5 h-5 rounded-[3px] transition-colors text-text-secondary hover:text-text-primary disabled:opacity-30 disabled:hover:text-text-secondary cursor-default';
@@ -627,6 +634,21 @@ function UndoRedoButtons() {
           <Tooltip.Portal>
             <Tooltip.Content className="glass-panel px-1.5 py-0.5 text-[10px] text-text-primary z-50" sideOffset={6}>
               Redo <Kbd keys={['mod', 'shift', 'Z']} className="inline-flex ml-1" />
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
+
+        <div className="w-px h-3 bg-separator mx-0.5" />
+
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button disabled={!hasLayers} onClick={revertToOriginal} className={btnClass}>
+              <RotateCcw size={12} />
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content className="glass-panel px-1.5 py-0.5 text-[10px] text-text-primary z-50" sideOffset={6}>
+              Revert to Original <Kbd keys={['mod', 'shift', 'R']} className="inline-flex ml-1" />
             </Tooltip.Content>
           </Tooltip.Portal>
         </Tooltip.Root>

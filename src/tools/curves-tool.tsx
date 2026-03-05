@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef } from 'react';
-import { Spline } from 'lucide-react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { Spline, RotateCcw } from 'lucide-react';
 import type { ToolDefinition } from '@/types/tool';
 import { useEditorStore } from '@/store';
 import { evaluateCubicSpline, DEFAULT_CURVE_POINTS, type CurvePoint } from '@/lib/curves';
@@ -11,6 +11,13 @@ const CHANNEL_COLORS: Record<Channel, string> = {
   red: '#ff4444',
   green: '#44bb44',
   blue: '#4488ff',
+};
+
+const DEFAULT_POINTS: Record<Channel, CurvePoint[]> = {
+  rgb: [...DEFAULT_CURVE_POINTS],
+  red: [...DEFAULT_CURVE_POINTS],
+  green: [...DEFAULT_CURVE_POINTS],
+  blue: [...DEFAULT_CURVE_POINTS],
 };
 
 function CurvesPanel() {
@@ -39,19 +46,18 @@ function CurvesPanel() {
 
   const channelPoints = points[activeChannel];
 
-  const svgToPoint = (e: React.MouseEvent<SVGSVGElement>): CurvePoint => {
+  const svgToPoint = useCallback((clientX: number, clientY: number): CurvePoint => {
     const svg = svgRef.current!;
     const rect = svg.getBoundingClientRect();
     return {
-      x: Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
-      y: Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height)),
+      x: Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)),
+      y: Math.max(0, Math.min(1, 1 - (clientY - rect.top) / rect.height)),
     };
-  };
+  }, []);
 
   const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
-    const pt = svgToPoint(e);
+    const pt = svgToPoint(e.clientX, e.clientY);
 
-    // Check if clicking near an existing point
     const idx = channelPoints.findIndex(
       (p) => Math.abs(p.x - pt.x) < 0.04 && Math.abs(p.y - pt.y) < 0.04,
     );
@@ -59,7 +65,6 @@ function CurvesPanel() {
     if (idx >= 0) {
       draggingIdx.current = idx;
     } else {
-      // Add new point
       const newPts = [...channelPoints, pt].sort((a, b) => a.x - b.x);
       const newIdx = newPts.indexOf(pt);
       draggingIdx.current = newIdx;
@@ -69,42 +74,71 @@ function CurvesPanel() {
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (draggingIdx.current === null) return;
-    const pt = svgToPoint(e);
-    const idx = draggingIdx.current;
-    const newPts = [...channelPoints];
+  // Use document-level listeners so dragging continues outside the SVG
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (draggingIdx.current === null) return;
+      const pt = svgToPoint(e.clientX, e.clientY);
+      const idx = draggingIdx.current;
 
-    // Don't allow dragging first/last point's X
-    if (idx === 0) {
-      newPts[idx] = { x: 0, y: pt.y };
-    } else if (idx === newPts.length - 1) {
-      newPts[idx] = { x: 1, y: pt.y };
-    } else {
-      newPts[idx] = pt;
-    }
+      setPoints((prev) => {
+        const currentPts = prev[activeChannel];
+        const newPts = [...currentPts];
 
-    const next = { ...points, [activeChannel]: newPts };
-    setPoints(next);
-    updateCurves(next);
-  };
+        if (idx === 0) {
+          newPts[idx] = { x: 0, y: pt.y };
+        } else if (idx === newPts.length - 1) {
+          newPts[idx] = { x: 1, y: pt.y };
+        } else {
+          newPts[idx] = pt;
+        }
 
-  const handleMouseUp = () => {
-    draggingIdx.current = null;
-  };
+        const next = { ...prev, [activeChannel]: newPts };
+        updateCurves(next);
+        return next;
+      });
+    };
+
+    const handleMouseUp = () => {
+      draggingIdx.current = null;
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [activeChannel, svgToPoint, updateCurves]);
 
   const handleDoubleClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    const pt = svgToPoint(e);
+    const pt = svgToPoint(e.clientX, e.clientY);
     const idx = channelPoints.findIndex(
       (p) => Math.abs(p.x - pt.x) < 0.04 && Math.abs(p.y - pt.y) < 0.04,
     );
-    // Remove point (but not first or last)
     if (idx > 0 && idx < channelPoints.length - 1) {
       const newPts = channelPoints.filter((_, i) => i !== idx);
       const next = { ...points, [activeChannel]: newPts };
       setPoints(next);
       updateCurves(next);
     }
+  };
+
+  const isDefault = (['rgb', 'red', 'green', 'blue'] as Channel[]).every(
+    (ch) =>
+      points[ch].length === DEFAULT_POINTS[ch].length &&
+      points[ch].every((p, i) => p.x === DEFAULT_POINTS[ch][i].x && p.y === DEFAULT_POINTS[ch][i].y),
+  );
+
+  const reset = () => {
+    const next = {
+      rgb: [...DEFAULT_CURVE_POINTS],
+      red: [...DEFAULT_CURVE_POINTS],
+      green: [...DEFAULT_CURVE_POINTS],
+      blue: [...DEFAULT_CURVE_POINTS],
+    };
+    setPoints(next);
+    updateCurves(next);
   };
 
   // Build SVG path from spline
@@ -139,9 +173,6 @@ function CurvesPanel() {
         viewBox="0 0 200 200"
         className="w-full aspect-square bg-surface-secondary rounded cursor-crosshair"
         onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
         onDoubleClick={handleDoubleClick}
       >
         {/* Diagonal reference line */}
@@ -169,6 +200,16 @@ function CurvesPanel() {
           />
         ))}
       </svg>
+      {!isDefault && (
+        <button
+          onClick={reset}
+          className="flex items-center justify-center gap-1 px-2 py-1 text-[10px] text-text-secondary hover:text-text-primary
+            bg-surface-secondary hover:bg-surface-secondary/80 rounded transition-colors cursor-default"
+        >
+          <RotateCcw size={10} />
+          Reset
+        </button>
+      )}
     </div>
   );
 }

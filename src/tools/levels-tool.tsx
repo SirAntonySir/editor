@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { SlidersHorizontal } from 'lucide-react';
+import { SlidersHorizontal, RotateCcw } from 'lucide-react';
 import type { ToolDefinition } from '@/types/tool';
 import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
 import { useAdjustmentParam } from '@/lib/use-adjustment';
@@ -124,28 +124,49 @@ function LevelsPanel() {
   const [outBlack, setOutBlack] = useAdjustmentParam('levels', 'outBlack', 0);
   const [outWhite, setOutWhite] = useAdjustmentParam('levels', 'outWhite', 255);
 
+  const isDefault = inBlack === 0 && inWhite === 255 && gamma === 1.0 && outBlack === 0 && outWhite === 255;
+  const reset = () => {
+    setInBlack(0);
+    setInWhite(255);
+    setGamma(1.0);
+    setOutBlack(0);
+    setOutWhite(255);
+  };
+
   return (
     <div className="p-3 flex flex-col gap-3">
       <Histogram />
 
       <div className="text-xs font-medium text-text-secondary">Input Levels</div>
-      <AdjustmentSlider label="Black Point" value={inBlack} min={0} max={255} onChange={setInBlack} />
+      <AdjustmentSlider label="Black Point" value={inBlack} min={0} max={255} defaultValue={0} onChange={setInBlack} />
       <AdjustmentSlider
         label="Midtones"
         value={gamma}
         min={0.1}
         max={10}
         step={0.01}
+        defaultValue={1.0}
         onChange={setGamma}
         formatValue={(v) => v.toFixed(2)}
       />
-      <AdjustmentSlider label="White Point" value={inWhite} min={0} max={255} onChange={setInWhite} />
+      <AdjustmentSlider label="White Point" value={inWhite} min={0} max={255} defaultValue={255} onChange={setInWhite} />
 
       <div className="h-px bg-separator" />
 
       <div className="text-xs font-medium text-text-secondary">Output Levels</div>
-      <AdjustmentSlider label="Output Black" value={outBlack} min={0} max={255} onChange={setOutBlack} />
-      <AdjustmentSlider label="Output White" value={outWhite} min={0} max={255} onChange={setOutWhite} />
+      <AdjustmentSlider label="Output Black" value={outBlack} min={0} max={255} defaultValue={0} onChange={setOutBlack} />
+      <AdjustmentSlider label="Output White" value={outWhite} min={0} max={255} defaultValue={255} onChange={setOutWhite} />
+
+      {!isDefault && (
+        <button
+          onClick={reset}
+          className="flex items-center justify-center gap-1 px-2 py-1 text-[10px] text-text-secondary hover:text-text-primary
+            bg-surface-secondary hover:bg-surface-secondary/80 rounded transition-colors cursor-default"
+        >
+          <RotateCcw size={10} />
+          Reset
+        </button>
+      )}
     </div>
   );
 }

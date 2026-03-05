@@ -77,6 +77,7 @@ export interface LayerSlice {
   // Reorder adjustment layers
   reorderAdjustments: (layerId: string, fromIndex: number, toIndex: number) => void;
 
+  revertAll: () => void;
   bumpPixelVersion: () => void;
 }
 
@@ -191,6 +192,21 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
       const arr = layer.adjustmentStack.adjustments;
       const [moved] = arr.splice(fromIndex, 1);
       arr.splice(toIndex, 0, moved);
+    }),
+
+  revertAll: () =>
+    set((state) => {
+      // Remove all non-image layers
+      state.layers = state.layers.filter((l) => l.type === 'image');
+      // Clear all adjustment stacks on remaining layers
+      for (const layer of state.layers) {
+        layer.adjustmentStack.adjustments = [];
+      }
+      // Reset active layer
+      state.activeLayerId = state.layers[0]?.id ?? null;
+      // Reorder
+      state.layers.forEach((l, i) => { l.order = i; });
+      state.pixelVersion += 1;
     }),
 
   bumpPixelVersion: () =>

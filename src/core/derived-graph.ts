@@ -117,6 +117,7 @@ export function buildGraphFromLayers(
           position: getPos(nodeKey, { x, y }),
           data: {
             label: NODE_LABELS[nt],
+            layerId: layer.id,
             adjustmentId: adj.id,
             paramKeys: pKeys,
             params: filterParams(nt, adj.params),
@@ -182,7 +183,7 @@ export function buildGraphFromLayers(
     id: outKey,
     type: 'output',
     position: getPos(outKey, { x: maxX + X_STEP, y: outY }),
-    data: { label: 'Output' },
+    data: { label: 'Output', layerId: sorted[sorted.length - 1]?.id },
   });
 
   if (prevChainEnd) {
@@ -198,6 +199,19 @@ export function buildGraphFromLayers(
 
 // ─── React hook ─────────────────────────────────────────────────────
 
+/**
+ * Structural fingerprint — only changes when layers/adjustments are
+ * added, removed, or reordered (not on param tweaks).
+ */
+function computeStructureKey(layers: Layer[]): string {
+  return layers
+    .map(
+      (l) =>
+        `${l.id}:${l.order}:${l.adjustmentStack.adjustments.map((a) => `${a.id}:${a.type}`).join(',')}`,
+    )
+    .join('|');
+}
+
 export function useDerivedGraph(): ProcessingGraph | null {
   const editorMode = useEditorStore((s) => s.editorMode);
   const layers = useEditorStore((s) => s.layers);
@@ -205,8 +219,12 @@ export function useDerivedGraph(): ProcessingGraph | null {
     (s) => (s as Record<string, unknown>).graphPositions as Record<string, NodePosition> | undefined,
   );
 
+  // Only rebuild graph when topology changes, not on every param tweak
+  const structureKey = useMemo(() => computeStructureKey(layers), [layers]);
+
   return useMemo(() => {
     if (editorMode !== 'graph') return null;
     return buildGraphFromLayers(layers, graphPositions ?? {});
-  }, [editorMode, layers, graphPositions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorMode, structureKey, graphPositions]);
 }

@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, lazy, Suspense } from 'react';
 import type * as fabric from 'fabric';
 import { AnimatePresence } from 'framer-motion';
 import { EditorProvider, useEditor } from '@/components/EditorProvider';
@@ -26,6 +26,12 @@ import { BrushTool } from '@/tools/brush-tool';
 import { TextTool } from '@/tools/text-tool';
 import { FiltersTool } from '@/tools/filters-tool';
 import { Upload } from 'lucide-react';
+
+// Lazy-load GraphEditor so @xyflow/react CSS doesn't interfere with Fabric.js canvas
+const GraphEditor = lazy(() =>
+  import('@/components/graph/GraphEditor').then((m) => ({ default: m.GraphEditor })),
+);
+import { GraphSplitDivider } from '@/components/graph/GraphSplitDivider';
 import {
   Empty,
   EmptyHeader,
@@ -46,6 +52,126 @@ ToolRegistry.register(LevelsTool);
 ToolRegistry.register(BrushTool);
 ToolRegistry.register(TextTool);
 ToolRegistry.register(FiltersTool);
+
+/** Main canvas area — switches between full canvas and split canvas+graph */
+function GraphSplitLayout({
+  canvasRef,
+  editorMode,
+  layers,
+  toolDef,
+  toolContext,
+  activeTool,
+  showHistoryPanel,
+  handleFileOpen,
+}: {
+  canvasRef: React.RefObject<fabric.Canvas | null>;
+  editorMode: string;
+  layers: unknown[];
+  toolDef: ReturnType<ReturnType<typeof useEditor>['getActiveTool']>;
+  toolContext: ReturnType<typeof useEditor>['toolContext'];
+  activeTool: string;
+  showHistoryPanel: boolean;
+  handleFileOpen: () => void;
+}) {
+  const isGraph = editorMode === 'graph' && layers.length > 0;
+  const splitRatio = useEditorStore((s) => s.graphSplitRatio);
+  const splitDirection = useEditorStore((s) => s.graphSplitDirection);
+  const setGraphSplitRatio = useEditorStore((s) => s.setGraphSplitRatio);
+
+  return (
+    <div className="relative flex-1 min-h-0">
+      <div
+        className={isGraph ? `flex h-full ${splitDirection === 'vertical' ? 'flex-row' : 'flex-col'}` : 'h-full'}
+      >
+        {/* Canvas pane — always at same tree position to avoid remounting Fabric */}
+        <div
+          className={isGraph ? 'relative min-w-0 min-h-0 overflow-hidden pointer-events-none' : 'absolute inset-0'}
+          style={isGraph ? { flex: `0 0 ${splitRatio * 100}%` } : undefined}
+        >
+          <CanvasContextMenu>
+            <div className="absolute inset-0">
+              <EditorCanvas canvasRef={canvasRef} />
+            </div>
+          </CanvasContextMenu>
+        </div>
+
+        {/* Divider + Graph pane — only in graph mode */}
+        {isGraph && (
+          <Suspense
+            fallback={
+              <>
+                <div className={`flex-none ${splitDirection === 'vertical' ? 'w-1' : 'h-1'} bg-separator`} />
+                <div className="flex-1 bg-canvas-bg" />
+              </>
+            }
+          >
+            <GraphSplitDivider direction={splitDirection} onRatioChange={setGraphSplitRatio} />
+            <div className="flex-1 min-w-0 min-h-0 relative bg-canvas-bg">
+              <GraphEditor />
+            </div>
+          </Suspense>
+        )}
+      </div>
+
+      {/* Tool canvas overlay — not in graph mode */}
+      {!isGraph && toolDef?.CanvasOverlay && <toolDef.CanvasOverlay ctx={toolContext} />}
+
+      {/* Empty state */}
+      <AnimatePresence>
+        {layers.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <Empty className="pointer-events-auto">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Upload />
+                </EmptyMedia>
+                <EmptyTitle>No image loaded</EmptyTitle>
+                <EmptyDescription>
+                  Open an image to start editing, or drag & drop a file onto the canvas.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <button
+                  onClick={handleFileOpen}
+                  className="glass-panel px-4 py-2 text-sm text-text-primary hover:bg-surface-secondary transition-colors cursor-pointer"
+                >
+                  Open Image
+                </button>
+              </EmptyContent>
+            </Empty>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* HUDs — hidden in graph mode */}
+      {!isGraph && (
+        <>
+          {/* Top toolbar */}
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
+            <Toolbar />
+          </div>
+
+          {/* Layers panel — only in compose mode */}
+          {editorMode === 'compose' && layers.length > 0 && <LayersPanel />}
+
+          {/* History panel — toggled via View menu */}
+          {showHistoryPanel && layers.length > 0 && <HistoryPanel />}
+
+          {/* Inspector panel */}
+          <InspectorPanel />
+
+          {/* Status bar */}
+          <div className="absolute bottom-0 right-0 z-20 flex items-center gap-2
+            px-2 py-0.5 text-xs text-text-secondary bg-surface/70 backdrop-blur-sm rounded-tl-sm">
+            <span className="capitalize">{activeTool}</span>
+            <span className="text-separator">|</span>
+            <ZoomDisplay />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | null> }) {
   const { toolContext, getActiveTool } = useEditor();
@@ -79,74 +205,16 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
       </div>
 
       {/* Main canvas area */}
-      <div className="relative flex-1 min-h-0">
-
-      {/* Canvas — fullscreen, behind everything */}
-      <CanvasContextMenu>
-        <div className="absolute inset-0">
-          <EditorCanvas canvasRef={canvasRef} />
-        </div>
-      </CanvasContextMenu>
-
-      {/* Tool canvas overlay */}
-      {toolDef?.CanvasOverlay && (
-        <toolDef.CanvasOverlay ctx={toolContext} />
-      )}
-
-      {/* Empty state */}
-      <AnimatePresence>
-        {layers.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-            <Empty className="pointer-events-auto">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <Upload />
-                </EmptyMedia>
-                <EmptyTitle>No image loaded</EmptyTitle>
-                <EmptyDescription>
-                  Open an image to start editing, or drag & drop a file onto the canvas.
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <button
-                  onClick={handleFileOpen}
-                  className="glass-panel px-4 py-2 text-sm text-text-primary hover:bg-surface-secondary transition-colors cursor-pointer"
-                >
-                  Open Image
-                </button>
-              </EmptyContent>
-            </Empty>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* HUDs — hidden in AI mode */}
-      {editorMode !== 'graph' && (
-        <>
-          {/* Top toolbar */}
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
-            <Toolbar />
-          </div>
-
-          {/* Layers panel — only in compose mode */}
-          {editorMode === 'compose' && layers.length > 0 && <LayersPanel />}
-
-          {/* History panel — toggled via View menu */}
-          {showHistoryPanel && layers.length > 0 && <HistoryPanel />}
-
-          {/* Inspector panel */}
-          <InspectorPanel />
-
-          {/* Status bar */}
-          <div className="absolute bottom-0 right-0 z-20 flex items-center gap-2
-            px-2 py-0.5 text-xs text-text-secondary bg-surface/70 backdrop-blur-sm rounded-tl-sm">
-            <span className="capitalize">{activeTool}</span>
-            <span className="text-separator">|</span>
-            <ZoomDisplay />
-          </div>
-        </>
-      )}
-      </div>{/* end main canvas area */}
+      <GraphSplitLayout
+        canvasRef={canvasRef}
+        editorMode={editorMode}
+        layers={layers}
+        toolDef={toolDef}
+        toolContext={toolContext}
+        activeTool={activeTool}
+        showHistoryPanel={showHistoryPanel}
+        handleFileOpen={handleFileOpen}
+      />
 
       {/* Preferences overlay */}
       <AnimatePresence>
@@ -164,13 +232,11 @@ function ZoomDisplay() {
 // Apply persisted preferences on initial load
 applyPreferences(usePreferencesStore.getState());
 
-// Initialize EditorDocument with the Zustand store
-editorDocument.init(useEditorStore);
-
 export default function App() {
   const canvasRef = useRef<fabric.Canvas | null>(null);
 
   useEffect(() => {
+    editorDocument.init(useEditorStore);
     return () => editorDocument.dispose();
   }, []);
 

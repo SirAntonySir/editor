@@ -11,12 +11,37 @@ interface EditorCanvasProps {
   canvasRef: React.MutableRefObject<fabric.Canvas | null>;
 }
 
+/** Fit the first canvas object into the viewport with 90% padding. */
+function fitCanvasToView(canvas: fabric.Canvas) {
+  const obj = canvas.getObjects()[0];
+  if (!obj) return;
+  const w = canvas.getWidth();
+  const h = canvas.getHeight();
+  const objW = obj.width * (obj.scaleX ?? 1);
+  const objH = obj.height * (obj.scaleY ?? 1);
+  if (objW === 0 || objH === 0) return;
+  const z = Math.min(w / objW, h / objH) * 0.9;
+  canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+  canvas.zoomToPoint(new fabric.Point(w / 2, h / 2), z);
+  const objCenter = obj.getCenterPoint();
+  const vpt = canvas.viewportTransform;
+  if (vpt) {
+    vpt[4] = w / 2 - objCenter.x * z;
+    vpt[5] = h / 2 - objCenter.y * z;
+  }
+  canvas.requestRenderAll();
+}
+
 export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasElRef = useRef<HTMLCanvasElement>(null);
   const isPanning = useRef(false);
   const lastPointer = useRef({ x: 0, y: 0 });
   const spaceHeld = useRef(false);
+
+  const editorMode = useEditorStore((s) => s.editorMode);
+  const editorModeRef = useRef(editorMode);
+  editorModeRef.current = editorMode;
 
   const { toolContext } = useEditor();
 
@@ -51,6 +76,10 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
       canvas.setDimensions({ width: w, height: h });
       useEditorStore.getState().setCanvasDimensions(w, h);
       canvas.renderAll();
+      // Auto-fit when in graph mode (preview pane)
+      if (editorModeRef.current === 'graph') {
+        fitCanvasToView(canvas);
+      }
     });
     resizeObserver.observe(container);
 
@@ -61,6 +90,30 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Disable interaction & refit when entering graph mode (preview)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    if (editorMode === 'graph') {
+      canvas.selection = false;
+      canvas.discardActiveObject();
+      canvas.forEachObject((obj) => {
+        obj.selectable = false;
+        obj.evented = false;
+      });
+      // Fit after container resize settles
+      const timer = setTimeout(() => fitCanvasToView(canvas), 60);
+      return () => clearTimeout(timer);
+    } else {
+      canvas.selection = true;
+      canvas.forEachObject((obj) => {
+        obj.selectable = true;
+        obj.evented = true;
+      });
+    }
+  }, [editorMode, canvasRef]);
 
   // Zoom with scroll wheel
   useEffect(() => {
@@ -298,17 +351,15 @@ export async function loadImageToCanvas(file: File, canvas: fabric.Canvas | null
   const working = CanvasRegistry.get(layerId);
   if (!working) return;
 
-  const dataURL = await new Promise<string>((resolve) => {
-    const tmpCanvas = document.createElement('canvas');
-    tmpCanvas.width = working.width;
-    tmpCanvas.height = working.height;
-    const tmpCtx = tmpCanvas.getContext('2d');
-    if (!tmpCtx) return;
-    tmpCtx.drawImage(working, 0, 0);
-    resolve(tmpCanvas.toDataURL());
-  });
+  // Create HTMLCanvasElement from OffscreenCanvas (no data URL roundtrip)
+  const tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width = working.width;
+  tmpCanvas.height = working.height;
+  const tmpCtx = tmpCanvas.getContext('2d');
+  if (!tmpCtx) return;
+  tmpCtx.drawImage(working, 0, 0);
 
-  const img = await fabric.FabricImage.fromURL(dataURL);
+  const img = new fabric.FabricImage(tmpCanvas);
 
   // Fit image to canvas viewport
   const canvasWidth = canvas.getWidth();

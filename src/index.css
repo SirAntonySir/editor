@@ -80,6 +80,38 @@ html, body, #root {
   background: var(--color-canvas-bg);
 }
 
+/* React Flow overrides */
+.react-flow__node {
+  cursor: grab;
+  background: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+}
+.react-flow__node:active {
+  cursor: grabbing;
+}
+.react-flow__controls {
+  background: var(--color-glass-bg) !important;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 0.5px solid var(--color-glass-border) !important;
+  box-shadow: var(--shadow-panel) !important;
+  border-radius: var(--radius-panel) !important;
+}
+.react-flow__controls-button {
+  background: transparent !important;
+  border-color: var(--color-separator) !important;
+  color: var(--color-text-secondary) !important;
+  fill: var(--color-text-secondary) !important;
+}
+.react-flow__controls-button:hover {
+  background: var(--color-surface-secondary) !important;
+  color: var(--color-text-primary) !important;
+  fill: var(--color-text-primary) !important;
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

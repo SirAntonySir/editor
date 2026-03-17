@@ -9,8 +9,9 @@ import {
 } from '@/lib/lut-parser';
 import { useCallback, useMemo } from 'react';
 
-function FiltersPanel() {
-  const activeLayerId = useEditorStore((s) => s.activeLayerId);
+export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}) {
+  const storeLayerId = useEditorStore((s) => s.activeLayerId);
+  const activeLayerId = layerIdProp ?? storeLayerId;
 
   // Generate previews once per layer (CPU thumbnails from working canvas)
   const presets = useMemo(() => {

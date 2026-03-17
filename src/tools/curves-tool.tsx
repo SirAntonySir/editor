@@ -20,8 +20,9 @@ const DEFAULT_POINTS: Record<Channel, CurvePoint[]> = {
   blue: [...DEFAULT_CURVE_POINTS],
 };
 
-function CurvesPanel() {
-  const activeLayerId = useEditorStore((s) => s.activeLayerId);
+export function CurvesPanel({ layerId: layerIdProp }: { layerId?: string } = {}) {
+  const storeLayerId = useEditorStore((s) => s.activeLayerId);
+  const activeLayerId = layerIdProp ?? storeLayerId;
   const [activeChannel, setActiveChannel] = useState<Channel>('rgb');
   const [points, setPoints] = useState<Record<Channel, CurvePoint[]>>({
     rgb: [...DEFAULT_CURVE_POINTS],

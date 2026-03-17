@@ -6,11 +6,11 @@ import type { TransactionInfo, SerializableState } from './types';
 import { pixelStore } from './pixel-store';
 
 let activeTransaction: TransactionInfo | null = null;
-let captureStateFn: (() => SerializableState) | null = null;
+let captureStateFn: (() => SerializableState | null) | null = null;
 let restoreStateFn: ((snapshot: SerializableState) => void) | null = null;
 
 export function setTransactionCallbacks(
-  capture: () => SerializableState,
+  capture: () => SerializableState | null,
   restore: (snapshot: SerializableState) => void,
 ): void {
   captureStateFn = capture;
@@ -30,6 +30,7 @@ export async function begin(
   if (!captureStateFn) throw new Error('Transaction callbacks not initialized');
 
   const preMetaSnapshot = captureStateFn();
+  if (!preMetaSnapshot) throw new Error('EditorDocument not initialized');
   const prePixelSnapshots = await pixelStore.captureSnapshots(affectedLayerIds);
 
   activeTransaction = {

@@ -29,8 +29,8 @@ let beforeUnloadHandler: ((e: BeforeUnloadEvent) => void) | null = null;
 
 // ─── State capture / restore ────────────────────────────────────────
 
-function captureState(): SerializableState {
-  if (!store) throw new Error('EditorDocument not initialized');
+function captureState(): SerializableState | null {
+  if (!store) return null;
   const s = store.getState() as Record<string, unknown>;
   return {
     layers: structuredClone(s.layers as SerializableState['layers']),
@@ -236,13 +236,15 @@ async function saveAs(name?: string): Promise<void> {
 // ─── Interaction sessions (slider debouncing) ───────────────────────
 
 function beginInteraction(label: string): void {
+  const pre = captureState();
+  if (!pre) return;
   if (interaction) {
     // Auto-commit dangling interaction
     endInteraction();
   }
   interaction = {
     label,
-    preMetaSnapshot: captureState(),
+    preMetaSnapshot: pre,
     debounceTimer: null,
   };
 }
@@ -267,6 +269,7 @@ function endInteraction(): void {
 
   // Compare current state to pre-state
   const currentState = captureState();
+  if (!currentState) { interaction = null; return; }
   const pre = interaction.preMetaSnapshot;
 
   // Only push if something actually changed
@@ -296,6 +299,7 @@ function endInteraction(): void {
 function recordAction(label: string, fn: () => void): void {
   const pre = captureState();
   fn();
+  if (!pre) return; // not initialized — action runs but no history entry
   const entry: HistoryEntry = {
     id: crypto.randomUUID(),
     label,
@@ -353,6 +357,7 @@ async function undoAction(): Promise<void> {
   // Before undo, capture current state and swap it into the entry
   // so that redo can restore it
   const currentState = captureState();
+  if (!currentState) return;
   const currentPixels = await capturePixelsForTopEntry();
 
   await history.undo();
@@ -377,6 +382,7 @@ async function redoAction(): Promise<void> {
 
   // Before redo, capture current state for the undo stack entry
   const currentState = captureState();
+  if (!currentState) return;
   const currentPixels = await capturePixelsForUndoTop();
 
   await history.redo();

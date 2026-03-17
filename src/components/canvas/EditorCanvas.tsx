@@ -112,6 +112,16 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
         obj.selectable = saved?.selectable ?? true;
         obj.evented = saved?.evented ?? true;
       });
+      // Re-fit after leaving graph mode (container resizes from split pane to full)
+      const timer = setTimeout(() => {
+        fitCanvasToView(canvas);
+        const z = canvas.getZoom();
+        const vpt = canvas.viewportTransform;
+        useEditorStore.getState().setZoom(z);
+        useEditorStore.getState().setFitMode('fit');
+        useEditorStore.getState().setPan(vpt?.[4] ?? 0, vpt?.[5] ?? 0);
+      }, 60);
+      return () => clearTimeout(timer);
     }
   }, [editorMode, canvasRef]);
 

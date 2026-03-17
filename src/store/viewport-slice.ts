@@ -1,7 +1,6 @@
 import type { StateCreator } from 'zustand';
 
 export type FitMode = 'fit' | 'fill' | 'actual';
-export type CompareLayout = 'horizontal' | 'vertical';
 
 export interface ViewportSlice {
   zoom: number;
@@ -10,16 +9,12 @@ export interface ViewportSlice {
   canvasWidth: number;
   canvasHeight: number;
   fitMode: FitMode;
-  showCompare: boolean;
-  compareLayout: CompareLayout;
 
   setZoom: (zoom: number) => void;
   setPan: (x: number, y: number) => void;
   setCanvasDimensions: (width: number, height: number) => void;
   setFitMode: (mode: FitMode) => void;
   resetViewport: () => void;
-  toggleCompare: () => void;
-  setCompareLayout: (layout: CompareLayout) => void;
 }
 
 export const createViewportSlice: StateCreator<ViewportSlice, [['zustand/immer', never]], []> = (set) => ({
@@ -29,8 +24,6 @@ export const createViewportSlice: StateCreator<ViewportSlice, [['zustand/immer',
   canvasWidth: 0,
   canvasHeight: 0,
   fitMode: 'fit',
-  showCompare: false,
-  compareLayout: 'horizontal',
 
   setZoom: (zoom) =>
     set((state) => {
@@ -60,15 +53,5 @@ export const createViewportSlice: StateCreator<ViewportSlice, [['zustand/immer',
       state.panX = 0;
       state.panY = 0;
       state.fitMode = 'fit';
-    }),
-
-  toggleCompare: () =>
-    set((state) => {
-      state.showCompare = !state.showCompare;
-    }),
-
-  setCompareLayout: (layout) =>
-    set((state) => {
-      state.compareLayout = layout;
     }),
 });

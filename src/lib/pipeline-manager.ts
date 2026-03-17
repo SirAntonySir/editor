@@ -62,6 +62,10 @@ class PipelineManagerImpl {
     return output;
   }
 
+  getOutput(): HTMLCanvasElement | null {
+    return this.pipeline?.getOutputCanvas() ?? null;
+  }
+
   subscribe(cb: (canvas: HTMLCanvasElement) => void): () => void {
     this.listeners.add(cb);
     return () => { this.listeners.delete(cb); };

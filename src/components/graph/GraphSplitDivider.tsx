@@ -44,7 +44,7 @@ export function GraphSplitDivider({ direction, onRatioChange }: GraphSplitDivide
   return (
     <div
       className={`flex-none select-none transition-colors ${
-        isVertical ? 'w-1 cursor-col-resize' : 'h-1 cursor-row-resize'
+        isVertical ? 'w-[2px] cursor-col-resize' : 'h-[2px] cursor-row-resize'
       } ${isDragging ? 'bg-accent' : 'bg-separator hover:bg-accent/60'}`}
       onMouseDown={handleMouseDown}
     />

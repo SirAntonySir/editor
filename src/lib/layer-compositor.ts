@@ -20,6 +20,7 @@ class LayerCompositorImpl {
   private rafId: number | null = null;
   private pendingRender = false;
   private onComposite: ((canvas: HTMLCanvasElement) => void) | null = null;
+  private listeners = new Set<(canvas: HTMLCanvasElement) => void>();
 
   constructor() {
     this.outputCanvas = document.createElement('canvas');
@@ -116,6 +117,12 @@ class LayerCompositorImpl {
     }
 
     this.onComposite?.(this.outputCanvas);
+    for (const cb of this.listeners) cb(this.outputCanvas);
+  }
+
+  subscribe(cb: (canvas: HTMLCanvasElement) => void): () => void {
+    this.listeners.add(cb);
+    return () => { this.listeners.delete(cb); };
   }
 
   dispose(): void {

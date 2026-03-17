@@ -186,10 +186,12 @@ export function GraphEditor() {
     [setSelectedNode],
   );
 
-  // Click a node → highlight it and show properties panel
+  // Click a node → only open properties panel on Shift+click
   const onNodeClick: NodeMouseHandler = useCallback(
-    (_event, node) => {
-      setHighlightedNode(node.id);
+    (event, node) => {
+      if (event.shiftKey) {
+        setHighlightedNode(node.id);
+      }
     },
     [setHighlightedNode],
   );

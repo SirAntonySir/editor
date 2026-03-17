@@ -1,9 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Spline, RotateCcw } from 'lucide-react';
-import type { ToolDefinition } from '@/types/tool';
 import { useEditorStore } from '@/store';
-import { evaluateCubicSpline, DEFAULT_CURVE_POINTS, type CurvePoint } from '@/lib/curves';
+import { evaluateCubicSpline } from '@/lib/curves';
 import { useCurvePoints, type CurvePointsMap } from '@/lib/curve-points-store';
+import type { CurvePoint } from '@/lib/curves';
 
 type Channel = 'rgb' | 'red' | 'green' | 'blue';
 
@@ -14,32 +13,29 @@ const CHANNEL_COLORS: Record<Channel, string> = {
   blue: '#4488ff',
 };
 
-const DEFAULT_POINTS: Record<Channel, CurvePoint[]> = {
-  rgb: [...DEFAULT_CURVE_POINTS],
-  red: [...DEFAULT_CURVE_POINTS],
-  green: [...DEFAULT_CURVE_POINTS],
-  blue: [...DEFAULT_CURVE_POINTS],
-};
+const CHANNELS: Channel[] = ['rgb', 'red', 'green', 'blue'];
 
-export function CurvesPanel({ layerId: layerIdProp }: { layerId?: string } = {}) {
-  const storeLayerId = useEditorStore((s) => s.activeLayerId);
-  const activeLayerId = layerIdProp ?? storeLayerId;
+/**
+ * Compact inline curves editor for graph nodes.
+ * 120x120 SVG with mini channel tabs.
+ * Shares control points with CurvesPanel via curve-points-store.
+ */
+export function InlineCurvesEditor({ layerId }: { layerId: string }) {
   const [activeChannel, setActiveChannel] = useState<Channel>('rgb');
-  const [points, setPoints] = useCurvePoints(activeLayerId ?? '');
+  const [points, setPoints] = useCurvePoints(layerId);
   const draggingIdx = useRef<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const updateCurves = useCallback(
     (newPoints: CurvePointsMap) => {
-      if (!activeLayerId) return;
       setPoints(newPoints);
       const params: Record<string, Float32Array> = {};
-      for (const ch of ['rgb', 'red', 'green', 'blue'] as Channel[]) {
+      for (const ch of CHANNELS) {
         params[ch] = evaluateCubicSpline(newPoints[ch]);
       }
-      useEditorStore.getState().setAdjustment(activeLayerId, 'curves', params);
+      useEditorStore.getState().setAdjustment(layerId, 'curves', params);
     },
-    [activeLayerId, setPoints],
+    [layerId, setPoints],
   );
 
   const channelPoints = points[activeChannel];
@@ -54,10 +50,10 @@ export function CurvesPanel({ layerId: layerIdProp }: { layerId?: string } = {})
   }, []);
 
   const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    e.stopPropagation();
     const pt = svgToPoint(e.clientX, e.clientY);
-
     const idx = channelPoints.findIndex(
-      (p) => Math.abs(p.x - pt.x) < 0.04 && Math.abs(p.y - pt.y) < 0.04,
+      (p) => Math.abs(p.x - pt.x) < 0.06 && Math.abs(p.y - pt.y) < 0.06,
     );
 
     if (idx >= 0) {
@@ -71,7 +67,6 @@ export function CurvesPanel({ layerId: layerIdProp }: { layerId?: string } = {})
     }
   };
 
-  // Use document-level listeners so dragging continues outside the SVG
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (draggingIdx.current === null) return;
@@ -80,7 +75,6 @@ export function CurvesPanel({ layerId: layerIdProp }: { layerId?: string } = {})
 
       const currentPts = points[activeChannel];
       const newPts = [...currentPts];
-
       if (idx === 0) {
         newPts[idx] = { x: 0, y: pt.y };
       } else if (idx === newPts.length - 1) {
@@ -88,7 +82,6 @@ export function CurvesPanel({ layerId: layerIdProp }: { layerId?: string } = {})
       } else {
         newPts[idx] = pt;
       }
-
       const next = { ...points, [activeChannel]: newPts };
       updateCurves(next);
     };
@@ -106,9 +99,10 @@ export function CurvesPanel({ layerId: layerIdProp }: { layerId?: string } = {})
   }, [activeChannel, svgToPoint, updateCurves, points]);
 
   const handleDoubleClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    e.stopPropagation();
     const pt = svgToPoint(e.clientX, e.clientY);
     const idx = channelPoints.findIndex(
-      (p) => Math.abs(p.x - pt.x) < 0.04 && Math.abs(p.y - pt.y) < 0.04,
+      (p) => Math.abs(p.x - pt.x) < 0.06 && Math.abs(p.y - pt.y) < 0.06,
     );
     if (idx > 0 && idx < channelPoints.length - 1) {
       const newPts = channelPoints.filter((_, i) => i !== idx);
@@ -117,103 +111,61 @@ export function CurvesPanel({ layerId: layerIdProp }: { layerId?: string } = {})
     }
   };
 
-  const isDefault = (['rgb', 'red', 'green', 'blue'] as Channel[]).every(
-    (ch) =>
-      points[ch].length === DEFAULT_POINTS[ch].length &&
-      points[ch].every((p, i) => p.x === DEFAULT_POINTS[ch][i].x && p.y === DEFAULT_POINTS[ch][i].y),
-  );
-
-  const reset = () => {
-    const next = {
-      rgb: [...DEFAULT_CURVE_POINTS],
-      red: [...DEFAULT_CURVE_POINTS],
-      green: [...DEFAULT_CURVE_POINTS],
-      blue: [...DEFAULT_CURVE_POINTS],
-    };
-    updateCurves(next);
-  };
-
-  // Build SVG path from spline
   const lut = evaluateCubicSpline(channelPoints);
+  const size = 120;
   const pathData = Array.from(lut)
     .map((y, i) => {
-      const x = (i / 255) * 200;
-      const yy = (1 - y) * 200;
+      const x = (i / 255) * size;
+      const yy = (1 - y) * size;
       return i === 0 ? `M${x},${yy}` : `L${x},${yy}`;
     })
     .join(' ');
 
   return (
-    <div className="p-3 flex flex-col gap-2">
-      <div className="flex gap-1">
-        {(['rgb', 'red', 'green', 'blue'] as Channel[]).map((ch) => (
+    <div className="px-3 py-2 flex flex-col gap-1.5 nodrag nowheel">
+      <div className="flex gap-0.5">
+        {CHANNELS.map((ch) => (
           <button
             key={ch}
-            onClick={() => setActiveChannel(ch)}
-            className={`px-2 py-0.5 text-xs rounded capitalize transition-colors ${
+            onClick={(e) => { e.stopPropagation(); setActiveChannel(ch); }}
+            className={`px-1.5 py-0.5 text-[9px] rounded capitalize transition-colors ${
               activeChannel === ch
                 ? 'bg-accent text-white'
                 : 'text-text-secondary hover:bg-surface-secondary'
             }`}
           >
-            {ch === 'rgb' ? 'RGB' : ch}
+            {ch === 'rgb' ? 'RGB' : ch.charAt(0).toUpperCase()}
           </button>
         ))}
       </div>
       <svg
         ref={svgRef}
-        viewBox="0 0 200 200"
+        viewBox={`0 0 ${size} ${size}`}
         className="w-full aspect-square bg-surface-secondary rounded cursor-crosshair"
         onMouseDown={handleMouseDown}
         onDoubleClick={handleDoubleClick}
       >
-        {/* Diagonal reference line */}
-        <line x1="0" y1="200" x2="200" y2="0" stroke="var(--color-separator)" strokeWidth="1" />
-        {/* Grid lines */}
-        <line x1="50" y1="0" x2="50" y2="200" stroke="var(--color-separator)" strokeWidth="0.5" />
-        <line x1="100" y1="0" x2="100" y2="200" stroke="var(--color-separator)" strokeWidth="0.5" />
-        <line x1="150" y1="0" x2="150" y2="200" stroke="var(--color-separator)" strokeWidth="0.5" />
-        <line x1="0" y1="50" x2="200" y2="50" stroke="var(--color-separator)" strokeWidth="0.5" />
-        <line x1="0" y1="100" x2="200" y2="100" stroke="var(--color-separator)" strokeWidth="0.5" />
-        <line x1="0" y1="150" x2="200" y2="150" stroke="var(--color-separator)" strokeWidth="0.5" />
-        {/* Curve */}
-        <path d={pathData} fill="none" stroke={CHANNEL_COLORS[activeChannel]} strokeWidth="2" />
-        {/* Control points */}
+        <line x1="0" y1={size} x2={size} y2="0" stroke="var(--color-separator)" strokeWidth="0.5" />
+        <line x1={size / 4} y1="0" x2={size / 4} y2={size} stroke="var(--color-separator)" strokeWidth="0.3" />
+        <line x1={size / 2} y1="0" x2={size / 2} y2={size} stroke="var(--color-separator)" strokeWidth="0.3" />
+        <line x1={(3 * size) / 4} y1="0" x2={(3 * size) / 4} y2={size} stroke="var(--color-separator)" strokeWidth="0.3" />
+        <line x1="0" y1={size / 4} x2={size} y2={size / 4} stroke="var(--color-separator)" strokeWidth="0.3" />
+        <line x1="0" y1={size / 2} x2={size} y2={size / 2} stroke="var(--color-separator)" strokeWidth="0.3" />
+        <line x1="0" y1={(3 * size) / 4} x2={size} y2={(3 * size) / 4} stroke="var(--color-separator)" strokeWidth="0.3" />
+        <path d={pathData} fill="none" stroke={CHANNEL_COLORS[activeChannel]} strokeWidth="1.5" />
         {channelPoints.map((p, i) => (
           <circle
             key={i}
-            cx={p.x * 200}
-            cy={(1 - p.y) * 200}
-            r="5"
+            cx={p.x * size}
+            cy={(1 - p.y) * size}
+            r="4"
             fill="white"
             stroke={CHANNEL_COLORS[activeChannel]}
-            strokeWidth="2"
+            strokeWidth="1.5"
             className="cursor-grab"
           />
         ))}
       </svg>
-      {!isDefault && (
-        <button
-          onClick={reset}
-          className="flex items-center justify-center gap-1 px-2 py-1 text-[10px] text-text-secondary hover:text-text-primary
-            bg-surface-secondary hover:bg-surface-secondary/80 rounded transition-colors cursor-default"
-        >
-          <RotateCcw size={10} />
-          Reset
-        </button>
-      )}
     </div>
   );
 }
-
-function CurvesPanelWrapper() {
-  return <CurvesPanel />;
-}
-
-export const CurvesTool: ToolDefinition = {
-  name: 'curves',
-  label: 'Curves',
-  icon: Spline,
-  category: 'adjust',
-  OptionsPanel: CurvesPanelWrapper,
-};

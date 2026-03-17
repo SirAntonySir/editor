@@ -7,7 +7,7 @@ import type { ProcessingNode, ProcessingNodeType, ProcessingGraph } from '@/type
 
 // ─── Slider editors per node type ────────────────────────────────────
 
-function LightEditor({ adjustmentId }: { adjustmentId: string }) {
+export function LightEditor({ adjustmentId }: { adjustmentId: string }) {
   const [exposure, setExposure] = useGraphAdjustmentParam(adjustmentId, 'exposure', 0);
   const [brightness, setBrightness] = useGraphAdjustmentParam(adjustmentId, 'brightness', 0);
   const [contrast, setContrast] = useGraphAdjustmentParam(adjustmentId, 'contrast', 0);
@@ -24,7 +24,7 @@ function LightEditor({ adjustmentId }: { adjustmentId: string }) {
   );
 }
 
-function ColorEditor({ adjustmentId }: { adjustmentId: string }) {
+export function ColorEditor({ adjustmentId }: { adjustmentId: string }) {
   const [saturation, setSaturation] = useGraphAdjustmentParam(adjustmentId, 'saturation', 0);
   const [vibrance, setVibrance] = useGraphAdjustmentParam(adjustmentId, 'vibrance', 0);
   const [hue, setHue] = useGraphAdjustmentParam(adjustmentId, 'hue', 0);
@@ -37,7 +37,7 @@ function ColorEditor({ adjustmentId }: { adjustmentId: string }) {
   );
 }
 
-function KelvinEditor({ adjustmentId }: { adjustmentId: string }) {
+export function KelvinEditor({ adjustmentId }: { adjustmentId: string }) {
   const [kelvin, setKelvin] = useGraphAdjustmentParam(adjustmentId, 'kelvin', 6500);
   const [tint, setTint] = useGraphAdjustmentParam(adjustmentId, 'tint', 0);
   return (
@@ -48,7 +48,7 @@ function KelvinEditor({ adjustmentId }: { adjustmentId: string }) {
   );
 }
 
-function LevelsEditor({ adjustmentId }: { adjustmentId: string }) {
+export function LevelsEditor({ adjustmentId }: { adjustmentId: string }) {
   const [inBlack, setInBlack] = useGraphAdjustmentParam(adjustmentId, 'inBlack', 0);
   const [inWhite, setInWhite] = useGraphAdjustmentParam(adjustmentId, 'inWhite', 255);
   const [gamma, setGamma] = useGraphAdjustmentParam(adjustmentId, 'gamma', 1.0);

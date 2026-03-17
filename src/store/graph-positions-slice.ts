@@ -17,6 +17,7 @@ export interface GraphPositionsSlice {
   graphLayoutKey: string;
   graphSplitRatio: number;
   graphSplitDirection: SplitDirection;
+  expandedNodeIds: string[];
 
   updateNodePosition: (stableKey: string, pos: NodePosition) => void;
   updateNodePositions: (batch: Record<string, NodePosition>) => void;
@@ -27,6 +28,7 @@ export interface GraphPositionsSlice {
   setGraphLayoutKey: (key: string) => void;
   setGraphSplitRatio: (ratio: number) => void;
   setGraphSplitDirection: (dir: SplitDirection) => void;
+  toggleNodeExpanded: (nodeId: string) => void;
 }
 
 export const createGraphPositionsSlice: StateCreator<
@@ -41,6 +43,7 @@ export const createGraphPositionsSlice: StateCreator<
   graphLayoutKey: '',
   graphSplitRatio: 0.35,
   graphSplitDirection: 'vertical' as SplitDirection,
+  expandedNodeIds: [] as string[],
 
   updateNodePosition: (stableKey, pos) =>
     set((state) => {
@@ -87,5 +90,15 @@ export const createGraphPositionsSlice: StateCreator<
   setGraphSplitDirection: (dir) =>
     set((state) => {
       state.graphSplitDirection = dir;
+    }),
+
+  toggleNodeExpanded: (nodeId) =>
+    set((state) => {
+      const idx = state.expandedNodeIds.indexOf(nodeId);
+      if (idx >= 0) {
+        state.expandedNodeIds.splice(idx, 1);
+      } else {
+        state.expandedNodeIds.push(nodeId);
+      }
     }),
 });

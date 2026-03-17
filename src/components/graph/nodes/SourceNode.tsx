@@ -10,6 +10,7 @@ const DEFAULT_H = 100;
 
 function SourceNodeInner({ id, data, selected }: NodeProps & { data: ProcessingNodeData }) {
   const isHighlighted = useEditorStore((s) => s.highlightedNodeId === id);
+  const setHighlightedNode = useEditorStore((s) => s.setHighlightedNode);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pixelVersion = useEditorStore((s) => s.pixelVersion);
   const [height, setHeight] = useState(DEFAULT_H);
@@ -53,7 +54,12 @@ function SourceNodeInner({ id, data, selected }: NodeProps & { data: ProcessingN
       />
       <div className="flex items-center gap-1.5 px-2.5 py-1.5">
         <Image size={11} className="text-text-secondary flex-none" />
-        <span className="text-[11px] font-medium text-text-primary truncate">{data.label}</span>
+        <span
+          className="text-[11px] font-medium text-text-primary truncate cursor-default"
+          onDoubleClick={(e) => { e.stopPropagation(); setHighlightedNode(isHighlighted ? null : id); }}
+        >
+          {data.label}
+        </span>
       </div>
       <Handle type="source" position={Position.Right} className="!w-2.5 !h-2.5 !bg-accent !border-2 !border-white" />
     </div>

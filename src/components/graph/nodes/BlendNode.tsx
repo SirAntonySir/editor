@@ -6,6 +6,7 @@ import type { ProcessingNodeData } from '@/types/graph';
 
 function BlendNodeInner({ id, data, selected }: NodeProps & { data: ProcessingNodeData }) {
   const isHighlighted = useEditorStore((s) => s.highlightedNodeId === id);
+  const setHighlightedNode = useEditorStore((s) => s.setHighlightedNode);
   // Read volatile blend data from store directly
   const layer = useEditorStore((s) =>
     data.layerId ? s.layers.find((l) => l.id === data.layerId) : undefined,
@@ -22,7 +23,12 @@ function BlendNodeInner({ id, data, selected }: NodeProps & { data: ProcessingNo
       <div className="flex items-center gap-2">
         <Layers size={14} className="text-accent flex-none" />
         <div className="flex flex-col gap-0.5 min-w-0">
-          <span className="text-xs font-medium text-text-primary capitalize">{blendLabel}</span>
+          <span
+            className="text-xs font-medium text-text-primary capitalize cursor-default"
+            onDoubleClick={(e) => { e.stopPropagation(); setHighlightedNode(isHighlighted ? null : id); }}
+          >
+            {blendLabel}
+          </span>
           <span className="text-[10px] text-text-secondary tabular-nums">{opacityPct}% opacity</span>
         </div>
       </div>

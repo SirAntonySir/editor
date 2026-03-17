@@ -21,15 +21,10 @@ function fitCanvasToView(canvas: fabric.Canvas) {
   const objH = obj.height * (obj.scaleY ?? 1);
   if (objW === 0 || objH === 0) return;
   const z = Math.min(w / objW, h / objH) * 0.9;
-  canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-  canvas.zoomToPoint(new fabric.Point(w / 2, h / 2), z);
   const objCenter = obj.getCenterPoint();
-  const vpt = canvas.viewportTransform;
-  if (vpt) {
-    vpt[4] = w / 2 - objCenter.x * z;
-    vpt[5] = h / 2 - objCenter.y * z;
-  }
-  canvas.requestRenderAll();
+  const tx = w / 2 - objCenter.x * z;
+  const ty = h / 2 - objCenter.y * z;
+  canvas.setViewportTransform([z, 0, 0, z, tx, ty]);
 }
 
 export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
@@ -42,6 +37,7 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
   const editorMode = useEditorStore((s) => s.editorMode);
   const editorModeRef = useRef(editorMode);
   editorModeRef.current = editorMode;
+  const objectStateSnapshot = useRef<WeakMap<fabric.FabricObject, { selectable: boolean; evented: boolean }>>(new WeakMap());
 
   const { toolContext } = useEditor();
 
@@ -99,7 +95,9 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
     if (editorMode === 'graph') {
       canvas.selection = false;
       canvas.discardActiveObject();
+      const snapshot = objectStateSnapshot.current;
       canvas.forEachObject((obj) => {
+        snapshot.set(obj, { selectable: obj.selectable, evented: obj.evented });
         obj.selectable = false;
         obj.evented = false;
       });
@@ -108,9 +106,11 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
       return () => clearTimeout(timer);
     } else {
       canvas.selection = true;
+      const snapshot = objectStateSnapshot.current;
       canvas.forEachObject((obj) => {
-        obj.selectable = true;
-        obj.evented = true;
+        const saved = snapshot.get(obj);
+        obj.selectable = saved?.selectable ?? true;
+        obj.evented = saved?.evented ?? true;
       });
     }
   }, [editorMode, canvasRef]);

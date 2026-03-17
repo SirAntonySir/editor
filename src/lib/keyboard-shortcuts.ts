@@ -79,6 +79,12 @@ function buildShortcuts(): ShortcutEntry[] {
     label: 'Preferences',
   });
 
+  shortcuts.push({
+    key: '\\',
+    action: () => useEditorStore.getState().toggleCompare(),
+    label: 'Compare Before/After',
+  });
+
   return shortcuts;
 }
 

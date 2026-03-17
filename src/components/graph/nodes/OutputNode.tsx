@@ -7,7 +7,8 @@ import type { ProcessingNodeData } from '@/types/graph';
 
 const THUMB_SIZE = 48;
 
-function OutputNodeInner({ data, selected }: NodeProps & { data: ProcessingNodeData }) {
+function OutputNodeInner({ id, data, selected }: NodeProps & { data: ProcessingNodeData }) {
+  const isHighlighted = useEditorStore((s) => s.highlightedNodeId === id);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pixelVersion = useEditorStore((s) => s.pixelVersion);
 
@@ -38,7 +39,7 @@ function OutputNodeInner({ data, selected }: NodeProps & { data: ProcessingNodeD
   return (
     <div
       className={`glass-panel px-3 py-2 min-w-[180px] transition-shadow ${
-        selected ? 'ring-2 ring-accent shadow-lg' : ''
+        isHighlighted ? 'ring-2 ring-accent shadow-lg' : selected ? 'ring-1 ring-accent/40' : ''
       }`}
     >
       <div className="flex items-center gap-2">

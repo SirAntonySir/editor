@@ -3,6 +3,7 @@ import type * as fabric from 'fabric';
 import { AnimatePresence } from 'framer-motion';
 import { EditorProvider, useEditor } from '@/components/EditorProvider';
 import { EditorCanvas, loadImageToCanvas } from '@/components/canvas/EditorCanvas';
+import { CompareOverlay } from '@/components/canvas/CompareOverlay';
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 import { Toolbar } from '@/components/toolbar/Toolbar';
 import { MenuBar } from '@/components/toolbar/MenuBar';
@@ -16,6 +17,8 @@ import { useEditorStore } from '@/store';
 import { usePreferencesStore, applyPreferences } from '@/store/preferences-store';
 import { editorDocument } from '@/core/document';
 import { SelectTool } from '@/tools/select-tool';
+import { MoveTool } from '@/tools/move-tool';
+import { TransformTool } from '@/tools/transform-tool';
 import { CropTool } from '@/tools/crop-tool';
 import { LightTool } from '@/tools/light-tool';
 import { ColorTool } from '@/tools/color-tool';
@@ -43,6 +46,8 @@ import {
 
 // Register tools
 ToolRegistry.register(SelectTool);
+ToolRegistry.register(MoveTool);
+ToolRegistry.register(TransformTool);
 ToolRegistry.register(CropTool);
 ToolRegistry.register(LightTool);
 ToolRegistry.register(ColorTool);
@@ -77,6 +82,7 @@ function GraphSplitLayout({
   const splitRatio = useEditorStore((s) => s.graphSplitRatio);
   const splitDirection = useEditorStore((s) => s.graphSplitDirection);
   const setGraphSplitRatio = useEditorStore((s) => s.setGraphSplitRatio);
+  const showCompare = useEditorStore((s) => s.showCompare);
 
   return (
     <div className="relative flex-1 min-h-0">
@@ -115,6 +121,9 @@ function GraphSplitLayout({
 
       {/* Tool canvas overlay — not in graph mode */}
       {!isGraph && toolDef?.CanvasOverlay && <toolDef.CanvasOverlay ctx={toolContext} />}
+
+      {/* Compare before/after overlay */}
+      {!isGraph && showCompare && layers.length > 0 && <CompareOverlay canvasRef={canvasRef} />}
 
       {/* Empty state */}
       <AnimatePresence>

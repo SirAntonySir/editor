@@ -1,13 +1,13 @@
-import { MousePointer2 } from 'lucide-react';
+import { MoveDiagonal } from 'lucide-react';
 import type { ToolDefinition } from '@/types/tool';
 
-export const SelectTool: ToolDefinition = {
-  name: 'select',
-  label: 'Select',
-  icon: MousePointer2,
+export const TransformTool: ToolDefinition = {
+  name: 'transform',
+  label: 'Transform',
+  icon: MoveDiagonal,
   category: 'select',
   modes: ['compose'],
-  shortcut: 'V',
+  shortcut: 'T',
   cursor: 'default',
 
   onActivate: (ctx) => {
@@ -17,9 +17,9 @@ export const SelectTool: ToolDefinition = {
     canvas.forEachObject((obj) => {
       obj.selectable = true;
       obj.evented = true;
-      obj.hasControls = false;
-      obj.lockMovementX = true;
-      obj.lockMovementY = true;
+      obj.hasControls = true;
+      obj.lockMovementX = false;
+      obj.lockMovementY = false;
     });
   },
 

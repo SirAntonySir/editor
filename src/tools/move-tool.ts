@@ -1,14 +1,14 @@
-import { MousePointer2 } from 'lucide-react';
+import { Move } from 'lucide-react';
 import type { ToolDefinition } from '@/types/tool';
 
-export const SelectTool: ToolDefinition = {
-  name: 'select',
-  label: 'Select',
-  icon: MousePointer2,
+export const MoveTool: ToolDefinition = {
+  name: 'move',
+  label: 'Move',
+  icon: Move,
   category: 'select',
   modes: ['compose'],
-  shortcut: 'V',
-  cursor: 'default',
+  shortcut: 'M',
+  cursor: 'move',
 
   onActivate: (ctx) => {
     const canvas = ctx.canvasRef.current;
@@ -18,8 +18,8 @@ export const SelectTool: ToolDefinition = {
       obj.selectable = true;
       obj.evented = true;
       obj.hasControls = false;
-      obj.lockMovementX = true;
-      obj.lockMovementY = true;
+      obj.lockMovementX = false;
+      obj.lockMovementY = false;
     });
   },
 

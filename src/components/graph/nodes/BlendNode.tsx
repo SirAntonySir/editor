@@ -4,7 +4,8 @@ import { Layers } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import type { ProcessingNodeData } from '@/types/graph';
 
-function BlendNodeInner({ data, selected }: NodeProps & { data: ProcessingNodeData }) {
+function BlendNodeInner({ id, data, selected }: NodeProps & { data: ProcessingNodeData }) {
+  const isHighlighted = useEditorStore((s) => s.highlightedNodeId === id);
   // Read volatile blend data from store directly
   const layer = useEditorStore((s) =>
     data.layerId ? s.layers.find((l) => l.id === data.layerId) : undefined,
@@ -15,7 +16,7 @@ function BlendNodeInner({ data, selected }: NodeProps & { data: ProcessingNodeDa
   return (
     <div
       className={`glass-panel min-w-[160px] px-3 py-2 transition-shadow ${
-        selected ? 'ring-2 ring-accent shadow-lg' : ''
+        isHighlighted ? 'ring-2 ring-accent shadow-lg' : selected ? 'ring-1 ring-accent/40' : ''
       }`}
     >
       <div className="flex items-center gap-2">

@@ -8,7 +8,7 @@ import * as Separator from '@radix-ui/react-separator';
 import type { ToolDefinition } from '@/types/tool';
 
 const CATEGORY_ORDER: ToolDefinition['category'][] = [
-  'select', 'transform', 'draw', 'adjust', 'filter', 'ai',
+  'select', 'adjust', 'filter', 'draw', 'transform', 'ai',
 ];
 
 export function Toolbar() {

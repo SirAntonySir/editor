@@ -10,6 +10,7 @@ import {
   type OnNodeDrag,
   type OnSelectionChangeFunc,
   type Viewport,
+  type NodeMouseHandler,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Workflow, SeparatorVertical, SeparatorHorizontal } from 'lucide-react';
@@ -59,7 +60,7 @@ function AutoLayoutHandler({
     if (structureKey && structureKey !== graphLayoutKey) {
       setGraphLayoutKey(structureKey);
       onLayout();
-      setTimeout(() => fitView({ padding: 0.2, duration: 200 }), 50);
+      requestAnimationFrame(() => fitView({ padding: 0.2, duration: 200 }));
     }
     // Only react to structureKey changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -75,7 +76,7 @@ function LayoutButton({ onLayout }: { onLayout: () => void }) {
     <button
       onClick={() => {
         onLayout();
-        setTimeout(() => fitView({ padding: 0.2, duration: 200 }), 50);
+        requestAnimationFrame(() => fitView({ padding: 0.2, duration: 200 }));
       }}
       className="react-flow__controls-button"
       title="Auto Layout"
@@ -116,6 +117,7 @@ export function GraphEditor() {
   const updateNodePosition = useEditorStore((s) => s.updateNodePosition);
   const setGraphPositions = useEditorStore((s) => s.setGraphPositions);
   const setSelectedNode = useEditorStore((s) => s.setSelectedNode);
+  const setHighlightedNode = useEditorStore((s) => s.setHighlightedNode);
   const setGraphViewport = useEditorStore((s) => s.setGraphViewport);
 
   // Compute auto-layout for unpositioned nodes
@@ -162,21 +164,10 @@ export function GraphEditor() {
     setNodes((nds) => applyNodeChanges(changes, nds));
   }, []);
 
-  // Update local node positions during drag for real-time feedback
-  const onNodeDrag: OnNodeDrag = useCallback(
-    (_event, node) => {
-      setNodes((nds) =>
-        nds.map((n) =>
-          n.id === node.id ? { ...n, position: { x: node.position.x, y: node.position.y } } : n,
-        ),
-      );
-    },
-    [],
-  );
-
   const onNodeDragStart: OnNodeDrag = useCallback(() => {
     isDraggingRef.current = true;
-  }, []);
+    setHighlightedNode(null);
+  }, [setHighlightedNode]);
 
   // Persist final position to store on drag stop
   const onNodeDragStop: OnNodeDrag = useCallback(
@@ -194,6 +185,19 @@ export function GraphEditor() {
     },
     [setSelectedNode],
   );
+
+  // Click a node → highlight it and show properties panel
+  const onNodeClick: NodeMouseHandler = useCallback(
+    (_event, node) => {
+      setHighlightedNode(node.id);
+    },
+    [setHighlightedNode],
+  );
+
+  // Click empty space → clear highlight
+  const onPaneClick = useCallback(() => {
+    setHighlightedNode(null);
+  }, [setHighlightedNode]);
 
   // Persist viewport on pan/zoom end
   const onMoveEnd = useCallback(
@@ -213,8 +217,9 @@ export function GraphEditor() {
         edges={edges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
+        onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick}
         onNodeDragStart={onNodeDragStart}
-        onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onSelectionChange={onSelectionChange}
         onMoveEnd={onMoveEnd}

@@ -3,28 +3,35 @@ import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
 import { useGraphAdjustmentParam } from '@/lib/use-graph-adjustment';
 import { CurvesPanel } from '@/tools/curves-tool';
 import { FiltersPanel } from '@/tools/filters-tool';
-import type { ProcessingNode, ProcessingNodeType } from '@/types/graph';
-import type { ProcessingGraph } from '@/types/graph';
+import type { ProcessingNode, ProcessingNodeType, ProcessingGraph } from '@/types/graph';
 
 // ─── Slider editors per node type ────────────────────────────────────
 
 function LightEditor({ adjustmentId }: { adjustmentId: string }) {
+  const [exposure, setExposure] = useGraphAdjustmentParam(adjustmentId, 'exposure', 0);
   const [brightness, setBrightness] = useGraphAdjustmentParam(adjustmentId, 'brightness', 0);
   const [contrast, setContrast] = useGraphAdjustmentParam(adjustmentId, 'contrast', 0);
+  const [highlights, setHighlights] = useGraphAdjustmentParam(adjustmentId, 'highlights', 0);
+  const [shadows, setShadows] = useGraphAdjustmentParam(adjustmentId, 'shadows', 0);
   return (
     <div className="flex flex-col gap-3">
+      <AdjustmentSlider label="Exposure" value={exposure} min={-100} max={100} defaultValue={0} onChange={setExposure} />
       <AdjustmentSlider label="Brightness" value={brightness} min={-100} max={100} defaultValue={0} onChange={setBrightness} />
       <AdjustmentSlider label="Contrast" value={contrast} min={-100} max={100} defaultValue={0} onChange={setContrast} />
+      <AdjustmentSlider label="Highlights" value={highlights} min={-100} max={100} defaultValue={0} onChange={setHighlights} />
+      <AdjustmentSlider label="Shadows" value={shadows} min={-100} max={100} defaultValue={0} onChange={setShadows} />
     </div>
   );
 }
 
 function ColorEditor({ adjustmentId }: { adjustmentId: string }) {
   const [saturation, setSaturation] = useGraphAdjustmentParam(adjustmentId, 'saturation', 0);
+  const [vibrance, setVibrance] = useGraphAdjustmentParam(adjustmentId, 'vibrance', 0);
   const [hue, setHue] = useGraphAdjustmentParam(adjustmentId, 'hue', 0);
   return (
     <div className="flex flex-col gap-3">
       <AdjustmentSlider label="Saturation" value={saturation} min={-100} max={100} defaultValue={0} onChange={setSaturation} />
+      <AdjustmentSlider label="Vibrance" value={vibrance} min={-100} max={100} defaultValue={0} onChange={setVibrance} />
       <AdjustmentSlider label="Hue" value={hue} min={0} max={360} defaultValue={0} onChange={setHue} formatValue={(v) => `${Math.round(v)}\u00B0`} />
     </div>
   );
@@ -121,9 +128,9 @@ function NodeEditor({ node }: { node: ProcessingNode }) {
 }
 
 export function GraphPropertiesPanel({ graph }: { graph: ProcessingGraph }) {
-  const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
-  const selectedNode = selectedNodeId
-    ? graph.nodes.find((n) => n.id === selectedNodeId)
+  const highlightedNodeId = useEditorStore((s) => s.highlightedNodeId);
+  const selectedNode = highlightedNodeId
+    ? graph.nodes.find((n) => n.id === highlightedNodeId)
     : null;
 
   if (!selectedNode) return null;

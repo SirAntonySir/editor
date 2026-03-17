@@ -418,6 +418,10 @@ function ViewMenu({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | nu
   const setEditorMode = useEditorStore((s) => s.setEditorMode);
   const showHistoryPanel = useEditorStore((s) => s.showHistoryPanel);
   const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel);
+  const showCompare = useEditorStore((s) => s.showCompare);
+  const toggleCompare = useEditorStore((s) => s.toggleCompare);
+  const compareLayout = useEditorStore((s) => s.compareLayout);
+  const setCompareLayout = useEditorStore((s) => s.setCompareLayout);
 
   const applyZoom = useCallback(
     (newZoom: number) => {
@@ -502,6 +506,28 @@ function ViewMenu({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | nu
           >
             History
           </CheckItem>
+          <Sep />
+          <CheckItem
+            checked={showCompare}
+            onCheckedChange={() => toggleCompare()}
+            keys={['\\']}
+          >
+            Compare Before/After
+          </CheckItem>
+          <Sub label="Compare Layout">
+            <CheckItem
+              checked={compareLayout === 'horizontal'}
+              onCheckedChange={() => setCompareLayout('horizontal')}
+            >
+              Horizontal
+            </CheckItem>
+            <CheckItem
+              checked={compareLayout === 'vertical'}
+              onCheckedChange={() => setCompareLayout('vertical')}
+            >
+              Vertical
+            </CheckItem>
+          </Sub>
           <Sep />
           <Menubar.Label className={labelClass}>Mode</Menubar.Label>
           <CheckItem

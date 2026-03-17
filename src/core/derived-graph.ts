@@ -215,9 +215,7 @@ function computeStructureKey(layers: Layer[]): string {
 export function useDerivedGraph(): ProcessingGraph | null {
   const editorMode = useEditorStore((s) => s.editorMode);
   const layers = useEditorStore((s) => s.layers);
-  const graphPositions = useEditorStore(
-    (s) => (s as Record<string, unknown>).graphPositions as Record<string, NodePosition> | undefined,
-  );
+  const graphPositions = useEditorStore((s) => s.graphPositions);
 
   // Only rebuild graph when topology changes, not on every param tweak
   const structureKey = useMemo(() => computeStructureKey(layers), [layers]);

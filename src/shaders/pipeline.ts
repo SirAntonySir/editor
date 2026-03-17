@@ -132,6 +132,10 @@ export class WebGLPipeline {
         gl.uniform1f(gl.getUniformLocation(program, 'u_saturation'), (p.saturation as number ?? 0) / 100);
         gl.uniform1f(gl.getUniformLocation(program, 'u_hue'), (p.hue as number ?? 0) * Math.PI / 180);
         gl.uniform1f(gl.getUniformLocation(program, 'u_temperature'), (p.temperature as number ?? 0) / 100);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_exposure'), (p.exposure as number ?? 0) / 100);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_highlights'), (p.highlights as number ?? 0) / 100);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_shadows'), (p.shadows as number ?? 0) / 100);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_vibrance'), (p.vibrance as number ?? 0) / 100);
       },
     });
 
@@ -348,6 +352,10 @@ export class WebGLPipeline {
       gl.uniform1f(gl.getUniformLocation(basic.program, 'u_saturation'), 0);
       gl.uniform1f(gl.getUniformLocation(basic.program, 'u_hue'), 0);
       gl.uniform1f(gl.getUniformLocation(basic.program, 'u_temperature'), 0);
+      gl.uniform1f(gl.getUniformLocation(basic.program, 'u_exposure'), 0);
+      gl.uniform1f(gl.getUniformLocation(basic.program, 'u_highlights'), 0);
+      gl.uniform1f(gl.getUniformLocation(basic.program, 'u_shadows'), 0);
+      gl.uniform1f(gl.getUniformLocation(basic.program, 'u_vibrance'), 0);
     }
 
     gl.bindVertexArray(this.vao);

@@ -15,7 +15,6 @@ function useHistoryStore<T>(selector: (state: HistoryStoreState) => T): T {
 export function HistoryPanel() {
   const entries = useHistoryStore((s) => s.entries);
   const canUndo = useHistoryStore((s) => s.canUndo);
-  const canRedo = useHistoryStore((s) => s.canRedo);
   const isRestoring = useHistoryStore((s) => s.isRestoring);
 
   const handleClick = async (index: number) => {

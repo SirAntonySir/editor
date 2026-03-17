@@ -16,14 +16,14 @@ import * as history from './history';
 import * as transaction from './transaction';
 import * as serializer from './serializer';
 
-type EditorStore = StoreApi<Record<string, unknown>>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type EditorStore = StoreApi<any>;
 
 const DEBOUNCE_MS = 2000;
 
 let store: EditorStore | null = null;
 let documentMeta: DocumentMeta | null = null;
 let isDirty = false;
-let filePath: string | null = null;
 let interaction: InteractionSession | null = null;
 let beforeUnloadHandler: ((e: BeforeUnloadEvent) => void) | null = null;
 
@@ -107,7 +107,7 @@ function newDocument(): void {
     width: 0,
     height: 0,
   };
-  filePath = null;
+
   markClean();
   if (store) {
     store.setState({
@@ -165,7 +165,7 @@ async function openImage(file: File): Promise<void> {
     });
   }
 
-  filePath = null;
+
   isDirty = false;
   bitmap.close();
 }
@@ -191,7 +191,6 @@ async function openEdp(file: File): Promise<void> {
     });
   }
 
-  filePath = file.name;
   isDirty = false;
 }
 
@@ -230,7 +229,6 @@ async function saveAs(name?: string): Promise<void> {
   a.download = fileName;
   a.click();
   URL.revokeObjectURL(url);
-  filePath = fileName;
 }
 
 // ─── Interaction sessions (slider debouncing) ───────────────────────

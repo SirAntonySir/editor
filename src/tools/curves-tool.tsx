@@ -215,10 +215,14 @@ export function CurvesPanel({ layerId: layerIdProp }: { layerId?: string } = {})
   );
 }
 
+function CurvesPanelWrapper() {
+  return <CurvesPanel />;
+}
+
 export const CurvesTool: ToolDefinition = {
   name: 'curves',
   label: 'Curves',
   icon: Spline,
   category: 'adjust',
-  OptionsPanel: CurvesPanel,
+  OptionsPanel: CurvesPanelWrapper,
 };

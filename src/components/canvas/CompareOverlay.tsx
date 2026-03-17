@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type * as fabric from 'fabric';
 import { ReactCompareSlider, ReactCompareSliderImage } from 'react-compare-slider';
 import { useEditorStore } from '@/store';
 import { CanvasRegistry } from '@/lib/canvas-registry';

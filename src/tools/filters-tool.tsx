@@ -118,10 +118,14 @@ export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}
   );
 }
 
+function FiltersPanelWrapper() {
+  return <FiltersPanel />;
+}
+
 export const FiltersTool: ToolDefinition = {
   name: 'filters',
   label: 'Filters',
   icon: ImageIcon,
   category: 'filter',
-  OptionsPanel: FiltersPanel,
+  OptionsPanel: FiltersPanelWrapper,
 };

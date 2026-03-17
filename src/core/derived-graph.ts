@@ -6,10 +6,8 @@ import { useMemo } from 'react';
 import { useEditorStore } from '@/store';
 import type {
   ProcessingGraph,
-  ProcessingNode,
   ProcessingNodeType,
   NodePosition,
-  ProcessingNodeData,
 } from '@/types/graph';
 import { LIGHT_PARAM_KEYS, COLOR_PARAM_KEYS, NODE_LABELS } from '@/types/graph';
 import type { Layer, Adjustment } from '@/store/layer-slice';

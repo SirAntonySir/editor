@@ -27,7 +27,7 @@ function toRFNodes(graph: ProcessingGraph, positions: Record<string, NodePositio
     id: pn.id,
     type: pn.type,
     position: positions[pn.id] ?? pn.position,
-    data: pn.data,
+    data: pn.data as unknown as Record<string, unknown>,
   }));
 }
 

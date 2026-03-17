@@ -16,7 +16,7 @@ const NODE_ICONS: Record<string, LucideIcon> = {
 };
 
 /** Format a param value for display */
-function formatValue(key: string, value: number | Float32Array): string | null {
+function formatValue(_key: string, value: number | Float32Array): string | null {
   if (value instanceof Float32Array) return null;
   const sign = value > 0 ? '+' : '';
   return `${sign}${Math.round(value)}`;

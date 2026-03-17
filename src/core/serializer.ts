@@ -206,7 +206,7 @@ export async function save(options: SaveOptions): Promise<Blob> {
 
   // Create ZIP
   const zipped = zipSync(files, { level: 6 });
-  return new Blob([zipped], { type: 'application/x-edp' });
+  return new Blob([new Uint8Array(zipped)], { type: 'application/x-edp' });
 }
 
 // ─── Load ───────────────────────────────────────────────────────────
@@ -235,13 +235,13 @@ export async function load(blob: Blob): Promise<LoadResult> {
   for (const sl of manifest.layers) {
     const sourceData = files[`pixels/${sl.id}-source.png`];
     if (sourceData) {
-      const sourceBlob = new Blob([sourceData], { type: 'image/png' });
+      const sourceBlob = new Blob([new Uint8Array(sourceData)], { type: 'image/png' });
       await pixelStore.importLayerFromPng(sl.id, sourceBlob, 'source');
 
       if (sl.hasWorkingPixels) {
         const workingData = files[`pixels/${sl.id}-working.png`];
         if (workingData) {
-          const workingBlob = new Blob([workingData], { type: 'image/png' });
+          const workingBlob = new Blob([new Uint8Array(workingData)], { type: 'image/png' });
           await pixelStore.importLayerFromPng(sl.id, workingBlob, 'working');
         }
       }

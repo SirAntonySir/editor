@@ -2,6 +2,7 @@ import { ToolRegistry } from './tool-registry';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { revertToOriginal } from '@/lib/revert';
+import { editorDocument } from '@/core/document';
 
 const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent);
 
@@ -38,7 +39,7 @@ function buildShortcuts(): ShortcutEntry[] {
     key: 'tab',
     action: () => {
       const state = useEditorStore.getState();
-      const modes = ['develop', 'compose', 'ai'] as const;
+      const modes = ['develop', 'compose', 'graph'] as const;
       const idx = modes.indexOf(state.editorMode);
       state.setEditorMode(modes[(idx + 1) % modes.length]);
     },
@@ -49,14 +50,14 @@ function buildShortcuts(): ShortcutEntry[] {
   shortcuts.push({
     key: 'z',
     ctrl: true,
-    action: () => useEditorStore.temporal.getState().undo(),
+    action: () => editorDocument.undo(),
     label: 'Undo',
   });
   shortcuts.push({
     key: 'z',
     ctrl: true,
     shift: true,
-    action: () => useEditorStore.temporal.getState().redo(),
+    action: () => editorDocument.redo(),
     label: 'Redo',
   });
 

@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import * as Slider from '@radix-ui/react-slider';
-import { useEditorStore } from '@/store';
+import { editorDocument } from '@/core/document';
 
 interface AdjustmentSliderProps {
   label: string;
@@ -24,7 +24,6 @@ export function AdjustmentSlider({
   formatValue,
 }: AdjustmentSliderProps) {
   const display = formatValue ? formatValue(value) : String(Math.round(value));
-  const dragging = useRef(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -32,18 +31,13 @@ export function AdjustmentSlider({
   const resetValue = defaultValue ?? (min + max) / 2;
 
   const handleValueChange = ([v]: number[]) => {
-    if (!dragging.current) {
-      dragging.current = true;
-      useEditorStore.temporal.getState().pause();
-    }
     onChange(v);
   };
 
   const handleValueCommit = ([v]: number[]) => {
-    dragging.current = false;
-    const temporal = useEditorStore.temporal.getState();
-    temporal.resume();
     onChange(v);
+    // End the interaction session when the slider thumb is released
+    editorDocument.endInteraction();
   };
 
   const handleLabelClick = () => {

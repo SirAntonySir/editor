@@ -11,6 +11,7 @@ import {
 import type { CanvasOverlayProps } from '@/types/tool';
 import { useEditorStore } from '@/store';
 import { CanvasRegistry } from '@/lib/canvas-registry';
+import { editorDocument } from '@/core/document';
 
 const ASPECT_RATIOS = [
   { label: 'Free', value: 0 },
@@ -51,7 +52,7 @@ export function CropOverlay({ ctx }: CanvasOverlayProps) {
     cropperRef.current?.flipImage(horizontal, vertical);
   }, []);
 
-  const handleApply = useCallback(() => {
+  const handleApply = useCallback(async () => {
     const cropper = cropperRef.current;
     if (!cropper) return;
     const canvas = ctx.canvasRef.current;
@@ -70,7 +71,10 @@ export function CropOverlay({ ctx }: CanvasOverlayProps) {
     const croppedCtx = croppedOffscreen.getContext('2d');
     if (!croppedCtx) return;
     croppedCtx.drawImage(resultCanvas, 0, 0);
+
+    await editorDocument.beginTransaction('Crop', [activeLayerId]);
     CanvasRegistry.replaceSource(activeLayerId, croppedOffscreen);
+    await editorDocument.commitTransaction();
 
     const canvasWidth = canvas.getWidth();
     const canvasHeight = canvas.getHeight();

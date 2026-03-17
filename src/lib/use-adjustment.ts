@@ -1,6 +1,15 @@
 import { useCallback } from 'react';
 import { useEditorStore } from '@/store';
 import type { Adjustment } from '@/store/layer-slice';
+import { editorDocument } from '@/core/document';
+
+const ADJUSTMENT_NAMES: Record<Adjustment['type'], string> = {
+  basic: 'Light & Color',
+  curves: 'Curves',
+  levels: 'Levels',
+  kelvin: 'White Balance',
+  lut: 'Filter',
+};
 
 export function useAdjustmentParam(
   type: Adjustment['type'],
@@ -19,6 +28,10 @@ export function useAdjustmentParam(
   const setValue = useCallback(
     (v: number) => {
       if (!activeLayerId) return;
+      if (!editorDocument.hasActiveInteraction) {
+        editorDocument.beginInteraction(`Adjust ${ADJUSTMENT_NAMES[type]}`);
+      }
+      editorDocument.tickInteraction();
       useEditorStore.getState().setAdjustment(activeLayerId, type, { [paramName]: v });
     },
     [activeLayerId, type, paramName],

@@ -4,6 +4,7 @@ import { useEditorStore } from '@/store';
 import { useEditor } from '@/components/EditorProvider';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { CanvasRegistry } from '@/lib/canvas-registry';
+import { editorDocument } from '@/core/document';
 import { useAdjustmentPipeline } from './useAdjustmentPipeline';
 
 interface EditorCanvasProps {
@@ -286,21 +287,24 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
 export async function loadImageToCanvas(file: File, canvas: fabric.Canvas | null) {
   if (!canvas) return;
 
-  const bitmap = await createImageBitmap(file);
+  // Let EditorDocument handle state, pixels, and history
+  await editorDocument.openImage(file);
 
-  // Create an OffscreenCanvas to get ImageData from the bitmap
-  const offscreen = new OffscreenCanvas(bitmap.width, bitmap.height);
-  const ctx = offscreen.getContext('2d');
-  if (!ctx) return;
-  ctx.drawImage(bitmap, 0, 0);
+  // Now set up the Fabric.js visual representation
+  const state = useEditorStore.getState();
+  const layerId = state.activeLayerId;
+  if (!layerId) return;
+
+  const working = CanvasRegistry.get(layerId);
+  if (!working) return;
 
   const dataURL = await new Promise<string>((resolve) => {
     const tmpCanvas = document.createElement('canvas');
-    tmpCanvas.width = bitmap.width;
-    tmpCanvas.height = bitmap.height;
+    tmpCanvas.width = working.width;
+    tmpCanvas.height = working.height;
     const tmpCtx = tmpCanvas.getContext('2d');
     if (!tmpCtx) return;
-    tmpCtx.drawImage(bitmap, 0, 0);
+    tmpCtx.drawImage(working, 0, 0);
     resolve(tmpCanvas.toDataURL());
   });
 
@@ -309,7 +313,7 @@ export async function loadImageToCanvas(file: File, canvas: fabric.Canvas | null
   // Fit image to canvas viewport
   const canvasWidth = canvas.getWidth();
   const canvasHeight = canvas.getHeight();
-  const scale = Math.min(canvasWidth / bitmap.width, canvasHeight / bitmap.height) * 0.9;
+  const scale = Math.min(canvasWidth / working.width, canvasHeight / working.height) * 0.9;
 
   img.set({
     scaleX: scale,
@@ -319,27 +323,8 @@ export async function loadImageToCanvas(file: File, canvas: fabric.Canvas | null
   });
   img.setControlVisible('mtr', false);
 
+  canvas.clear();
   canvas.add(img);
   canvas.setActiveObject(img);
   canvas.renderAll();
-
-  // Add to layer store
-  const layerId = crypto.randomUUID();
-  useEditorStore.getState().addLayer({
-    id: layerId,
-    type: 'image',
-    name: file.name,
-    visible: true,
-    opacity: 1,
-    blendMode: 'normal',
-    locked: false,
-  });
-
-  // Register pixel data (creates source + working copies)
-  CanvasRegistry.register(layerId, offscreen);
-
-  // Clear undo history so "load image" becomes the baseline
-  useEditorStore.temporal.getState().clear();
-
-  bitmap.close();
 }

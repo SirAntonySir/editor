@@ -3,6 +3,7 @@ import type { ToolDefinition, CanvasPointerEvent, ToolContext } from '@/types/to
 import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
 import { useEditorStore } from '@/store';
 import { CanvasRegistry } from '@/lib/canvas-registry';
+import { editorDocument } from '@/core/document';
 import { useEffect, useState } from 'react';
 import type { TextMeta } from '@/store/layer-slice';
 
@@ -323,23 +324,25 @@ export const TextTool: ToolDefinition = {
     };
 
     const offscreen = renderTextToCanvas(meta, size.width, size.height);
-
     const id = crypto.randomUUID();
-    CanvasRegistry.register(id, offscreen);
 
-    const textCount = store.layers.filter((l) => l.type === 'text').length;
-    store.addLayer({
-      id,
-      type: 'text',
-      name: `Text ${textCount + 1}`,
-      visible: true,
-      opacity: 1,
-      blendMode: 'normal',
-      locked: false,
-      textMeta: meta,
+    editorDocument.recordAction('Add Text', () => {
+      CanvasRegistry.register(id, offscreen);
+
+      const textCount = store.layers.filter((l) => l.type === 'text').length;
+      store.addLayer({
+        id,
+        type: 'text',
+        name: `Text ${textCount + 1}`,
+        visible: true,
+        opacity: 1,
+        blendMode: 'normal',
+        locked: false,
+        textMeta: meta,
+      });
+
+      store.bumpPixelVersion();
     });
-
-    store.bumpPixelVersion();
   },
 
   onPointerMove: (e: CanvasPointerEvent, ctx: ToolContext) => {

@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import type * as fabric from 'fabric';
 import { AnimatePresence } from 'framer-motion';
 import { EditorProvider, useEditor } from '@/components/EditorProvider';
@@ -14,6 +14,7 @@ import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore, applyPreferences } from '@/store/preferences-store';
+import { editorDocument } from '@/core/document';
 import { SelectTool } from '@/tools/select-tool';
 import { CropTool } from '@/tools/crop-tool';
 import { LightTool } from '@/tools/light-tool';
@@ -120,7 +121,7 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
       </AnimatePresence>
 
       {/* HUDs — hidden in AI mode */}
-      {editorMode !== 'ai' && (
+      {editorMode !== 'graph' && (
         <>
           {/* Top toolbar */}
           <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
@@ -163,8 +164,15 @@ function ZoomDisplay() {
 // Apply persisted preferences on initial load
 applyPreferences(usePreferencesStore.getState());
 
+// Initialize EditorDocument with the Zustand store
+editorDocument.init(useEditorStore);
+
 export default function App() {
   const canvasRef = useRef<fabric.Canvas | null>(null);
+
+  useEffect(() => {
+    return () => editorDocument.dispose();
+  }, []);
 
   return (
     <EditorProvider canvasRef={canvasRef}>

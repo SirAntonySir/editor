@@ -3,6 +3,7 @@ import type { ToolDefinition, CanvasPointerEvent, ToolContext } from '@/types/to
 import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
 import { useEditorStore } from '@/store';
 import { CanvasRegistry } from '@/lib/canvas-registry';
+import { editorDocument } from '@/core/document';
 import { useState } from 'react';
 
 // Module-level state (not in React — shared with pointer handlers)
@@ -165,7 +166,13 @@ export const BrushTool: ToolDefinition = {
     currentBrushLayerId = null;
   },
 
-  onDeactivate: (ctx) => {
+  onDeactivate: async (ctx) => {
+    // Commit any in-progress transaction on tool switch
+    if (isDrawing) {
+      isDrawing = false;
+      points = [];
+      await editorDocument.commitTransaction();
+    }
     const canvas = ctx.canvasRef.current;
     if (!canvas) return;
     canvas.selection = true;
@@ -176,12 +183,14 @@ export const BrushTool: ToolDefinition = {
     currentBrushLayerId = null;
   },
 
-  onPointerDown: (e, ctx) => {
+  onPointerDown: async (e, ctx) => {
     const pt = getPixelCoords(e, ctx);
     if (!pt) return;
 
     const layerId = ensureBrushLayer();
     if (!layerId) return;
+
+    await editorDocument.beginTransaction('Brush Stroke', [layerId]);
 
     isDrawing = true;
     points = [{ x: pt.x, y: pt.y, pressure: e.rawEvent.pressure || 0.5 }];
@@ -203,11 +212,12 @@ export const BrushTool: ToolDefinition = {
     }
   },
 
-  onPointerUp: () => {
+  onPointerUp: async () => {
     if (isDrawing) {
       isDrawing = false;
       points = [];
       useEditorStore.getState().bumpPixelVersion();
+      await editorDocument.commitTransaction();
     }
   },
 };

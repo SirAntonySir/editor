@@ -1,6 +1,6 @@
 import type { StateCreator } from 'zustand';
 
-export type EditorMode = 'develop' | 'compose' | 'ai';
+export type EditorMode = 'develop' | 'compose' | 'graph';
 
 export interface ToolSlice {
   activeTool: string;

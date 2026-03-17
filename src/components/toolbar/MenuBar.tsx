@@ -3,8 +3,8 @@ import * as Menubar from '@radix-ui/react-menubar';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { Point } from 'fabric';
 import type * as fabric from 'fabric';
-import { useStore } from 'zustand';
-import { Undo2, Redo2, SlidersHorizontal, Layers, Sparkles, RotateCcw } from 'lucide-react';
+import { useSyncExternalStore } from 'react';
+import { Undo2, Redo2, SlidersHorizontal, Layers, Workflow, RotateCcw } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
@@ -13,6 +13,8 @@ import { exportImage, saveAs } from '@/lib/export';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { revertToOriginal } from '@/lib/revert';
+import { editorDocument } from '@/core/document';
+import type { HistoryStoreState } from '@/core/history';
 import type { EditorMode } from '@/store/tool-slice';
 
 /* ------------------------------------------------------------------ */
@@ -222,8 +224,8 @@ function FileMenu({
 /* ------------------------------------------------------------------ */
 
 function EditMenu() {
-  const undo = useCallback(() => useEditorStore.temporal.getState().undo(), []);
-  const redo = useCallback(() => useEditorStore.temporal.getState().redo(), []);
+  const undo = useCallback(() => editorDocument.undo(), []);
+  const redo = useCallback(() => editorDocument.redo(), []);
   const hasLayers = useEditorStore((s) => s.layers.length > 0);
   const openPreferences = useCallback(() => usePreferencesStore.getState().setShowPreferences(true), []);
 
@@ -517,11 +519,11 @@ function ViewMenu({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | nu
             Compose
           </CheckItem>
           <CheckItem
-            checked={editorMode === 'ai'}
-            onCheckedChange={() => setEditorMode('ai')}
+            checked={editorMode === 'graph'}
+            onCheckedChange={() => setEditorMode('graph')}
             keys={['tab']}
           >
-            AI
+            Graph
           </CheckItem>
         </Menubar.Content>
       </Menubar.Portal>
@@ -615,15 +617,14 @@ function HelpMenu() {
 /*  Undo / Redo buttons                                               */
 /* ------------------------------------------------------------------ */
 
-function useTemporalStore<T>(selector: (state: { pastStates: unknown[]; futureStates: unknown[]; undo: (steps?: number) => void; redo: (steps?: number) => void }) => T): T {
-  return useStore(useEditorStore.temporal, selector);
+function useHistoryStore<T>(selector: (state: HistoryStoreState) => T): T {
+  const store = editorDocument.historyStore;
+  return useSyncExternalStore(store.subscribe, () => selector(store.getState()));
 }
 
 function UndoRedoButtons() {
-  const canUndo = useTemporalStore((s) => s.pastStates.length > 0);
-  const canRedo = useTemporalStore((s) => s.futureStates.length > 0);
-  const undo = useTemporalStore((s) => s.undo);
-  const redo = useTemporalStore((s) => s.redo);
+  const canUndo = useHistoryStore((s) => s.canUndo);
+  const canRedo = useHistoryStore((s) => s.canRedo);
   const hasLayers = useEditorStore((s) => s.layers.length > 0);
 
   const btnClass =
@@ -634,7 +635,7 @@ function UndoRedoButtons() {
       <div className="flex items-center gap-px">
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <button disabled={!canUndo} onClick={() => undo()} className={btnClass}>
+            <button disabled={!canUndo} onClick={() => editorDocument.undo()} className={btnClass}>
               <Undo2 size={12} />
             </button>
           </Tooltip.Trigger>
@@ -646,7 +647,7 @@ function UndoRedoButtons() {
         </Tooltip.Root>
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <button disabled={!canRedo} onClick={() => redo()} className={btnClass}>
+            <button disabled={!canRedo} onClick={() => editorDocument.redo()} className={btnClass}>
               <Redo2 size={12} />
             </button>
           </Tooltip.Trigger>
@@ -686,7 +687,7 @@ function ModeSwitcherButtons() {
       <div className="flex items-center gap-px">
         <ModeBtn mode="develop" label="Develop" icon={<SlidersHorizontal size={11} />} isActive={editorMode === 'develop'} onClick={() => setEditorMode('develop')} />
         <ModeBtn mode="compose" label="Compose" icon={<Layers size={11} />} isActive={editorMode === 'compose'} onClick={() => setEditorMode('compose')} />
-        <ModeBtn mode="ai" label="AI" icon={<Sparkles size={11} />} isActive={editorMode === 'ai'} onClick={() => setEditorMode('ai')} />
+        <ModeBtn mode="graph" label="Graph" icon={<Workflow size={11} />} isActive={editorMode === 'graph'} onClick={() => setEditorMode('graph')} />
       </div>
     </Tooltip.Provider>
   );

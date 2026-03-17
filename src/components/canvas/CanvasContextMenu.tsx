@@ -1,14 +1,15 @@
 import { type ReactNode } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useEditorStore } from '@/store';
+import { editorDocument } from '@/core/document';
 
 interface CanvasContextMenuProps {
   children: ReactNode;
 }
 
 export function CanvasContextMenu({ children }: CanvasContextMenuProps) {
-  const undo = () => useEditorStore.temporal.getState().undo();
-  const redo = () => useEditorStore.temporal.getState().redo();
+  const undo = () => editorDocument.undo();
+  const redo = () => editorDocument.redo();
 
   return (
     <ContextMenu.Root>

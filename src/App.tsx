@@ -2,7 +2,7 @@ import { useRef, useCallback, useEffect, lazy, Suspense } from 'react';
 import type * as fabric from 'fabric';
 import { AnimatePresence } from 'framer-motion';
 import { EditorProvider, useEditor } from '@/components/EditorProvider';
-import { EditorCanvas, loadImageToCanvas } from '@/components/canvas/EditorCanvas';
+import { EditorCanvas, loadImageToCanvas, hydrateCanvasFromStore } from '@/components/canvas/EditorCanvas';
 
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 import { Toolbar } from '@/components/toolbar/Toolbar';
@@ -243,6 +243,8 @@ export default function App() {
 
   useEffect(() => {
     editorDocument.init(useEditorStore);
+    // Restore previous session if one exists
+    editorDocument.restoreSession().catch(() => {});
     return () => editorDocument.dispose();
   }, []);
 

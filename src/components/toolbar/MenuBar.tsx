@@ -8,7 +8,7 @@ import { Undo2, Redo2, SlidersHorizontal, Layers, Workflow, RotateCcw } from 'lu
 import { Kbd } from '@/components/ui/kbd';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
-import { loadImageToCanvas } from '@/components/canvas/EditorCanvas';
+import { loadImageToCanvas, hydrateCanvasFromStore } from '@/components/canvas/EditorCanvas';
 import { exportImage, saveAs } from '@/lib/export';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { CanvasRegistry } from '@/lib/canvas-registry';
@@ -122,13 +122,31 @@ export function MenuBar({ canvasRef }: { canvasRef: React.RefObject<fabric.Canva
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) {
-        await loadImageToCanvas(file, canvasRef.current);
+        if (file.name.endsWith('.edp')) {
+          await editorDocument.openEdp(file);
+          hydrateCanvasFromStore(canvasRef.current);
+        } else {
+          await loadImageToCanvas(file, canvasRef.current);
+        }
       }
       // reset so same file can be re-selected
       e.target.value = '';
     },
     [canvasRef],
   );
+
+  const handleSaveAs = useCallback(() => {
+    editorDocument.saveAs();
+  }, []);
+
+  const handleClose = useCallback(() => {
+    editorDocument.newDocument();
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.clear();
+      canvas.renderAll();
+    }
+  }, [canvasRef]);
 
   const handleExport = useCallback(
     async (format: 'png' | 'jpeg' | 'webp') => {
@@ -145,13 +163,13 @@ export function MenuBar({ canvasRef }: { canvasRef: React.RefObject<fabric.Canva
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.edp"
         className="hidden"
         onChange={handleFileChange}
       />
       <div className="flex items-center w-full">
         <Menubar.Root className="flex items-center gap-0 text-sm text-text-primary">
-          <FileMenu onOpen={handleOpen} onExport={handleExport} />
+          <FileMenu onOpen={handleOpen} onExport={handleExport} onSaveAs={handleSaveAs} onClose={handleClose} />
           <EditMenu />
           <ImageMenu canvasRef={canvasRef} />
           <LayerMenu />
@@ -188,10 +206,15 @@ function TriggerButton({ children }: { children: React.ReactNode }) {
 function FileMenu({
   onOpen,
   onExport,
+  onSaveAs,
+  onClose,
 }: {
   onOpen: () => void;
   onExport: (format: 'png' | 'jpeg' | 'webp') => void;
+  onSaveAs: () => void;
+  onClose: () => void;
 }) {
+  const hasLayers = useEditorStore((s) => s.layers.length > 0);
   return (
     <Menubar.Menu>
       <TriggerButton>File</TriggerButton>
@@ -208,11 +231,11 @@ function FileMenu({
             <Item onSelect={() => onExport('jpeg')}>JPEG</Item>
             <Item onSelect={() => onExport('webp')}>WebP</Item>
           </Sub>
-          <Item keys={['mod', 'shift', 'S']} disabled>
+          <Item keys={['mod', 'shift', 'S']} disabled={!hasLayers} onSelect={onSaveAs}>
             Save As...
           </Item>
           <Sep />
-          <Item disabled>Close</Item>
+          <Item disabled={!hasLayers} onSelect={onClose} keys={['mod', 'W']}>Close</Item>
         </Menubar.Content>
       </Menubar.Portal>
     </Menubar.Menu>

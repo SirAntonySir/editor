@@ -15,17 +15,20 @@ import { pixelStore } from './pixel-store';
 import * as history from './history';
 import * as transaction from './transaction';
 import * as serializer from './serializer';
+import * as session from './session-storage';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EditorStore = StoreApi<any>;
 
 const DEBOUNCE_MS = 2000;
+const SESSION_SAVE_DEBOUNCE_MS = 3000;
 
 let store: EditorStore | null = null;
 let documentMeta: DocumentMeta | null = null;
 let isDirty = false;
 let interaction: InteractionSession | null = null;
 let beforeUnloadHandler: ((e: BeforeUnloadEvent) => void) | null = null;
+let sessionSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
 // ─── State capture / restore ────────────────────────────────────────
 
@@ -57,6 +60,7 @@ function markDirty(): void {
   if (store) {
     store.setState({ isDirty: true });
   }
+  scheduleSessionSave();
 }
 
 function markClean(): void {
@@ -64,6 +68,37 @@ function markClean(): void {
   if (store) {
     store.setState({ isDirty: false });
   }
+}
+
+// ─── Session auto-save ──────────────────────────────────────────────
+
+function scheduleSessionSave(): void {
+  if (sessionSaveTimer) clearTimeout(sessionSaveTimer);
+  sessionSaveTimer = setTimeout(() => {
+    sessionSaveTimer = null;
+    persistSession();
+  }, SESSION_SAVE_DEBOUNCE_MS);
+}
+
+function persistSession(): void {
+  if (!store || !documentMeta) return;
+  const s = store.getState() as Record<string, unknown>;
+  session.saveSession({
+    meta: documentMeta,
+    layers: s.layers as session.SaveSessionOptions['layers'],
+    activeLayerId: s.activeLayerId as string | null,
+    graphPositions: (s.graphPositions ?? {}) as session.SaveSessionOptions['graphPositions'],
+    viewport: {
+      zoom: (s.zoom as number) ?? 1,
+      panX: (s.panX as number) ?? 0,
+      panY: (s.panY as number) ?? 0,
+      fitMode: (s.fitMode as string) ?? 'fit',
+    },
+    editorMode: (s.editorMode as string) ?? 'develop',
+    pixelStore,
+  }).catch(() => {
+    // Session save is best-effort — silently ignore errors
+  });
 }
 
 // ─── Initialization ─────────────────────────────────────────────────
@@ -91,6 +126,12 @@ function dispose(): void {
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     beforeUnloadHandler = null;
   }
+  if (sessionSaveTimer) {
+    clearTimeout(sessionSaveTimer);
+    sessionSaveTimer = null;
+  }
+  // Flush pending session save synchronously before teardown
+  persistSession();
   store = null;
 }
 
@@ -99,6 +140,7 @@ function dispose(): void {
 function newDocument(): void {
   pixelStore.clear();
   history.clear();
+  session.clearSession().catch(() => {});
   documentMeta = {
     id: crypto.randomUUID(),
     name: 'Untitled',
@@ -168,6 +210,7 @@ async function openImage(file: File): Promise<void> {
 
   isDirty = false;
   bitmap.close();
+  scheduleSessionSave();
 }
 
 async function openEdp(file: File): Promise<void> {
@@ -192,13 +235,14 @@ async function openEdp(file: File): Promise<void> {
   }
 
   isDirty = false;
+  scheduleSessionSave();
 }
 
 async function save(): Promise<Blob | null> {
   if (!store || !documentMeta) return null;
   const s = store.getState() as Record<string, unknown>;
 
-  documentMeta.modifiedAt = Date.now();
+  documentMeta = { ...documentMeta, modifiedAt: Date.now() };
 
   const blob = await serializer.save({
     meta: documentMeta,
@@ -223,6 +267,30 @@ async function saveAs(name?: string): Promise<void> {
   if (!blob) return;
 
   const fileName = name ?? `${documentMeta?.name ?? 'document'}.edp`;
+
+  // Use native file picker dialog when available (Chrome/Edge)
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await (window as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+        suggestedName: fileName,
+        types: [
+          {
+            description: 'Editor Project',
+            accept: { 'application/x-edp': ['.edp'] },
+          },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    } catch (e) {
+      // User cancelled the dialog — don't fall through
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+    }
+  }
+
+  // Fallback: trigger download
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -414,6 +482,47 @@ async function capturePixelsForUndoTop(): Promise<Map<string, Blob> | null> {
   return pixelStore.captureSnapshots(layerIds);
 }
 
+// ─── Session restore ─────────────────────────────────────────────────
+
+async function restoreSession(): Promise<boolean> {
+  if (!store) return false;
+
+  const data = await session.loadSession();
+  if (!data) return false;
+
+  const { manifest, pixels } = data;
+
+  // Restore pixel data
+  pixelStore.clear();
+  for (const [layerId, blob] of pixels) {
+    await pixelStore.importLayerFromPng(layerId, blob, 'source');
+  }
+
+  // Deserialize layers (Float32Array conversion)
+  const layers = session.deserializeSessionLayers(manifest);
+
+  // Restore document meta
+  documentMeta = manifest.meta;
+
+  // Restore Zustand state
+  store.setState({
+    layers,
+    activeLayerId: manifest.activeLayerId,
+    pixelVersion: 0,
+    graphPositions: manifest.graphPositions,
+    zoom: manifest.viewport.zoom,
+    panX: manifest.viewport.panX,
+    panY: manifest.viewport.panY,
+    fitMode: manifest.viewport.fitMode,
+    editorMode: manifest.editorMode ?? 'develop',
+    documentMeta,
+    isDirty: false,
+  });
+
+  isDirty = false;
+  return true;
+}
+
 // ─── Public API ─────────────────────────────────────────────────────
 
 export const editorDocument = {
@@ -425,6 +534,7 @@ export const editorDocument = {
   openEdp,
   save,
   saveAs,
+  restoreSession,
 
   // Interactions (slider debouncing)
   beginInteraction,

@@ -44,6 +44,20 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
   // Connect WebGL adjustment pipeline
   useAdjustmentPipeline(canvasRef);
 
+  // Hydrate canvas from store when layers appear but canvas has no objects (session restore)
+  const layers = useEditorStore((s) => s.layers);
+  const layerCountRef = useRef(0);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const prevCount = layerCountRef.current;
+    layerCountRef.current = layers.length;
+    if (!canvas || layers.length === 0) return;
+    // Only auto-hydrate when layers appear for the first time (0 → N)
+    if (prevCount > 0) return;
+    const timer = setTimeout(() => hydrateCanvasFromStore(canvas), 50);
+    return () => clearTimeout(timer);
+  }, [layers, canvasRef]);
+
   // Initialize Fabric canvas
   useEffect(() => {
     const canvasEl = canvasElRef.current;
@@ -345,6 +359,53 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
       <canvas ref={canvasElRef} />
     </div>
   );
+}
+
+/**
+ * Hydrate the Fabric canvas from pixel data already in the store.
+ * Used after session restore / .edp load when no File object is available.
+ */
+export function hydrateCanvasFromStore(canvas: fabric.Canvas | null) {
+  if (!canvas) return;
+
+  const state = useEditorStore.getState();
+  if (state.layers.length === 0) return;
+
+  // Build a Fabric image for each image layer
+  canvas.clear();
+
+  for (const layer of state.layers) {
+    if (layer.type !== 'image') continue;
+    const working = CanvasRegistry.get(layer.id);
+    if (!working || working.width === 0) continue;
+
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = working.width;
+    tmpCanvas.height = working.height;
+    const tmpCtx = tmpCanvas.getContext('2d');
+    if (!tmpCtx) continue;
+    tmpCtx.drawImage(working, 0, 0);
+
+    const img = new fabric.FabricImage(tmpCanvas);
+    const canvasWidth = canvas.getWidth();
+    const canvasHeight = canvas.getHeight();
+    const scale = Math.min(canvasWidth / working.width, canvasHeight / working.height) * 0.9;
+
+    img.set({
+      scaleX: scale,
+      scaleY: scale,
+      left: canvasWidth / 2,
+      top: canvasHeight / 2,
+    });
+    img.setControlVisible('mtr', false);
+
+    canvas.add(img);
+  }
+
+  if (canvas.getObjects().length > 0) {
+    canvas.setActiveObject(canvas.getObjects()[0]);
+  }
+  canvas.renderAll();
 }
 
 export async function loadImageToCanvas(file: File, canvas: fabric.Canvas | null) {

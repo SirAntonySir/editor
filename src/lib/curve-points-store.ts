@@ -53,6 +53,46 @@ export function clearCurvePoints(layerId: string) {
   notify();
 }
 
+// ─── Serialization helpers ────────────────────────────────────────────
+
+type SerializedCurvePoints = Record<string, number[]>;
+
+/** Export all non-default curve points as serializable data. */
+export function exportAllCurvePoints(): Record<string, SerializedCurvePoints> {
+  const result: Record<string, SerializedCurvePoints> = {};
+  for (const [layerId, points] of store) {
+    const serialized: SerializedCurvePoints = {};
+    for (const ch of ['rgb', 'red', 'green', 'blue'] as Channel[]) {
+      // Flatten [{x,y}, ...] → [x1,y1,x2,y2,...]
+      const flat: number[] = [];
+      for (const p of points[ch]) {
+        flat.push(p.x, p.y);
+      }
+      serialized[ch] = flat;
+    }
+    result[layerId] = serialized;
+  }
+  return result;
+}
+
+/** Import curve points from serialized data. */
+export function importAllCurvePoints(data: Record<string, SerializedCurvePoints>): void {
+  for (const [layerId, serialized] of Object.entries(data)) {
+    const points = makeDefault();
+    for (const ch of ['rgb', 'red', 'green', 'blue'] as Channel[]) {
+      const flat = serialized[ch];
+      if (!flat || flat.length < 4) continue;
+      const pts: CurvePoint[] = [];
+      for (let i = 0; i < flat.length; i += 2) {
+        pts.push({ x: flat[i], y: flat[i + 1] });
+      }
+      points[ch] = pts;
+    }
+    store.set(layerId, points);
+  }
+  notify();
+}
+
 // ─── React hook ──────────────────────────────────────────────────────
 
 function subscribe(cb: () => void) {

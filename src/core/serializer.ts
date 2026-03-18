@@ -12,6 +12,7 @@ import type { DocumentMeta, SerializableParams } from './types';
 import type { Layer, Adjustment } from '@/store/layer-slice';
 import type { NodePosition } from '@/types/graph';
 import { pixelStore } from './pixel-store';
+import { exportAllCurvePoints, importAllCurvePoints } from '@/lib/curve-points-store';
 
 // ─── Manifest types ─────────────────────────────────────────────────
 
@@ -51,6 +52,7 @@ interface Manifest {
     panY: number;
     fitMode: string;
   };
+  curvePoints?: Record<string, Record<string, number[]>>;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -60,7 +62,12 @@ function serializeParams(
 ): SerializableParams {
   const result: SerializableParams = {};
   for (const [key, value] of Object.entries(params)) {
-    result[key] = value instanceof Float32Array ? Array.from(value) : value;
+    // Use duck-typing: Immer proxies break instanceof Float32Array
+    if (typeof value === 'object' && value !== null && 'length' in value) {
+      result[key] = Array.from(value as Float32Array);
+    } else {
+      result[key] = value as number;
+    }
   }
   return result;
 }
@@ -197,6 +204,7 @@ export async function save(options: SaveOptions): Promise<Blob> {
     activeLayerId,
     graphPositions,
     viewport,
+    curvePoints: exportAllCurvePoints(),
   };
 
   files['manifest.json'] = strToU8(JSON.stringify(manifest, null, 2));
@@ -246,6 +254,11 @@ export async function load(blob: Blob): Promise<LoadResult> {
         }
       }
     }
+  }
+
+  // Restore curve control points
+  if (manifest.curvePoints) {
+    importAllCurvePoints(manifest.curvePoints);
   }
 
   return {

@@ -19,7 +19,7 @@ import { editorDocument } from '@/core/document';
 import { SelectTool } from '@/tools/select-tool';
 import { MoveTool } from '@/tools/move-tool';
 import { TransformTool } from '@/tools/transform-tool';
-import { CropTool } from '@/tools/crop-tool';
+import { CropOverlay } from '@/components/canvas/CropOverlay';
 import { LightTool } from '@/tools/light-tool';
 import { ColorTool } from '@/tools/color-tool';
 import { KelvinTool } from '@/tools/kelvin-tool';
@@ -48,7 +48,6 @@ import {
 ToolRegistry.register(SelectTool);
 ToolRegistry.register(MoveTool);
 ToolRegistry.register(TransformTool);
-ToolRegistry.register(CropTool);
 ToolRegistry.register(LightTool);
 ToolRegistry.register(ColorTool);
 ToolRegistry.register(KelvinTool);
@@ -79,6 +78,8 @@ function GraphSplitLayout({
   handleFileOpen: () => void;
 }) {
   const isGraph = editorMode === 'graph' && layers.length > 0;
+  const isCrop = editorMode === 'crop' && layers.length > 0;
+  const showHUD = !isGraph;
   const splitRatio = useEditorStore((s) => s.graphSplitRatio);
   const splitDirection = useEditorStore((s) => s.graphSplitDirection);
   const setGraphSplitRatio = useEditorStore((s) => s.setGraphSplitRatio);
@@ -118,9 +119,11 @@ function GraphSplitLayout({
         )}
       </div>
 
-      {/* Tool canvas overlay — not in graph mode */}
-      {!isGraph && toolDef?.CanvasOverlay && <toolDef.CanvasOverlay ctx={toolContext} />}
+      {/* Crop HUD — floating toolbar only, canvas stays interactive */}
+      {isCrop && <CropOverlay canvasRef={canvasRef} />}
 
+      {/* Tool canvas overlay — not in graph or crop mode */}
+      {showHUD && !isCrop && toolDef?.CanvasOverlay && <toolDef.CanvasOverlay ctx={toolContext} />}
 
       {/* Empty state */}
       <AnimatePresence>
@@ -149,27 +152,29 @@ function GraphSplitLayout({
         )}
       </AnimatePresence>
 
-      {/* HUDs — hidden in graph mode */}
-      {!isGraph && (
+      {/* HUDs — hidden in graph mode; crop mode only shows status bar */}
+      {showHUD && (
         <>
-          {/* Top toolbar */}
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
-            <Toolbar />
-          </div>
+          {/* Top toolbar — hidden in crop mode */}
+          {!isCrop && (
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
+              <Toolbar />
+            </div>
+          )}
 
           {/* Layers panel — only in compose mode */}
           {editorMode === 'compose' && layers.length > 0 && <LayersPanel />}
 
           {/* History panel — toggled via View menu */}
-          {showHistoryPanel && layers.length > 0 && <HistoryPanel />}
+          {!isCrop && showHistoryPanel && layers.length > 0 && <HistoryPanel />}
 
-          {/* Inspector panel */}
-          <InspectorPanel />
+          {/* Inspector panel — hidden in crop mode */}
+          {!isCrop && <InspectorPanel />}
 
           {/* Status bar */}
           <div className="absolute bottom-0 right-0 z-20 flex items-center gap-2
             px-2 py-0.5 text-xs text-text-secondary bg-surface/70 backdrop-blur-sm rounded-tl-sm">
-            <span className="capitalize">{activeTool}</span>
+            <span className="capitalize">{isCrop ? 'crop' : activeTool}</span>
             <span className="text-separator">|</span>
             <ZoomDisplay />
           </div>

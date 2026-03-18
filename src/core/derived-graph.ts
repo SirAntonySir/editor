@@ -134,6 +134,22 @@ export function buildGraphFromLayers(
       }
     }
 
+    // Crop node (always present — shows "No crop" when inactive)
+    const cropKey = `crop:${layer.id}`;
+    graph.nodes.push({
+      id: cropKey,
+      type: 'crop',
+      position: getPos(cropKey, { x, y }),
+      data: { label: 'Crop', layerId: layer.id },
+    });
+    graph.edges.push({
+      id: `${chainTip}->${cropKey}`,
+      source: chainTip,
+      target: cropKey,
+    });
+    chainTip = cropKey;
+    x += X_STEP;
+
     maxX = Math.max(maxX, x);
 
     // Blend chain
@@ -205,7 +221,7 @@ function computeStructureKey(layers: Layer[]): string {
   return layers
     .map(
       (l) =>
-        `${l.id}:${l.order}:${l.adjustmentStack.adjustments.map((a) => `${a.id}:${a.type}`).join(',')}`,
+        `${l.id}:${l.order}:${l.cropMeta ? 'crop' : ''}:${l.adjustmentStack.adjustments.map((a) => `${a.id}:${a.type}`).join(',')}`,
     )
     .join('|');
 }

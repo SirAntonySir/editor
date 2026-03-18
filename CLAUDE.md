@@ -13,12 +13,12 @@ Full architecture plan: `docs/architecture-plan.md`
 - **State**: Zustand v5 + Immer + zundo (undo/redo)
 - **UI**: shadcn/ui + Radix UI + Tailwind CSS + Framer Motion + Floating UI
 - **AI**: TanStack Query v5 (OpenAI + Replicate providers)
-- **Cropping**: react-advanced-cropper
+- **Cropping**: Custom Fabric.js non-destructive crop (crop rect, dark overlay, grid, straighten, 90° rotation, flip)
 - **Icons**: Lucide React (tree-shaken named imports only)
 
 ## Architecture Principles
-- **Non-destructive editing by default** — adjustments stored as metadata, not pixel mutations
-- **Pixel data lives outside Zustand** — CanvasRegistry (Map of layer IDs → OffscreenCanvas pairs)
+- **Non-destructive editing by default** — adjustments stored as metadata, not pixel mutations; crop is also non-destructive (original pixels preserved, crop params in `CropMeta`)
+- **Pixel data lives outside Zustand** — CanvasRegistry (Map of layer IDs → OffscreenCanvas pairs + pre-crop originals)
 - **Tool Registry pattern** — tools are self-contained ToolDefinition objects (Open/Closed Principle)
 - **Command pattern** for destructive ops with region-based compressed snapshots
 - **Web Workers** for all heavy computation (Comlink + worker pool)
@@ -67,7 +67,7 @@ src/
     select-tool.ts      #   Selection / move
     brush-tool.tsx      #   Freehand drawing (pressure-sensitive)
     text-tool.tsx       #   Editable, movable text layers (TextMeta)
-    crop-tool.tsx       #   Crop with aspect ratio presets
+    crop-tool.tsx       #   Crop mode entry (sets editor mode)
     light-tool.tsx      #   Exposure, contrast, highlights, shadows
     color-tool.tsx      #   Saturation, vibrance
     kelvin-tool.tsx     #   White balance (temperature + tint)
@@ -75,12 +75,14 @@ src/
     levels-tool.tsx     #   Levels with live histogram
     filters-tool.tsx    #   LUT-based colour grading
   store/                # Zustand slices
-    layer-slice.ts      #   Layers, adjustments, TextMeta, blend modes
+    layer-slice.ts      #   Layers, adjustments, TextMeta, CropMeta, blend modes
     tool-slice.ts       #   Active tool, editor mode
     viewport-slice.ts   #   Zoom, pan, canvas dimensions
   shaders/              # GLSL shader sources (as TS template literals)
   lib/                  # Core utilities
-    canvas-registry.ts  #   Pixel data store (source + working OffscreenCanvas)
+    canvas-registry.ts  #   Pixel data store (source + working + original OffscreenCanvas)
+    crop-utils.ts       #   Crop math (inscribed rect, state save/restore)
+    crop-rect.ts        #   Fabric.js crop rect, overlay strips, boundary clamping
     layer-compositor.ts #   Multi-layer compositing with blend modes
     pipeline-manager.ts #   WebGL render pipeline orchestration
     tool-registry.ts    #   Tool registration and lookup

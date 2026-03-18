@@ -51,6 +51,15 @@ class PixelStoreImpl {
     this.canvases.set(layerId, { source: newSource, working });
   }
 
+  /** @deprecated No longer needed — crop is now metadata-only. Kept for backward compat. */
+  storeOriginal(_layerId: string): void { /* no-op */ }
+  /** @deprecated */
+  getOriginal(_layerId: string): OffscreenCanvas | undefined { return undefined; }
+  /** @deprecated */
+  setOriginal(_layerId: string, _canvas: OffscreenCanvas): void { /* no-op */ }
+  /** @deprecated */
+  clearOriginal(_layerId: string): void { /* no-op */ }
+
   remove(layerId: string): boolean {
     return this.canvases.delete(layerId);
   }

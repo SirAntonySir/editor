@@ -3,12 +3,16 @@ import type * as fabric from 'fabric';
 import { useEditorStore } from '@/store';
 import { PipelineManager } from '@/lib/pipeline-manager';
 import { LayerCompositor } from '@/lib/layer-compositor';
-import type { Adjustment } from '@/store/layer-slice';
+import { applyCropForExport } from '@/lib/crop-display';
+import type { Adjustment, CropMeta } from '@/store/layer-slice';
 
 /**
  * Connects the Zustand store to the WebGL pipeline and layer compositor.
- * - Develop mode: renders the active layer through adjustments, updates Fabric image.
- * - Compose mode: composites all visible layers (each through its own adjustments), updates Fabric image.
+ *
+ * After the pipeline renders the full adjusted image, this hook applies
+ * CropMeta (if any) by rendering the cropped+rotated result into the
+ * display canvas. Source pixels in PixelStore are never touched — crop
+ * is purely a display-time operation that also runs at export.
  */
 export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas | null>) {
   const prevRef = useRef<{
@@ -17,13 +21,18 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
     adjustments: Adjustment[] | undefined;
     layerHash: string;
     pixelVersion: number;
+    cropMeta: CropMeta | undefined;
   }>({
     mode: '',
     layerId: null,
     adjustments: undefined,
     layerHash: '',
     pixelVersion: -1,
+    cropMeta: undefined,
   });
+
+  /** Track the last displayed dimensions so we only re-fit when they change. */
+  const lastDimsRef = useRef({ w: 0, h: 0 });
 
   useEffect(() => {
     const updateFabricImage = (outputCanvas: HTMLCanvasElement) => {
@@ -32,37 +41,57 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
 
       const objects = canvas.getObjects();
       if (objects.length === 0) return;
-
       const fabricImg = objects[0] as fabric.FabricImage;
       if (!fabricImg) return;
 
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = outputCanvas.width;
-      tempCanvas.height = outputCanvas.height;
-      const ctx = tempCanvas.getContext('2d');
-      if (!ctx) return;
-      ctx.drawImage(outputCanvas, 0, 0);
+      const state = useEditorStore.getState();
+      const layer = state.layers.find((l) => l.id === state.activeLayerId);
+      const cropMeta = layer?.cropMeta;
+      const inCropMode = state.editorMode === 'crop';
 
-      // Check if dimensions changed (e.g. after crop)
-      const oldW = fabricImg.width;
-      const oldH = fabricImg.height;
+      let displayCanvas: HTMLCanvasElement | OffscreenCanvas;
 
-      fabricImg.setElement(tempCanvas);
-
-      // If the source dimensions changed, re-fit and center
-      if (fabricImg.width !== oldW || fabricImg.height !== oldH) {
-        const canvasW = canvas.getWidth();
-        const canvasH = canvas.getHeight();
-        const scale = Math.min(canvasW / fabricImg.width, canvasH / fabricImg.height) * 0.9;
-        fabricImg.set({
-          scaleX: scale,
-          scaleY: scale,
-          left: canvasW / 2,
-          top: canvasH / 2,
-        });
-        fabricImg.setCoords();
+      if (cropMeta && !inCropMode) {
+        // ── Crop active: render cropped+rotated preview ──
+        // Uses the same function as export so preview matches output exactly.
+        displayCanvas = applyCropForExport(outputCanvas, cropMeta);
+      } else {
+        // ── No crop or in crop-editing mode: show full image ──
+        displayCanvas = outputCanvas;
       }
 
+      // Push to Fabric
+      const tmp = document.createElement('canvas');
+      tmp.width = displayCanvas.width;
+      tmp.height = displayCanvas.height;
+      const ctx = tmp.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(displayCanvas, 0, 0);
+
+      fabricImg.setElement(tmp);
+      // setElement resets width/height — ensure they match display dimensions
+      fabricImg.width = tmp.width;
+      fabricImg.height = tmp.height;
+      // Clear any leftover cropX/cropY from previous states
+      (fabricImg as unknown as Record<string, number>).cropX = 0;
+      (fabricImg as unknown as Record<string, number>).cropY = 0;
+      // Clear rotation — it's baked into the display canvas when crop is applied
+      if (cropMeta && !inCropMode) {
+        fabricImg.set({ angle: 0, flipX: false, flipY: false });
+      }
+
+      // Only re-fit when the visible dimensions actually change
+      const newW = tmp.width;
+      const newH = tmp.height;
+      if (lastDimsRef.current.w !== newW || lastDimsRef.current.h !== newH) {
+        lastDimsRef.current = { w: newW, h: newH };
+        const canvasW = canvas.getWidth();
+        const canvasH = canvas.getHeight();
+        const scale = Math.min(canvasW / newW, canvasH / newH) * 0.9;
+        fabricImg.set({ scaleX: scale, scaleY: scale, left: canvasW / 2, top: canvasH / 2 });
+      }
+
+      fabricImg.setCoords();
       canvas.requestRenderAll();
     };
 
@@ -72,17 +101,18 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
 
     const unsubscribe = useEditorStore.subscribe((state) => {
       const { activeLayerId, editorMode, layers, pixelVersion } = state;
+      const layer = layers.find((l) => l.id === activeLayerId);
+      const cropMeta = layer?.cropMeta;
 
       if (editorMode === 'develop') {
-        // Develop mode: render only the active layer through its adjustment pipeline
-        const layer = layers.find((l) => l.id === activeLayerId);
         const adjustments = layer?.adjustmentStack.adjustments;
 
         if (
           prevRef.current.mode === editorMode &&
           prevRef.current.layerId === activeLayerId &&
           prevRef.current.adjustments === adjustments &&
-          prevRef.current.pixelVersion === pixelVersion
+          prevRef.current.pixelVersion === pixelVersion &&
+          prevRef.current.cropMeta === cropMeta
         ) {
           return;
         }
@@ -92,6 +122,7 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
           adjustments,
           layerHash: '',
           pixelVersion,
+          cropMeta,
         };
 
         if (!activeLayerId) return;
@@ -99,7 +130,6 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
         const multipleVisibleLayers = layers.filter((l) => l.visible).length > 1;
 
         if (multipleVisibleLayers || !adjustments || adjustments.length === 0) {
-          // Multiple layers or no adjustments — use compositor
           LayerCompositor.requestComposite();
           return;
         }
@@ -107,21 +137,20 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
         PipelineManager.setSource(activeLayerId);
         PipelineManager.requestRender([...adjustments]);
       } else {
-        // Compose mode: composite all visible layers
-        // Build a hash of layer states to detect changes
+        // Compose / graph / crop modes
         const visibleLayers = layers.filter((l) => l.visible);
         const layerHash = visibleLayers
           .map((l) => `${l.id}:${l.opacity}:${l.blendMode}:${l.order}:${l.adjustmentStack.adjustments.length}`)
           .join('|');
 
-        // Also check individual adjustment params by reference
-        const activeAdj = layers.find((l) => l.id === activeLayerId)?.adjustmentStack.adjustments;
+        const activeAdj = layer?.adjustmentStack.adjustments;
 
         if (
           prevRef.current.mode === editorMode &&
           prevRef.current.layerHash === layerHash &&
           prevRef.current.adjustments === activeAdj &&
-          prevRef.current.pixelVersion === pixelVersion
+          prevRef.current.pixelVersion === pixelVersion &&
+          prevRef.current.cropMeta === cropMeta
         ) {
           return;
         }
@@ -131,6 +160,7 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
           adjustments: activeAdj,
           layerHash,
           pixelVersion,
+          cropMeta,
         };
 
         LayerCompositor.requestComposite();

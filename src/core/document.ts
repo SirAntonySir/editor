@@ -158,6 +158,7 @@ function newDocument(): void {
       pixelVersion: 0,
       graphPositions: {},
       documentMeta,
+      editorMode: 'develop',
     });
   }
 }
@@ -204,6 +205,7 @@ async function openImage(file: File): Promise<void> {
       graphPositions: {},
       documentMeta,
       isDirty: false,
+      editorMode: 'develop',
     });
   }
 
@@ -231,6 +233,7 @@ async function openEdp(file: File): Promise<void> {
       fitMode: result.viewport.fitMode,
       documentMeta: result.meta,
       isDirty: false,
+      editorMode: 'develop',
     });
   }
 
@@ -495,6 +498,8 @@ async function restoreSession(): Promise<boolean> {
   // Restore pixel data
   pixelStore.clear();
   for (const [layerId, blob] of pixels) {
+    // Skip legacy '-original' entries from older sessions
+    if (layerId.endsWith('-original')) continue;
     await pixelStore.importLayerFromPng(layerId, blob, 'source');
   }
 
@@ -514,7 +519,7 @@ async function restoreSession(): Promise<boolean> {
     panX: manifest.viewport.panX,
     panY: manifest.viewport.panY,
     fitMode: manifest.viewport.fitMode,
-    editorMode: manifest.editorMode ?? 'develop',
+    editorMode: 'develop',
     documentMeta,
     isDirty: false,
   });

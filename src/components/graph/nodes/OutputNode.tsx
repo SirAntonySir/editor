@@ -3,6 +3,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Flag } from 'lucide-react';
 import { PipelineManager } from '@/lib/pipeline-manager';
 import { LayerCompositor } from '@/lib/layer-compositor';
+import { applyCropForExport } from '@/lib/crop-display';
 import { useEditorStore } from '@/store';
 import type { ProcessingNodeData } from '@/types/graph';
 
@@ -18,13 +19,22 @@ function OutputNodeInner({ id, data, selected }: NodeProps & { data: ProcessingN
   const drawOutput = useCallback((source: HTMLCanvasElement) => {
     const canvas = canvasRef.current;
     if (!canvas || source.width === 0 || source.height === 0) return;
-    const aspect = source.height / source.width;
+
+    // Apply crop if the active layer has one — so the output preview matches export
+    const state = useEditorStore.getState();
+    const layer = state.layers.find((l) => l.id === state.activeLayerId);
+    let display: HTMLCanvasElement | OffscreenCanvas = source;
+    if (layer?.cropMeta) {
+      display = applyCropForExport(source, layer.cropMeta);
+    }
+
+    const aspect = display.height / display.width;
     const h = Math.round(THUMB_W * aspect);
     canvas.width = THUMB_W;
     canvas.height = h;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.drawImage(source, 0, 0, THUMB_W, h);
+    ctx.drawImage(display, 0, 0, THUMB_W, h);
     setHeight(h);
   }, []);
 

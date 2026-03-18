@@ -34,13 +34,27 @@ function buildShortcuts(): ShortcutEntry[] {
     }
   }
 
-  // Mode toggle: Tab to cycle develop → compose → ai
+  // Crop mode shortcut
+  shortcuts.push({
+    key: 'c',
+    action: () => {
+      const state = useEditorStore.getState();
+      if (state.editorMode === 'crop') {
+        state.setEditorMode('develop');
+      } else {
+        state.setEditorMode('crop');
+      }
+    },
+    label: 'Crop',
+  });
+
+  // Mode toggle: Tab to cycle develop → compose → graph (skip crop — it has its own shortcut)
   shortcuts.push({
     key: 'tab',
     action: () => {
       const state = useEditorStore.getState();
-      const modes = ['develop', 'compose', 'graph'] as const;
-      const idx = modes.indexOf(state.editorMode);
+      const modes = ['develop', 'compose', 'graph', 'crop'] as const;
+      const idx = modes.indexOf(state.editorMode as typeof modes[number]);
       state.setEditorMode(modes[(idx + 1) % modes.length]);
     },
     label: 'Toggle Mode',

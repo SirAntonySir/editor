@@ -12,7 +12,7 @@ A high-fidelity, browser-based photo editor built with React, Fabric.js, and a c
 | State | Zustand v5 + Immer + zundo (undo/redo) |
 | UI | shadcn/ui, Radix UI, Tailwind CSS, Framer Motion, Floating UI |
 | Icons | Lucide React |
-| Cropping | react-advanced-cropper |
+| Cropping | Custom Fabric.js non-destructive crop (straighten, rotate, flip) |
 
 ## Getting Started
 
@@ -50,7 +50,7 @@ src/
     select-tool.ts      #   Selection / move
     brush-tool.tsx      #   Freehand drawing (pressure-sensitive)
     text-tool.tsx       #   Editable, movable text layers
-    crop-tool.tsx       #   Crop with aspect ratio presets
+    crop-tool.tsx       #   Crop mode entry
     light-tool.tsx      #   Exposure, contrast, highlights, shadows
     color-tool.tsx      #   Saturation, vibrance
     kelvin-tool.tsx     #   White balance (temperature + tint)
@@ -58,12 +58,14 @@ src/
     levels-tool.tsx     #   Levels with live histogram
     filters-tool.tsx    #   LUT-based colour grading
   store/                # Zustand slices
-    layer-slice.ts      #   Layers, adjustments, text metadata
+    layer-slice.ts      #   Layers, adjustments, text metadata, crop metadata
     tool-slice.ts       #   Active tool, editor mode
     viewport-slice.ts   #   Zoom, pan, canvas dimensions
   shaders/              # GLSL shader sources (as TS template literals)
   lib/                  # Core utilities
-    canvas-registry.ts  #   Pixel data store (source + working canvases)
+    canvas-registry.ts  #   Pixel data store (source + working + pre-crop original)
+    crop-utils.ts       #   Crop math (inscribed rect, state save/restore)
+    crop-rect.ts        #   Fabric.js crop rect, overlay strips, boundary clamping
     layer-compositor.ts #   Multi-layer compositing with blend modes
     pipeline-manager.ts #   WebGL render pipeline orchestration
     tool-registry.ts    #   Tool registration and lookup
@@ -74,8 +76,8 @@ src/
 
 ## Architecture
 
-- **Non-destructive editing** — adjustments are stored as metadata on each layer, not as pixel mutations. The original pixels are always preserved.
-- **CanvasRegistry** — pixel data (OffscreenCanvas pairs: source + working) lives outside Zustand to avoid serialisation overhead.
+- **Non-destructive editing** — adjustments are stored as metadata on each layer, not as pixel mutations. The original pixels are always preserved. Crop is also non-destructive: the pre-crop original is stored alongside the cropped version, and re-entering crop mode shows the full image with the crop mask.
+- **CanvasRegistry** — pixel data (OffscreenCanvas pairs: source + working + optional pre-crop original) lives outside Zustand to avoid serialisation overhead. Crop metadata (`CropMeta`) is stored on the layer.
 - **Tool Registry** — tools are self-contained `ToolDefinition` objects registered at startup. Adding a tool requires no changes to existing code (Open/Closed Principle).
 - **WebGL pipeline** — shaders are chained via ping-pong framebuffers. Each layer's adjustment stack is rendered independently, then composited with 2D Canvas blend modes.
 - **Layer compositing** — layers are sorted by order, each rendered through its own adjustment pipeline, then drawn onto a shared output canvas with per-layer opacity and blend mode.

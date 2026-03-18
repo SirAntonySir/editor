@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand';
 
-export type EditorMode = 'develop' | 'compose' | 'graph';
+export type EditorMode = 'develop' | 'compose' | 'graph' | 'crop';
+// Order: Develop → Compose → Graph → Crop (Crop is last, Develop is default)
 
 export interface ToolSlice {
   activeTool: string;
@@ -16,7 +17,7 @@ export interface ToolSlice {
 }
 
 export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]], []> = (set, get) => ({
-  activeTool: 'crop',
+  activeTool: 'select',
   editorMode: 'develop',
   toolConfigs: {},
   showHistoryPanel: false,

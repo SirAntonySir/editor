@@ -9,6 +9,7 @@ export type ProcessingNodeType =
   | 'curves'   // RGB curves
   | 'levels'   // Levels with histogram
   | 'filter'   // LUT-based color grading
+  | 'crop'     // Non-destructive crop, rotation, flip
   | 'blend'    // Merge two inputs with blend mode + opacity
   | 'output';  // Final composited result
 
@@ -79,6 +80,7 @@ export const NODE_LABELS: Record<ProcessingNodeType, string> = {
   curves: 'Curves',
   levels: 'Levels',
   filter: 'Filter',
+  crop: 'Crop',
   blend: 'Blend',
   output: 'Output',
 };

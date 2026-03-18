@@ -1,5 +1,6 @@
 import { LayerCompositor } from './layer-compositor';
 import { useEditorStore } from '@/store';
+import { applyCropForExport } from '@/lib/crop-display';
 
 export type ExportFormat = 'png' | 'jpeg' | 'webp';
 
@@ -14,18 +15,33 @@ export async function exportImage(options: ExportOptions): Promise<Blob | null> 
   const state = useEditorStore.getState();
 
   let sourceCanvas: HTMLCanvasElement | OffscreenCanvas | undefined;
+  let cropMeta: import('@/store/layer-slice').CropMeta | undefined;
 
   if (layerId) {
-    // Export a single specific layer through its adjustments
     const layer = state.layers.find((l) => l.id === layerId);
     if (!layer) return null;
     sourceCanvas = LayerCompositor.renderLayer(layer) ?? undefined;
+    cropMeta = layer.cropMeta;
   } else {
-    // Export all visible layers composited
     sourceCanvas = LayerCompositor.compositeSync();
+    // Use the active layer's crop for the composite export
+    const activeLayer = state.layers.find((l) => l.id === state.activeLayerId);
+    cropMeta = activeLayer?.cropMeta;
   }
 
   if (!sourceCanvas) return null;
+
+  // Apply crop if present
+  if (cropMeta) {
+    const cropped = applyCropForExport(sourceCanvas, cropMeta);
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = cropped.width;
+    tmpCanvas.height = cropped.height;
+    const ctx = tmpCanvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(cropped, 0, 0);
+    sourceCanvas = tmpCanvas;
+  }
 
   // Convert to blob
   const tmpCanvas = document.createElement('canvas');

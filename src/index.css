@@ -75,11 +75,6 @@ html, body, #root {
   border-radius: var(--radius-panel);
 }
 
-/* react-advanced-cropper theme overrides */
-.cropper-themed.advanced-cropper {
-  background: var(--color-canvas-bg);
-}
-
 /* React Flow overrides */
 .react-flow__node {
   cursor: grab;

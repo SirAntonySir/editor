@@ -5,6 +5,7 @@ import { useEditor } from '@/components/EditorProvider';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { editorDocument } from '@/core/document';
+import { applyCropForExport } from '@/lib/crop-display';
 import { useAdjustmentPipeline } from './useAdjustmentPipeline';
 
 interface EditorCanvasProps {
@@ -44,7 +45,7 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
   // Connect WebGL adjustment pipeline
   useAdjustmentPipeline(canvasRef);
 
-  // Hydrate canvas from store when layers appear but canvas has no objects (session restore)
+  // Hydrate canvas from store when layers appear or change (session restore, edp load)
   const layers = useEditorStore((s) => s.layers);
   const layerCountRef = useRef(0);
   useEffect(() => {
@@ -52,8 +53,13 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
     const prevCount = layerCountRef.current;
     layerCountRef.current = layers.length;
     if (!canvas || layers.length === 0) return;
-    // Only auto-hydrate when layers appear for the first time (0 → N)
-    if (prevCount > 0) return;
+
+    // Hydrate when:
+    //  1. Layers appear for the first time (0 → N) — session restore
+    //  2. Canvas has no Fabric objects but store has layers — edp/session load after a previous image
+    const hasNoObjects = canvas.getObjects().filter((o) => o instanceof fabric.FabricImage).length === 0;
+    if (prevCount > 0 && !hasNoObjects) return;
+
     const timer = setTimeout(() => hydrateCanvasFromStore(canvas), 50);
     return () => clearTimeout(timer);
   }, [layers, canvasRef]);
@@ -338,13 +344,18 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
     };
   }, [canvasRef, toolContext]);
 
-  // Handle file drop for image loading
+  // Handle file drop for image or .edp loading
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
       e.preventDefault();
       const file = e.dataTransfer.files[0];
-      if (!file || !file.type.startsWith('image/')) return;
-      await loadImageToCanvas(file, canvasRef.current);
+      if (!file) return;
+      if (file.name.endsWith('.edp')) {
+        await editorDocument.openEdp(file);
+        hydrateCanvasFromStore(canvasRef.current);
+      } else if (file.type.startsWith('image/')) {
+        await loadImageToCanvas(file, canvasRef.current);
+      }
     },
     [canvasRef]
   );
@@ -371,9 +382,11 @@ export function hydrateCanvasFromStore(canvas: fabric.Canvas | null) {
   const state = useEditorStore.getState();
   if (state.layers.length === 0) return;
 
-  // Build a Fabric image for each image layer
+  // Reset viewport before adding objects
+  canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
   canvas.clear();
 
+  // Build a Fabric image for each image layer
   for (const layer of state.layers) {
     if (layer.type !== 'image') continue;
     const working = CanvasRegistry.get(layer.id);
@@ -386,10 +399,24 @@ export function hydrateCanvasFromStore(canvas: fabric.Canvas | null) {
     if (!tmpCtx) continue;
     tmpCtx.drawImage(working, 0, 0);
 
-    const img = new fabric.FabricImage(tmpCanvas);
+    // Apply CropMeta if present — render cropped preview into the display canvas
+    let displayCanvas: HTMLCanvasElement | OffscreenCanvas = tmpCanvas;
+    if (layer.cropMeta) {
+      displayCanvas = applyCropForExport(tmpCanvas, layer.cropMeta);
+    }
+
+    const displayTmp = document.createElement('canvas');
+    displayTmp.width = displayCanvas.width;
+    displayTmp.height = displayCanvas.height;
+    displayTmp.getContext('2d')?.drawImage(displayCanvas, 0, 0);
+
+    const img = new fabric.FabricImage(displayTmp);
+
+    const visW = img.width;
+    const visH = img.height;
     const canvasWidth = canvas.getWidth();
     const canvasHeight = canvas.getHeight();
-    const scale = Math.min(canvasWidth / working.width, canvasHeight / working.height) * 0.9;
+    const scale = Math.min(canvasWidth / visW, canvasHeight / visH) * 0.9;
 
     img.set({
       scaleX: scale,
@@ -405,7 +432,20 @@ export function hydrateCanvasFromStore(canvas: fabric.Canvas | null) {
   if (canvas.getObjects().length > 0) {
     canvas.setActiveObject(canvas.getObjects()[0]);
   }
+
+  // Fit to viewport and sync store
+  fitCanvasToView(canvas);
+  const z = canvas.getZoom();
+  const vpt = canvas.viewportTransform;
+  useEditorStore.getState().setZoom(z);
+  useEditorStore.getState().setFitMode('fit');
+  useEditorStore.getState().setPan(vpt?.[4] ?? 0, vpt?.[5] ?? 0);
   canvas.renderAll();
+
+  // Bump pixelVersion so the adjustment pipeline re-renders now that
+  // the Fabric canvas has objects. The pipeline subscriber may have
+  // already fired (and found no objects) before hydration ran.
+  useEditorStore.getState().bumpPixelVersion();
 }
 
 export async function loadImageToCanvas(file: File, canvas: fabric.Canvas | null) {

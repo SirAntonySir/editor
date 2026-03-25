@@ -33,7 +33,7 @@ export function HistoryPanel() {
 
   return (
     <motion.div
-      className="absolute top-12 left-2 bottom-8 z-20 w-44 glass-panel flex flex-col overflow-hidden"
+      className="absolute top-12 left-2 z-20 w-44 max-h-[calc(100vh-5rem)] glass-panel flex flex-col overflow-hidden"
       initial={{ opacity: 0, x: -12 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
@@ -43,7 +43,7 @@ export function HistoryPanel() {
         <span>History</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-h-0">
         {/* Initial state */}
         <button
           onClick={() => handleClick(0)}

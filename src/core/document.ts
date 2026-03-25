@@ -30,6 +30,16 @@ let interaction: InteractionSession | null = null;
 let beforeUnloadHandler: ((e: BeforeUnloadEvent) => void) | null = null;
 let sessionSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
+// ─── Discrete action debouncing ──────────────────────────────────
+// Groups rapid discrete actions (e.g. slider drags routed through recordAction)
+// into a single undo entry when they share the same label within 250ms.
+const ACTION_DEBOUNCE_MS = 250;
+let pendingAction: {
+  label: string;
+  preSnapshot: SerializableState;
+  timer: ReturnType<typeof setTimeout>;
+} | null = null;
+
 // ─── State capture / restore ────────────────────────────────────────
 
 function captureState(): SerializableState | null {
@@ -122,6 +132,7 @@ function init(zustandStore: EditorStore): void {
 }
 
 function dispose(): void {
+  flushPendingAction();
   if (beforeUnloadHandler) {
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     beforeUnloadHandler = null;
@@ -365,20 +376,67 @@ function endInteraction(): void {
 
 // ─── Discrete actions (toggle visibility, reorder, etc.) ────────────
 
+/**
+ * Flush any pending debounced action into the history stack immediately.
+ * Called before undo/redo and interaction boundaries.
+ */
+function flushPendingAction(): void {
+  if (!pendingAction) return;
+  clearTimeout(pendingAction.timer);
+  const currentState = captureState();
+  if (currentState) {
+    const changed =
+      JSON.stringify(pendingAction.preSnapshot.layers) !== JSON.stringify(currentState.layers) ||
+      pendingAction.preSnapshot.activeLayerId !== currentState.activeLayerId ||
+      pendingAction.preSnapshot.pixelVersion !== currentState.pixelVersion;
+    if (changed) {
+      const entry: HistoryEntry = {
+        id: crypto.randomUUID(),
+        label: pendingAction.label,
+        timestamp: Date.now(),
+        kind: 'metadata',
+        metaSnapshot: pendingAction.preSnapshot,
+        estimatedSize: 0,
+      };
+      history.push(entry);
+      markDirty();
+    }
+  }
+  pendingAction = null;
+}
+
+/**
+ * Record a discrete action with 250ms debounce grouping.
+ *
+ * Rapid calls with the same label within 250ms are merged into a single
+ * undo entry (e.g. toggling a checkbox repeatedly, or rapid crop adjustments).
+ */
 function recordAction(label: string, fn: () => void): void {
-  const pre = captureState();
+  // If there's a pending action with a DIFFERENT label, flush it first
+  if (pendingAction && pendingAction.label !== label) {
+    flushPendingAction();
+  }
+
+  // Capture pre-state only for the first call in this debounce window
+  if (!pendingAction) {
+    const pre = captureState();
+    if (!pre) {
+      fn(); // not initialized — action runs but no history entry
+      return;
+    }
+    pendingAction = {
+      label,
+      preSnapshot: pre,
+      timer: setTimeout(flushPendingAction, ACTION_DEBOUNCE_MS),
+    };
+  } else {
+    // Same label — extend the debounce window
+    clearTimeout(pendingAction.timer);
+    pendingAction.timer = setTimeout(flushPendingAction, ACTION_DEBOUNCE_MS);
+  }
+
+  // Execute the mutation
   fn();
-  if (!pre) return; // not initialized — action runs but no history entry
-  const entry: HistoryEntry = {
-    id: crypto.randomUUID(),
-    label,
-    timestamp: Date.now(),
-    kind: 'metadata',
-    metaSnapshot: pre,
-    estimatedSize: 0,
-  };
-  history.push(entry);
-  markDirty();
 }
 
 // ─── Destructive transactions ───────────────────────────────────────
@@ -418,10 +476,11 @@ async function undoAction(): Promise<void> {
     return;
   }
 
-  // Auto-commit any dangling interaction
+  // Auto-commit any dangling interaction or pending action
   if (interaction) {
     endInteraction();
   }
+  flushPendingAction();
 
   // Before undo, capture current state and swap it into the entry
   // so that redo can restore it
@@ -448,6 +507,7 @@ async function redoAction(): Promise<void> {
   if (interaction) {
     endInteraction();
   }
+  flushPendingAction();
 
   // Before redo, capture current state for the undo stack entry
   const currentState = captureState();

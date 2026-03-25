@@ -75,6 +75,16 @@ html, body, #root {
   border-radius: var(--radius-panel);
 }
 
+/* Graph node gradient background — accent → glass-bg */
+.graph-node-gradient {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 12%, var(--color-glass-bg)) 0%, var(--color-glass-bg) 100%);
+}
+
+/* Graph editor gradient background — subtle accent → canvas-bg */
+.graph-editor-bg {
+  background: radial-gradient(ellipse at top left, color-mix(in srgb, var(--color-accent) 8%, var(--color-canvas-bg)) 0%, var(--color-canvas-bg) 60%);
+}
+
 /* React Flow overrides */
 .react-flow__node {
   cursor: grab;

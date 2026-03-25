@@ -136,7 +136,7 @@ export function GraphPropertiesPanel({ graph }: { graph: ProcessingGraph }) {
   if (!selectedNode) return null;
 
   return (
-    <div className="absolute top-12 right-2 bottom-8 z-20 w-56 glass-panel overflow-y-auto overflow-x-hidden flex flex-col">
+    <div className="absolute top-12 right-2 z-20 w-56 max-h-[calc(100vh-5rem)] glass-panel overflow-y-auto overflow-x-hidden flex flex-col">
       <div className="px-3 py-2 text-xs font-medium text-text-secondary border-b border-separator">
         {selectedNode.data.label}
       </div>

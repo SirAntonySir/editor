@@ -13,7 +13,7 @@ export function InspectorPanel() {
 
   return (
     <motion.div
-      className="absolute top-12 right-2 bottom-8 z-20 w-56 glass-panel overflow-y-auto overflow-x-hidden"
+      className="absolute top-12 right-2 z-20 w-56 max-h-[calc(100vh-5rem)] glass-panel overflow-y-auto overflow-x-hidden"
       initial={{ opacity: 0, x: 12 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}

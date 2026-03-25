@@ -17,10 +17,14 @@ import { Workflow, SeparatorVertical, SeparatorHorizontal } from 'lucide-react';
 
 import { useDerivedGraph } from '@/core/derived-graph';
 import { useEditorStore } from '@/store';
-import { computeAutoLayout } from '@/lib/graph-layout';
+import { computeAutoLayout, computeElkLayout } from '@/lib/graph-layout';
 import { nodeTypes } from './nodeTypes';
+import { CustomConnectionLine } from './CustomConnectionLine';
+import { CustomEdge } from './CustomEdge';
 import { GraphPropertiesPanel } from './GraphPropertiesPanel';
 import type { ProcessingGraph, NodePosition } from '@/types/graph';
+
+const edgeTypes = { custom: CustomEdge };
 
 function toRFNodes(graph: ProcessingGraph, positions: Record<string, NodePosition>): Node[] {
   return graph.nodes.map((pn) => ({
@@ -38,31 +42,37 @@ function toRFEdges(graph: ProcessingGraph): Edge[] {
     target: pe.target,
     sourceHandle: pe.sourceHandle,
     targetHandle: pe.targetHandle,
-    type: 'smoothstep',
-    animated: false,
-    style: { stroke: 'var(--color-accent)', strokeWidth: 2, opacity: 0.6 },
+    type: 'custom',
   }));
 }
 
 /** Runs inside ReactFlow context to detect structural changes and auto-layout */
 function AutoLayoutHandler({
   structureKey,
+  graph,
   onLayout,
 }: {
   structureKey: string;
-  onLayout: () => void;
+  graph: ProcessingGraph;
+  onLayout: (positions: Record<string, NodePosition>) => void;
 }) {
   const { fitView } = useReactFlow();
   const graphLayoutKey = useEditorStore((s) => s.graphLayoutKey);
   const setGraphLayoutKey = useEditorStore((s) => s.setGraphLayoutKey);
 
+  const hasRunRef = useRef(false);
+
   useEffect(() => {
-    if (structureKey && structureKey !== graphLayoutKey) {
+    if (!structureKey) return;
+    // Run ELK on structure change, OR on first mount (to replace stale positions)
+    if (structureKey !== graphLayoutKey || !hasRunRef.current) {
+      hasRunRef.current = true;
       setGraphLayoutKey(structureKey);
-      onLayout();
-      requestAnimationFrame(() => fitView({ padding: 0.2, duration: 200 }));
+      computeElkLayout(graph).then((positions) => {
+        onLayout(positions);
+        requestAnimationFrame(() => fitView({ padding: 0.2, duration: 200 }));
+      });
     }
-    // Only react to structureKey changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [structureKey]);
 
@@ -70,13 +80,16 @@ function AutoLayoutHandler({
 }
 
 /** Layout button rendered inside Controls */
-function LayoutButton({ onLayout }: { onLayout: () => void }) {
+function LayoutButton({ graph }: { graph: ProcessingGraph }) {
   const { fitView } = useReactFlow();
+  const setGraphPositions = useEditorStore((s) => s.setGraphPositions);
   return (
     <button
       onClick={() => {
-        onLayout();
-        requestAnimationFrame(() => fitView({ padding: 0.2, duration: 200 }));
+        computeElkLayout(graph).then((positions) => {
+          setGraphPositions(positions);
+          requestAnimationFrame(() => fitView({ padding: 0.2, duration: 200 }));
+        });
       }}
       className="react-flow__controls-button"
       title="Auto Layout"
@@ -143,9 +156,9 @@ export function GraphEditor() {
     return graph.nodes.map((n) => n.id).join('|') + '||' + graph.edges.map((e) => e.id).join('|');
   }, [graph]);
 
-  // Clear all stored positions → auto-layout recomputes from defaults
-  const handleAutoLayout = useCallback(() => {
-    setGraphPositions({});
+  // ELK layout: receive computed positions and apply them
+  const handleElkLayout = useCallback((newPositions: Record<string, NodePosition>) => {
+    setGraphPositions(newPositions);
   }, [setGraphPositions]);
 
   // Local node state so ReactFlow can update positions during drag
@@ -218,6 +231,8 @@ export function GraphEditor() {
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        connectionLineComponent={CustomConnectionLine}
         onNodesChange={onNodesChange}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
@@ -231,16 +246,16 @@ export function GraphEditor() {
         minZoom={0.1}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
-        className="bg-canvas-bg"
+        className="graph-editor-bg"
       >
         <Controls
           showInteractive={false}
           className="!bg-glass-bg !border-glass-border !shadow-panel !rounded-panel [&>button]:!bg-transparent [&>button]:!border-separator [&>button]:!text-text-secondary [&>button:hover]:!text-text-primary"
         >
-          <LayoutButton onLayout={handleAutoLayout} />
+          <LayoutButton graph={graph} />
           <SplitToggle />
         </Controls>
-        <AutoLayoutHandler structureKey={structureKey} onLayout={handleAutoLayout} />
+        <AutoLayoutHandler structureKey={structureKey} graph={graph} onLayout={handleElkLayout} />
       </ReactFlow>
 
       {/* Properties panel — floating, same position as InspectorPanel */}

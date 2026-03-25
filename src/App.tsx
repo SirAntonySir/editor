@@ -13,6 +13,8 @@ import { HistoryPanel } from '@/components/panels/HistoryPanel';
 import { PreferencesPage } from '@/components/PreferencesPage';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { ToolRegistry } from '@/lib/tool-registry';
+import { registerAllProcessing } from '@/processing';
+import { initNodeTypes } from '@/components/graph/nodeTypes';
 import { useEditorStore } from '@/store';
 import { useGraphStore } from '@/store/graph-store';
 import { usePreferencesStore, applyPreferences } from '@/store/preferences-store';
@@ -46,6 +48,9 @@ import {
   EmptyContent,
 } from '@/components/ui/empty';
 
+// Register processing definitions (must happen before tool registration and nodeTypes init)
+registerAllProcessing();
+
 // Register tools
 ToolRegistry.register(SelectTool);
 ToolRegistry.register(MoveTool);
@@ -58,6 +63,9 @@ ToolRegistry.register(LevelsTool);
 ToolRegistry.register(BrushTool);
 ToolRegistry.register(TextTool);
 ToolRegistry.register(FiltersTool);
+
+// Build graph node types from ProcessingRegistry (must happen after all processing defs are registered)
+initNodeTypes();
 
 /** Main canvas area — switches between full canvas and split canvas+graph */
 function GraphSplitLayout({

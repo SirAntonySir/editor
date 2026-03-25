@@ -1,15 +1,24 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEditor } from '@/components/EditorProvider';
 import { useEditorStore } from '@/store';
+import { ProcessingRegistry } from '@/lib/processing-registry';
 
 export function InspectorPanel() {
   const { toolContext, getActiveTool } = useEditor();
   const activeTool = useEditorStore((s) => s.activeTool);
+  const activeLayerId = useEditorStore((s) => s.activeLayerId);
   const toolDef = getActiveTool();
 
-  const hasToolPanel = !!toolDef?.OptionsPanel;
+  // Determine which panel to render:
+  // 1. If the tool links to a ProcessingDefinition, use its Panel
+  // 2. Otherwise, use the tool's own OptionsPanel
+  const processingDef = toolDef?.processingId
+    ? ProcessingRegistry.get(toolDef.processingId)
+    : undefined;
 
-  if (!hasToolPanel) return null;
+  const hasPanel = !!(processingDef?.Panel || toolDef?.OptionsPanel);
+
+  if (!hasPanel) return null;
 
   return (
     <motion.div
@@ -27,18 +36,17 @@ export function InspectorPanel() {
           transition={{ duration: 0.15 }}
         >
           <div className="px-3 py-2 text-xs font-medium text-text-secondary border-b border-separator">
-            {toolDef.label}
+            {processingDef?.label ?? toolDef?.label}
           </div>
-          {(() => {
-            const Panel = toolDef.OptionsPanel!;
-            return (
-              <Panel
-                config={toolDef.defaultConfig ?? {}}
-                onConfigChange={() => {}}
-                ctx={toolContext}
-              />
-            );
-          })()}
+          {processingDef?.Panel && activeLayerId ? (
+            <processingDef.Panel layerId={activeLayerId} />
+          ) : toolDef?.OptionsPanel ? (
+            <toolDef.OptionsPanel
+              config={toolDef.defaultConfig ?? {}}
+              onConfigChange={() => {}}
+              ctx={toolContext}
+            />
+          ) : null}
         </motion.div>
       </AnimatePresence>
     </motion.div>

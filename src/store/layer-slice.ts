@@ -1,11 +1,11 @@
 import type { StateCreator } from 'zustand';
 
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'soft-light' | 'hard-light';
-export type LayerType = 'image' | 'brush' | 'text';
+export type LayerType = string;
 
 export interface Adjustment {
   id: string;
-  type: 'basic' | 'curves' | 'levels' | 'kelvin' | 'lut';
+  type: string;
   name: string;
   enabled: boolean;
   blendMode: BlendMode;
@@ -56,7 +56,7 @@ export interface Layer {
   cropMeta?: CropMeta;
 }
 
-const ADJUSTMENT_NAMES: Record<Adjustment['type'], string> = {
+const ADJUSTMENT_NAMES: Record<string, string> = {
   basic: 'Light & Color',
   curves: 'Curves',
   levels: 'Levels',
@@ -76,7 +76,7 @@ export interface LayerSlice {
   reorderLayers: (fromIndex: number, toIndex: number) => void;
 
   // Singleton adjustment (finds by type, creates if missing)
-  setAdjustment: (layerId: string, type: Adjustment['type'], params: Partial<Adjustment['params']>) => void;
+  setAdjustment: (layerId: string, type: string, params: Partial<Adjustment['params']>) => void;
   // Add a new adjustment layer (for LUTs and stackable adjustments)
   addAdjustment: (layerId: string, adjustment: Adjustment) => void;
   // Remove an adjustment layer by ID
@@ -88,7 +88,7 @@ export interface LayerSlice {
     updates: Partial<Pick<Adjustment, 'blendMode' | 'opacity' | 'enabled' | 'name'>>,
   ) => void;
   // Toggle by type (for singleton adjustments)
-  toggleAdjustment: (layerId: string, type: Adjustment['type'], enabled: boolean) => void;
+  toggleAdjustment: (layerId: string, type: string, enabled: boolean) => void;
   // Reorder adjustment layers
   reorderAdjustments: (layerId: string, fromIndex: number, toIndex: number) => void;
 
@@ -154,7 +154,7 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
         layer.adjustmentStack.adjustments.push({
           id: crypto.randomUUID(),
           type,
-          name: ADJUSTMENT_NAMES[type],
+          name: ADJUSTMENT_NAMES[type] ?? type.charAt(0).toUpperCase() + type.slice(1),
           enabled: true,
           blendMode: 'normal',
           opacity: 1,

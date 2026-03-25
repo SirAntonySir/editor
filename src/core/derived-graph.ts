@@ -1,74 +1,23 @@
 /**
  * Derived graph — computed from layers + stored positions.
  * Only active in Graph mode. Zero cost in develop/compose modes.
+ *
+ * Uses the ProcessingRegistry to map adjustments → node types,
+ * so new processing types automatically appear as graph nodes.
  */
 import { useMemo, useEffect } from 'react';
 import { useEditorStore } from '@/store';
 import { useGraphStore } from '@/store/graph-store';
+import { ProcessingRegistry } from '@/lib/processing-registry';
 import type {
   ProcessingGraph,
-  ProcessingNodeType,
   NodePosition,
 } from '@/types/graph';
-import { LIGHT_PARAM_KEYS, COLOR_PARAM_KEYS, NODE_LABELS } from '@/types/graph';
-import type { Layer, Adjustment } from '@/store/layer-slice';
+import type { Layer } from '@/store/layer-slice';
 
 // ─── Layout constants ────────────────────────────────────────────────
 const X_STEP = 280;
 const Y_STEP = 200;
-
-// ─── Helpers ─────────────────────────────────────────────────────────
-
-function adjustmentNodeTypes(adj: Adjustment): ProcessingNodeType[] {
-  switch (adj.type) {
-    case 'basic': {
-      const keys = Object.keys(adj.params);
-      const result: ProcessingNodeType[] = [];
-      if (keys.some((k) => (LIGHT_PARAM_KEYS as readonly string[]).includes(k)))
-        result.push('light');
-      if (keys.some((k) => (COLOR_PARAM_KEYS as readonly string[]).includes(k)))
-        result.push('color');
-      return result.length > 0 ? result : ['light'];
-    }
-    case 'kelvin':
-      return ['kelvin'];
-    case 'curves':
-      return ['curves'];
-    case 'levels':
-      return ['levels'];
-    case 'lut':
-      return ['filter'];
-    default:
-      return [];
-  }
-}
-
-function filterParams(
-  nodeType: ProcessingNodeType,
-  params: Record<string, number | Float32Array>,
-): Record<string, number | Float32Array> {
-  if (nodeType === 'light') {
-    return Object.fromEntries(
-      Object.entries(params).filter(([k]) =>
-        (LIGHT_PARAM_KEYS as readonly string[]).includes(k),
-      ),
-    );
-  }
-  if (nodeType === 'color') {
-    return Object.fromEntries(
-      Object.entries(params).filter(([k]) =>
-        (COLOR_PARAM_KEYS as readonly string[]).includes(k),
-      ),
-    );
-  }
-  return { ...params };
-}
-
-function paramKeysForType(nodeType: ProcessingNodeType): string[] | undefined {
-  if (nodeType === 'light') return [...LIGHT_PARAM_KEYS];
-  if (nodeType === 'color') return [...COLOR_PARAM_KEYS];
-  return undefined;
-}
 
 // ─── Build graph from layers + positions ────────────────────────────
 
@@ -92,7 +41,7 @@ export function buildGraphFromLayers(
 
     // Source node
     const srcKey = `source:${layer.id}`;
-    const srcId = srcKey; // use stable key as ID
+    const srcId = srcKey;
     graph.nodes.push({
       id: srcId,
       type: 'source',
@@ -102,24 +51,27 @@ export function buildGraphFromLayers(
     let chainTip = srcId;
     x += X_STEP;
 
-    // Adjustment nodes
+    // Adjustment nodes — resolved via ProcessingRegistry
     for (const adj of layer.adjustmentStack.adjustments) {
-      const nodeTypes = adjustmentNodeTypes(adj);
-      for (const nt of nodeTypes) {
-        const nodeKey = `${nt}:${adj.id}`;
+      const nodeTypeIds = ProcessingRegistry.getNodeTypesForAdjustment(adj);
+
+      for (const defId of nodeTypeIds) {
+        const def = ProcessingRegistry.get(defId);
+        if (!def) continue;
+
+        const nodeKey = `${defId}:${adj.id}`;
         const nodeId = nodeKey;
-        const pKeys = paramKeysForType(nt);
 
         graph.nodes.push({
           id: nodeId,
-          type: nt,
+          type: defId,
           position: getPos(nodeKey, { x, y }),
           data: {
-            label: NODE_LABELS[nt],
+            label: def.label,
             layerId: layer.id,
             adjustmentId: adj.id,
-            paramKeys: pKeys,
-            params: filterParams(nt, adj.params),
+            paramKeys: def.paramKeys,
+            params: ProcessingRegistry.filterParamsForDef(defId, adj.params),
             enabled: adj.enabled,
             blendMode: adj.blendMode,
             opacity: adj.opacity,

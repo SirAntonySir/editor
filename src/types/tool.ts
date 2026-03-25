@@ -49,6 +49,8 @@ export interface ToolDefinition<TConfig = unknown> {
   shortcut?: string;
   cursor?: string;
   defaultConfig?: TConfig;
+  /** Link to a ProcessingDefinition ID. When set, the processing's Panel is used for the inspector. */
+  processingId?: string;
 
   OptionsPanel?: ComponentType<ToolOptionsPanelProps<TConfig>>;
   CanvasOverlay?: ComponentType<CanvasOverlayProps>;

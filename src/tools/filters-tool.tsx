@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import type { ToolDefinition } from '@/types/tool';
 import { useEditorStore } from '@/store';
@@ -7,7 +8,6 @@ import {
   PRESET_LUTS,
   type LUTData,
 } from '@/lib/lut-parser';
-import { useCallback, useMemo } from 'react';
 
 export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}) {
   const storeLayerId = useEditorStore((s) => s.activeLayerId);
@@ -118,14 +118,10 @@ export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}
   );
 }
 
-function FiltersPanelWrapper() {
-  return <FiltersPanel />;
-}
-
 export const FiltersTool: ToolDefinition = {
   name: 'filters',
   label: 'Filters',
   icon: ImageIcon,
   category: 'filter',
-  OptionsPanel: FiltersPanelWrapper,
+  processingId: 'filter',
 };

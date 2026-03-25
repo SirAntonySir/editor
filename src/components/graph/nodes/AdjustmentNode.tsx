@@ -1,43 +1,20 @@
 import { memo, useMemo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Sun, Palette, Thermometer, Spline, SlidersHorizontal, Image, Eye, EyeOff, ChevronDown, ChevronRight } from 'lucide-react';
-import type { ProcessingNodeType, ProcessingNodeData } from '@/types/graph';
-import { LIGHT_PARAM_KEYS, COLOR_PARAM_KEYS } from '@/types/graph';
+import { Sun, Eye, EyeOff, ChevronDown, ChevronRight } from 'lucide-react';
+import type { ProcessingNodeData } from '@/types/graph';
 import { useEditorStore } from '@/store';
 import { useGraphStore } from '@/store/graph-store';
+import { ProcessingRegistry } from '@/lib/processing-registry';
 import { NodeScrubber } from './NodeScrubber';
-import { InlineCurvesEditor } from './InlineCurvesEditor';
-import { InlineFilterSelector } from './InlineFilterSelector';
-import { LightEditor, ColorEditor, KelvinEditor, LevelsEditor } from '../GraphPropertiesPanel';
-import type { LucideIcon } from 'lucide-react';
-
-const NODE_ICONS: Record<string, LucideIcon> = {
-  light: Sun,
-  color: Palette,
-  kelvin: Thermometer,
-  curves: Spline,
-  levels: SlidersHorizontal,
-  filter: Image,
-};
 
 /** Pretty label for a param key */
 function formatLabel(key: string): string {
   return key.charAt(0).toUpperCase() + key.slice(1);
 }
 
-/** Keys to display per node type (for scrubber compact mode) */
-const PARAM_KEYS: Record<string, readonly string[]> = {
-  light: LIGHT_PARAM_KEYS,
-  color: COLOR_PARAM_KEYS,
-  kelvin: ['kelvin', 'tint'],
-  levels: ['inBlack', 'inWhite', 'gamma', 'outBlack', 'outWhite'],
-};
-
-/** Node types that support expanded slider mode */
-const EXPANDABLE_TYPES = new Set<string>(['light', 'color', 'kelvin', 'levels', 'curves', 'filter']);
-
-function AdjustmentNodeInner({ id, data, type, selected }: NodeProps & { data: ProcessingNodeData; type: ProcessingNodeType }) {
-  const Icon = NODE_ICONS[type] ?? Sun;
+function AdjustmentNodeInner({ id, data, type, selected }: NodeProps & { data: ProcessingNodeData; type: string }) {
+  const def = ProcessingRegistry.get(type);
+  const Icon = def?.icon ?? Sun;
   const highlightedNodeId = useGraphStore((s) => s.highlightedNodeId);
   const isHighlighted = highlightedNodeId === id;
   const isExpanded = useGraphStore((s) => s.expandedNodeIds.includes(id));
@@ -54,13 +31,13 @@ function AdjustmentNodeInner({ id, data, type, selected }: NodeProps & { data: P
   });
 
   const enabled = adj?.enabled !== false;
-  const canExpand = EXPANDABLE_TYPES.has(type);
+  const canExpand = def?.expandable ?? false;
 
-  // Get the param keys for compact scrubber mode
+  // Get the param keys for compact scrubber mode — from the ProcessingDefinition
   const paramKeys = useMemo(() => {
-    if (type === 'curves' || type === 'filter') return [];
-    return PARAM_KEYS[type] ?? [];
-  }, [type]);
+    if (!def) return [];
+    return def.params.map((p) => p.key);
+  }, [def]);
 
   const handleToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -118,59 +95,41 @@ function AdjustmentNodeInner({ id, data, type, selected }: NodeProps & { data: P
 
       {/* Body */}
       {isExpanded ? (
-        /* ── Expanded mode: full sliders / editors ── */
+        /* ── Expanded mode: full editor from ProcessingDefinition ── */
         <div className="nodrag nowheel">
-          {type === 'curves' && data.layerId && (
-            <InlineCurvesEditor layerId={data.layerId} />
-          )}
-          {type === 'filter' && data.layerId && (
-            <InlineFilterSelector layerId={data.layerId} />
-          )}
-          {type === 'light' && data.adjustmentId && (
-            <div className="p-3"><LightEditor adjustmentId={data.adjustmentId} /></div>
-          )}
-          {type === 'color' && data.adjustmentId && (
-            <div className="p-3"><ColorEditor adjustmentId={data.adjustmentId} /></div>
-          )}
-          {type === 'kelvin' && data.adjustmentId && (
-            <div className="p-3"><KelvinEditor adjustmentId={data.adjustmentId} /></div>
-          )}
-          {type === 'levels' && data.adjustmentId && (
-            <div className="p-3"><LevelsEditor adjustmentId={data.adjustmentId} /></div>
-          )}
+          {(() => {
+            if (!def || !data.layerId) return null;
+            const ExpandedPanel = def.NodeExpandedPanel ?? def.Panel;
+            return (
+              <ExpandedPanel
+                layerId={data.layerId}
+                adjustmentId={data.adjustmentId}
+              />
+            );
+          })()}
         </div>
       ) : (
-        /* ── Compact mode: scrubber values ── */
+        /* ── Compact mode: scrubber values or custom display ── */
         <div className="flex flex-col">
-          {paramKeys.length > 0 && data.adjustmentId
-            ? paramKeys.map((key) => (
-                <NodeScrubber
-                  key={key}
-                  nodeType={type}
-                  adjustmentId={data.adjustmentId!}
-                  paramKey={key}
-                  label={formatLabel(key)}
-                />
-              ))
-            : type === 'curves'
-              ? (
-                  <div className="px-3 py-1.5">
-                    <span className="text-[10px] text-text-secondary">Curves</span>
-                  </div>
-                )
-              : type === 'filter'
-                ? (
-                    <div className="px-3 py-1.5">
-                      <span className="text-[10px] text-text-secondary">
-                        {adj?.name ?? 'No filter'}
-                      </span>
-                    </div>
-                  )
-                : (
-                    <div className="px-3 py-1.5">
-                      <span className="text-[10px] text-text-secondary">Default</span>
-                    </div>
-                  )}
+          {def?.NodeCompactDisplay && data.layerId ? (
+            <def.NodeCompactDisplay layerId={data.layerId} adjustmentId={data.adjustmentId} />
+          ) : paramKeys.length > 0 && data.adjustmentId ? (
+            paramKeys.map((key) => (
+              <NodeScrubber
+                key={key}
+                nodeType={type}
+                adjustmentId={data.adjustmentId!}
+                paramKey={key}
+                label={formatLabel(key)}
+              />
+            ))
+          ) : (
+            <div className="px-3 py-1.5">
+              <span className="text-[10px] text-text-secondary">
+                {adj?.name ?? data.label}
+              </span>
+            </div>
+          )}
         </div>
       )}
 

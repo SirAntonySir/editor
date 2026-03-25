@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
 import { useEditorStore } from '@/store';
-import type { Adjustment } from '@/store/layer-slice';
 import { editorDocument } from '@/core/document';
+import { ProcessingRegistry } from '@/lib/processing-registry';
 
-const ADJUSTMENT_NAMES: Record<Adjustment['type'], string> = {
+const ADJUSTMENT_NAMES: Record<string, string> = {
   basic: 'Light & Color',
   curves: 'Curves',
   levels: 'Levels',
@@ -12,7 +12,7 @@ const ADJUSTMENT_NAMES: Record<Adjustment['type'], string> = {
 };
 
 export function useAdjustmentParam(
-  type: Adjustment['type'],
+  type: string,
   paramName: string,
   defaultValue: number,
 ): [number, (v: number) => void] {
@@ -28,8 +28,9 @@ export function useAdjustmentParam(
   const setValue = useCallback(
     (v: number) => {
       if (!activeLayerId) return;
+      const name = ADJUSTMENT_NAMES[type] ?? ProcessingRegistry.getAdjustmentName(type);
       if (!editorDocument.hasActiveInteraction) {
-        editorDocument.beginInteraction(`Adjust ${ADJUSTMENT_NAMES[type]}`);
+        editorDocument.beginInteraction(`Adjust ${name}`);
       }
       editorDocument.tickInteraction();
       useEditorStore.getState().setAdjustment(activeLayerId, type, { [paramName]: v });

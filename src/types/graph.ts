@@ -1,17 +1,13 @@
 import type { BlendMode } from '@/store/layer-slice';
 
-// ─── Node types (1:1 with editing tools) ─────────────────────────────
-export type ProcessingNodeType =
-  | 'source'   // Image/brush/text layer pixel data
-  | 'light'    // Exposure, contrast, highlights, shadows
-  | 'color'    // Saturation, vibrance
-  | 'kelvin'   // Temperature, tint
-  | 'curves'   // RGB curves
-  | 'levels'   // Levels with histogram
-  | 'filter'   // LUT-based color grading
-  | 'crop'     // Non-destructive crop, rotation, flip
-  | 'blend'    // Merge two inputs with blend mode + opacity
-  | 'output';  // Final composited result
+// ─── Node types ─────────────────────────────────────────────────────
+// ProcessingNodeType is now a string — the ProcessingRegistry defines
+// which node types exist. Structural node types (source, blend, crop,
+// output) are built-in; processing node types come from the registry.
+export type ProcessingNodeType = string;
+
+/** Built-in structural node types (not from the ProcessingRegistry). */
+export const STRUCTURAL_NODE_TYPES = ['source', 'blend', 'crop', 'output'] as const;
 
 // ─── Data structures ─────────────────────────────────────────────────
 export interface NodePosition {
@@ -53,34 +49,3 @@ export interface ProcessingGraph {
   nodes: ProcessingNode[];
   edges: ProcessingEdge[];
 }
-
-// ─── Mapping constants ───────────────────────────────────────────────
-
-/** Param keys that belong to the 'light' node (subset of 'basic' adjustment) */
-export const LIGHT_PARAM_KEYS = [
-  'brightness', 'contrast', 'highlights', 'shadows', 'exposure',
-] as const;
-
-/** Param keys that belong to the 'color' node (subset of 'basic' adjustment) */
-export const COLOR_PARAM_KEYS = [
-  'saturation', 'vibrance',
-] as const;
-
-/** Node types that represent processing operations (not structural) */
-export const ADJUSTMENT_NODE_TYPES: ProcessingNodeType[] = [
-  'light', 'color', 'kelvin', 'curves', 'levels', 'filter',
-];
-
-/** Default labels for each node type */
-export const NODE_LABELS: Record<ProcessingNodeType, string> = {
-  source: 'Source',
-  light: 'Light',
-  color: 'Color',
-  kelvin: 'White Balance',
-  curves: 'Curves',
-  levels: 'Levels',
-  filter: 'Filter',
-  crop: 'Crop',
-  blend: 'Blend',
-  output: 'Output',
-};

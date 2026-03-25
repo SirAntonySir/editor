@@ -1,73 +1,9 @@
 import { useEditorStore } from '@/store';
 import { useGraphStore } from '@/store/graph-store';
-import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
-import { useGraphAdjustmentParam } from '@/lib/use-graph-adjustment';
-import { CurvesPanel } from '@/tools/curves-tool';
-import { FiltersPanel } from '@/tools/filters-tool';
-import type { ProcessingNode, ProcessingNodeType, ProcessingGraph } from '@/types/graph';
+import { ProcessingRegistry } from '@/lib/processing-registry';
+import type { ProcessingNode, ProcessingGraph } from '@/types/graph';
 
-// ─── Slider editors per node type ────────────────────────────────────
-
-export function LightEditor({ adjustmentId }: { adjustmentId: string }) {
-  const [exposure, setExposure] = useGraphAdjustmentParam(adjustmentId, 'exposure', 0);
-  const [brightness, setBrightness] = useGraphAdjustmentParam(adjustmentId, 'brightness', 0);
-  const [contrast, setContrast] = useGraphAdjustmentParam(adjustmentId, 'contrast', 0);
-  const [highlights, setHighlights] = useGraphAdjustmentParam(adjustmentId, 'highlights', 0);
-  const [shadows, setShadows] = useGraphAdjustmentParam(adjustmentId, 'shadows', 0);
-  return (
-    <div className="flex flex-col gap-3">
-      <AdjustmentSlider label="Exposure" value={exposure} min={-100} max={100} defaultValue={0} onChange={setExposure} />
-      <AdjustmentSlider label="Brightness" value={brightness} min={-100} max={100} defaultValue={0} onChange={setBrightness} />
-      <AdjustmentSlider label="Contrast" value={contrast} min={-100} max={100} defaultValue={0} onChange={setContrast} />
-      <AdjustmentSlider label="Highlights" value={highlights} min={-100} max={100} defaultValue={0} onChange={setHighlights} />
-      <AdjustmentSlider label="Shadows" value={shadows} min={-100} max={100} defaultValue={0} onChange={setShadows} />
-    </div>
-  );
-}
-
-export function ColorEditor({ adjustmentId }: { adjustmentId: string }) {
-  const [saturation, setSaturation] = useGraphAdjustmentParam(adjustmentId, 'saturation', 0);
-  const [vibrance, setVibrance] = useGraphAdjustmentParam(adjustmentId, 'vibrance', 0);
-  const [hue, setHue] = useGraphAdjustmentParam(adjustmentId, 'hue', 0);
-  return (
-    <div className="flex flex-col gap-3">
-      <AdjustmentSlider label="Saturation" value={saturation} min={-100} max={100} defaultValue={0} onChange={setSaturation} />
-      <AdjustmentSlider label="Vibrance" value={vibrance} min={-100} max={100} defaultValue={0} onChange={setVibrance} />
-      <AdjustmentSlider label="Hue" value={hue} min={0} max={360} defaultValue={0} onChange={setHue} formatValue={(v) => `${Math.round(v)}\u00B0`} />
-    </div>
-  );
-}
-
-export function KelvinEditor({ adjustmentId }: { adjustmentId: string }) {
-  const [kelvin, setKelvin] = useGraphAdjustmentParam(adjustmentId, 'kelvin', 6500);
-  const [tint, setTint] = useGraphAdjustmentParam(adjustmentId, 'tint', 0);
-  return (
-    <div className="flex flex-col gap-3">
-      <AdjustmentSlider label="White Balance" value={kelvin} min={2000} max={12000} defaultValue={6500} onChange={setKelvin} formatValue={(v) => `${Math.round(v)}K`} />
-      <AdjustmentSlider label="Tint" value={tint} min={-100} max={100} defaultValue={0} onChange={setTint} />
-    </div>
-  );
-}
-
-export function LevelsEditor({ adjustmentId }: { adjustmentId: string }) {
-  const [inBlack, setInBlack] = useGraphAdjustmentParam(adjustmentId, 'inBlack', 0);
-  const [inWhite, setInWhite] = useGraphAdjustmentParam(adjustmentId, 'inWhite', 255);
-  const [gamma, setGamma] = useGraphAdjustmentParam(adjustmentId, 'gamma', 1.0);
-  const [outBlack, setOutBlack] = useGraphAdjustmentParam(adjustmentId, 'outBlack', 0);
-  const [outWhite, setOutWhite] = useGraphAdjustmentParam(adjustmentId, 'outWhite', 255);
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="text-xs font-medium text-text-secondary">Input Levels</div>
-      <AdjustmentSlider label="Black Point" value={inBlack} min={0} max={255} defaultValue={0} onChange={setInBlack} />
-      <AdjustmentSlider label="Midtones" value={gamma} min={0.1} max={10} step={0.01} defaultValue={1.0} onChange={setGamma} formatValue={(v) => v.toFixed(2)} />
-      <AdjustmentSlider label="White Point" value={inWhite} min={0} max={255} defaultValue={255} onChange={setInWhite} />
-      <div className="h-px bg-separator" />
-      <div className="text-xs font-medium text-text-secondary">Output Levels</div>
-      <AdjustmentSlider label="Output Black" value={outBlack} min={0} max={255} defaultValue={0} onChange={setOutBlack} />
-      <AdjustmentSlider label="Output White" value={outWhite} min={0} max={255} defaultValue={255} onChange={setOutWhite} />
-    </div>
-  );
-}
+// ─── Structural node editors (not from ProcessingRegistry) ──────────
 
 function SourceInfo({ node }: { node: ProcessingNode }) {
   const layer = useEditorStore((s) =>
@@ -96,37 +32,28 @@ function BlendEditor({ node }: { node: ProcessingNode }) {
   );
 }
 
-// ─── Properties panel ────────────────────────────────────────────────
+// ─── Node editor resolver ───────────────────────────────────────────
 
 function NodeEditor({ node }: { node: ProcessingNode }) {
-  const t = node.type as ProcessingNodeType;
-  const adjId = node.data.adjustmentId;
+  const t = node.type;
 
-  switch (t) {
-    case 'source':
-      return <div className="p-3"><SourceInfo node={node} /></div>;
-    case 'light':
-      return adjId ? <div className="p-3"><LightEditor adjustmentId={adjId} /></div> : null;
-    case 'color':
-      return adjId ? <div className="p-3"><ColorEditor adjustmentId={adjId} /></div> : null;
-    case 'kelvin':
-      return adjId ? <div className="p-3"><KelvinEditor adjustmentId={adjId} /></div> : null;
-    case 'levels':
-      return adjId ? <div className="p-3"><LevelsEditor adjustmentId={adjId} /></div> : null;
-    case 'curves':
-      return node.data.layerId ? <CurvesPanel layerId={node.data.layerId} /> : null;
-    case 'filter':
-      return node.data.layerId ? <FiltersPanel layerId={node.data.layerId} /> : null;
-    case 'blend':
-      return <div className="p-3"><BlendEditor node={node} /></div>;
-    case 'output':
-      return (
-        <div className="p-3 text-[10px] text-text-secondary">Final composited output.</div>
-      );
-    default:
-      return null;
+  // Structural nodes
+  if (t === 'source') return <div className="p-3"><SourceInfo node={node} /></div>;
+  if (t === 'blend') return <div className="p-3"><BlendEditor node={node} /></div>;
+  if (t === 'crop') return null;
+  if (t === 'output') return <div className="p-3 text-[10px] text-text-secondary">Final composited output.</div>;
+
+  // Processing nodes — resolved via ProcessingRegistry
+  const def = ProcessingRegistry.get(t);
+  if (def && node.data.layerId) {
+    const Panel = def.Panel;
+    return <Panel layerId={node.data.layerId} adjustmentId={node.data.adjustmentId} />;
   }
+
+  return null;
 }
+
+// ─── Properties panel ───────────────────────────────────────────────
 
 export function GraphPropertiesPanel({ graph }: { graph: ProcessingGraph }) {
   const highlightedNodeId = useGraphStore((s) => s.highlightedNodeId);
@@ -145,3 +72,9 @@ export function GraphPropertiesPanel({ graph }: { graph: ProcessingGraph }) {
     </div>
   );
 }
+
+// Re-export panel components for backward compatibility
+export { LightPanel as LightEditor } from '@/processing/light';
+export { ColorPanel as ColorEditor } from '@/processing/color';
+export { KelvinPanel as KelvinEditor } from '@/processing/kelvin';
+export { LevelsPanel as LevelsEditor } from '@/processing/levels';

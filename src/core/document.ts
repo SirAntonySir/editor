@@ -11,19 +11,17 @@ import type {
   HistoryEntry,
   InteractionSession,
 } from './types';
+import type { EditorState } from '@/store';
 import { pixelStore } from './pixel-store';
 import * as history from './history';
 import * as transaction from './transaction';
 import * as serializer from './serializer';
 import * as session from './session-storage';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type EditorStore = StoreApi<any>;
-
 const DEBOUNCE_MS = 2000;
 const SESSION_SAVE_DEBOUNCE_MS = 3000;
 
-let store: EditorStore | null = null;
+let store: StoreApi<EditorState> | null = null;
 let documentMeta: DocumentMeta | null = null;
 let isDirty = false;
 let interaction: InteractionSession | null = null;
@@ -40,18 +38,54 @@ let pendingAction: {
   timer: ReturnType<typeof setTimeout>;
 } | null = null;
 
+// ─── Deep equality (handles Float32Array) ───────────────────────────
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return a === b;
+  if (a instanceof Float32Array && b instanceof Float32Array) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqual(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  if (typeof a === 'object' && typeof b === 'object') {
+    const aObj = a as Record<string, unknown>;
+    const bObj = b as Record<string, unknown>;
+    const aKeys = Object.keys(aObj);
+    if (aKeys.length !== Object.keys(bObj).length) return false;
+    for (const key of aKeys) {
+      if (!deepEqual(aObj[key], bObj[key])) return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+function statesChanged(a: SerializableState, b: SerializableState): boolean {
+  return a.activeLayerId !== b.activeLayerId ||
+    a.pixelVersion !== b.pixelVersion ||
+    !deepEqual(a.layers, b.layers);
+}
+
 // ─── State capture / restore ────────────────────────────────────────
 
 function captureState(): SerializableState | null {
   if (!store) return null;
-  const s = store.getState() as Record<string, unknown>;
+  const s = store.getState();
   return {
-    layers: structuredClone(s.layers as SerializableState['layers']),
-    activeLayerId: s.activeLayerId as string | null,
-    pixelVersion: s.pixelVersion as number,
-    graphPositions: structuredClone(
-      (s.graphPositions as SerializableState['graphPositions']) ?? {},
-    ),
+    layers: structuredClone(s.layers),
+    activeLayerId: s.activeLayerId,
+    pixelVersion: s.pixelVersion,
+    graphPositions: structuredClone(s.graphPositions ?? {}),
   };
 }
 
@@ -92,19 +126,19 @@ function scheduleSessionSave(): void {
 
 function persistSession(): void {
   if (!store || !documentMeta) return;
-  const s = store.getState() as Record<string, unknown>;
+  const s = store.getState();
   session.saveSession({
     meta: documentMeta,
-    layers: s.layers as session.SaveSessionOptions['layers'],
-    activeLayerId: s.activeLayerId as string | null,
-    graphPositions: (s.graphPositions ?? {}) as session.SaveSessionOptions['graphPositions'],
+    layers: s.layers,
+    activeLayerId: s.activeLayerId,
+    graphPositions: s.graphPositions ?? {},
     viewport: {
-      zoom: (s.zoom as number) ?? 1,
-      panX: (s.panX as number) ?? 0,
-      panY: (s.panY as number) ?? 0,
-      fitMode: (s.fitMode as string) ?? 'fit',
+      zoom: s.zoom ?? 1,
+      panX: s.panX ?? 0,
+      panY: s.panY ?? 0,
+      fitMode: s.fitMode ?? 'fit',
     },
-    editorMode: (s.editorMode as string) ?? 'develop',
+    editorMode: s.editorMode ?? 'develop',
     pixelStore,
   }).catch(() => {
     // Session save is best-effort — silently ignore errors
@@ -113,7 +147,7 @@ function persistSession(): void {
 
 // ─── Initialization ─────────────────────────────────────────────────
 
-function init(zustandStore: EditorStore): void {
+function init(zustandStore: StoreApi<EditorState>): void {
   store = zustandStore;
 
   // Wire up history restore callback
@@ -254,21 +288,20 @@ async function openEdp(file: File): Promise<void> {
 
 async function save(): Promise<Blob | null> {
   if (!store || !documentMeta) return null;
-  const s = store.getState() as Record<string, unknown>;
+  const s = store.getState();
 
   documentMeta = { ...documentMeta, modifiedAt: Date.now() };
 
   const blob = await serializer.save({
     meta: documentMeta,
-    layers: s.layers as serializer.SaveOptions['layers'],
-    activeLayerId: s.activeLayerId as string | null,
-    graphPositions:
-      (s.graphPositions as serializer.SaveOptions['graphPositions']) ?? {},
+    layers: s.layers,
+    activeLayerId: s.activeLayerId,
+    graphPositions: s.graphPositions ?? {},
     viewport: {
-      zoom: (s.zoom as number) ?? 1,
-      panX: (s.panX as number) ?? 0,
-      panY: (s.panY as number) ?? 0,
-      fitMode: (s.fitMode as string) ?? 'fit',
+      zoom: s.zoom ?? 1,
+      panX: s.panX ?? 0,
+      panY: s.panY ?? 0,
+      fitMode: s.fitMode ?? 'fit',
     },
   });
 
@@ -354,9 +387,7 @@ function endInteraction(): void {
 
   // Only push if something actually changed
   const changed =
-    JSON.stringify(pre.layers) !== JSON.stringify(currentState.layers) ||
-    pre.activeLayerId !== currentState.activeLayerId ||
-    pre.pixelVersion !== currentState.pixelVersion;
+    statesChanged(pre, currentState);
 
   if (changed) {
     const entry: HistoryEntry = {
@@ -386,9 +417,7 @@ function flushPendingAction(): void {
   const currentState = captureState();
   if (currentState) {
     const changed =
-      JSON.stringify(pendingAction.preSnapshot.layers) !== JSON.stringify(currentState.layers) ||
-      pendingAction.preSnapshot.activeLayerId !== currentState.activeLayerId ||
-      pendingAction.preSnapshot.pixelVersion !== currentState.pixelVersion;
+      statesChanged(pendingAction.preSnapshot, currentState);
     if (changed) {
       const entry: HistoryEntry = {
         id: crypto.randomUUID(),
@@ -579,7 +608,7 @@ async function restoreSession(): Promise<boolean> {
     panX: manifest.viewport.panX,
     panY: manifest.viewport.panY,
     fitMode: manifest.viewport.fitMode,
-    editorMode: 'develop',
+    editorMode: manifest.editorMode ?? 'develop',
     documentMeta,
     isDirty: false,
   });

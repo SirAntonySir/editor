@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand';
+import { pixelStore } from '@/core/pixel-store';
 
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'soft-light' | 'hard-light';
 export type LayerType = 'image' | 'brush' | 'text';
@@ -119,6 +120,7 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
       if (state.activeLayerId === id) {
         state.activeLayerId = state.layers[0]?.id ?? null;
       }
+      pixelStore.remove(id);
     }),
 
   setActiveLayer: (id) =>
@@ -211,6 +213,12 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
 
   revertAll: () =>
     set((state) => {
+      // Clean up pixel data for non-image layers before removing them
+      for (const layer of state.layers) {
+        if (layer.type !== 'image') {
+          pixelStore.remove(layer.id);
+        }
+      }
       // Remove all non-image layers
       state.layers = state.layers.filter((l) => l.type === 'image');
       // Clear all adjustment stacks and crop metadata on remaining layers

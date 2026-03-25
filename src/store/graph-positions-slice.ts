@@ -29,6 +29,7 @@ export interface GraphPositionsSlice {
   setGraphSplitRatio: (ratio: number) => void;
   setGraphSplitDirection: (dir: SplitDirection) => void;
   toggleNodeExpanded: (nodeId: string) => void;
+  pruneGraphPositions: (validKeys: Set<string>) => void;
 }
 
 export const createGraphPositionsSlice: StateCreator<
@@ -99,6 +100,15 @@ export const createGraphPositionsSlice: StateCreator<
         state.expandedNodeIds.splice(idx, 1);
       } else {
         state.expandedNodeIds.push(nodeId);
+      }
+    }),
+
+  pruneGraphPositions: (validKeys) =>
+    set((state) => {
+      for (const key of Object.keys(state.graphPositions)) {
+        if (!validKeys.has(key)) {
+          delete state.graphPositions[key];
+        }
       }
     }),
 });

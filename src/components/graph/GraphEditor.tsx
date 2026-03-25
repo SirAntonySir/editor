@@ -23,8 +23,11 @@ import { CustomConnectionLine } from './CustomConnectionLine';
 import { CustomEdge } from './CustomEdge';
 import { GraphPropertiesPanel } from './GraphPropertiesPanel';
 import type { ProcessingGraph, NodePosition } from '@/types/graph';
+import type { EdgeTypes } from '@xyflow/react';
 
-const edgeTypes = { custom: CustomEdge };
+const edgeTypes: EdgeTypes = { custom: CustomEdge };
+const proOpts = { hideAttribution: true };
+const fitViewOpts = { padding: 0.2 };
 
 function toRFNodes(graph: ProcessingGraph, positions: Record<string, NodePosition>): Node[] {
   return graph.nodes.map((pn) => ({
@@ -242,10 +245,10 @@ export function GraphEditor() {
         onMoveEnd={onMoveEnd}
         defaultViewport={graphViewport}
         fitView={!graphViewport.zoom}
-        fitViewOptions={{ padding: 0.2 }}
+        fitViewOptions={fitViewOpts}
         minZoom={0.1}
         maxZoom={2}
-        proOptions={{ hideAttribution: true }}
+        proOptions={proOpts}
         className="graph-editor-bg"
       >
         <Controls

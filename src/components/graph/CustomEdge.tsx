@@ -1,13 +1,13 @@
-import { type EdgeProps, getBezierPath } from '@xyflow/react';
+import { type EdgeProps, BaseEdge, getBezierPath } from '@xyflow/react';
 
 export function CustomEdge({
-  id,
   sourceX,
   sourceY,
   targetX,
   targetY,
   sourcePosition,
   targetPosition,
+  ...rest
 }: EdgeProps) {
   const [edgePath] = getBezierPath({
     sourceX,
@@ -19,13 +19,10 @@ export function CustomEdge({
   });
 
   return (
-    <path
-      id={id}
-      fill="none"
-      stroke="var(--color-accent)"
-      strokeWidth={2}
-      strokeOpacity={0.6}
-      d={edgePath}
+    <BaseEdge
+      {...rest}
+      path={edgePath}
+      style={{ stroke: 'var(--color-accent)', strokeWidth: 2, strokeOpacity: 0.6 }}
     />
   );
 }

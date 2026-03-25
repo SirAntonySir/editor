@@ -253,6 +253,17 @@ export default function App() {
     return () => editorDocument.dispose();
   }, []);
 
+  // Re-init document facade when Vite HMR replaces the store module
+  useEffect(() => {
+    if (!import.meta.hot) return;
+    const dispose = import.meta.hot.on('vite:afterUpdate', () => {
+      editorDocument.dispose();
+      editorDocument.init(useEditorStore);
+      editorDocument.restoreSession().catch(() => {});
+    });
+    return () => { if (typeof dispose === 'function') dispose(); };
+  }, []);
+
   return (
     <EditorProvider canvasRef={canvasRef}>
       <EditorContent canvasRef={canvasRef} />

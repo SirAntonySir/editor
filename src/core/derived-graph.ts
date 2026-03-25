@@ -2,7 +2,7 @@
  * Derived graph — computed from layers + stored positions.
  * Only active in Graph mode. Zero cost in develop/compose modes.
  */
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useEditorStore } from '@/store';
 import type {
   ProcessingGraph,
@@ -230,13 +230,24 @@ export function useDerivedGraph(): ProcessingGraph | null {
   const editorMode = useEditorStore((s) => s.editorMode);
   const layers = useEditorStore((s) => s.layers);
   const graphPositions = useEditorStore((s) => s.graphPositions);
+  const pruneGraphPositions = useEditorStore((s) => s.pruneGraphPositions);
 
   // Only rebuild graph when topology changes, not on every param tweak
   const structureKey = useMemo(() => computeStructureKey(layers), [layers]);
 
-  return useMemo(() => {
+  const graph = useMemo(() => {
     if (editorMode !== 'graph') return null;
     return buildGraphFromLayers(layers, graphPositions ?? {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorMode, structureKey, graphPositions]);
+  }, [editorMode, structureKey]);
+
+  // Prune stale graph positions when topology changes
+  useEffect(() => {
+    if (!graph) return;
+    const validKeys = new Set(graph.nodes.map((n) => n.id));
+    pruneGraphPositions(validKeys);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [structureKey]);
+
+  return graph;
 }

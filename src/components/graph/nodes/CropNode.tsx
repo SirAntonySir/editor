@@ -2,13 +2,14 @@ import { memo, useRef } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Crop, Eye, EyeOff } from 'lucide-react';
 import { useEditorStore } from '@/store';
+import { useGraphStore } from '@/store/graph-store';
 import { editorDocument } from '@/core/document';
 import type { CropMeta } from '@/store/layer-slice';
 import type { ProcessingNodeData } from '@/types/graph';
 
 function CropNodeInner({ id, data, selected }: NodeProps & { data: ProcessingNodeData }) {
-  const isHighlighted = useEditorStore((s) => s.highlightedNodeId === id);
-  const setHighlightedNode = useEditorStore((s) => s.setHighlightedNode);
+  const isHighlighted = useGraphStore((s) => s.highlightedNodeId === id);
+  const setHighlightedNode = useGraphStore((s) => s.setHighlightedNode);
 
   // Read cropMeta from the layer
   const cropMeta = useEditorStore((s) => {

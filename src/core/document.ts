@@ -12,6 +12,7 @@ import type {
   InteractionSession,
 } from './types';
 import type { EditorState } from '@/store';
+import { useGraphStore } from '@/store/graph-store';
 import { pixelStore } from './pixel-store';
 import * as history from './history';
 import * as transaction from './transaction';
@@ -22,8 +23,6 @@ const DEBOUNCE_MS = 2000;
 const SESSION_SAVE_DEBOUNCE_MS = 3000;
 
 let store: StoreApi<EditorState> | null = null;
-let documentMeta: DocumentMeta | null = null;
-let isDirty = false;
 let interaction: InteractionSession | null = null;
 let beforeUnloadHandler: ((e: BeforeUnloadEvent) => void) | null = null;
 let sessionSaveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -85,7 +84,7 @@ function captureState(): SerializableState | null {
     layers: structuredClone(s.layers),
     activeLayerId: s.activeLayerId,
     pixelVersion: s.pixelVersion,
-    graphPositions: structuredClone(s.graphPositions ?? {}),
+    graphPositions: structuredClone(useGraphStore.getState().graphPositions),
   };
 }
 
@@ -95,23 +94,17 @@ function restoreState(snapshot: SerializableState): void {
     layers: snapshot.layers,
     activeLayerId: snapshot.activeLayerId,
     pixelVersion: snapshot.pixelVersion,
-    graphPositions: snapshot.graphPositions,
   });
+  useGraphStore.getState().setGraphPositions(snapshot.graphPositions);
 }
 
 function markDirty(): void {
-  isDirty = true;
-  if (store) {
-    store.setState({ isDirty: true });
-  }
+  if (store) store.setState({ isDirty: true });
   scheduleSessionSave();
 }
 
 function markClean(): void {
-  isDirty = false;
-  if (store) {
-    store.setState({ isDirty: false });
-  }
+  if (store) store.setState({ isDirty: false });
 }
 
 // ─── Session auto-save ──────────────────────────────────────────────
@@ -125,13 +118,14 @@ function scheduleSessionSave(): void {
 }
 
 function persistSession(): void {
-  if (!store || !documentMeta) return;
+  if (!store) return;
   const s = store.getState();
+  if (!s.documentMeta) return;
   session.saveSession({
-    meta: documentMeta,
+    meta: s.documentMeta,
     layers: s.layers,
     activeLayerId: s.activeLayerId,
-    graphPositions: s.graphPositions ?? {},
+    graphPositions: useGraphStore.getState().graphPositions,
     viewport: {
       zoom: s.zoom ?? 1,
       panX: s.panX ?? 0,
@@ -158,7 +152,7 @@ function init(zustandStore: StoreApi<EditorState>): void {
 
   // beforeunload guard
   beforeUnloadHandler = (e: BeforeUnloadEvent) => {
-    if (isDirty) {
+    if (store?.getState().isDirty) {
       e.preventDefault();
     }
   };
@@ -186,7 +180,7 @@ function newDocument(): void {
   pixelStore.clear();
   history.clear();
   session.clearSession().catch(() => {});
-  documentMeta = {
+  const meta: DocumentMeta = {
     id: crypto.randomUUID(),
     name: 'Untitled',
     createdAt: Date.now(),
@@ -195,17 +189,17 @@ function newDocument(): void {
     height: 0,
   };
 
-  markClean();
   if (store) {
     store.setState({
       layers: [],
       activeLayerId: null,
       pixelVersion: 0,
-      graphPositions: {},
-      documentMeta,
+      documentMeta: meta,
+      isDirty: false,
       editorMode: 'develop',
     });
   }
+  useGraphStore.getState().setGraphPositions({});
 }
 
 async function openImage(file: File): Promise<void> {
@@ -221,7 +215,7 @@ async function openImage(file: File): Promise<void> {
   const layerId = crypto.randomUUID();
   pixelStore.register(layerId, offscreen);
 
-  documentMeta = {
+  const meta: DocumentMeta = {
     id: crypto.randomUUID(),
     name: file.name.replace(/\.[^.]+$/, ''),
     createdAt: Date.now(),
@@ -247,15 +241,13 @@ async function openImage(file: File): Promise<void> {
       ],
       activeLayerId: layerId,
       pixelVersion: 0,
-      graphPositions: {},
-      documentMeta,
+      documentMeta: meta,
       isDirty: false,
       editorMode: 'develop',
     });
   }
+  useGraphStore.getState().setGraphPositions({});
 
-
-  isDirty = false;
   bitmap.close();
   scheduleSessionSave();
 }
@@ -264,14 +256,12 @@ async function openEdp(file: File): Promise<void> {
   const result = await serializer.load(file);
 
   history.clear();
-  documentMeta = result.meta;
 
   if (store) {
     store.setState({
       layers: result.layers,
       activeLayerId: result.activeLayerId,
       pixelVersion: 0,
-      graphPositions: result.graphPositions,
       zoom: result.viewport.zoom,
       panX: result.viewport.panX,
       panY: result.viewport.panY,
@@ -281,22 +271,24 @@ async function openEdp(file: File): Promise<void> {
       editorMode: 'develop',
     });
   }
+  useGraphStore.getState().setGraphPositions(result.graphPositions);
 
-  isDirty = false;
   scheduleSessionSave();
 }
 
 async function save(): Promise<Blob | null> {
-  if (!store || !documentMeta) return null;
+  if (!store) return null;
   const s = store.getState();
+  if (!s.documentMeta) return null;
 
-  documentMeta = { ...documentMeta, modifiedAt: Date.now() };
+  const updatedMeta = { ...s.documentMeta, modifiedAt: Date.now() };
+  store.setState({ documentMeta: updatedMeta });
 
   const blob = await serializer.save({
-    meta: documentMeta,
+    meta: updatedMeta,
     layers: s.layers,
     activeLayerId: s.activeLayerId,
-    graphPositions: s.graphPositions ?? {},
+    graphPositions: useGraphStore.getState().graphPositions,
     viewport: {
       zoom: s.zoom ?? 1,
       panX: s.panX ?? 0,
@@ -313,7 +305,7 @@ async function saveAs(name?: string): Promise<void> {
   const blob = await save();
   if (!blob) return;
 
-  const fileName = name ?? `${documentMeta?.name ?? 'document'}.edp`;
+  const fileName = name ?? `${store?.getState().documentMeta?.name ?? 'document'}.edp`;
 
   // Use native file picker dialog when available (Chrome/Edge)
   if ('showSaveFilePicker' in window) {
@@ -595,25 +587,21 @@ async function restoreSession(): Promise<boolean> {
   // Deserialize layers (Float32Array conversion)
   const layers = session.deserializeSessionLayers(manifest);
 
-  // Restore document meta
-  documentMeta = manifest.meta;
-
-  // Restore Zustand state
+  // Restore Zustand state (single source of truth)
   store.setState({
     layers,
     activeLayerId: manifest.activeLayerId,
     pixelVersion: 0,
-    graphPositions: manifest.graphPositions,
     zoom: manifest.viewport.zoom,
     panX: manifest.viewport.panX,
     panY: manifest.viewport.panY,
     fitMode: manifest.viewport.fitMode,
     editorMode: manifest.editorMode ?? 'develop',
-    documentMeta,
+    documentMeta: manifest.meta,
     isDirty: false,
   });
+  useGraphStore.getState().setGraphPositions(manifest.graphPositions);
 
-  isDirty = false;
   return true;
 }
 
@@ -650,12 +638,12 @@ export const editorDocument = {
   undo: undoAction,
   redo: redoAction,
 
-  // State
+  // State (single source of truth: Zustand store)
   get isDirty() {
-    return isDirty;
+    return store?.getState().isDirty ?? false;
   },
   get meta() {
-    return documentMeta;
+    return store?.getState().documentMeta ?? null;
   },
   get pixelStore() {
     return pixelStore;

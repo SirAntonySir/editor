@@ -16,7 +16,7 @@ import '@xyflow/react/dist/style.css';
 import { Workflow, SeparatorVertical, SeparatorHorizontal } from 'lucide-react';
 
 import { useDerivedGraph } from '@/core/derived-graph';
-import { useEditorStore } from '@/store';
+import { useGraphStore } from '@/store/graph-store';
 import { computeAutoLayout, computeElkLayout } from '@/lib/graph-layout';
 import { nodeTypes } from './nodeTypes';
 import { CustomConnectionLine } from './CustomConnectionLine';
@@ -60,8 +60,8 @@ function AutoLayoutHandler({
   onLayout: (positions: Record<string, NodePosition>) => void;
 }) {
   const { fitView } = useReactFlow();
-  const graphLayoutKey = useEditorStore((s) => s.graphLayoutKey);
-  const setGraphLayoutKey = useEditorStore((s) => s.setGraphLayoutKey);
+  const graphLayoutKey = useGraphStore((s) => s.graphLayoutKey);
+  const setGraphLayoutKey = useGraphStore((s) => s.setGraphLayoutKey);
 
   const hasRunRef = useRef(false);
 
@@ -85,7 +85,7 @@ function AutoLayoutHandler({
 /** Layout button rendered inside Controls */
 function LayoutButton({ graph }: { graph: ProcessingGraph }) {
   const { fitView } = useReactFlow();
-  const setGraphPositions = useEditorStore((s) => s.setGraphPositions);
+  const setGraphPositions = useGraphStore((s) => s.setGraphPositions);
   return (
     <button
       onClick={() => {
@@ -104,8 +104,8 @@ function LayoutButton({ graph }: { graph: ProcessingGraph }) {
 
 /** Toggle split orientation (vertical / horizontal) */
 function SplitToggle() {
-  const splitDirection = useEditorStore((s) => s.graphSplitDirection);
-  const setSplitDirection = useEditorStore((s) => s.setGraphSplitDirection);
+  const splitDirection = useGraphStore((s) => s.graphSplitDirection);
+  const setSplitDirection = useGraphStore((s) => s.setGraphSplitDirection);
   return (
     <>
       <button
@@ -128,13 +128,13 @@ function SplitToggle() {
 
 export function GraphEditor() {
   const graph = useDerivedGraph();
-  const graphPositions = useEditorStore((s) => s.graphPositions);
-  const graphViewport = useEditorStore((s) => s.graphViewport);
-  const updateNodePosition = useEditorStore((s) => s.updateNodePosition);
-  const setGraphPositions = useEditorStore((s) => s.setGraphPositions);
-  const setSelectedNode = useEditorStore((s) => s.setSelectedNode);
-  const setHighlightedNode = useEditorStore((s) => s.setHighlightedNode);
-  const setGraphViewport = useEditorStore((s) => s.setGraphViewport);
+  const graphPositions = useGraphStore((s) => s.graphPositions);
+  const graphViewport = useGraphStore((s) => s.graphViewport);
+  const updateNodePosition = useGraphStore((s) => s.updateNodePosition);
+  const setGraphPositions = useGraphStore((s) => s.setGraphPositions);
+  const setSelectedNode = useGraphStore((s) => s.setSelectedNode);
+  const setHighlightedNode = useGraphStore((s) => s.setHighlightedNode);
+  const setGraphViewport = useGraphStore((s) => s.setGraphViewport);
 
   // Compute auto-layout for unpositioned nodes
   const positions = useMemo(() => {

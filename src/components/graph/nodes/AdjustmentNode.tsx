@@ -4,6 +4,7 @@ import { Sun, Palette, Thermometer, Spline, SlidersHorizontal, Image, Eye, EyeOf
 import type { ProcessingNodeType, ProcessingNodeData } from '@/types/graph';
 import { LIGHT_PARAM_KEYS, COLOR_PARAM_KEYS } from '@/types/graph';
 import { useEditorStore } from '@/store';
+import { useGraphStore } from '@/store/graph-store';
 import { NodeScrubber } from './NodeScrubber';
 import { InlineCurvesEditor } from './InlineCurvesEditor';
 import { InlineFilterSelector } from './InlineFilterSelector';
@@ -37,11 +38,11 @@ const EXPANDABLE_TYPES = new Set<string>(['light', 'color', 'kelvin', 'levels', 
 
 function AdjustmentNodeInner({ id, data, type, selected }: NodeProps & { data: ProcessingNodeData; type: ProcessingNodeType }) {
   const Icon = NODE_ICONS[type] ?? Sun;
-  const highlightedNodeId = useEditorStore((s) => s.highlightedNodeId);
+  const highlightedNodeId = useGraphStore((s) => s.highlightedNodeId);
   const isHighlighted = highlightedNodeId === id;
-  const isExpanded = useEditorStore((s) => s.expandedNodeIds.includes(id));
-  const toggleExpanded = useEditorStore((s) => s.toggleNodeExpanded);
-  const setHighlightedNode = useEditorStore((s) => s.setHighlightedNode);
+  const isExpanded = useGraphStore((s) => s.expandedNodeIds.includes(id));
+  const toggleExpanded = useGraphStore((s) => s.toggleNodeExpanded);
+  const setHighlightedNode = useGraphStore((s) => s.setHighlightedNode);
 
   const adj = useEditorStore((s) => {
     if (!data.adjustmentId) return undefined;

@@ -14,8 +14,10 @@ import { PreferencesPage } from '@/components/PreferencesPage';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { useEditorStore } from '@/store';
+import { useGraphStore } from '@/store/graph-store';
 import { usePreferencesStore, applyPreferences } from '@/store/preferences-store';
 import { editorDocument } from '@/core/document';
+import { initLayerLifecycle } from '@/core/layer-lifecycle';
 import { SelectTool } from '@/tools/select-tool';
 import { MoveTool } from '@/tools/move-tool';
 import { TransformTool } from '@/tools/transform-tool';
@@ -80,9 +82,9 @@ function GraphSplitLayout({
   const isGraph = editorMode === 'graph' && layers.length > 0;
   const isCrop = editorMode === 'crop' && layers.length > 0;
   const showHUD = !isGraph;
-  const splitRatio = useEditorStore((s) => s.graphSplitRatio);
-  const splitDirection = useEditorStore((s) => s.graphSplitDirection);
-  const setGraphSplitRatio = useEditorStore((s) => s.setGraphSplitRatio);
+  const splitRatio = useGraphStore((s) => s.graphSplitRatio);
+  const splitDirection = useGraphStore((s) => s.graphSplitDirection);
+  const setGraphSplitRatio = useGraphStore((s) => s.setGraphSplitRatio);
 
   return (
     <div className="relative flex-1 min-h-0">
@@ -248,9 +250,13 @@ export default function App() {
 
   useEffect(() => {
     editorDocument.init(useEditorStore);
+    const unsubLayerLifecycle = initLayerLifecycle();
     // Restore previous session if one exists
     editorDocument.restoreSession().catch(() => {});
-    return () => editorDocument.dispose();
+    return () => {
+      unsubLayerLifecycle();
+      editorDocument.dispose();
+    };
   }, []);
 
   // Re-init document facade when Vite HMR replaces the store module

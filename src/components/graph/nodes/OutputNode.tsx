@@ -5,14 +5,15 @@ import { PipelineManager } from '@/lib/pipeline-manager';
 import { LayerCompositor } from '@/lib/layer-compositor';
 import { applyCropForExport } from '@/lib/crop-display';
 import { useEditorStore } from '@/store';
+import { useGraphStore } from '@/store/graph-store';
 import type { ProcessingNodeData } from '@/types/graph';
 
 const THUMB_W = 160;
 const DEFAULT_H = 100;
 
 function OutputNodeInner({ id, data, selected }: NodeProps & { data: ProcessingNodeData }) {
-  const isHighlighted = useEditorStore((s) => s.highlightedNodeId === id);
-  const setHighlightedNode = useEditorStore((s) => s.setHighlightedNode);
+  const isHighlighted = useGraphStore((s) => s.highlightedNodeId === id);
+  const setHighlightedNode = useGraphStore((s) => s.setHighlightedNode);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [height, setHeight] = useState(DEFAULT_H);
 

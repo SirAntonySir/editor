@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { SplitDirection } from '@/store/graph-positions-slice';
+import type { SplitDirection } from '@/store/graph-store';
 
 interface GraphSplitDividerProps {
   direction: SplitDirection;

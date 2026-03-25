@@ -2,6 +2,7 @@ import { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Layers } from 'lucide-react';
 import { useEditorStore } from '@/store';
+import { useGraphStore } from '@/store/graph-store';
 import type { ProcessingNodeData } from '@/types/graph';
 import type { BlendMode } from '@/store/layer-slice';
 
@@ -14,8 +15,8 @@ const BLEND_MODES: BlendMode[] = [
 const DRAG_THRESHOLD = 3;
 
 function BlendNodeInner({ id, data, selected }: NodeProps & { data: ProcessingNodeData }) {
-  const isHighlighted = useEditorStore((s) => s.highlightedNodeId === id);
-  const setHighlightedNode = useEditorStore((s) => s.setHighlightedNode);
+  const isHighlighted = useGraphStore((s) => s.highlightedNodeId === id);
+  const setHighlightedNode = useGraphStore((s) => s.setHighlightedNode);
   const layer = useEditorStore((s) =>
     data.layerId ? s.layers.find((l) => l.id === data.layerId) : undefined,
   );

@@ -1,4 +1,5 @@
 import { useEditorStore } from '@/store';
+import { useGraphStore } from '@/store/graph-store';
 import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
 import { useGraphAdjustmentParam } from '@/lib/use-graph-adjustment';
 import { CurvesPanel } from '@/tools/curves-tool';
@@ -128,7 +129,7 @@ function NodeEditor({ node }: { node: ProcessingNode }) {
 }
 
 export function GraphPropertiesPanel({ graph }: { graph: ProcessingGraph }) {
-  const highlightedNodeId = useEditorStore((s) => s.highlightedNodeId);
+  const highlightedNodeId = useGraphStore((s) => s.highlightedNodeId);
   const selectedNode = highlightedNodeId
     ? graph.nodes.find((n) => n.id === highlightedNodeId)
     : null;

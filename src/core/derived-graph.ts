@@ -4,6 +4,7 @@
  */
 import { useMemo, useEffect } from 'react';
 import { useEditorStore } from '@/store';
+import { useGraphStore } from '@/store/graph-store';
 import type {
   ProcessingGraph,
   ProcessingNodeType,
@@ -229,8 +230,8 @@ function computeStructureKey(layers: Layer[]): string {
 export function useDerivedGraph(): ProcessingGraph | null {
   const editorMode = useEditorStore((s) => s.editorMode);
   const layers = useEditorStore((s) => s.layers);
-  const graphPositions = useEditorStore((s) => s.graphPositions);
-  const pruneGraphPositions = useEditorStore((s) => s.pruneGraphPositions);
+  const graphPositions = useGraphStore((s) => s.graphPositions);
+  const pruneGraphPositions = useGraphStore((s) => s.pruneGraphPositions);
 
   // Only rebuild graph when topology changes, not on every param tweak
   const structureKey = useMemo(() => computeStructureKey(layers), [layers]);

@@ -1,21 +1,19 @@
-import { useCallback, useRef } from 'react';
 import * as Menubar from '@radix-ui/react-menubar';
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { Point } from 'fabric';
-import type * as fabric from 'fabric';
 import { useSyncExternalStore } from 'react';
 import { Undo2, Redo2, SlidersHorizontal, Layers, Workflow, RotateCcw, Crop } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
-import { loadImageToCanvas, hydrateCanvasFromStore } from '@/components/canvas/EditorCanvas';
-import { exportImage, saveAs } from '@/lib/export';
 import { ToolRegistry } from '@/lib/tool-registry';
-import { CanvasRegistry } from '@/lib/canvas-registry';
 import { revertToOriginal } from '@/lib/revert';
 import { editorDocument } from '@/core/document';
+import { useFileIO } from '@/hooks/useFileIO';
+import { useCanvasZoom } from '@/hooks/useCanvasZoom';
+import { useImageTransform } from '@/hooks/useImageTransform';
 import type { HistoryStoreState } from '@/core/history';
 import type { EditorMode } from '@/store/tool-slice';
+import type * as fabric from 'fabric';
 
 /* ------------------------------------------------------------------ */
 /*  Shared primitives                                                 */
@@ -107,56 +105,22 @@ function Sub({
   );
 }
 
+function TriggerButton({ children }: { children: React.ReactNode }) {
+  return (
+    <Menubar.Trigger className="flex items-center px-1.5 py-px rounded-[3px] text-[11px] leading-tight font-medium text-text-secondary data-[state=open]:bg-surface-secondary data-[state=open]:text-text-primary hover:text-text-primary transition-colors cursor-default select-none outline-none">
+      {children}
+    </Menubar.Trigger>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Menu Bar                                                          */
 /* ------------------------------------------------------------------ */
 
 export function MenuBar({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | null> }) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleOpen = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
-  const handleFileChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        if (file.name.endsWith('.edp')) {
-          await editorDocument.openEdp(file);
-          hydrateCanvasFromStore(canvasRef.current);
-        } else {
-          await loadImageToCanvas(file, canvasRef.current);
-        }
-      }
-      // reset so same file can be re-selected
-      e.target.value = '';
-    },
-    [canvasRef],
-  );
-
-  const handleSaveAs = useCallback(() => {
-    editorDocument.saveAs();
-  }, []);
-
-  const handleClose = useCallback(() => {
-    editorDocument.newDocument();
-    const canvas = canvasRef.current;
-    if (canvas) {
-      canvas.clear();
-      canvas.renderAll();
-    }
-  }, [canvasRef]);
-
-  const handleExport = useCallback(
-    async (format: 'png' | 'jpeg' | 'webp') => {
-      const blob = await exportImage({ format, quality: format === 'jpeg' ? 0.92 : 1 });
-      if (blob) {
-        await saveAs(blob, `export.${format === 'jpeg' ? 'jpg' : format}`);
-      }
-    },
-    [],
-  );
+  const { fileInputRef, handleOpen, handleFileChange, handleSaveAs, handleClose, handleExport } = useFileIO(canvasRef);
+  const { transformImage } = useImageTransform(canvasRef);
+  const { applyZoom, fitOnScreen, zoomIn, zoomOut } = useCanvasZoom(canvasRef);
 
   return (
     <>
@@ -171,9 +135,9 @@ export function MenuBar({ canvasRef }: { canvasRef: React.RefObject<fabric.Canva
         <Menubar.Root className="flex items-center gap-0 text-sm text-text-primary">
           <FileMenu onOpen={handleOpen} onExport={handleExport} onSaveAs={handleSaveAs} onClose={handleClose} />
           <EditMenu />
-          <ImageMenu canvasRef={canvasRef} />
+          <ImageMenu transformImage={transformImage} />
           <LayerMenu />
-          <ViewMenu canvasRef={canvasRef} />
+          <ViewMenu applyZoom={applyZoom} fitOnScreen={fitOnScreen} zoomIn={zoomIn} zoomOut={zoomOut} />
           <FilterMenu />
           <HelpMenu />
         </Menubar.Root>
@@ -194,14 +158,6 @@ export function MenuBar({ canvasRef }: { canvasRef: React.RefObject<fabric.Canva
 /* ------------------------------------------------------------------ */
 /*  File                                                              */
 /* ------------------------------------------------------------------ */
-
-function TriggerButton({ children }: { children: React.ReactNode }) {
-  return (
-    <Menubar.Trigger className="flex items-center px-1.5 py-px rounded-[3px] text-[11px] leading-tight font-medium text-text-secondary data-[state=open]:bg-surface-secondary data-[state=open]:text-text-primary hover:text-text-primary transition-colors cursor-default select-none outline-none">
-      {children}
-    </Menubar.Trigger>
-  );
-}
 
 function FileMenu({
   onOpen,
@@ -247,20 +203,17 @@ function FileMenu({
 /* ------------------------------------------------------------------ */
 
 function EditMenu() {
-  const undo = useCallback(() => editorDocument.undo(), []);
-  const redo = useCallback(() => editorDocument.redo(), []);
   const hasLayers = useEditorStore((s) => s.layers.length > 0);
-  const openPreferences = useCallback(() => usePreferencesStore.getState().setShowPreferences(true), []);
 
   return (
     <Menubar.Menu>
       <TriggerButton>Edit</TriggerButton>
       <Menubar.Portal>
         <Menubar.Content className={menuContentClass} align="start" sideOffset={4}>
-          <Item keys={['mod', 'Z']} onSelect={undo}>
+          <Item keys={['mod', 'Z']} onSelect={() => editorDocument.undo()}>
             Undo
           </Item>
-          <Item keys={['mod', 'shift', 'Z']} onSelect={redo}>
+          <Item keys={['mod', 'shift', 'Z']} onSelect={() => editorDocument.redo()}>
             Redo
           </Item>
           <Sep />
@@ -285,7 +238,7 @@ function EditMenu() {
             Deselect
           </Item>
           <Sep />
-          <Item keys={['mod', ',']} onSelect={openPreferences}>
+          <Item keys={['mod', ',']} onSelect={() => usePreferencesStore.getState().setShowPreferences(true)}>
             Preferences...
           </Item>
         </Menubar.Content>
@@ -298,64 +251,8 @@ function EditMenu() {
 /*  Image                                                             */
 /* ------------------------------------------------------------------ */
 
-function ImageMenu({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | null> }) {
-  const layers = useEditorStore((s) => s.layers);
-  const hasLayers = layers.length > 0;
-
-  const transformImage = useCallback(
-    (mode: 'rotateCW' | 'rotateCCW' | 'flipH' | 'flipV') => {
-      const { activeLayerId } = useEditorStore.getState();
-      if (!activeLayerId) return;
-      const source = CanvasRegistry.get(activeLayerId);
-      if (!source) return;
-
-      const srcW = source.width;
-      const srcH = source.height;
-      const isRotate = mode === 'rotateCW' || mode === 'rotateCCW';
-      const dstW = isRotate ? srcH : srcW;
-      const dstH = isRotate ? srcW : srcH;
-
-      const dst = new OffscreenCanvas(dstW, dstH);
-      const ctx = dst.getContext('2d')!;
-      ctx.save();
-      ctx.translate(dstW / 2, dstH / 2);
-
-      if (mode === 'rotateCW') ctx.rotate(Math.PI / 2);
-      else if (mode === 'rotateCCW') ctx.rotate(-Math.PI / 2);
-      else if (mode === 'flipH') ctx.scale(-1, 1);
-      else if (mode === 'flipV') ctx.scale(1, -1);
-
-      ctx.drawImage(source, -srcW / 2, -srcH / 2);
-      ctx.restore();
-
-      CanvasRegistry.replaceSource(activeLayerId, dst);
-
-      // Update Fabric image
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const fabricImg = canvas.getObjects()[0] as import('fabric').FabricImage | undefined;
-      if (!fabricImg) return;
-
-      const tmp = document.createElement('canvas');
-      tmp.width = dstW;
-      tmp.height = dstH;
-      tmp.getContext('2d')!.drawImage(dst, 0, 0);
-
-      fabricImg.setElement(tmp);
-      const canvasW = canvas.getWidth();
-      const canvasH = canvas.getHeight();
-      const scale = Math.min(canvasW / dstW, canvasH / dstH) * 0.9;
-      fabricImg.set({
-        scaleX: scale,
-        scaleY: scale,
-        left: canvasW / 2,
-        top: canvasH / 2,
-      });
-      fabricImg.setCoords();
-      canvas.requestRenderAll();
-    },
-    [canvasRef],
-  );
+function ImageMenu({ transformImage }: { transformImage: (mode: 'rotateCW' | 'rotateCCW' | 'flipH' | 'flipV') => void }) {
+  const hasLayers = useEditorStore((s) => s.layers.length > 0);
 
   return (
     <Menubar.Menu>
@@ -412,8 +309,7 @@ function AdjustmentItems() {
 /* ------------------------------------------------------------------ */
 
 function LayerMenu() {
-  const layers = useEditorStore((s) => s.layers);
-  const hasLayers = layers.length > 0;
+  const hasLayers = useEditorStore((s) => s.layers.length > 0);
 
   return (
     <Menubar.Menu>
@@ -436,67 +332,21 @@ function LayerMenu() {
 /*  View                                                              */
 /* ------------------------------------------------------------------ */
 
-function ViewMenu({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | null> }) {
+function ViewMenu({
+  applyZoom,
+  fitOnScreen,
+  zoomIn,
+  zoomOut,
+}: {
+  applyZoom: (zoom: number) => void;
+  fitOnScreen: () => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+}) {
   const editorMode = useEditorStore((s) => s.editorMode);
   const setEditorMode = useEditorStore((s) => s.setEditorMode);
   const showHistoryPanel = useEditorStore((s) => s.showHistoryPanel);
   const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel);
-
-  const applyZoom = useCallback(
-    (newZoom: number) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const clamped = Math.max(0.1, Math.min(32, newZoom));
-      const center = new Point(canvas.getWidth() / 2, canvas.getHeight() / 2);
-      canvas.zoomToPoint(center, clamped);
-      useEditorStore.getState().setZoom(clamped);
-      canvas.requestRenderAll();
-    },
-    [canvasRef],
-  );
-
-  const fitOnScreen = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const obj = canvas.getObjects()[0];
-    if (!obj) return;
-
-    // Reset viewport first
-    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-
-    const canvasW = canvas.getWidth();
-    const canvasH = canvas.getHeight();
-    const objW = obj.width * (obj.scaleX ?? 1);
-    const objH = obj.height * (obj.scaleY ?? 1);
-    const zoom = Math.min(canvasW / objW, canvasH / objH) * 0.9;
-
-    // Zoom to center
-    const center = new Point(canvasW / 2, canvasH / 2);
-    canvas.zoomToPoint(center, zoom);
-
-    // Pan so object center is at canvas center
-    const objCenter = obj.getCenterPoint();
-    const vpt = canvas.viewportTransform;
-    if (vpt) {
-      vpt[4] = canvasW / 2 - objCenter.x * zoom;
-      vpt[5] = canvasH / 2 - objCenter.y * zoom;
-    }
-
-    useEditorStore.getState().setZoom(zoom);
-    useEditorStore.getState().setFitMode('fit');
-    useEditorStore.getState().setPan(vpt?.[4] ?? 0, vpt?.[5] ?? 0);
-    canvas.requestRenderAll();
-  }, [canvasRef]);
-
-  const zoomIn = useCallback(() => {
-    const currentZoom = canvasRef.current?.getZoom() ?? 1;
-    applyZoom(currentZoom * 1.25);
-  }, [canvasRef, applyZoom]);
-
-  const zoomOut = useCallback(() => {
-    const currentZoom = canvasRef.current?.getZoom() ?? 1;
-    applyZoom(currentZoom / 1.25);
-  }, [canvasRef, applyZoom]);
 
   return (
     <Menubar.Menu>
@@ -527,7 +377,7 @@ function ViewMenu({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | nu
           </CheckItem>
           <Sep />
           <Menubar.Label className={labelClass}>Mode</Menubar.Label>
-         
+
           <CheckItem
             checked={editorMode === 'develop'}
             onCheckedChange={() => setEditorMode('develop')}

@@ -99,7 +99,7 @@ function BlendNodeInner({ id, data, selected }: NodeProps & { data: ProcessingNo
   return (
     <div
       className={`glass-panel min-w-[160px] transition-shadow ${
-        isHighlighted ? 'ring-2 ring-accent shadow-lg' : selected ? 'ring-1 ring-accent/40' : ''
+        isHighlighted ? 'node-focused' : selected ? 'ring-1 ring-accent/40' : ''
       }`}
     >
       <div className="flex items-center gap-2 px-3 py-2">

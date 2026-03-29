@@ -9,17 +9,13 @@ export interface GraphViewport {
   zoom: number;
 }
 
-export type SplitDirection = 'horizontal' | 'vertical';
-
 export interface GraphStore {
   graphPositions: Record<string, NodePosition>;
   selectedNodeId: string | null;
   highlightedNodeId: string | null;
   graphViewport: GraphViewport;
   graphLayoutKey: string;
-  graphSplitRatio: number;
-  graphSplitDirection: SplitDirection;
-  expandedNodeIds: string[];
+  showGraphPreview: boolean;
 
   updateNodePosition: (stableKey: string, pos: NodePosition) => void;
   updateNodePositions: (batch: Record<string, NodePosition>) => void;
@@ -28,9 +24,7 @@ export interface GraphStore {
   setGraphPositions: (positions: Record<string, NodePosition>) => void;
   setGraphViewport: (viewport: GraphViewport) => void;
   setGraphLayoutKey: (key: string) => void;
-  setGraphSplitRatio: (ratio: number) => void;
-  setGraphSplitDirection: (dir: SplitDirection) => void;
-  toggleNodeExpanded: (nodeId: string) => void;
+  toggleGraphPreview: () => void;
   pruneGraphPositions: (validKeys: Set<string>) => void;
 }
 
@@ -42,9 +36,7 @@ export const useGraphStore = create<GraphStore>()(
       highlightedNodeId: null,
       graphViewport: { x: 0, y: 0, zoom: 0 },
       graphLayoutKey: '',
-      graphSplitRatio: 0.35,
-      graphSplitDirection: 'vertical' as SplitDirection,
-      expandedNodeIds: [] as string[],
+      showGraphPreview: true,
 
       updateNodePosition: (stableKey, pos) =>
         set((state) => {
@@ -83,24 +75,9 @@ export const useGraphStore = create<GraphStore>()(
           state.graphLayoutKey = key;
         }),
 
-      setGraphSplitRatio: (ratio) =>
+      toggleGraphPreview: () =>
         set((state) => {
-          state.graphSplitRatio = ratio;
-        }),
-
-      setGraphSplitDirection: (dir) =>
-        set((state) => {
-          state.graphSplitDirection = dir;
-        }),
-
-      toggleNodeExpanded: (nodeId) =>
-        set((state) => {
-          const idx = state.expandedNodeIds.indexOf(nodeId);
-          if (idx >= 0) {
-            state.expandedNodeIds.splice(idx, 1);
-          } else {
-            state.expandedNodeIds.push(nodeId);
-          }
+          state.showGraphPreview = !state.showGraphPreview;
         }),
 
       pruneGraphPositions: (validKeys) =>

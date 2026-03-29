@@ -47,5 +47,4 @@ export const colorProcessing: ProcessingDefinition = {
     { key: 'hue', label: 'Hue', min: 0, max: 360, default: 0, format: (v) => `${Math.round(v)}\u00B0` },
   ],
   Panel: ColorPanel,
-  expandable: true,
 };

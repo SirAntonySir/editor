@@ -55,15 +55,6 @@ export interface ProcessingDefinition {
    */
   Panel: ComponentType<ProcessingPanelProps>;
 
-  /** Whether the graph node can expand to show full editor. */
-  expandable?: boolean;
-
-  /**
-   * Optional custom component for the expanded node view in the graph.
-   * If not provided, Panel is used. Useful when the graph needs a
-   * compact variant (e.g., smaller curves editor).
-   */
-  NodeExpandedPanel?: ComponentType<ProcessingPanelProps>;
 
   /**
    * Optional custom component for compact node display.

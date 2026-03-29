@@ -188,5 +188,4 @@ export const levelsProcessing: ProcessingDefinition = {
     { key: 'outWhite', label: 'Output White', min: 0, max: 255, default: 255 },
   ],
   Panel: LevelsPanel,
-  expandable: true,
 };

@@ -588,10 +588,12 @@ async function restoreSession(): Promise<boolean> {
   const layers = session.deserializeSessionLayers(manifest);
 
   // Restore Zustand state (single source of truth)
+  // Bump pixelVersion to signal that new pixel data is available,
+  // so preview hooks re-render after session restore.
   store.setState({
     layers,
     activeLayerId: manifest.activeLayerId,
-    pixelVersion: 0,
+    pixelVersion: (store.getState().pixelVersion ?? 0) + 1,
     zoom: manifest.viewport.zoom,
     panX: manifest.viewport.panX,
     panY: manifest.viewport.panY,

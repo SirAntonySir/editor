@@ -42,5 +42,4 @@ export const kelvinProcessing: ProcessingDefinition = {
     { key: 'tint', label: 'Tint', min: -100, max: 100, default: 0 },
   ],
   Panel: KelvinPanel,
-  expandable: true,
 };

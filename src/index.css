@@ -117,6 +117,19 @@ html, body, #root {
   fill: var(--color-text-primary) !important;
 }
 
+/* Node focus animation — pulsing glow with accent color */
+@keyframes node-focus-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 2px var(--color-accent), 0 0 8px color-mix(in srgb, var(--color-accent) 30%, transparent), var(--shadow-panel);
+  }
+  50% {
+    box-shadow: 0 0 0 2px var(--color-accent), 0 0 18px color-mix(in srgb, var(--color-accent) 50%, transparent), var(--shadow-panel);
+  }
+}
+.node-focused {
+  animation: node-focus-glow 2s ease-in-out infinite;
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

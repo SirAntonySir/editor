@@ -1,7 +1,6 @@
 import type { StateCreator } from 'zustand';
 
-export type EditorMode = 'develop' | 'compose' | 'graph' | 'crop';
-// Order: Develop → Compose → Graph → Crop (Crop is last, Develop is default)
+export type EditorMode = 'develop' | 'compose' | 'graph';
 
 export interface ToolSlice {
   activeTool: string;

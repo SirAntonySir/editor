@@ -1,11 +1,15 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Sun, Eye, EyeOff, ChevronDown, ChevronRight } from 'lucide-react';
+import { Sun, Eye, EyeOff, ChevronUp, ChevronDown } from 'lucide-react';
 import type { ProcessingNodeData } from '@/types/graph';
 import { useEditorStore } from '@/store';
 import { useGraphStore } from '@/store/graph-store';
 import { ProcessingRegistry } from '@/lib/processing-registry';
+import { useNodePreview } from '@/hooks/useNodePreview';
 import { NodeScrubber } from './NodeScrubber';
+
+const THUMB_W = 180;
+const THUMB_DEBOUNCE = 300;
 
 /** Pretty label for a param key */
 function formatLabel(key: string): string {
@@ -17,9 +21,7 @@ function AdjustmentNodeInner({ id, data, type, selected }: NodeProps & { data: P
   const Icon = def?.icon ?? Sun;
   const highlightedNodeId = useGraphStore((s) => s.highlightedNodeId);
   const isHighlighted = highlightedNodeId === id;
-  const isExpanded = useGraphStore((s) => s.expandedNodeIds.includes(id));
-  const toggleExpanded = useGraphStore((s) => s.toggleNodeExpanded);
-  const setHighlightedNode = useGraphStore((s) => s.setHighlightedNode);
+  const [showThumb, setShowThumb] = useState(true);
 
   const adj = useEditorStore((s) => {
     if (!data.adjustmentId) return undefined;
@@ -31,7 +33,12 @@ function AdjustmentNodeInner({ id, data, type, selected }: NodeProps & { data: P
   });
 
   const enabled = adj?.enabled !== false;
-  const canExpand = def?.expandable ?? false;
+
+  // Per-node thumbnail preview (debounced)
+  const thumbRef = useRef<HTMLCanvasElement>(null);
+  const { height: thumbH } = useNodePreview(
+    thumbRef, type, data.layerId, data.adjustmentId, THUMB_W, THUMB_DEBOUNCE,
+  );
 
   // Get the param keys for compact scrubber mode — from the ProcessingDefinition
   const paramKeys = useMemo(() => {
@@ -52,39 +59,34 @@ function AdjustmentNodeInner({ id, data, type, selected }: NodeProps & { data: P
     }
   };
 
-  const handleExpandToggle = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    toggleExpanded(id);
-  };
-
-  const handleTitleDoubleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setHighlightedNode(isHighlighted ? null : id);
-  };
-
   return (
     <div
-      className={`glass-panel min-w-[180px] transition-shadow ${
-        isHighlighted ? 'ring-2 ring-accent shadow-lg' : selected ? 'ring-1 ring-accent/40' : ''
+      className={`glass-panel transition-shadow ${
+        isHighlighted ? 'node-focused' : selected ? 'ring-1 ring-accent/40' : ''
       } ${!enabled ? 'opacity-50' : ''}`}
+      style={{ width: THUMB_W }}
     >
+      {/* Inline thumbnail — collapsible */}
+      {showThumb && (
+        <canvas
+          ref={thumbRef}
+          className="block rounded-t-[inherit]"
+          style={{ width: THUMB_W, height: thumbH }}
+        />
+      )}
+
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-separator">
-        {canExpand && (
-          <button
-            onClick={handleExpandToggle}
-            className="text-text-secondary hover:text-text-primary transition-colors -ml-1"
-          >
-            {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          </button>
-        )}
+      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-separator nodrag">
         <Icon size={14} className="text-accent flex-none" />
-        <span
-          className="text-xs font-medium text-text-primary flex-1 cursor-default"
-          onDoubleClick={handleTitleDoubleClick}
-        >
+        <span className="text-xs font-medium text-text-primary flex-1 cursor-default">
           {data.label}
         </span>
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowThumb(!showThumb); }}
+          className="text-text-secondary hover:text-text-primary transition-colors"
+        >
+          {showThumb ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </button>
         <button
           onClick={handleToggle}
           className="text-text-secondary hover:text-text-primary transition-colors"
@@ -93,45 +95,28 @@ function AdjustmentNodeInner({ id, data, type, selected }: NodeProps & { data: P
         </button>
       </div>
 
-      {/* Body */}
-      {isExpanded ? (
-        /* ── Expanded mode: full editor from ProcessingDefinition ── */
-        <div className="nodrag nowheel">
-          {(() => {
-            if (!def || !data.layerId) return null;
-            const ExpandedPanel = def.NodeExpandedPanel ?? def.Panel;
-            return (
-              <ExpandedPanel
-                layerId={data.layerId}
-                adjustmentId={data.adjustmentId}
-              />
-            );
-          })()}
-        </div>
-      ) : (
-        /* ── Compact mode: scrubber values or custom display ── */
-        <div className="flex flex-col">
-          {def?.NodeCompactDisplay && data.layerId ? (
-            <def.NodeCompactDisplay layerId={data.layerId} adjustmentId={data.adjustmentId} />
-          ) : paramKeys.length > 0 && data.adjustmentId ? (
-            paramKeys.map((key) => (
-              <NodeScrubber
-                key={key}
-                nodeType={type}
-                adjustmentId={data.adjustmentId!}
-                paramKey={key}
-                label={formatLabel(key)}
-              />
-            ))
-          ) : (
-            <div className="px-3 py-1.5">
-              <span className="text-[10px] text-text-secondary">
-                {adj?.name ?? data.label}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Compact display: scrubber values or custom compact component */}
+      <div className="flex flex-col">
+        {def?.NodeCompactDisplay && data.layerId ? (
+          <def.NodeCompactDisplay layerId={data.layerId} adjustmentId={data.adjustmentId} />
+        ) : paramKeys.length > 0 && data.adjustmentId ? (
+          paramKeys.map((key) => (
+            <NodeScrubber
+              key={key}
+              nodeType={type}
+              adjustmentId={data.adjustmentId!}
+              paramKey={key}
+              label={formatLabel(key)}
+            />
+          ))
+        ) : (
+          <div className="px-3 py-1.5">
+            <span className="text-[10px] text-text-secondary">
+              {adj?.name ?? data.label}
+            </span>
+          </div>
+        )}
+      </div>
 
       <Handle type="target" position={Position.Left} className="!w-2.5 !h-2.5 !bg-accent !border-2 !border-white" />
       <Handle type="source" position={Position.Right} className="!w-2.5 !h-2.5 !bg-accent !border-2 !border-white" />

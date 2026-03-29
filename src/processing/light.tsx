@@ -55,5 +55,4 @@ export const lightProcessing: ProcessingDefinition = {
     { key: 'shadows', label: 'Shadows', min: -100, max: 100, default: 0 },
   ],
   Panel: LightPanel,
-  expandable: true,
 };

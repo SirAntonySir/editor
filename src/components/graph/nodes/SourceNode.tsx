@@ -44,7 +44,7 @@ function SourceNodeInner({ id, data, selected }: NodeProps & { data: ProcessingN
   return (
     <div
       className={`glass-panel transition-shadow ${
-        isHighlighted ? 'ring-2 ring-accent shadow-lg' : selected ? 'ring-1 ring-accent/40' : ''
+        isHighlighted ? 'node-focused' : selected ? 'ring-1 ring-accent/40' : ''
       }`}
       style={{ width: THUMB_W }}
     >

@@ -1,0 +1,72 @@
+import { useCallback, useEffect, useState } from 'react';
+import { PipelineManager } from '@/lib/pipeline-manager';
+import { LayerCompositor } from '@/lib/layer-compositor';
+import { CanvasRegistry } from '@/lib/canvas-registry';
+import { applyCropForExport } from '@/lib/crop-display';
+import { useEditorStore } from '@/store';
+
+/**
+ * Shared hook for rendering the composited output preview into a canvas element.
+ * Used by OutputNode, GraphPreviewPanel, InspectorPanel, and GraphPropertiesPanel.
+ *
+ * Falls back to raw pixel data from CanvasRegistry when the pipeline hasn't
+ * rendered yet (e.g. on initial mount or when no adjustments exist).
+ */
+export function useOutputPreview(
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
+  width: number,
+) {
+  const [height, setHeight] = useState(Math.round(width * 0.625));
+  const pixelVersion = useEditorStore((s) => s.pixelVersion);
+  const activeLayerId = useEditorStore((s) => s.activeLayerId);
+
+  const drawToCanvas = useCallback((source: HTMLCanvasElement | OffscreenCanvas) => {
+    const canvas = canvasRef.current;
+    if (!canvas || source.width === 0 || source.height === 0) return;
+
+    // Apply crop if the active layer has one
+    const state = useEditorStore.getState();
+    const layer = state.layers.find((l) => l.id === state.activeLayerId);
+    let display: HTMLCanvasElement | OffscreenCanvas = source;
+    if (layer?.cropMeta) {
+      display = applyCropForExport(source, layer.cropMeta);
+    }
+
+    const aspect = display.height / display.width;
+    const h = Math.round(width * aspect);
+    canvas.width = width;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(display, 0, 0, width, h);
+    setHeight(h);
+  }, [canvasRef, width]);
+
+  // Pipeline/compositor callback — always receives HTMLCanvasElement
+  const drawOutput = useCallback((source: HTMLCanvasElement) => {
+    drawToCanvas(source);
+  }, [drawToCanvas]);
+
+  useEffect(() => {
+    // 1. Try pipeline output first
+    const current = PipelineManager.getOutput();
+    if (current && current.width > 0) {
+      drawToCanvas(current);
+    } else if (activeLayerId) {
+      // 2. Fallback: read raw pixel data from CanvasRegistry
+      const raw = CanvasRegistry.get(activeLayerId);
+      if (raw && raw.width > 0) {
+        drawToCanvas(raw);
+      }
+    }
+
+    const unsubPipeline = PipelineManager.subscribe(drawOutput);
+    const unsubCompositor = LayerCompositor.subscribe(drawOutput);
+    return () => {
+      unsubPipeline();
+      unsubCompositor();
+    };
+  }, [drawToCanvas, drawOutput, activeLayerId, pixelVersion]);
+
+  return { height };
+}

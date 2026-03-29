@@ -1,14 +1,9 @@
 import { Spline } from 'lucide-react';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
 import { CurvesPanel as CurvesPanelImpl } from '@/tools/curves-tool';
-import { InlineCurvesEditor } from '@/components/graph/nodes/InlineCurvesEditor';
 
 function CurvesPanel({ layerId }: ProcessingPanelProps) {
   return <CurvesPanelImpl layerId={layerId} />;
-}
-
-function CurvesNodeExpanded({ layerId }: ProcessingPanelProps) {
-  return <InlineCurvesEditor layerId={layerId} />;
 }
 
 function CurvesNodeCompact({ layerId, adjustmentId }: ProcessingPanelProps) {
@@ -30,7 +25,5 @@ export const curvesProcessing: ProcessingDefinition = {
   adjustmentType: 'curves',
   params: [], // Curves uses Float32Array LUTs, not scalar params
   Panel: CurvesPanel,
-  expandable: true,
-  NodeExpandedPanel: CurvesNodeExpanded,
   NodeCompactDisplay: CurvesNodeCompact,
 };

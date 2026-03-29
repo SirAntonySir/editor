@@ -1,7 +1,8 @@
 import * as Menubar from '@radix-ui/react-menubar';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { useSyncExternalStore } from 'react';
-import { Undo2, Redo2, SlidersHorizontal, Layers, Workflow, RotateCcw, Crop } from 'lucide-react';
+import { Undo2, Redo2, SlidersHorizontal, Layers, Workflow, RotateCcw } from 'lucide-react';
+import { useGraphStore } from '@/store/graph-store';
 import { Kbd } from '@/components/ui/kbd';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
@@ -347,6 +348,8 @@ function ViewMenu({
   const setEditorMode = useEditorStore((s) => s.setEditorMode);
   const showHistoryPanel = useEditorStore((s) => s.showHistoryPanel);
   const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel);
+  const showGraphPreview = useGraphStore((s) => s.showGraphPreview);
+  const toggleGraphPreview = useGraphStore((s) => s.toggleGraphPreview);
 
   return (
     <Menubar.Menu>
@@ -375,6 +378,13 @@ function ViewMenu({
           >
             History
           </CheckItem>
+          <CheckItem
+            checked={showGraphPreview}
+            onCheckedChange={() => toggleGraphPreview()}
+            keys={['P']}
+          >
+            Preview
+          </CheckItem>
           <Sep />
           <Menubar.Label className={labelClass}>Mode</Menubar.Label>
 
@@ -398,13 +408,6 @@ function ViewMenu({
             keys={['tab']}
           >
             Graph
-          </CheckItem>
-          <CheckItem
-            checked={editorMode === 'crop'}
-            onCheckedChange={() => setEditorMode('crop')}
-            keys={['C']}
-          >
-            Crop
           </CheckItem>
         </Menubar.Content>
       </Menubar.Portal>
@@ -569,7 +572,6 @@ function ModeSwitcherButtons() {
         <ModeBtn mode="develop" label="Develop" icon={<SlidersHorizontal size={11} />} isActive={editorMode === 'develop'} onClick={() => setEditorMode('develop')} />
         <ModeBtn mode="compose" label="Compose" icon={<Layers size={11} />} isActive={editorMode === 'compose'} onClick={() => setEditorMode('compose')} />
         <ModeBtn mode="graph" label="Graph" icon={<Workflow size={11} />} isActive={editorMode === 'graph'} onClick={() => setEditorMode('graph')} />
-        <ModeBtn mode="crop" label="Crop" icon={<Crop size={11} />} isActive={editorMode === 'crop'} onClick={() => setEditorMode('crop')} />
       </div>
     </Tooltip.Provider>
   );

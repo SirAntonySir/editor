@@ -1,36 +1,23 @@
-import { SourceNode } from './nodes/SourceNode';
-import { AdjustmentNode } from './nodes/AdjustmentNode';
-import { CropNode } from './nodes/CropNode';
-import { BlendNode } from './nodes/BlendNode';
-import { OutputNode } from './nodes/OutputNode';
-import { ProcessingRegistry } from '@/lib/processing-registry';
+import { NodeRegistry } from '@/lib/node-registry';
 import type { NodeTypes } from '@xyflow/react';
 
-/** Structural node types — always present. */
-const structuralNodes: NodeTypes = {
-  source: SourceNode,
-  crop: CropNode,
-  blend: BlendNode,
-  output: OutputNode,
-};
-
 /**
- * Build the full nodeTypes map from the ProcessingRegistry.
- * Every registered ProcessingDefinition gets an AdjustmentNode renderer.
- * Call this after all ProcessingDefinitions are registered.
+ * Build the full nodeTypes map from the NodeRegistry.
+ * Every registered NodeDefinition gets its NodeComponent as the renderer.
+ * Call this after all NodeDefinitions are registered.
  */
 export function buildNodeTypes(): NodeTypes {
-  const types: NodeTypes = { ...structuralNodes };
-  for (const def of ProcessingRegistry.getAll()) {
-    types[def.id] = AdjustmentNode;
+  const types: NodeTypes = {};
+  for (const def of NodeRegistry.getAll()) {
+    types[def.id] = def.NodeComponent;
   }
   return types;
 }
 
-/** Default export — rebuilt when processing definitions change. */
-export let nodeTypes: NodeTypes = { ...structuralNodes };
+/** Default export — rebuilt when node definitions change. */
+export let nodeTypes: NodeTypes = {};
 
-/** Call once after all ProcessingDefinitions are registered. */
+/** Call once after all NodeDefinitions are registered. */
 export function initNodeTypes(): void {
   nodeTypes = buildNodeTypes();
 }

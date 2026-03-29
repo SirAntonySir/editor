@@ -13,7 +13,7 @@ import {
   type NodeMouseHandler,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Workflow, SeparatorVertical, SeparatorHorizontal } from 'lucide-react';
+import { Workflow } from 'lucide-react';
 
 import { useDerivedGraph } from '@/core/derived-graph';
 import { useGraphStore } from '@/store/graph-store';
@@ -102,30 +102,6 @@ function LayoutButton({ graph }: { graph: ProcessingGraph }) {
   );
 }
 
-/** Toggle split orientation (vertical / horizontal) */
-function SplitToggle() {
-  const splitDirection = useGraphStore((s) => s.graphSplitDirection);
-  const setSplitDirection = useGraphStore((s) => s.setGraphSplitDirection);
-  return (
-    <>
-      <button
-        onClick={() => setSplitDirection('vertical')}
-        className={`react-flow__controls-button ${splitDirection === 'vertical' ? '!bg-accent/20 !text-accent' : ''}`}
-        title="Vertical Split"
-      >
-        <SeparatorVertical size={14} />
-      </button>
-      <button
-        onClick={() => setSplitDirection('horizontal')}
-        className={`react-flow__controls-button ${splitDirection === 'horizontal' ? '!bg-accent/20 !text-accent' : ''}`}
-        title="Horizontal Split"
-      >
-        <SeparatorHorizontal size={14} />
-      </button>
-    </>
-  );
-}
-
 export function GraphEditor() {
   const graph = useDerivedGraph();
   const graphPositions = useGraphStore((s) => s.graphPositions);
@@ -202,12 +178,10 @@ export function GraphEditor() {
     [setSelectedNode],
   );
 
-  // Click a node → only open properties panel on Shift+click
+  // Click a node → highlight it (shows inspector panel + focus animation)
   const onNodeClick: NodeMouseHandler = useCallback(
-    (event, node) => {
-      if (event.shiftKey) {
-        setHighlightedNode(node.id);
-      }
+    (_event, node) => {
+      setHighlightedNode(node.id);
     },
     [setHighlightedNode],
   );
@@ -256,7 +230,6 @@ export function GraphEditor() {
           className="!bg-glass-bg !border-glass-border !shadow-panel !rounded-panel [&>button]:!bg-transparent [&>button]:!border-separator [&>button]:!text-text-secondary [&>button:hover]:!text-text-primary"
         >
           <LayoutButton graph={graph} />
-          <SplitToggle />
         </Controls>
         <AutoLayoutHandler structureKey={structureKey} graph={graph} onLayout={handleElkLayout} />
       </ReactFlow>

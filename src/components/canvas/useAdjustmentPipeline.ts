@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type * as fabric from 'fabric';
 import { useEditorStore } from '@/store';
+import { useCropEditingStore } from '@/store/crop-editing-slice';
 import { PipelineManager } from '@/lib/pipeline-manager';
 import { LayerCompositor } from '@/lib/layer-compositor';
 import { applyCropForExport } from '@/lib/crop-display';
@@ -47,7 +48,7 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
       const state = useEditorStore.getState();
       const layer = state.layers.find((l) => l.id === state.activeLayerId);
       const cropMeta = layer?.cropMeta;
-      const inCropMode = state.editorMode === 'crop';
+      const inCropMode = useCropEditingStore.getState().isCropEditing;
 
       let displayCanvas: HTMLCanvasElement | OffscreenCanvas;
 

@@ -14,16 +14,17 @@ import { PreferencesPage } from '@/components/PreferencesPage';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { registerAllProcessing } from '@/processing';
+import { registerAllNodes } from '@/components/graph/registerNodes';
 import { initNodeTypes } from '@/components/graph/nodeTypes';
 import { useEditorStore } from '@/store';
-import { useGraphStore } from '@/store/graph-store';
 import { usePreferencesStore, applyPreferences } from '@/store/preferences-store';
 import { editorDocument } from '@/core/document';
 import { initLayerLifecycle } from '@/core/layer-lifecycle';
 import { SelectTool } from '@/tools/select-tool';
 import { MoveTool } from '@/tools/move-tool';
 import { TransformTool } from '@/tools/transform-tool';
-import { CropOverlay } from '@/components/canvas/CropOverlay';
+import { CropCanvasOverlay } from '@/components/canvas/CropOverlay';
+import { useCropEditingStore } from '@/store/crop-editing-slice';
 import { LightTool } from '@/tools/light-tool';
 import { ColorTool } from '@/tools/color-tool';
 import { KelvinTool } from '@/tools/kelvin-tool';
@@ -32,13 +33,13 @@ import { LevelsTool } from '@/tools/levels-tool';
 import { BrushTool } from '@/tools/brush-tool';
 import { TextTool } from '@/tools/text-tool';
 import { FiltersTool } from '@/tools/filters-tool';
+import { CropTool } from '@/tools/crop-tool';
 import { Upload } from 'lucide-react';
 
 // Lazy-load GraphEditor so @xyflow/react CSS doesn't interfere with Fabric.js canvas
 const GraphEditor = lazy(() =>
   import('@/components/graph/GraphEditor').then((m) => ({ default: m.GraphEditor })),
 );
-import { GraphSplitDivider } from '@/components/graph/GraphSplitDivider';
 import {
   Empty,
   EmptyHeader,
@@ -63,12 +64,16 @@ ToolRegistry.register(LevelsTool);
 ToolRegistry.register(BrushTool);
 ToolRegistry.register(TextTool);
 ToolRegistry.register(FiltersTool);
+ToolRegistry.register(CropTool);
 
-// Build graph node types from ProcessingRegistry (must happen after all processing defs are registered)
+// Register all node definitions (structural + processing) into NodeRegistry
+registerAllNodes();
+
+// Build graph node types from NodeRegistry (must happen after all nodes are registered)
 initNodeTypes();
 
-/** Main canvas area — switches between full canvas and split canvas+graph */
-function GraphSplitLayout({
+/** Main canvas area — switches between full canvas and full-screen graph */
+function MainLayout({
   canvasRef,
   editorMode,
   layers,
@@ -88,52 +93,35 @@ function GraphSplitLayout({
   handleFileOpen: () => void;
 }) {
   const isGraph = editorMode === 'graph' && layers.length > 0;
-  const isCrop = editorMode === 'crop' && layers.length > 0;
+  const isCropEditing = useCropEditingStore((s) => s.isCropEditing);
   const showHUD = !isGraph;
-  const splitRatio = useGraphStore((s) => s.graphSplitRatio);
-  const splitDirection = useGraphStore((s) => s.graphSplitDirection);
-  const setGraphSplitRatio = useGraphStore((s) => s.setGraphSplitRatio);
 
   return (
     <div className="relative flex-1 min-h-0">
-      <div
-        className={isGraph ? `flex h-full ${splitDirection === 'vertical' ? 'flex-row' : 'flex-col'}` : 'h-full'}
-      >
-        {/* Canvas pane — always at same tree position to avoid remounting Fabric */}
-        <div
-          className={isGraph ? 'relative min-w-0 min-h-0 overflow-hidden pointer-events-none' : 'absolute inset-0'}
-          style={isGraph ? { flex: `0 0 ${splitRatio * 100}%` } : undefined}
-        >
-          <CanvasContextMenu>
-            <div className="absolute inset-0">
-              <EditorCanvas canvasRef={canvasRef} />
-            </div>
-          </CanvasContextMenu>
-        </div>
-
-        {/* Divider + Graph pane — only in graph mode */}
-        {isGraph && (
-          <Suspense
-            fallback={
-              <>
-                <div className={`flex-none ${splitDirection === 'vertical' ? 'w-1' : 'h-1'} bg-separator`} />
-                <div className="flex-1 bg-canvas-bg" />
-              </>
-            }
-          >
-            <GraphSplitDivider direction={splitDirection} onRatioChange={setGraphSplitRatio} />
-            <div className="flex-1 min-w-0 min-h-0 relative bg-canvas-bg">
-              <GraphEditor />
-            </div>
-          </Suspense>
-        )}
+      {/* Canvas pane — always mounted to avoid remounting Fabric.
+          In graph mode: hidden but kept in DOM so the pipeline stays active. */}
+      <div className={isGraph ? 'w-0 h-0 overflow-hidden absolute' : 'absolute inset-0'}>
+        <CanvasContextMenu>
+          <div className="absolute inset-0">
+            <EditorCanvas canvasRef={canvasRef} />
+          </div>
+        </CanvasContextMenu>
       </div>
 
-      {/* Crop HUD — floating toolbar only, canvas stays interactive */}
-      {isCrop && <CropOverlay canvasRef={canvasRef} />}
+      {/* Graph pane — full screen in graph mode */}
+      {isGraph && (
+        <Suspense fallback={<div className="absolute inset-0 bg-canvas-bg" />}>
+          <div className="absolute inset-0 bg-canvas-bg">
+            <GraphEditor />
+          </div>
+        </Suspense>
+      )}
 
-      {/* Tool canvas overlay — not in graph or crop mode */}
-      {showHUD && !isCrop && toolDef?.CanvasOverlay && <toolDef.CanvasOverlay ctx={toolContext} />}
+      {/* Crop canvas overlay — shown when crop editing is active (any mode) */}
+      {isCropEditing && <CropCanvasOverlay canvasRef={canvasRef} />}
+
+      {/* Tool canvas overlay — not in graph or crop editing mode */}
+      {showHUD && !isCropEditing && toolDef?.CanvasOverlay && <toolDef.CanvasOverlay ctx={toolContext} />}
 
       {/* Empty state */}
       <AnimatePresence>
@@ -162,29 +150,27 @@ function GraphSplitLayout({
         )}
       </AnimatePresence>
 
-      {/* HUDs — hidden in graph mode; crop mode only shows status bar */}
+      {/* HUDs — hidden in graph mode */}
       {showHUD && (
         <>
-          {/* Top toolbar — hidden in crop mode */}
-          {!isCrop && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
-              <Toolbar />
-            </div>
-          )}
+          {/* Top toolbar */}
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
+            <Toolbar />
+          </div>
 
           {/* Layers panel — only in compose mode */}
           {editorMode === 'compose' && layers.length > 0 && <LayersPanel />}
 
           {/* History panel — toggled via View menu */}
-          {!isCrop && showHistoryPanel && layers.length > 0 && <HistoryPanel />}
+          {showHistoryPanel && layers.length > 0 && <HistoryPanel />}
 
-          {/* Inspector panel — hidden in crop mode */}
-          {!isCrop && <InspectorPanel />}
+          {/* Inspector panel */}
+          <InspectorPanel />
 
           {/* Status bar */}
           <div className="absolute bottom-0 right-0 z-20 flex items-center gap-2
             px-2 py-0.5 text-xs text-text-secondary bg-surface/70 backdrop-blur-sm rounded-tl-sm">
-            <span className="capitalize">{isCrop ? 'crop' : activeTool}</span>
+            <span className="capitalize">{isCropEditing ? 'crop' : activeTool}</span>
             <span className="text-separator">|</span>
             <ZoomDisplay />
           </div>
@@ -226,7 +212,7 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
       </div>
 
       {/* Main canvas area */}
-      <GraphSplitLayout
+      <MainLayout
         canvasRef={canvasRef}
         editorMode={editorMode}
         layers={layers}

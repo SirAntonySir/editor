@@ -1,39 +1,45 @@
-import { memo, useRef } from 'react';
+import { memo, useRef, useState } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Crop, Eye, EyeOff } from 'lucide-react';
+import { Crop, Eye, EyeOff, ChevronUp, ChevronDown } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useGraphStore } from '@/store/graph-store';
+import { useCropEditingStore } from '@/store/crop-editing-slice';
 import { editorDocument } from '@/core/document';
+import { useNodePreview } from '@/hooks/useNodePreview';
 import type { CropMeta } from '@/store/layer-slice';
 import type { ProcessingNodeData } from '@/types/graph';
 
+const THUMB_W = 160;
+const THUMB_DEBOUNCE = 300;
+
 function CropNodeInner({ id, data, selected }: NodeProps & { data: ProcessingNodeData }) {
   const isHighlighted = useGraphStore((s) => s.highlightedNodeId === id);
-  const setHighlightedNode = useGraphStore((s) => s.setHighlightedNode);
+  const [showThumb, setShowThumb] = useState(true);
 
-  // Read cropMeta from the layer
   const cropMeta = useEditorStore((s) => {
     if (!data.layerId) return undefined;
     return s.layers.find((l) => l.id === data.layerId)?.cropMeta;
   });
 
   const hasCrop = !!cropMeta;
-  const setEditorMode = useEditorStore((s) => s.setEditorMode);
+  const setIsCropEditing = useCropEditingStore((s) => s.setIsCropEditing);
 
-  // Store last cropMeta so we can re-enable after disabling
   const lastCropRef = useRef<CropMeta | undefined>(cropMeta);
   if (cropMeta) lastCropRef.current = cropMeta;
+
+  const thumbRef = useRef<HTMLCanvasElement>(null);
+  const { height: thumbH } = useNodePreview(
+    thumbRef, 'crop', data.layerId, undefined, THUMB_W, THUMB_DEBOUNCE,
+  );
 
   const toggleCrop = () => {
     if (!data.layerId) return;
     const layerId = data.layerId;
     if (hasCrop) {
-      // Disable: clear cropMeta (undoable)
       editorDocument.recordAction('Disable Crop', () => {
         useEditorStore.getState().updateLayer(layerId, { cropMeta: undefined });
       });
     } else if (lastCropRef.current) {
-      // Re-enable: restore last known crop
       const restored = lastCropRef.current;
       editorDocument.recordAction('Enable Crop', () => {
         useEditorStore.getState().updateLayer(layerId, { cropMeta: restored });
@@ -41,9 +47,8 @@ function CropNodeInner({ id, data, selected }: NodeProps & { data: ProcessingNod
     }
   };
 
-  // Format crop info for display
   const info = cropMeta
-    ? `${Math.round(cropMeta.rw * 100)}% × ${Math.round(cropMeta.rh * 100)}%`
+    ? `${Math.round(cropMeta.rw * 100)}% \u00d7 ${Math.round(cropMeta.rh * 100)}%`
     : 'No crop';
 
   const rotation = cropMeta
@@ -53,22 +58,35 @@ function CropNodeInner({ id, data, selected }: NodeProps & { data: ProcessingNod
   return (
     <div
       className={`glass-panel transition-shadow ${
-        isHighlighted ? 'ring-2 ring-accent shadow-lg' : selected ? 'ring-1 ring-accent/40' : ''
+        isHighlighted ? 'node-focused' : selected ? 'ring-1 ring-accent/40' : ''
       }`}
-      style={{ width: 160 }}
+      style={{ width: THUMB_W }}
     >
-      <div className="flex items-center gap-1.5 px-2.5 py-2">
+      {showThumb && (
+        <canvas
+          ref={thumbRef}
+          className="block rounded-t-[inherit]"
+          style={{ width: THUMB_W, height: thumbH }}
+        />
+      )}
+
+      <div className="flex items-center gap-1.5 px-2.5 py-2 nodrag">
         <Crop size={12} className={`flex-none ${hasCrop ? 'text-accent' : 'text-text-secondary'}`} />
         <span
           className="text-[11px] font-medium text-text-primary truncate flex-1 cursor-default"
           onDoubleClick={(e) => {
             e.stopPropagation();
-            // Double-click to enter crop mode
-            setEditorMode('crop');
+            setIsCropEditing(true);
           }}
         >
           {data.label ?? 'Crop'}
         </span>
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowThumb(!showThumb); }}
+          className="flex-none cursor-default hover:text-text-primary transition-colors"
+        >
+          {showThumb ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+        </button>
         <button
           onClick={(e) => { e.stopPropagation(); toggleCrop(); }}
           className="flex-none cursor-default hover:text-text-primary transition-colors"
@@ -90,7 +108,7 @@ function CropNodeInner({ id, data, selected }: NodeProps & { data: ProcessingNod
           {rotation !== 0 && (
             <div className="flex justify-between">
               <span>Rotation</span>
-              <span className="tabular-nums">{rotation.toFixed(1)}°</span>
+              <span className="tabular-nums">{rotation.toFixed(1)}&deg;</span>
             </div>
           )}
           {(cropMeta?.flipX || cropMeta?.flipY) && (

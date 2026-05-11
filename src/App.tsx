@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, lazy, Suspense } from 'react';
+import { useRef, useCallback, useEffect, useState, lazy, Suspense } from 'react';
 import type * as fabric from 'fabric';
 import { AnimatePresence } from 'framer-motion';
 import { EditorProvider, useEditor } from '@/components/EditorProvider';
@@ -35,6 +35,10 @@ import { TextTool } from '@/tools/text-tool';
 import { FiltersTool } from '@/tools/filters-tool';
 import { CropTool } from '@/tools/crop-tool';
 import { AnalyseIndicator } from '@/components/ui/AnalyseIndicator';
+import { CommandPalette } from '@/components/ui/CommandPalette';
+import { useAiSession } from '@/hooks/useImageContext';
+import { generatePanel } from '@/lib/ai-client';
+import { addAiPanelLayer } from '@/store/ai-panel-actions';
 import { Upload } from 'lucide-react';
 
 // Lazy-load GraphEditor so @xyflow/react CSS doesn't interfere with Fabric.js canvas
@@ -193,6 +197,34 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
   const showPreferences = usePreferencesStore((s) => s.showPreferences);
   const toolDef = getActiveTool();
 
+  // Command palette — Cmd+K opens regardless of editor state; disabled until a session exists.
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const sessionId = useAiSession((s) => s.sessionId);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen(true);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const handlePaletteSubmit = useCallback(
+    async (text: string) => {
+      if (!sessionId) return;
+      try {
+        const graph = await generatePanel(sessionId, text);
+        addAiPanelLayer(graph);
+      } catch (err) {
+        console.error(err);
+      }
+    },
+    [sessionId],
+  );
+
   const handleFileOpen = useCallback(() => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -231,6 +263,14 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
       <AnimatePresence>
         {showPreferences && <PreferencesPage />}
       </AnimatePresence>
+
+      {/* Cmd+K command palette — submits user goal to /api/panel and inserts an ai-panel layer */}
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onSubmit={handlePaletteSubmit}
+        disabled={!sessionId}
+      />
     </div>
   );
 }

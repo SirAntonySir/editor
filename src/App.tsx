@@ -2,7 +2,7 @@ import { useRef, useCallback, useEffect, lazy, Suspense } from 'react';
 import type * as fabric from 'fabric';
 import { AnimatePresence } from 'framer-motion';
 import { EditorProvider, useEditor } from '@/components/EditorProvider';
-import { EditorCanvas, loadImageToCanvas, hydrateCanvasFromStore } from '@/components/canvas/EditorCanvas';
+import { EditorCanvas, loadImageToCanvas } from '@/components/canvas/EditorCanvas';
 
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 import { Toolbar } from '@/components/toolbar/Toolbar';
@@ -255,13 +255,15 @@ export default function App() {
 
   // Re-init document facade when Vite HMR replaces the store module
   useEffect(() => {
-    if (!import.meta.hot) return;
-    const dispose = import.meta.hot.on('vite:afterUpdate', () => {
+    const hot = import.meta.hot;
+    if (!hot) return;
+    const handler = () => {
       editorDocument.dispose();
       editorDocument.init(useEditorStore);
       editorDocument.restoreSession().catch(() => {});
-    });
-    return () => { if (typeof dispose === 'function') dispose(); };
+    };
+    hot.on('vite:afterUpdate', handler);
+    return () => { hot.off('vite:afterUpdate', handler); };
   }, []);
 
   return (

@@ -15,7 +15,10 @@ export interface NodePosition {
   y: number;
 }
 
-export interface ProcessingNodeData {
+// Indexable so React Flow's `NodeBase<NodeData extends Record<string, unknown>>`
+// generic constraint is satisfied when this data shape is used directly with
+// `NodeProps` in custom node components.
+export interface ProcessingNodeData extends Record<string, unknown> {
   label: string;
   /** Source nodes: layer ID */
   layerId?: string;

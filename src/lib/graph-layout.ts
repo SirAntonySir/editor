@@ -63,8 +63,6 @@ export async function computeElkLayout(
 ): Promise<Record<string, NodePosition>> {
   if (graph.nodes.length === 0) return {};
 
-  const typeMap = new Map(graph.nodes.map((n) => [n.id, n.type]));
-
   const children: ElkNode[] = graph.nodes.map((n) => {
     const size = getNodeSize(n.type);
     return { id: n.id, width: size.w, height: size.h };

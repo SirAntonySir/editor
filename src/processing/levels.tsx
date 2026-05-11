@@ -3,7 +3,6 @@ import { SlidersHorizontal, RotateCcw } from 'lucide-react';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
 import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
 import { useProcessingParam } from '@/lib/use-processing-param';
-import { useEditorStore } from '@/store';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { PipelineManager } from '@/lib/pipeline-manager';
 

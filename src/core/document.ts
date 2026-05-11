@@ -18,9 +18,23 @@ import * as history from './history';
 import * as transaction from './transaction';
 import * as serializer from './serializer';
 import * as session from './session-storage';
+import type { FitMode } from '@/store/viewport-slice';
+import type { EditorMode } from '@/store/tool-slice';
 
 const DEBOUNCE_MS = 2000;
 const SESSION_SAVE_DEBOUNCE_MS = 3000;
+
+// ─── Narrow serialised string values (from JSON manifests) to enum types
+const FIT_MODES = ['fit', 'fill', 'actual'] as const satisfies readonly FitMode[];
+const EDITOR_MODES = ['develop', 'compose', 'graph'] as const satisfies readonly EditorMode[];
+
+function asFitMode(value: string): FitMode {
+  return (FIT_MODES as readonly string[]).includes(value) ? (value as FitMode) : 'fit';
+}
+
+function asEditorMode(value: string): EditorMode {
+  return (EDITOR_MODES as readonly string[]).includes(value) ? (value as EditorMode) : 'develop';
+}
 
 let store: StoreApi<EditorState> | null = null;
 let interaction: InteractionSession | null = null;
@@ -265,7 +279,7 @@ async function openEdp(file: File): Promise<void> {
       zoom: result.viewport.zoom,
       panX: result.viewport.panX,
       panY: result.viewport.panY,
-      fitMode: result.viewport.fitMode,
+      fitMode: asFitMode(result.viewport.fitMode),
       documentMeta: result.meta,
       isDirty: false,
       editorMode: 'develop',
@@ -597,8 +611,8 @@ async function restoreSession(): Promise<boolean> {
     zoom: manifest.viewport.zoom,
     panX: manifest.viewport.panX,
     panY: manifest.viewport.panY,
-    fitMode: manifest.viewport.fitMode,
-    editorMode: manifest.editorMode ?? 'develop',
+    fitMode: asFitMode(manifest.viewport.fitMode),
+    editorMode: asEditorMode(manifest.editorMode ?? 'develop'),
     documentMeta: manifest.meta,
     isDirty: false,
   });

@@ -39,7 +39,6 @@ export function CropCanvasOverlay({ canvasRef }: { canvasRef: React.RefObject<fa
   const cropBaseRotation = useCropEditingStore((s) => s.cropBaseRotation);
   const cropFlipX = useCropEditingStore((s) => s.cropFlipX);
   const cropFlipY = useCropEditingStore((s) => s.cropFlipY);
-  const setIsCropEditing = useCropEditingStore((s) => s.setIsCropEditing);
   const resetCropEditing = useCropEditingStore((s) => s.resetCropEditing);
 
   aspectRatioRef.current = cropAspectRatio;

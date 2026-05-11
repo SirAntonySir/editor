@@ -1,6 +1,6 @@
 import type { NodePanelProps } from '@/types/node-definition';
 
-export function OutputPanel({ node }: NodePanelProps) {
+export function OutputPanel(_: NodePanelProps) {
   return (
     <div className="p-3">
       <span className="text-[10px] text-text-secondary">

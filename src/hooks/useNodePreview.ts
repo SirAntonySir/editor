@@ -81,7 +81,7 @@ export function useNodePreview(
 ) {
   const [height, setHeight] = useState(Math.round(width * 0.625));
   const pixelVersion = useEditorStore((s) => s.pixelVersion);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;

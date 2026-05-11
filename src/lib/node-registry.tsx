@@ -1,6 +1,5 @@
 import type { ComponentType } from 'react';
-import type { NodeProps } from '@xyflow/react';
-import type { NodeDefinition, NodePanelProps } from '@/types/node-definition';
+import type { NodeDefinition, NodePanelProps, AnyNodeComponent } from '@/types/node-definition';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
 
 /**
@@ -53,7 +52,7 @@ class NodeRegistryImpl {
    */
   registerFromProcessing(
     def: ProcessingDefinition,
-    NodeComponent: ComponentType<NodeProps>,
+    NodeComponent: AnyNodeComponent,
   ): void {
     let Panel: ComponentType<NodePanelProps> | undefined;
 

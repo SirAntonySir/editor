@@ -1,7 +1,23 @@
 import type { StateCreator } from 'zustand';
+import type { OperationGraph, PanelBinding } from '@/types/operation-graph';
 
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'soft-light' | 'hard-light';
 export type LayerType = string;
+
+/**
+ * Provenance metadata for AI-generated adjustments.
+ * Populated only for adjustments derived from an `ai-panel` layer's OperationGraph.
+ * Phase 3 wires this through history serialisation + reasoning badges.
+ */
+export interface AiSource {
+  graphId: string;
+  nodeId: string;
+  label: string;
+  reasoning?: string;
+  modelName: string;
+  modelVersion: string;
+  generatedAt: string;
+}
 
 export interface Adjustment {
   id: string;
@@ -11,6 +27,8 @@ export interface Adjustment {
   blendMode: BlendMode;
   opacity: number;
   params: Record<string, number | Float32Array>;
+  /** Provenance for AI-derived adjustments. Populated only for ai-panel-sourced edits. */
+  aiSource?: AiSource;
 }
 
 export interface AdjustmentStack {
@@ -54,6 +72,10 @@ export interface Layer {
   adjustmentStack: AdjustmentStack;
   textMeta?: TextMeta;
   cropMeta?: CropMeta;
+  /** OperationGraph attached to this layer (populated on `ai-panel` layers). */
+  operationGraph?: OperationGraph;
+  /** UI-facing panel bindings derived from the OperationGraph (populated on `ai-panel` layers). */
+  panelBindings?: PanelBinding[];
 }
 
 const ADJUSTMENT_NAMES: Record<string, string> = {

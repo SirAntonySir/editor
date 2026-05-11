@@ -39,6 +39,22 @@ Full architecture plan: `docs/architecture-plan.md`
 - `createImageBitmap()` for image loading (never `new Image()`)
 - `canvas.toBlob()` for export (never `toDataURL()`)
 
+## Component Architecture (strict)
+The frontend follows a 3-tier hierarchy. **Reuse before invent.** Before writing JSX, search the existing tiers for a fit.
+
+1. **Primitives** — `src/components/ui/` (plus `panels/GlassPanel.tsx`). Atomic, presentational, no app state. Wrap Radix or expose CSS tokens. Examples: `GlassPanel`, `Kbd`, `Empty`.
+2. **Level-2 (topic folders)** — `canvas/`, `graph/`, `inspector/`, `panels/`, `toolbar/`. Compose primitives + read stores. Each folder owns its domain.
+3. **Page scaffolds** — root of `src/components/` (`EditorDialog`, `PreferencesPage`, `EditorProvider`, `KeyboardShortcuts`, etc.). Wire level-2 pieces into surfaces.
+
+**Hard rules:**
+- **No inline-defined components.** Never declare a functional component inside another component body. Hoist to module scope or a sibling file. Render callbacks that don't represent a reusable unit are fine.
+- **Reuse before invent.** Search `ui/` and the relevant topic folder first. If you're tempted to copy-paste JSX, extract a primitive instead.
+- **Cross-domain primitives** (used by ≥2 topic folders) belong in `ui/`. Topic-local sub-components stay in their topic folder.
+- **Style only via design tokens** in `src/index.css` (color, radius, shadow, motion vars). No hardcoded hex or px for design values.
+- **Visual register**: see `design.md` at project root — it is authoritative for tokens, motion, and the glass-panel aesthetic.
+
+**Enforcement:** `npm run check` (runs `tsc -b` + `eslint .` + the `no-nested-component` custom rule). Lint must pass before any commit; the rule is wired through pre-commit.
+
 ## Branch Strategy
 | Branch | Purpose |
 |---|---|

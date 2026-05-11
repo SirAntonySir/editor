@@ -31,10 +31,10 @@ class PanelBinding(BaseModel):
     param_key: str
     label: str
     control: Literal["slider", "toggle", "picker"] = "slider"
-    min: float | None = None
-    max: float | None = None
-    default: float | str | bool | None = None
-    step: float | None = None
+    min: int | float | None = None
+    max: int | float | None = None
+    default: int | float | str | bool | None = None
+    step: int | float | None = None
     reasoning: str | None = None
 
 

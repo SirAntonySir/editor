@@ -27,3 +27,12 @@ def test_image_context_roundtrip(sample_image_context: dict) -> None:
     assert parsed.candidate_regions[0].label == "subject"
     dumped = parsed.model_dump(mode="json")
     assert dumped["lighting"] == "backlit"
+
+
+def test_panel_binding_preserves_int_types(sample_operation_graph: dict) -> None:
+    parsed = OperationGraph.model_validate(sample_operation_graph)
+    binding = parsed.panel_bindings[0]
+    assert isinstance(binding.min, int), f"expected int, got {type(binding.min).__name__}"
+    assert isinstance(binding.max, int)
+    assert isinstance(binding.step, int)
+    assert isinstance(binding.default, int)

@@ -15,7 +15,7 @@ class CandidateRegion(BaseModel):
 
 
 class ImageContext(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
     subjects: list[str] = Field(default_factory=list)
     lighting: Lighting
     dominant_tones: list[DominantTone] = Field(default_factory=list)

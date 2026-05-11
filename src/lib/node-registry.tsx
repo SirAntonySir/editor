@@ -3,6 +3,29 @@ import type { NodeProps } from '@xyflow/react';
 import type { NodeDefinition, NodePanelProps } from '@/types/node-definition';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
 
+/**
+ * Adapts a ProcessingDefinition's Panel (which expects ProcessingPanelProps)
+ * into a NodePanelProps-compatible wrapper by extracting layerId/adjustmentId
+ * from the node data.
+ *
+ * Defined at module scope so each call to `registerFromProcessing` doesn't
+ * re-create a component type. The per-definition Panel reference is resolved
+ * at render time via the registry's processingPanels map, keyed by node type.
+ */
+function ProcessingNodePanel({ node }: NodePanelProps) {
+  const ProcessingPanel = processingPanels.get(node.type);
+  if (!ProcessingPanel || !node.data.layerId) return null;
+  return (
+    <ProcessingPanel
+      layerId={node.data.layerId}
+      adjustmentId={node.data.adjustmentId}
+    />
+  );
+}
+
+/** Maps node-type id → ProcessingDefinition's Panel component. */
+const processingPanels = new Map<string, ComponentType<ProcessingPanelProps>>();
+
 class NodeRegistryImpl {
   private defs = new Map<string, NodeDefinition>();
 
@@ -24,9 +47,9 @@ class NodeRegistryImpl {
 
   /**
    * Wrap a ProcessingDefinition into a NodeDefinition.
-   * Adapts the ProcessingDefinition's Panel (which expects ProcessingPanelProps)
-   * into a NodePanelProps-compatible wrapper by extracting layerId/adjustmentId
-   * from the node data.
+   * The Panel field points at the module-scope ProcessingNodePanel adapter,
+   * which resolves the underlying ProcessingDefinition.Panel via the
+   * processingPanels map at render time.
    */
   registerFromProcessing(
     def: ProcessingDefinition,
@@ -35,18 +58,8 @@ class NodeRegistryImpl {
     let Panel: ComponentType<NodePanelProps> | undefined;
 
     if (def.Panel) {
-      const ProcessingPanel = def.Panel;
-      // Create a wrapper that adapts NodePanelProps → ProcessingPanelProps
-      Panel = function ProcessingNodePanel({ node }: NodePanelProps) {
-        if (!node.data.layerId) return null;
-        return (
-          <ProcessingPanel
-            layerId={node.data.layerId}
-            adjustmentId={node.data.adjustmentId}
-          />
-        );
-      };
-      Panel.displayName = `${def.id}NodePanel`;
+      processingPanels.set(def.id, def.Panel);
+      Panel = ProcessingNodePanel;
     }
 
     this.register({

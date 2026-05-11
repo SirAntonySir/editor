@@ -2,11 +2,13 @@
 
 FastAPI backend for the photo editor's AI layer.
 
+**Requirements:** Python 3.11 or newer (the `anthropic` SDK and `pydantic` 2.9 require ≥ 3.11).
+
 ## Bootstrap
 
 ```bash
 cd backend
-python3 -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-dev.txt
 cp .env.example .env

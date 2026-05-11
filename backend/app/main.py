@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .config import settings
+from .config import get_settings
 
 
 def create_app() -> FastAPI:
+    settings = get_settings()
     app = FastAPI(title="editor-backend", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,

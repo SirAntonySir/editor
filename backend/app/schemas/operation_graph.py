@@ -1,0 +1,48 @@
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+ScopeKind = Literal["global", "mask:click", "mask:proposed"]
+
+
+class Scope(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: ScopeKind
+    # For mask:proposed — model-supplied label + representative point.
+    label: str | None = None
+    point: tuple[float, float] | None = None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
+class Node(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    type: str  # Resolved against ProcessingRegistry at runtime.
+    scope: Scope = Field(default_factory=lambda: Scope(kind="global"))
+    params: dict[str, float | int | str | bool] = Field(default_factory=dict)
+    inputs: list[str] = Field(default_factory=list)  # node IDs
+
+
+class PanelBinding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    node_id: str
+    param_key: str
+    label: str
+    control: Literal["slider", "toggle", "picker"] = "slider"
+    min: float | None = None
+    max: float | None = None
+    default: float | str | bool | None = None
+    step: float | None = None
+    reasoning: str | None = None
+
+
+class OperationGraph(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    user_goal: str
+    reasoning: str | None = None
+    nodes: list[Node]
+    panel_bindings: list[PanelBinding]
+    metadata: dict[str, str] = Field(default_factory=dict)

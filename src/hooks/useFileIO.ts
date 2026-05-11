@@ -3,6 +3,7 @@ import type * as fabric from 'fabric';
 import { loadImageToCanvas, hydrateCanvasFromStore } from '@/components/canvas/EditorCanvas';
 import { exportImage, saveAs } from '@/lib/export';
 import { editorDocument } from '@/core/document';
+import { useAiSession } from '@/hooks/useImageContext';
 
 export function useFileIO(canvasRef: React.RefObject<fabric.Canvas | null>) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -20,6 +21,8 @@ export function useFileIO(canvasRef: React.RefObject<fabric.Canvas | null>) {
           hydrateCanvasFromStore(canvasRef.current);
         } else {
           await loadImageToCanvas(file, canvasRef.current);
+          // Fire-and-forget AI analysis on new image open (not session-restore, which goes through the .edp branch).
+          createImageBitmap(file).then((bitmap) => useAiSession.getState().uploadAndAnalyse(bitmap));
         }
       }
       // reset so same file can be re-selected

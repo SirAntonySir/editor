@@ -91,6 +91,39 @@ src/
 | `testing` | QA and integration testing |
 | `staging` | Pre-production validation |
 
+## AI dev loop (Phase 1)
+
+Two processes:
+
+```bash
+# Terminal 1 — backend (Python)
+cd backend
+python3.11 -m venv .venv    # or python3.12 — see backend/README.md for Python version requirement
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+cp .env.example .env  # fill in ANTHROPIC_API_KEY
+uvicorn app.main:app --reload --port 8787
+```
+
+```bash
+# Terminal 2 — frontend (Vite)
+npm install
+cp .env.example .env  # only needed if backend URL changes (defaults to 127.0.0.1:8787)
+npm run dev
+```
+
+Or after setup:
+
+```bash
+npm run dev:backend  # backend (zsh/bash; macOS/Linux)
+npm run dev          # frontend
+```
+
+Open the editor, load an image — you should see an "Analysing image…" indicator
+turn to "Image context ready" within a few seconds. Press Cmd+K, type a goal
+(e.g. "make it warmer"), and an AI panel appears in the inspector below the
+standard tool panel.
+
 ## License
 
 Private — all rights reserved.

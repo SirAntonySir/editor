@@ -34,6 +34,7 @@ import { BrushTool } from '@/tools/brush-tool';
 import { TextTool } from '@/tools/text-tool';
 import { FiltersTool } from '@/tools/filters-tool';
 import { CropTool } from '@/tools/crop-tool';
+import { AnalyseIndicator } from '@/components/ui/AnalyseIndicator';
 import { Upload } from 'lucide-react';
 
 // Lazy-load GraphEditor so @xyflow/react CSS doesn't interfere with Fabric.js canvas
@@ -149,6 +150,9 @@ function MainLayout({
           </div>
         )}
       </AnimatePresence>
+
+      {/* AI analyse status indicator — floats above all modes */}
+      <AnalyseIndicator />
 
       {/* HUDs — hidden in graph mode */}
       {showHUD && (

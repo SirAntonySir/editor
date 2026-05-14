@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "meta": {
+    "id": "with-text",
+    "name": "Captioned",
+    "createdAt": 1700000000000,
+    "modifiedAt": 1700000200000,
+    "width": 1920,
+    "height": 1080
+  },
+  "layers": [
+    {
+      "id": "img-1",
+      "type": "image",
+      "name": "Background",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "locked": false,
+      "order": 0,
+      "adjustmentStack": { "adjustments": [] },
+      "cropMeta": { "x": 0, "y": 0, "width": 1920, "height": 1080, "rotation": 0, "flipH": false, "flipV": false },
+      "hasWorkingPixels": false
+    },
+    {
+      "id": "txt-1",
+      "type": "text",
+      "name": "Caption",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "locked": false,
+      "order": 1,
+      "adjustmentStack": { "adjustments": [] },
+      "textMeta": { "text": "Hello", "x": 100, "y": 100, "fontSize": 48, "fontFamily": "SF Pro", "color": "#ffffff" },
+      "hasWorkingPixels": false
+    }
+  ],
+  "activeLayerId": "img-1",
+  "graphPositions": {},
+  "viewport": { "zoom": 0.5, "panX": 100, "panY": 50, "fitMode": "fit" }
+}

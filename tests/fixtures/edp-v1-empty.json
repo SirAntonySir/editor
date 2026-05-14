@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "meta": {
+    "id": "empty-doc",
+    "name": "Empty",
+    "createdAt": 1700000000000,
+    "modifiedAt": 1700000000000,
+    "width": 0,
+    "height": 0
+  },
+  "layers": [],
+  "activeLayerId": null,
+  "graphPositions": {},
+  "viewport": { "zoom": 1, "panX": 0, "panY": 0, "fitMode": "fit" }
+}

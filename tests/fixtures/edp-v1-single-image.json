@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "meta": {
+    "id": "single-img",
+    "name": "Photo",
+    "createdAt": 1700000000000,
+    "modifiedAt": 1700000100000,
+    "width": 1920,
+    "height": 1080
+  },
+  "layers": [
+    {
+      "id": "layer-1",
+      "type": "image",
+      "name": "Background",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "locked": false,
+      "order": 0,
+      "adjustmentStack": {
+        "adjustments": [
+          {
+            "id": "adj-1",
+            "type": "basic",
+            "name": "Light",
+            "enabled": true,
+            "blendMode": "normal",
+            "opacity": 1,
+            "params": { "exposure": 0.3, "contrast": 0.1 }
+          }
+        ]
+      },
+      "hasWorkingPixels": false
+    }
+  ],
+  "activeLayerId": "layer-1",
+  "graphPositions": { "layer-1": { "x": 100, "y": 100 } },
+  "viewport": { "zoom": 1, "panX": 0, "panY": 0, "fitMode": "fit" }
+}

@@ -14,6 +14,7 @@
  */
 
 import type { DocumentMeta } from './types';
+import type { HistoryTreeSnapshot } from './types';
 import type { Layer, Adjustment } from '@/store/layer-slice';
 import type { NodePosition } from '@/types/graph';
 import { exportAllCurvePoints, importAllCurvePoints } from '@/lib/curve-points-store';
@@ -55,11 +56,15 @@ interface SessionManifest {
   editorMode: string;
   savedAt: number;
   curvePoints?: Record<string, Record<string, number[]>>;
+  /** Tree-structured history; absent in pre-v2 sessions. */
+  history?: HistoryTreeSnapshot;
 }
 
 export interface SessionData {
   manifest: SessionManifest;
   pixels: Map<string, Blob>;
+  /** key format: `${nodeId}:${pre|post}:${layerId}` */
+  historyPixels: Map<string, Blob>;
 }
 
 // ─── Param serialization ─────────────────────────────────────────────
@@ -139,19 +144,16 @@ function deserializeLayer(sl: SerializableLayer): Layer {
 // ─── IndexedDB helpers ───────────────────────────────────────────────
 
 const DB_NAME = 'editor-session';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains('state')) {
-        db.createObjectStore('state');
-      }
-      if (!db.objectStoreNames.contains('pixels')) {
-        db.createObjectStore('pixels');
-      }
+      if (!db.objectStoreNames.contains('state')) db.createObjectStore('state');
+      if (!db.objectStoreNames.contains('pixels')) db.createObjectStore('pixels');
+      if (!db.objectStoreNames.contains('history-pixels')) db.createObjectStore('history-pixels');
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -203,6 +205,8 @@ export interface SaveSessionOptions {
   graphPositions: Record<string, NodePosition>;
   viewport: { zoom: number; panX: number; panY: number; fitMode: string };
   editorMode: string;
+  history?: HistoryTreeSnapshot;
+  historyPixelBlobs?: Map<string, Blob>;
   pixelStore: {
     has(id: string): boolean;
     exportLayerAsPng(id: string, which: 'source' | 'working'): Promise<Blob>;
@@ -211,7 +215,7 @@ export interface SaveSessionOptions {
 
 /** Save current editor state + pixel data to IndexedDB. */
 export async function saveSession(options: SaveSessionOptions): Promise<void> {
-  const { meta, layers, activeLayerId, graphPositions, viewport, editorMode, pixelStore } = options;
+  const { meta, layers, activeLayerId, graphPositions, viewport, editorMode, history, historyPixelBlobs, pixelStore } = options;
 
   const db = await openDB();
 
@@ -226,6 +230,7 @@ export async function saveSession(options: SaveSessionOptions): Promise<void> {
       editorMode,
       savedAt: Date.now(),
       curvePoints: exportAllCurvePoints(),
+      history,
     };
     await idbPut(db, 'state', 'current', manifest);
 
@@ -235,6 +240,13 @@ export async function saveSession(options: SaveSessionOptions): Promise<void> {
       if (pixelStore.has(layer.id)) {
         const blob = await pixelStore.exportLayerAsPng(layer.id, 'source');
         await idbPut(db, 'pixels', layer.id, blob);
+      }
+    }
+
+    await idbClear(db, 'history-pixels');
+    if (historyPixelBlobs) {
+      for (const [key, blob] of historyPixelBlobs) {
+        await idbPut(db, 'history-pixels', key, blob);
       }
     }
   } finally {
@@ -272,6 +284,14 @@ export async function loadSession(): Promise<SessionData | null> {
       if (blob) pixels.set(key, blob);
     }
 
+    // Load history pixel blobs
+    const historyPixels = new Map<string, Blob>();
+    const hKeys = await idbGetAllKeys(db, 'history-pixels');
+    for (const key of hKeys) {
+      const blob = await idbGet<Blob>(db, 'history-pixels', key);
+      if (blob) historyPixels.set(key, blob);
+    }
+
     db.close();
 
     // Restore curve control points
@@ -279,7 +299,7 @@ export async function loadSession(): Promise<SessionData | null> {
       importAllCurvePoints(manifest.curvePoints);
     }
 
-    return { manifest, pixels };
+    return { manifest, pixels, historyPixels };
   } catch {
     return null;
   }
@@ -296,6 +316,7 @@ export async function clearSession(): Promise<void> {
     const db = await openDB();
     await idbClear(db, 'state');
     await idbClear(db, 'pixels');
+    await idbClear(db, 'history-pixels');
     db.close();
   } catch {
     // Silently ignore — session storage is best-effort

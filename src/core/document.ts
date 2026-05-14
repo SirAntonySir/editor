@@ -136,6 +136,27 @@ function persistSession(): void {
   if (!store) return;
   const s = store.getState();
   if (!s.documentMeta) return;
+
+  const t = history.getTree();
+  let historySnapshot;
+  let historyPixelBlobs: Map<string, Blob> | undefined;
+  if (t) {
+    historySnapshot = historyTree.toSnapshot(t);
+    historyPixelBlobs = new Map();
+    for (const node of t.nodes.values()) {
+      if (node.prePixels) {
+        for (const [lid, blob] of node.prePixels) {
+          historyPixelBlobs.set(`${node.id}:pre:${lid}`, blob);
+        }
+      }
+      if (node.postPixels) {
+        for (const [lid, blob] of node.postPixels) {
+          historyPixelBlobs.set(`${node.id}:post:${lid}`, blob);
+        }
+      }
+    }
+  }
+
   session.saveSession({
     meta: s.documentMeta,
     layers: s.layers,
@@ -148,6 +169,8 @@ function persistSession(): void {
       fitMode: s.fitMode ?? 'fit',
     },
     editorMode: s.editorMode ?? 'develop',
+    history: historySnapshot,
+    historyPixelBlobs,
     pixelStore,
   }).catch(() => {
     // Session save is best-effort — silently ignore errors
@@ -551,7 +574,7 @@ async function restoreSession(): Promise<boolean> {
   const data = await session.loadSession();
   if (!data) return false;
 
-  const { manifest, pixels } = data;
+  const { manifest, pixels, historyPixels } = data;
 
   // Restore pixel data
   pixelStore.clear();
@@ -563,6 +586,14 @@ async function restoreSession(): Promise<boolean> {
 
   // Deserialize layers (Float32Array conversion)
   const layers = session.deserializeSessionLayers(manifest);
+
+  if (manifest.history) {
+    const t = historyTree.fromSnapshot(manifest.history, historyPixels);
+    history.clear();
+    history.loadTree(t);
+  } else {
+    history.clear();
+  }
 
   // Restore Zustand state (single source of truth)
   // Bump pixelVersion to signal that new pixel data is available,
@@ -581,9 +612,12 @@ async function restoreSession(): Promise<boolean> {
   });
   useGraphStore.getState().setGraphPositions(manifest.graphPositions);
 
-  const seed = captureState();
-  if (seed) history.initWith(seed);
-
+  // For sessions without persisted history (pre-Task-9), seed history with
+  // the loaded state so the first undo behaves correctly.
+  if (!manifest.history) {
+    const seed = captureState();
+    if (seed) history.initWith(seed);
+  }
   return true;
 }
 

@@ -96,6 +96,8 @@ export interface HistoryTreeSnapshot {
   }>;
   rootId: string;
   currentNodeId: string;
+  /** Name of the branch the user is currently extending. Defaults to 'main'. */
+  currentBranch: string;
   /** Named branch heads. `main` always exists. */
   branchHeads: Record<string, string>;
 }

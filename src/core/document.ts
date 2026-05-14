@@ -15,6 +15,7 @@ import type { EditorState } from '@/store';
 import { useGraphStore } from '@/store/graph-store';
 import { pixelStore } from './pixel-store';
 import * as history from './history';
+import * as historyTree from '@/core/history-tree';
 import * as transaction from './transaction';
 import * as serializer from './serializer';
 import * as session from './session-storage';
@@ -275,7 +276,9 @@ async function openImage(file: File): Promise<void> {
 async function openEdp(file: File): Promise<void> {
   const result = await serializer.load(file);
 
+  const t = historyTree.fromSnapshot(result.history, result.historyPixelBlobs);
   history.clear();
+  history.loadTree(t);
 
   if (store) {
     store.setState({
@@ -304,6 +307,27 @@ async function save(): Promise<Blob | null> {
   const updatedMeta = { ...s.documentMeta, modifiedAt: Date.now() };
   store.setState({ documentMeta: updatedMeta });
 
+  const t = history.getTree();
+  const historySnapshot = t
+    ? historyTree.toSnapshot(t)
+    : historyTree.toSnapshot(historyTree.createTree(captureState()!));
+
+  const pixelBlobs = new Map<string, Blob>();
+  if (t) {
+    for (const node of t.nodes.values()) {
+      if (node.prePixels) {
+        for (const [layerId, blob] of node.prePixels) {
+          pixelBlobs.set(`${node.id}:pre:${layerId}`, blob);
+        }
+      }
+      if (node.postPixels) {
+        for (const [layerId, blob] of node.postPixels) {
+          pixelBlobs.set(`${node.id}:post:${layerId}`, blob);
+        }
+      }
+    }
+  }
+
   const blob = await serializer.save({
     meta: updatedMeta,
     layers: s.layers,
@@ -315,6 +339,8 @@ async function save(): Promise<Blob | null> {
       panY: s.panY ?? 0,
       fitMode: s.fitMode ?? 'fit',
     },
+    history: historySnapshot,
+    pixelBlobs,
   });
 
   markClean();

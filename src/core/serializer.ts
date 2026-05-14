@@ -8,11 +8,12 @@
  *   thumbnail.png     — 256px preview
  */
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
-import type { DocumentMeta, SerializableParams } from './types';
+import type { DocumentMeta, SerializableParams, SerializableState, HistoryTreeSnapshot } from './types';
 import type { Layer, Adjustment } from '@/store/layer-slice';
 import type { NodePosition } from '@/types/graph';
 import { pixelStore } from './pixel-store';
 import { exportAllCurvePoints, importAllCurvePoints } from '@/lib/curve-points-store';
+import { migrateV1ToV2, isV1 } from './serializer-migrate';
 
 // ─── Manifest types ─────────────────────────────────────────────────
 
@@ -42,18 +43,14 @@ interface SerializableLayer {
 }
 
 interface Manifest {
-  version: 1;
+  version: 2;
   meta: DocumentMeta;
   layers: SerializableLayer[];
   activeLayerId: string | null;
   graphPositions: Record<string, NodePosition>;
-  viewport: {
-    zoom: number;
-    panX: number;
-    panY: number;
-    fitMode: string;
-  };
+  viewport: { zoom: number; panX: number; panY: number; fitMode: string };
   curvePoints?: Record<string, Record<string, number[]>>;
+  history: HistoryTreeSnapshot;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -165,57 +162,53 @@ export interface SaveOptions {
   activeLayerId: string | null;
   graphPositions: Record<string, NodePosition>;
   viewport: { zoom: number; panX: number; panY: number; fitMode: string };
+  history: HistoryTreeSnapshot;
+  /** key format: `${nodeId}:${pre|post}:${layerId}` */
+  pixelBlobs: Map<string, Blob>;
 }
 
 export async function save(options: SaveOptions): Promise<Blob> {
-  const { meta, layers, activeLayerId, graphPositions, viewport } = options;
-
+  const { meta, layers, activeLayerId, graphPositions, viewport, history, pixelBlobs } = options;
   const files: Record<string, Uint8Array> = {};
 
-  // Collect pixel data for each layer
+  // Layer pixel snapshots (unchanged from v1)
   const serializableLayers: SerializableLayer[] = [];
   for (const layer of layers) {
     let hasWorkingPixels = false;
-
     if (pixelStore.has(layer.id)) {
-      // Export source
       const sourceBlob = await pixelStore.exportLayerAsPng(layer.id, 'source');
-      files[`pixels/${layer.id}-source.png`] = new Uint8Array(
-        await sourceBlob.arrayBuffer(),
-      );
-
-      // Check if working differs from source (simplified: always export if layer has modifications)
+      files[`pixels/${layer.id}-source.png`] = new Uint8Array(await sourceBlob.arrayBuffer());
       const workingBlob = await pixelStore.exportLayerAsPng(layer.id, 'working');
       const sourceSize = sourceBlob.size;
       const workingSize = workingBlob.size;
       if (Math.abs(sourceSize - workingSize) > 100) {
-        files[`pixels/${layer.id}-working.png`] = new Uint8Array(
-          await workingBlob.arrayBuffer(),
-        );
+        files[`pixels/${layer.id}-working.png`] = new Uint8Array(await workingBlob.arrayBuffer());
         hasWorkingPixels = true;
       }
     }
-
     serializableLayers.push(serializeLayer(layer, hasWorkingPixels));
   }
 
-  // Build manifest
+  // History pixel blobs under history/{nodeId}/{pre|post}/{layerId}.png
+  for (const [key, blob] of pixelBlobs) {
+    const [nodeId, kind, layerId] = key.split(':');
+    files[`history/${nodeId}/${kind}/${layerId}.png`] = new Uint8Array(await blob.arrayBuffer());
+  }
+
   const manifest: Manifest = {
-    version: 1,
+    version: 2,
     meta,
     layers: serializableLayers,
     activeLayerId,
     graphPositions,
     viewport,
     curvePoints: exportAllCurvePoints(),
+    history,
   };
 
   files['manifest.json'] = strToU8(JSON.stringify(manifest, null, 2));
-
-  // Thumbnail
   files['thumbnail.png'] = await generateThumbnail();
 
-  // Create ZIP
   const zipped = zipSync(files, { level: 6 });
   return new Blob([new Uint8Array(zipped)], { type: 'application/x-edp' });
 }
@@ -228,27 +221,52 @@ export interface LoadResult {
   activeLayerId: string | null;
   graphPositions: Record<string, NodePosition>;
   viewport: { zoom: number; panX: number; panY: number; fitMode: string };
+  history: HistoryTreeSnapshot;
+  historyPixelBlobs: Map<string, Blob>;
 }
 
 export async function load(blob: Blob): Promise<LoadResult> {
   const buffer = await blob.arrayBuffer();
   const files = unzipSync(new Uint8Array(buffer));
 
-  // Parse manifest
   const manifestData = files['manifest.json'];
   if (!manifestData) throw new Error('Invalid .edp: missing manifest.json');
-  const manifest: Manifest = JSON.parse(strFromU8(manifestData));
+  const raw = JSON.parse(strFromU8(manifestData));
 
-  // Deserialize layers
-  const layers = manifest.layers.map(deserializeLayer);
+  let manifest: Manifest;
+  if (raw.version === 2) {
+    manifest = raw as Manifest;
+  } else if (isV1(raw)) {
+    const layersFromV1 = (raw.layers as SerializableLayer[]).map(deserializeLayer);
+    const rootState: SerializableState = {
+      layers: layersFromV1,
+      activeLayerId: raw.activeLayerId,
+      pixelVersion: 0,
+      graphPositions: raw.graphPositions as Record<string, NodePosition>,
+    };
+    const migrated = migrateV1ToV2(raw, rootState);
+    // The migrated manifest carries the v1 layers as `unknown[]`; coerce to SerializableLayer[]
+    // for type consistency with our local `Manifest` shape.
+    manifest = {
+      version: 2,
+      meta: migrated.meta,
+      layers: migrated.layers as SerializableLayer[],
+      activeLayerId: migrated.activeLayerId,
+      graphPositions: migrated.graphPositions as Record<string, NodePosition>,
+      viewport: migrated.viewport,
+      curvePoints: migrated.curvePoints,
+      history: migrated.history,
+    };
+  } else {
+    throw new Error(`Unsupported .edp manifest version: ${raw.version}`);
+  }
 
-  // Import pixel data
+  // Layer pixel loading (unchanged from v1)
   for (const sl of manifest.layers) {
     const sourceData = files[`pixels/${sl.id}-source.png`];
     if (sourceData) {
       const sourceBlob = new Blob([new Uint8Array(sourceData)], { type: 'image/png' });
       await pixelStore.importLayerFromPng(sl.id, sourceBlob, 'source');
-
       if (sl.hasWorkingPixels) {
         const workingData = files[`pixels/${sl.id}-working.png`];
         if (workingData) {
@@ -259,16 +277,27 @@ export async function load(blob: Blob): Promise<LoadResult> {
     }
   }
 
-  // Restore curve control points
-  if (manifest.curvePoints) {
-    importAllCurvePoints(manifest.curvePoints);
+  // History pixel blobs
+  const historyPixelBlobs = new Map<string, Blob>();
+  for (const path of Object.keys(files)) {
+    const match = path.match(/^history\/([^/]+)\/(pre|post)\/([^/]+)\.png$/);
+    if (!match) continue;
+    const [, nodeId, kind, layerId] = match;
+    historyPixelBlobs.set(
+      `${nodeId}:${kind}:${layerId}`,
+      new Blob([new Uint8Array(files[path])], { type: 'image/png' }),
+    );
   }
+
+  if (manifest.curvePoints) importAllCurvePoints(manifest.curvePoints);
 
   return {
     meta: manifest.meta,
-    layers,
+    layers: manifest.layers.map(deserializeLayer),
     activeLayerId: manifest.activeLayerId,
     graphPositions: manifest.graphPositions,
     viewport: manifest.viewport,
+    history: manifest.history,
+    historyPixelBlobs,
   };
 }

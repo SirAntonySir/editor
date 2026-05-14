@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { History } from 'lucide-react';
 import { useSyncExternalStore } from 'react';
 import { editorDocument } from '@/core/document';
+import * as history from '@/core/history';
 import type { HistoryStoreState } from '@/core/history';
 
 function useHistoryStore<T>(selector: (state: HistoryStoreState) => T): T {
@@ -17,18 +18,11 @@ export function HistoryPanel() {
   const canUndo = useHistoryStore((s) => s.canUndo);
   const isRestoring = useHistoryStore((s) => s.isRestoring);
 
-  const handleClick = async (index: number) => {
+  const handleClick = (index: number) => {
     if (isRestoring) return;
-    const currentIndex = entries.length; // current state is "after" all entries
-    const stepsBack = currentIndex - index;
-
-    if (stepsBack > 0) {
-      // Undo N times
-      for (let i = 0; i < stepsBack; i++) {
-        await editorDocument.undo();
-      }
-    }
-    // We don't support clicking future entries in this simplified view
+    const path = history.getCurrentPathNodes();
+    if (index < 0 || index >= path.length) return;
+    history.jumpTo(path[index].id);
   };
 
   return (

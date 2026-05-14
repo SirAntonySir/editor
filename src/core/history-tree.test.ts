@@ -211,3 +211,29 @@ describe('snapshot round-trip', () => {
     expect(restored.nodes.get(a)!.milestoneLabel).toBe('milestone-a');
   });
 });
+
+describe('snapshot round-trip with pre/post pixels', () => {
+  it('preserves pre/post pixel maps via the keyed blob lookup', () => {
+    let t = createTree(snap());
+    const preBlob = new Blob(['pre'], { type: 'image/png' });
+    const postBlob = new Blob(['post'], { type: 'image/png' });
+    t = append(t, {
+      label: 'destructive op',
+      timestamp: 1,
+      kind: 'destructive',
+      metaSnapshot: snap(),
+      prePixels: new Map([['layer-1', preBlob]]),
+      postPixels: new Map([['layer-1', postBlob]]),
+      estimatedSize: preBlob.size + postBlob.size + 4096,
+    });
+    const nodeId = t.currentNodeId;
+    const snapJson = toSnapshot(t);
+    const blobs = new Map<string, Blob>([
+      [`${nodeId}:pre:layer-1`, preBlob],
+      [`${nodeId}:post:layer-1`, postBlob],
+    ]);
+    const restored = fromSnapshot(snapJson, blobs);
+    expect(restored.nodes.get(nodeId)!.prePixels?.get('layer-1')).toBe(preBlob);
+    expect(restored.nodes.get(nodeId)!.postPixels?.get('layer-1')).toBe(postBlob);
+  });
+});

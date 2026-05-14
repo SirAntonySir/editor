@@ -214,6 +214,9 @@ function newDocument(): void {
     });
   }
   useGraphStore.getState().setGraphPositions({});
+
+  const seed = captureState();
+  if (seed) history.initWith(seed);
 }
 
 async function openImage(file: File): Promise<void> {
@@ -261,6 +264,9 @@ async function openImage(file: File): Promise<void> {
     });
   }
   useGraphStore.getState().setGraphPositions({});
+
+  const seed = captureState();
+  if (seed) history.initWith(seed);
 
   bitmap.close();
   scheduleSessionSave();
@@ -381,33 +387,22 @@ function tickInteraction(): void {
 
 function endInteraction(): void {
   if (!interaction) return;
-
-  if (interaction.debounceTimer) {
-    clearTimeout(interaction.debounceTimer);
-  }
-
-  // Compare current state to pre-state
-  const currentState = captureState();
-  if (!currentState) { interaction = null; return; }
+  if (interaction.debounceTimer) clearTimeout(interaction.debounceTimer);
+  const post = captureState();
+  if (!post) { interaction = null; return; }
   const pre = interaction.preMetaSnapshot;
-
-  // Only push if something actually changed
-  const changed =
-    statesChanged(pre, currentState);
-
-  if (changed) {
+  if (statesChanged(pre, post)) {
     const entry: HistoryEntry = {
       id: crypto.randomUUID(),
       label: interaction.label,
       timestamp: Date.now(),
       kind: 'metadata',
-      metaSnapshot: pre,
+      metaSnapshot: post,
       estimatedSize: 0,
     };
     history.push(entry);
     markDirty();
   }
-
   interaction = null;
 }
 
@@ -420,17 +415,15 @@ function endInteraction(): void {
 function flushPendingAction(): void {
   if (!pendingAction) return;
   clearTimeout(pendingAction.timer);
-  const currentState = captureState();
-  if (currentState) {
-    const changed =
-      statesChanged(pendingAction.preSnapshot, currentState);
-    if (changed) {
+  const post = captureState();
+  if (post) {
+    if (statesChanged(pendingAction.preSnapshot, post)) {
       const entry: HistoryEntry = {
         id: crypto.randomUUID(),
         label: pendingAction.label,
         timestamp: Date.now(),
         kind: 'metadata',
-        metaSnapshot: pendingAction.preSnapshot,
+        metaSnapshot: post,
         estimatedSize: 0,
       };
       history.push(entry);
@@ -485,13 +478,17 @@ async function beginTransaction(
 
 async function commitTransaction(): Promise<void> {
   const info = transaction.commit();
+  const postMeta = captureState();
+  if (!postMeta) return;
+  const postPixels = await pixelStore.captureSnapshots(info.affectedLayerIds);
   const entry: HistoryEntry = {
     id: crypto.randomUUID(),
     label: info.label,
     timestamp: Date.now(),
     kind: 'destructive',
-    metaSnapshot: info.preMetaSnapshot,
-    pixelSnapshots: info.prePixelSnapshots,
+    metaSnapshot: postMeta,
+    prePixels: info.prePixelSnapshots,
+    postPixels,
     estimatedSize: 0,
   };
   history.push(entry);
@@ -505,79 +502,19 @@ async function rollbackTransaction(): Promise<void> {
 // ─── Undo / redo ────────────────────────────────────────────────────
 
 async function undoAction(): Promise<void> {
-  // If there's an active transaction, rollback instead
   if (transaction.isActive()) {
     await transaction.rollback();
     return;
   }
-
-  // Auto-commit any dangling interaction or pending action
-  if (interaction) {
-    endInteraction();
-  }
+  if (interaction) endInteraction();
   flushPendingAction();
-
-  // Before undo, capture current state and swap it into the entry
-  // so that redo can restore it
-  const currentState = captureState();
-  if (!currentState) return;
-  const currentPixels = await capturePixelsForTopEntry();
-
   await history.undo();
-
-  // Swap: the entry now on the redo stack has pre-state,
-  // but for redo we need post-state. Patch it.
-  const redoStack = history.getRedoStack();
-  if (redoStack.length > 0) {
-    const redoEntry = redoStack[redoStack.length - 1];
-    // Store the post-state (what we just captured) in the redo entry
-    redoEntry.metaSnapshot = currentState;
-    if (currentPixels && redoEntry.kind === 'destructive') {
-      redoEntry.pixelSnapshots = currentPixels;
-    }
-  }
 }
 
 async function redoAction(): Promise<void> {
-  if (interaction) {
-    endInteraction();
-  }
+  if (interaction) endInteraction();
   flushPendingAction();
-
-  // Before redo, capture current state for the undo stack entry
-  const currentState = captureState();
-  if (!currentState) return;
-  const currentPixels = await capturePixelsForUndoTop();
-
   await history.redo();
-
-  // The entry pushed back to undo stack should have pre-state for future undo
-  const undoStack = history.getUndoStack();
-  if (undoStack.length > 0) {
-    const undoEntry = undoStack[undoStack.length - 1];
-    undoEntry.metaSnapshot = currentState;
-    if (currentPixels && undoEntry.kind === 'destructive') {
-      undoEntry.pixelSnapshots = currentPixels;
-    }
-  }
-}
-
-async function capturePixelsForTopEntry(): Promise<Map<string, Blob> | null> {
-  const undoStack = history.getUndoStack();
-  if (undoStack.length === 0) return null;
-  const entry = undoStack[undoStack.length - 1];
-  if (entry.kind !== 'destructive' || !entry.pixelSnapshots) return null;
-  const layerIds = Array.from(entry.pixelSnapshots.keys());
-  return pixelStore.captureSnapshots(layerIds);
-}
-
-async function capturePixelsForUndoTop(): Promise<Map<string, Blob> | null> {
-  const redoStack = history.getRedoStack();
-  if (redoStack.length === 0) return null;
-  const entry = redoStack[redoStack.length - 1];
-  if (entry.kind !== 'destructive' || !entry.pixelSnapshots) return null;
-  const layerIds = Array.from(entry.pixelSnapshots.keys());
-  return pixelStore.captureSnapshots(layerIds);
 }
 
 // ─── Session restore ─────────────────────────────────────────────────
@@ -617,6 +554,9 @@ async function restoreSession(): Promise<boolean> {
     isDirty: false,
   });
   useGraphStore.getState().setGraphPositions(manifest.graphPositions);
+
+  const seed = captureState();
+  if (seed) history.initWith(seed);
 
   return true;
 }

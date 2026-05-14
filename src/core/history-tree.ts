@@ -209,10 +209,11 @@ export function evict(tree: HistoryTree, budget: EvictionBudget): HistoryTree {
 export function toSnapshot(tree: HistoryTree): HistoryTreeSnapshot {
   const nodes: HistoryTreeSnapshot['nodes'] = {};
   for (const [id, node] of tree.nodes) {
-    const { pixelSnapshots, ...rest } = node;
+    const { prePixels, postPixels, ...rest } = node;
     nodes[id] = {
       ...rest,
-      pixelLayerIds: pixelSnapshots ? Array.from(pixelSnapshots.keys()) : undefined,
+      prePixelLayerIds: prePixels ? Array.from(prePixels.keys()) : undefined,
+      postPixelLayerIds: postPixels ? Array.from(postPixels.keys()) : undefined,
     };
   }
   return {
@@ -226,8 +227,8 @@ export function toSnapshot(tree: HistoryTree): HistoryTreeSnapshot {
 
 /**
  * Rebuild a HistoryTree from a serialised snapshot. `pixelBlobs` is a flat
- * map of `${nodeId}:${layerId}` → Blob; callers (serializer / session-storage)
- * provide it after reading pixel data from disk / IndexedDB.
+ * map of `${nodeId}:${pre|post}:${layerId}` → Blob; callers (serializer /
+ * session-storage) provide it after reading pixel data from disk / IndexedDB.
  */
 export function fromSnapshot(
   snapshot: HistoryTreeSnapshot,
@@ -235,17 +236,21 @@ export function fromSnapshot(
 ): HistoryTree {
   const nodes = new Map<string, HistoryNode>();
   for (const [id, raw] of Object.entries(snapshot.nodes)) {
-    const { pixelLayerIds, ...rest } = raw;
-    let pixelSnapshots: Map<string, Blob> | undefined;
-    if (pixelLayerIds && pixelLayerIds.length > 0) {
-      pixelSnapshots = new Map();
-      for (const layerId of pixelLayerIds) {
-        const blob = pixelBlobs.get(`${id}:${layerId}`);
-        if (blob) pixelSnapshots.set(layerId, blob);
+    const { prePixelLayerIds, postPixelLayerIds, ...rest } = raw;
+    const lookup = (layerIds: string[] | undefined, kind: 'pre' | 'post') => {
+      if (!layerIds || layerIds.length === 0) return undefined;
+      const m = new Map<string, Blob>();
+      for (const layerId of layerIds) {
+        const blob = pixelBlobs.get(`${id}:${kind}:${layerId}`);
+        if (blob) m.set(layerId, blob);
       }
-      if (pixelSnapshots.size === 0) pixelSnapshots = undefined;
-    }
-    nodes.set(id, { ...rest, pixelSnapshots });
+      return m.size > 0 ? m : undefined;
+    };
+    nodes.set(id, {
+      ...rest,
+      prePixels: lookup(prePixelLayerIds, 'pre'),
+      postPixels: lookup(postPixelLayerIds, 'post'),
+    });
   }
   return {
     nodes,

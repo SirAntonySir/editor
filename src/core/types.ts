@@ -36,8 +36,12 @@ export interface HistoryEntry {
   kind: 'metadata' | 'destructive';
   /** State BEFORE this action was applied. */
   metaSnapshot: SerializableState;
-  /** Pixel snapshots BEFORE this action (destructive only). */
+  /** @deprecated use prePixels/postPixels — kept for transitional callers. */
   pixelSnapshots?: Map<string, Blob>;
+  /** PRE-action pixels per layer (used when undoing AWAY from the resulting node). */
+  prePixels?: Map<string, Blob>;
+  /** POST-action pixels per layer (used when redoing TO the resulting node). */
+  postPixels?: Map<string, Blob>;
   /** Estimated memory usage in bytes. */
   estimatedSize: number;
 }
@@ -75,8 +79,10 @@ export interface HistoryNode {
   kind: 'metadata' | 'destructive' | 'root';
   /** Post-state metadata snapshot (state AFTER the action). */
   metaSnapshot: SerializableState;
-  /** Pixel snapshots taken BEFORE the action (destructive only). */
-  pixelSnapshots?: Map<string, Blob>;
+  /** PRE-action pixels per layer (used when undoing AWAY from this node). */
+  prePixels?: Map<string, Blob>;
+  /** POST-action pixels per layer (used when redoing TO this node). */
+  postPixels?: Map<string, Blob>;
   /** Optional user-facing milestone label (set via `setMilestone`). */
   milestoneLabel?: string;
   /** Estimated memory usage in bytes (used by eviction). */
@@ -90,9 +96,11 @@ export interface HistoryNode {
  */
 export interface HistoryTreeSnapshot {
   /** Map of node ID → node (children stored by ID for cheap JSON). */
-  nodes: Record<string, Omit<HistoryNode, 'pixelSnapshots'> & {
-    /** Layer IDs that have a stored blob — actual Blob lives outside the JSON. */
-    pixelLayerIds?: string[];
+  nodes: Record<string, Omit<HistoryNode, 'prePixels' | 'postPixels'> & {
+    /** Layer IDs that have a stored PRE blob — actual Blob lives outside the JSON. */
+    prePixelLayerIds?: string[];
+    /** Layer IDs that have a stored POST blob — actual Blob lives outside the JSON. */
+    postPixelLayerIds?: string[];
   }>;
   rootId: string;
   currentNodeId: string;

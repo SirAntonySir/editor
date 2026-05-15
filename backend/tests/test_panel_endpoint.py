@@ -1,11 +1,13 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.api import deps
+from app.api.deps import get_sam_client
 from app.schemas.image_context import ImageContext
 from app.schemas.operation_graph import OperationGraph
 
@@ -46,8 +48,17 @@ def fake_client() -> MagicMock:
 
 @pytest.fixture
 def client(fake_client: MagicMock, monkeypatch) -> TestClient:
+    # panel.py uses _get_client() wrapper → monkeypatch on the deps module attribute
     monkeypatch.setattr(deps, "get_anthropic_client", lambda: fake_client)
-    return TestClient(app)
+    # analyze.py uses Depends(deps.get_sam_client) directly → dependency_overrides
+    fake_sam = MagicMock()
+    fake_sam.model_name = "vit_b"
+    fake_sam.decode_point.return_value = np.zeros((1, 1), dtype=bool)
+    app.dependency_overrides[get_sam_client] = lambda: fake_sam
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_panel_returns_operation_graph(client: TestClient, fake_client: MagicMock) -> None:

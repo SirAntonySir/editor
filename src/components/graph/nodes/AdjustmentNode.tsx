@@ -1,6 +1,7 @@
 import { memo, useMemo, useRef, useState } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Sun, Eye, EyeOff, ChevronUp, ChevronDown } from 'lucide-react';
+import { Sun, Eye, EyeOff, ChevronUp, ChevronDown, Plus } from 'lucide-react';
+import { openPaletteWith } from '@/lib/palette-bus';
 import type { ProcessingNodeData } from '@/types/graph';
 import { useEditorStore } from '@/store';
 import { useGraphStore } from '@/store/graph-store';
@@ -119,7 +120,31 @@ function AdjustmentNodeInner({ id, data, type, selected }: NodeProps & { data: P
       </div>
 
       <Handle type="target" position={Position.Left} className="!w-2.5 !h-2.5 !bg-accent !border-2 !border-white" />
-      <Handle type="source" position={Position.Right} className="!w-2.5 !h-2.5 !bg-accent !border-2 !border-white" />
+      <div className="group relative">
+        <Handle type="source" position={Position.Right} className="!w-2.5 !h-2.5 !bg-accent !border-2 !border-white" />
+        {data.adjustmentId && (
+          <button
+            type="button"
+            className="
+              absolute -right-7 top-1/2 -translate-y-1/2
+              opacity-0 group-hover:opacity-100
+              transition-opacity
+              w-5 h-5 rounded-full bg-accent text-white
+              flex items-center justify-center shadow-md
+            "
+            title="Add AI step here"
+            onClick={(e) => {
+              e.stopPropagation();
+              openPaletteWith(
+                { kind: 'node', layerId: data.layerId!, adjustmentId: data.adjustmentId! },
+                'append',
+              );
+            }}
+          >
+            <Plus className="w-3 h-3" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

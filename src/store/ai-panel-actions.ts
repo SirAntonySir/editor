@@ -29,6 +29,7 @@ function toNumericParams(
  * inspector can surface reasoning badges and history can serialise origin.
  */
 export function addAiPanelLayer(graph: OperationGraph): void {
+  console.log('[OperationGraph]', graph);
   const id = `ai-panel-${Date.now()}-${++counter}`;
   const store = useEditorStore.getState();
 

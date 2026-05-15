@@ -32,19 +32,44 @@ produce a structured ImageContext capturing subjects, lighting, dominant \
 tonal regions, mood, and candidate regions a user might want to edit. Call \
 the `emit_image_context` tool exactly once. Do not return prose."""
 
+# Each Node in the OperationGraph must use one of these `type` values — they
+# map to ProcessingDefinitions registered in the editor. Any other type will
+# be silently dropped at the graph layer.
+_NODE_TYPE_GUIDE = """
+Valid `node.type` values and their `params`:
+  - "kelvin": white-balance shift. params: { "temperature": number 2000-12000 } (neutral 5500).
+  - "basic": light + colour adjustments. params (any subset): {
+      "exposure": -2..+2, "contrast": -100..+100,
+      "highlights": -100..+100, "shadows": -100..+100,
+      "whites": -100..+100, "blacks": -100..+100,
+      "saturation": -100..+100, "vibrance": -100..+100, "hue": -180..+180
+    } (neutral 0).
+  - "curves": tonal curve. params: { "points": number[] } — emit only if you
+    intend to construct a curve; otherwise prefer "basic".
+  - "levels": input/output levels per channel. Prefer "basic" unless the user
+    specifically asks for levels.
+  - "lut": colour LUT preset. params: { "lutId": string } — only emit if you
+    know the LUT ID; otherwise omit.
+Do NOT invent types like "warmth", "temperature", "white_balance" — they will
+not render. Use "kelvin" for white-balance, "basic" for everything else.
+Each PanelBinding's `param_key` must reference a param emitted by its node.
+"""
+
 PANEL_SYSTEM_PROMPT = """You are a photo-editing assistant. Given an image, \
 its pre-computed context, and a user goal (e.g. "make it warmer"), produce \
 an OperationGraph: a small set of editing operations bound to user-facing \
 controls. Each control has a goal-relevant label ("warm cast" rather than \
 "kelvin = 4200"). Call the `emit_operation_graph` tool exactly once. Do not \
-return prose."""
+return prose.
+""" + _NODE_TYPE_GUIDE
 
 REFINE_SYSTEM_PROMPT = """You are a photo-editing assistant refining a prior \
 suggestion. Given an image, its context, your prior OperationGraph, and a \
 refinement instruction from the user (e.g. "more subtle", "only the sky"), \
 produce a NEW OperationGraph that adjusts the suggestion accordingly. Keep \
 labels goal-relevant. Mint a fresh graph `id`. Call the \
-`emit_operation_graph` tool exactly once. Do not return prose."""
+`emit_operation_graph` tool exactly once. Do not return prose.
+""" + _NODE_TYPE_GUIDE
 
 IMAGE_CONTEXT_TOOL = {
     "name": "emit_image_context",

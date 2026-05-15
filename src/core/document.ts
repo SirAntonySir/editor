@@ -42,6 +42,7 @@ let store: StoreApi<EditorState> | null = null;
 let interaction: InteractionSession | null = null;
 let beforeUnloadHandler: ((e: BeforeUnloadEvent) => void) | null = null;
 let sessionSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let aiSessionUnsubscribe: (() => void) | null = null;
 
 // ─── Discrete action debouncing ──────────────────────────────────
 // Groups rapid discrete actions (e.g. slider drags routed through recordAction)
@@ -185,6 +186,17 @@ function init(zustandStore: StoreApi<EditorState>): void {
     }
   };
   window.addEventListener('beforeunload', beforeUnloadHandler);
+
+  // Persist sessions when the AI session's context changes (e.g. after
+  // analyse completes or "Re-analyze image"). Without this, contexts produced
+  // outside an editor mutation would never be persisted.
+  let lastContext = useAiSession.getState().context;
+  aiSessionUnsubscribe = useAiSession.subscribe((state) => {
+    if (state.context !== lastContext) {
+      lastContext = state.context;
+      scheduleSessionSave();
+    }
+  });
 }
 
 function dispose(): void {
@@ -196,6 +208,10 @@ function dispose(): void {
   if (sessionSaveTimer) {
     clearTimeout(sessionSaveTimer);
     sessionSaveTimer = null;
+  }
+  if (aiSessionUnsubscribe) {
+    aiSessionUnsubscribe();
+    aiSessionUnsubscribe = null;
   }
   // Flush pending session save synchronously before teardown
   persistSession();

@@ -229,7 +229,13 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
       }
       if (!sid) return;
       try {
-        const graph = await generatePanel(sid, text);
+        // TEMP: full new flow lands in Task 8
+        const fakeSnapshot = new Blob([new Uint8Array([0])], { type: 'image/png' });
+        const graph = await generatePanel(sid, text, {
+          targetSnapshotPng: fakeSnapshot,
+          targetRef: { kind: 'composite' },
+          insertionIntent: 'append',
+        });
         addAiPanelLayer(graph);
       } catch (err) {
         console.error(err);

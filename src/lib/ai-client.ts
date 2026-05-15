@@ -2,6 +2,7 @@ import { OperationGraphSchema } from '@/lib/operation-graph-schema';
 import { ImageContextSchema } from '@/lib/image-context-schema';
 import type { OperationGraph } from '@/types/operation-graph';
 import type { ImageContext } from '@/types/image-context';
+import type { TargetRef, InsertionIntent } from '@/types/ai-target';
 
 const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
@@ -60,9 +61,34 @@ export async function pushSessionContext(
   await postJson<unknown>(`/api/session/${sessionId}/context`, body);
 }
 
-export async function generatePanel(sessionId: string, userGoal: string): Promise<OperationGraph> {
-  const raw = await postJson<unknown>('/api/panel', { session_id: sessionId, user_goal: userGoal });
+export interface GeneratePanelOptions {
+  targetSnapshotPng: Blob;      // PNG/JPEG blob of the target's current pixel state
+  targetRef: TargetRef;
+  insertionIntent: InsertionIntent;
+}
+
+export async function generatePanel(
+  sessionId: string,
+  userGoal: string,
+  opts: GeneratePanelOptions,
+): Promise<OperationGraph> {
+  const snapshotBase64 = await blobToBase64(opts.targetSnapshotPng);
+  const raw = await postJson<unknown>('/api/panel', {
+    session_id: sessionId,
+    user_goal: userGoal,
+    target_snapshot_base64: snapshotBase64,
+    target_ref: opts.targetRef,
+    insertion_intent: opts.insertionIntent,
+  });
   return OperationGraphSchema.parse(raw);
+}
+
+async function blobToBase64(blob: Blob): Promise<string> {
+  const buf = await blob.arrayBuffer();
+  let binary = '';
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
 }
 
 export async function refinePanel(

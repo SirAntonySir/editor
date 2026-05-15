@@ -43,10 +43,12 @@ async def panel(
         store.set_context(body.session_id, context.model_dump(mode="json"))
     else:
         context = ImageContext.model_validate(record.context)
-    return client.generate_panel(
+    graph = client.generate_panel(
         image_bytes=record.image_bytes,
         mime_type=record.mime_type,
         context=context,
         user_goal=body.user_goal,
         session_id=body.session_id,
     )
+    store.store_graph(body.session_id, graph.id, graph.model_dump(mode="json"))
+    return graph

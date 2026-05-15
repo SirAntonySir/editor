@@ -37,7 +37,7 @@ import { CropTool } from '@/tools/crop-tool';
 import { AnalyseIndicator } from '@/components/ui/AnalyseIndicator';
 import { CommandPalette } from '@/components/ui/CommandPalette';
 import { ToastHost } from '@/components/ui/Toast';
-import { useAiSession } from '@/hooks/useImageContext';
+import { useAiSession, bindSessionFromFirstImageLayer } from '@/hooks/useImageContext';
 import { generatePanel } from '@/lib/ai-client';
 import { addAiPanelLayer } from '@/store/ai-panel-actions';
 import { Upload } from 'lucide-react';
@@ -198,9 +198,12 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
   const showPreferences = usePreferencesStore((s) => s.showPreferences);
   const toolDef = getActiveTool();
 
-  // Command palette — Cmd+K opens regardless of editor state; disabled until a session exists.
+  // Command palette — Cmd+K opens regardless of editor state. Enabled if
+  // either a live sessionId exists OR a cached context is available (in which
+  // case the submit handler lazy-binds a fresh session, no Claude call).
   const [paletteOpen, setPaletteOpen] = useState(false);
   const sessionId = useAiSession((s) => s.sessionId);
+  const hasContext = useAiSession((s) => s.context != null);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -215,15 +218,22 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
 
   const handlePaletteSubmit = useCallback(
     async (text: string) => {
-      if (!sessionId) return;
+      let sid = useAiSession.getState().sessionId;
+      if (!sid && useAiSession.getState().context) {
+        // Reload case: cached context on disk, backend session is gone.
+        // Re-upload pixels and push the cached context — no Claude call.
+        await bindSessionFromFirstImageLayer();
+        sid = useAiSession.getState().sessionId;
+      }
+      if (!sid) return;
       try {
-        const graph = await generatePanel(sessionId, text);
+        const graph = await generatePanel(sid, text);
         addAiPanelLayer(graph);
       } catch (err) {
         console.error(err);
       }
     },
-    [sessionId],
+    [],
   );
 
   const handleFileOpen = useCallback(() => {
@@ -270,7 +280,7 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         onSubmit={handlePaletteSubmit}
-        disabled={!sessionId}
+        disabled={!sessionId && !hasContext}
       />
     </div>
   );

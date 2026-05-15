@@ -31,6 +31,17 @@ export async function analyzeImage(sessionId: string): Promise<ImageContext> {
   return ImageContextSchema.parse(raw);
 }
 
+/**
+ * Bind a pre-computed ImageContext to a freshly-created backend session.
+ * Used to re-establish a session after page-reload without re-calling Claude.
+ */
+export async function pushSessionContext(
+  sessionId: string,
+  context: ImageContext,
+): Promise<void> {
+  await postJson<unknown>(`/api/session/${sessionId}/context`, context);
+}
+
 export async function generatePanel(sessionId: string, userGoal: string): Promise<OperationGraph> {
   const raw = await postJson<unknown>('/api/panel', { session_id: sessionId, user_goal: userGoal });
   return OperationGraphSchema.parse(raw);

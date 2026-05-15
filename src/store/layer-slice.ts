@@ -1,5 +1,6 @@
 import type { StateCreator } from 'zustand';
 import type { OperationGraph, PanelBinding } from '@/types/operation-graph';
+import type { TargetRef } from '@/types/ai-target';
 
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'soft-light' | 'hard-light';
 export type LayerType = string;
@@ -17,6 +18,13 @@ export interface AiSource {
   modelName: string;
   modelVersion: string;
   generatedAt: string;
+}
+
+export interface AiStepMeta {
+  graphId: string;
+  operationGraph: OperationGraph;
+  panelBindings: PanelBinding[];
+  originTargetRef: TargetRef;
 }
 
 export interface Adjustment {
@@ -76,6 +84,8 @@ export interface Layer {
   operationGraph?: OperationGraph;
   /** UI-facing panel bindings derived from the OperationGraph (populated on `ai-panel` layers). */
   panelBindings?: PanelBinding[];
+  /** Per-step AI provenance map, keyed by OperationGraph.id. */
+  aiSteps?: Record<string, AiStepMeta>;
 }
 
 const ADJUSTMENT_NAMES: Record<string, string> = {
@@ -101,6 +111,8 @@ export interface LayerSlice {
   setAdjustment: (layerId: string, type: string, params: Partial<Adjustment['params']>) => void;
   // Add a new adjustment layer (for LUTs and stackable adjustments)
   addAdjustment: (layerId: string, adjustment: Adjustment) => void;
+  // Insert a new adjustment layer at a specific index
+  insertAdjustment: (layerId: string, adjustment: Adjustment, atIndex: number) => void;
   // Remove an adjustment layer by ID
   removeAdjustment: (layerId: string, adjustmentId: string) => void;
   // Update adjustment layer metadata by ID
@@ -196,6 +208,15 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
       const layer = state.layers.find((l) => l.id === layerId);
       if (!layer) return;
       layer.adjustmentStack.adjustments.push(adjustment);
+    }),
+
+  insertAdjustment: (layerId, adjustment, atIndex) =>
+    set((state) => {
+      const layer = state.layers.find((l) => l.id === layerId);
+      if (!layer) return;
+      const arr = layer.adjustmentStack.adjustments;
+      const clamped = Math.max(0, Math.min(atIndex, arr.length));
+      arr.splice(clamped, 0, adjustment);
     }),
 
   removeAdjustment: (layerId, adjustmentId) =>

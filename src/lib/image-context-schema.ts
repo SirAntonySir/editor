@@ -1,10 +1,19 @@
 import { z } from 'zod';
 import type { ImageContext } from '@/types/image-context';
 
-const CandidateRegionSchema = z.object({
-  label: z.string(),
-  description: z.string(),
-});
+const CandidateRegionSchema = z
+  .object({
+    label: z.string(),
+    description: z.string(),
+    bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]).nullish(),
+    representative_point: z.tuple([z.number(), z.number()]).nullish(),
+  })
+  .transform((r) => ({
+    label: r.label,
+    description: r.description,
+    bbox: (r.bbox ?? undefined) as [number, number, number, number] | undefined,
+    representativePoint: (r.representative_point ?? undefined) as [number, number] | undefined,
+  }));
 
 export const ImageContextSchema = z
   .object({

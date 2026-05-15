@@ -15,6 +15,16 @@ interface AiCommandPaletteProps {
 const IMAGE_MAX_HEIGHT = 560;
 const IMAGE_MAX_WIDTH = 720;
 
+/** Deterministic hue (0–360) per label. Stable across reloads, distinct
+ *  per word, no palette setup required. */
+function hueForLabel(label: string): number {
+  let h = 0;
+  for (let i = 0; i < label.length; i++) {
+    h = (h * 31 + label.charCodeAt(i)) >>> 0;
+  }
+  return h % 360;
+}
+
 export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiCommandPaletteProps) {
   // Select the stable context object — deriving `candidateRegions` inline in
   // the selector returns a new `[]` each render when context is null and
@@ -25,11 +35,16 @@ export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiComman
   const pixelVersion = useEditorStore((s) => s.pixelVersion);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const previewRef = useRef<HTMLCanvasElement | null>(null);
+  // Cache the latest base draw so we can repaint the preview when the hover
+  // overlay changes without re-running `drawImage` of the source canvas.
+  const baseImageRef = useRef<{ w: number; h: number } | null>(null);
   const [value, setValue] = useState('');
+  const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setValue('');
+      setHoveredLabel(null);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [open]);
@@ -55,7 +70,56 @@ export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiComman
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.drawImage(source, 0, 0, w, h);
+    baseImageRef.current = { w, h };
   }, [open, imageLayerId, pixelVersion]);
+
+  // Hover overlay: redraw the source image, then stroke the hovered region.
+  useEffect(() => {
+    if (!open) return;
+    const canvas = previewRef.current;
+    if (!canvas || !imageLayerId) return;
+    const base = baseImageRef.current;
+    if (!base) return;
+    const source = pixelStore.getSource(imageLayerId);
+    if (!source) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Repaint the base image (cheaper than caching a separate buffer).
+    ctx.clearRect(0, 0, base.w, base.h);
+    ctx.drawImage(source, 0, 0, base.w, base.h);
+
+    if (!hoveredLabel) return;
+    const region = candidateRegions.find((r) => r.label === hoveredLabel);
+    if (!region) return;
+
+    const hue = hueForLabel(region.label);
+    const stroke = `hsl(${hue}, 85%, 65%)`;
+    const fill = `hsla(${hue}, 85%, 60%, 0.18)`;
+
+    if (region.bbox) {
+      const [nx, ny, nw, nh] = region.bbox;
+      const x = nx * base.w;
+      const y = ny * base.h;
+      const w = nw * base.w;
+      const h = nh * base.h;
+      ctx.fillStyle = fill;
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, w, h);
+    }
+    if (region.representativePoint) {
+      const [px, py] = region.representativePoint;
+      ctx.beginPath();
+      ctx.arc(px * base.w, py * base.h, 5, 0, Math.PI * 2);
+      ctx.fillStyle = stroke;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }, [hoveredLabel, candidateRegions, imageLayerId, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -126,28 +190,40 @@ export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiComman
 
               {candidateRegions.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 pb-1">
-                  {candidateRegions.map((region) => (
-                    <Tooltip.Root key={region.label}>
-                      <Tooltip.Trigger asChild>
-                        <button
-                          type="button"
-                          onClick={() => insertToken(region.label)}
-                          className="inline-flex items-center rounded-full bg-surface-secondary/60 px-2 py-0.5 text-[11px] text-text-primary hover:bg-surface-secondary"
-                        >
-                          @{region.label}
-                        </button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Portal>
-                        <Tooltip.Content
-                          side="bottom"
-                          sideOffset={4}
-                          className="glass-panel z-[60] max-w-[240px] px-2 py-1 text-[11px] text-text-secondary"
-                        >
-                          {region.description}
-                        </Tooltip.Content>
-                      </Tooltip.Portal>
-                    </Tooltip.Root>
-                  ))}
+                  {candidateRegions.map((region) => {
+                    const hue = hueForLabel(region.label);
+                    const isHovered = hoveredLabel === region.label;
+                    return (
+                      <Tooltip.Root key={region.label}>
+                        <Tooltip.Trigger asChild>
+                          <button
+                            type="button"
+                            onClick={() => insertToken(region.label)}
+                            onMouseEnter={() => setHoveredLabel(region.label)}
+                            onMouseLeave={() => setHoveredLabel((l) => (l === region.label ? null : l))}
+                            onFocus={() => setHoveredLabel(region.label)}
+                            onBlur={() => setHoveredLabel((l) => (l === region.label ? null : l))}
+                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] text-text-primary transition-colors"
+                            style={{
+                              background: `hsla(${hue}, 80%, 60%, ${isHovered ? 0.45 : 0.22})`,
+                              boxShadow: isHovered ? `inset 0 0 0 1px hsla(${hue}, 85%, 70%, 0.9)` : 'none',
+                            }}
+                          >
+                            @{region.label}
+                          </button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Portal>
+                          <Tooltip.Content
+                            side="bottom"
+                            sideOffset={4}
+                            className="glass-panel z-[60] max-w-[240px] px-2 py-1 text-[11px] text-text-secondary"
+                          >
+                            {region.description}
+                          </Tooltip.Content>
+                        </Tooltip.Portal>
+                      </Tooltip.Root>
+                    );
+                  })}
                 </div>
               )}
 

@@ -29,7 +29,12 @@ def _log_cache_stats(call: str, session_id: str | None, response: Any) -> None:
 
 ANALYZE_SYSTEM_PROMPT = """You are a photo-editing assistant. Given an image, \
 produce a structured ImageContext capturing subjects, lighting, dominant \
-tonal regions, mood, and candidate regions a user might want to edit. Call \
+tonal regions, mood, and candidate regions a user might want to edit. \
+For each candidate region also estimate spatial coordinates from the image \
+(normalised 0–1, origin top-left): \
+  - `bbox`: [x, y, width, height] — a tight axis-aligned rectangle around the region. \
+  - `representative_point`: [x, y] — a single point clearly INSIDE the region (used as a click target for downstream segmentation). \
+Both are optional; emit them whenever you can identify the region in the image. Call \
 the `emit_image_context` tool exactly once. Do not return prose."""
 
 # Each Node in the OperationGraph must use one of these `type` values — they

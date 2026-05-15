@@ -12,6 +12,12 @@ class CandidateRegion(BaseModel):
     model_config = ConfigDict(extra="forbid")
     label: str
     description: str
+    # Normalised image coordinates (0–1). Optional — the analyse pass may
+    # omit them if it can't localise the region. When SAM lands in Phase 4,
+    # `representative_point` becomes the click input to the segmenter; `bbox`
+    # is used in the meantime to draw a hover overlay on the preview.
+    bbox: list[float] | None = Field(default=None, min_length=4, max_length=4)
+    representative_point: list[float] | None = Field(default=None, min_length=2, max_length=2)
 
 
 class ImageContext(BaseModel):

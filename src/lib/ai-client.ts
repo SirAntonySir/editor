@@ -47,7 +47,12 @@ export async function pushSessionContext(
     lighting: context.lighting,
     dominant_tones: context.dominantTones,
     mood: context.mood,
-    candidate_regions: context.candidateRegions,
+    candidate_regions: context.candidateRegions.map((r) => ({
+      label: r.label,
+      description: r.description,
+      bbox: r.bbox ?? null,
+      representative_point: r.representativePoint ?? null,
+    })),
     model_name: context.modelName,
     model_version: context.modelVersion,
     generated_at: context.generatedAt,

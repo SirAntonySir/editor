@@ -557,7 +557,7 @@ function UndoRedoButtons() {
             </button>
           </Tooltip.Trigger>
           <Tooltip.Portal>
-            <Tooltip.Content className="glass-panel px-1.5 py-0.5 text-[10px] text-text-primary z-50" sideOffset={6}>
+            <Tooltip.Content className="glass-panel px-1.5 py-0.5 text-[10px] text-text-primary z-[60]" sideOffset={6}>
               Undo <Kbd keys={['mod', 'Z']} className="inline-flex ml-1" />
             </Tooltip.Content>
           </Tooltip.Portal>
@@ -569,7 +569,7 @@ function UndoRedoButtons() {
             </button>
           </Tooltip.Trigger>
           <Tooltip.Portal>
-            <Tooltip.Content className="glass-panel px-1.5 py-0.5 text-[10px] text-text-primary z-50" sideOffset={6}>
+            <Tooltip.Content className="glass-panel px-1.5 py-0.5 text-[10px] text-text-primary z-[60]" sideOffset={6}>
               Redo <Kbd keys={['mod', 'shift', 'Z']} className="inline-flex ml-1" />
             </Tooltip.Content>
           </Tooltip.Portal>
@@ -581,7 +581,7 @@ function UndoRedoButtons() {
             </button>
           </Tooltip.Trigger>
           <Tooltip.Portal>
-            <Tooltip.Content className="glass-panel px-1.5 py-0.5 text-[10px] text-text-primary z-50" sideOffset={6}>
+            <Tooltip.Content className="glass-panel px-1.5 py-0.5 text-[10px] text-text-primary z-[60]" sideOffset={6}>
               Revert to Original <Kbd keys={['mod', 'shift', 'R']} className="inline-flex ml-1" />
             </Tooltip.Content>
           </Tooltip.Portal>
@@ -630,7 +630,7 @@ function ModeBtn({ label, icon, isActive, onClick }: {
         </button>
       </Tooltip.Trigger>
       <Tooltip.Portal>
-        <Tooltip.Content className="glass-panel px-1.5 py-0.5 text-[10px] text-text-primary z-50" sideOffset={6}>
+        <Tooltip.Content className="glass-panel px-1.5 py-0.5 text-[10px] text-text-primary z-[60]" sideOffset={6}>
           {label} <Kbd keys={['tab']} className="inline-flex ml-1" />
         </Tooltip.Content>
       </Tooltip.Portal>

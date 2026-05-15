@@ -101,7 +101,7 @@ function ToolButton({ tool, isActive }: { tool: ToolDefinition; isActive: boolea
       </Tooltip.Trigger>
       <Tooltip.Portal>
         <Tooltip.Content
-          className="glass-panel px-2 py-1 text-xs text-text-primary z-50"
+          className="glass-panel px-2 py-1 text-xs text-text-primary z-[60]"
           sideOffset={8}
         >
           {tool.label}

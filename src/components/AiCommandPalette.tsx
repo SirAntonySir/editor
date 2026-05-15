@@ -12,8 +12,8 @@ interface AiCommandPaletteProps {
   disabled?: boolean;
 }
 
-const IMAGE_MAX_HEIGHT = 420;
-const IMAGE_MAX_WIDTH = 640;
+const IMAGE_MAX_HEIGHT = 560;
+const IMAGE_MAX_WIDTH = 720;
 
 export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiCommandPaletteProps) {
   // Select the stable context object — deriving `candidateRegions` inline in
@@ -101,14 +101,14 @@ export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiComman
       <AnimatePresence>
         {open && (
           <motion.div
-            className="fixed inset-0 z-40 flex items-start justify-center pt-[12vh] bg-black/20"
+            className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto pt-[8vh] pb-[4vh] bg-black/20"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
           >
             <motion.div
-              className="glass-panel flex w-[680px] max-w-[92vw] flex-col gap-2 p-3"
+              className="glass-panel flex w-[760px] max-w-[92vw] flex-col gap-2 p-3"
               initial={{ opacity: 0, scale: 0.96, y: -8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: -8 }}
@@ -141,7 +141,7 @@ export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiComman
                         <Tooltip.Content
                           side="bottom"
                           sideOffset={4}
-                          className="glass-panel max-w-[240px] px-2 py-1 text-[11px] text-text-secondary"
+                          className="glass-panel z-[60] max-w-[240px] px-2 py-1 text-[11px] text-text-secondary"
                         >
                           {region.description}
                         </Tooltip.Content>

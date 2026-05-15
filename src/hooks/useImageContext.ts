@@ -33,7 +33,9 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
       if (get().sessionId !== sessionId) return;
       set({ context, status: 'ready' });
     } catch (err) {
-      set({ status: 'error', error: err instanceof Error ? err.message : String(err) });
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[ImageContext] uploadAndAnalyse failed:', msg, err);
+      set({ status: 'error', error: msg });
     }
   },
   /**

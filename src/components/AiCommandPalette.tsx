@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { ChevronDown } from 'lucide-react';
@@ -11,6 +11,7 @@ import { resolveSmartTarget, humanLabelFor } from '@/lib/target-ref';
 import { targetRefEquals } from '@/types/ai-target';
 import { setPaletteSeed } from '@/lib/palette-bus';
 import type { TargetRef, InsertionIntent } from '@/types/ai-target';
+import type { CandidateRegion } from '@/types/image-context';
 
 interface AiCommandPaletteProps {
   open: boolean;
@@ -244,6 +245,13 @@ export function AiCommandPalette({
     });
   }
 
+  const armMaskFromRegion = useCallback((region: CandidateRegion) => {
+    if (!region.maskRef) return;
+    useEditorStore.getState().setActiveMask(region.maskRef);
+    useEditorStore.getState().commitMask();
+    onClose();
+  }, [onClose]);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!value.trim() || disabled || busy) return;
@@ -368,12 +376,19 @@ export function AiCommandPalette({
                         <Tooltip.Trigger asChild>
                           <button
                             type="button"
-                            onClick={() => insertToken(region.label)}
+                            onClick={(e) => {
+                              if (e.shiftKey) {
+                                armMaskFromRegion(region);
+                                return;
+                              }
+                              insertToken(region.label);
+                            }}
                             onMouseEnter={() => setHoveredLabel(region.label)}
                             onMouseLeave={() => setHoveredLabel((l) => (l === region.label ? null : l))}
                             onFocus={() => setHoveredLabel(region.label)}
                             onBlur={() => setHoveredLabel((l) => (l === region.label ? null : l))}
                             className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] text-text-primary transition-colors"
+                            title="Click to add to prompt · Shift-click to use as selection"
                             style={{
                               background: `hsla(${hue}, 80%, 60%, ${isHovered ? 0.45 : 0.22})`,
                               boxShadow: isHovered ? `inset 0 0 0 1px hsla(${hue}, 85%, 70%, 0.9)` : 'none',

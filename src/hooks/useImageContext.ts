@@ -11,6 +11,7 @@ interface AiSessionState {
   status: 'idle' | 'uploading' | 'analysing' | 'ready' | 'error';
   error: string | null;
   uploadAndAnalyse: (source: ImageBitmap) => Promise<void>;
+  restoreContext: (context: ImageContext) => void;
   reset: () => void;
 }
 
@@ -26,12 +27,23 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
       const sessionId = await createSession(blob);
       set({ sessionId, status: 'analysing' });
       const context = await analyzeImage(sessionId);
+      console.log('[ImageContext]', context);
       // Guard against the user loading another image while this resolves.
       if (get().sessionId !== sessionId) return;
       set({ context, status: 'ready' });
     } catch (err) {
       set({ status: 'error', error: err instanceof Error ? err.message : String(err) });
     }
+  },
+  /**
+   * Restore a previously-cached context from disk (e.g. .edp open or session
+   * restore). Sets status to 'ready' so the AI surface treats context as
+   * available without re-invoking Claude. `sessionId` stays null until the
+   * user explicitly re-uploads (via "Re-analyze image"), at which point
+   * Cmd+K / refine become usable again.
+   */
+  restoreContext(context) {
+    set({ context, status: 'ready', error: null });
   },
   reset() {
     set({ sessionId: null, context: null, status: 'idle', error: null });

@@ -35,7 +35,6 @@ import { TextTool } from '@/tools/text-tool';
 import { FiltersTool } from '@/tools/filters-tool';
 import { CropTool } from '@/tools/crop-tool';
 import { AnalyseIndicator } from '@/components/ui/AnalyseIndicator';
-import { analyseFirstImageLayer } from '@/hooks/useImageContext';
 import { CommandPalette } from '@/components/ui/CommandPalette';
 import { ToastHost } from '@/components/ui/Toast';
 import { useAiSession } from '@/hooks/useImageContext';
@@ -291,13 +290,10 @@ export default function App() {
   useEffect(() => {
     editorDocument.init(useEditorStore);
     const unsubLayerLifecycle = initLayerLifecycle();
-    // Restore previous session if one exists, then re-analyse so AI session is usable
-    editorDocument
-      .restoreSession()
-      .then((restored) => {
-        if (restored) void analyseFirstImageLayer();
-      })
-      .catch(() => {});
+    // Restore previous session if one exists. Cached imageContext is restored
+    // by editorDocument; analysis is NOT auto-triggered (user must invoke
+    // "Re-analyze image" to bind a fresh backend session).
+    editorDocument.restoreSession().catch(() => {});
     return () => {
       unsubLayerLifecycle();
       editorDocument.dispose();

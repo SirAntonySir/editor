@@ -16,6 +16,7 @@ import { useGraphStore } from '@/store/graph-store';
 import { pixelStore } from './pixel-store';
 import * as history from './history';
 import * as historyTree from '@/core/history-tree';
+import { useAiSession } from '@/hooks/useImageContext';
 import * as transaction from './transaction';
 import * as serializer from './serializer';
 import * as session from './session-storage';
@@ -159,6 +160,7 @@ function persistSession(): void {
     editorMode: s.editorMode ?? 'develop',
     history: historySnapshot,
     historyPixelBlobs,
+    imageContext: useAiSession.getState().context ?? undefined,
     pixelStore,
   }).catch(() => {
     // Session save is best-effort — silently ignore errors
@@ -307,6 +309,15 @@ async function openEdp(file: File): Promise<void> {
   }
   useGraphStore.getState().setGraphPositions(result.graphPositions);
 
+  // Restore cached image context (if persisted). Note: sessionId stays null —
+  // user must use "Re-analyze image" to bind a fresh backend session before
+  // Cmd+K / refine become usable again.
+  if (result.imageContext) {
+    useAiSession.getState().restoreContext(result.imageContext);
+  } else {
+    useAiSession.getState().reset();
+  }
+
   scheduleSessionSave();
 }
 
@@ -338,6 +349,7 @@ async function save(): Promise<Blob | null> {
     },
     history: historySnapshot,
     pixelBlobs,
+    imageContext: useAiSession.getState().context ?? undefined,
   });
 
   markClean();
@@ -591,6 +603,15 @@ async function restoreSession(): Promise<boolean> {
   if (!manifest.history) {
     const seed = captureState();
     if (seed) history.initWith(seed);
+  }
+
+  // Restore cached image context — no Claude call. SessionId stays null;
+  // "Re-analyze image" menu item kicks off a fresh upload when the user wants
+  // Cmd+K to work again.
+  if (manifest.imageContext) {
+    useAiSession.getState().restoreContext(manifest.imageContext);
+  } else {
+    useAiSession.getState().reset();
   }
   return true;
 }

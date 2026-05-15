@@ -17,6 +17,7 @@ import type { DocumentMeta } from './types';
 import type { HistoryTreeSnapshot } from './types';
 import type { Layer, Adjustment, AiSource } from '@/store/layer-slice';
 import type { NodePosition } from '@/types/graph';
+import type { ImageContext } from '@/types/image-context';
 import { exportAllCurvePoints, importAllCurvePoints } from '@/lib/curve-points-store';
 
 // ─── Serializable types (mirror serializer.ts) ──────────────────────
@@ -59,6 +60,8 @@ interface SessionManifest {
   curvePoints?: Record<string, Record<string, number[]>>;
   /** Tree-structured history; absent in pre-v2 sessions. */
   history?: HistoryTreeSnapshot;
+  /** Cached image context — saves a Claude analyse call on reload. */
+  imageContext?: ImageContext;
 }
 
 export interface SessionData {
@@ -210,6 +213,7 @@ export interface SaveSessionOptions {
   editorMode: string;
   history?: HistoryTreeSnapshot;
   historyPixelBlobs?: Map<string, Blob>;
+  imageContext?: ImageContext;
   pixelStore: {
     has(id: string): boolean;
     exportLayerAsPng(id: string, which: 'source' | 'working'): Promise<Blob>;
@@ -218,7 +222,7 @@ export interface SaveSessionOptions {
 
 /** Save current editor state + pixel data to IndexedDB. */
 export async function saveSession(options: SaveSessionOptions): Promise<void> {
-  const { meta, layers, activeLayerId, graphPositions, viewport, editorMode, history, historyPixelBlobs, pixelStore } = options;
+  const { meta, layers, activeLayerId, graphPositions, viewport, editorMode, history, historyPixelBlobs, imageContext, pixelStore } = options;
 
   const db = await openDB();
 
@@ -234,6 +238,7 @@ export async function saveSession(options: SaveSessionOptions): Promise<void> {
       savedAt: Date.now(),
       curvePoints: exportAllCurvePoints(),
       history,
+      imageContext,
     };
     await idbPut(db, 'state', 'current', manifest);
 

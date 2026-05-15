@@ -11,6 +11,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 import type { DocumentMeta, SerializableParams, SerializableState, HistoryTreeSnapshot } from './types';
 import type { Layer, Adjustment, AiSource } from '@/store/layer-slice';
 import type { NodePosition } from '@/types/graph';
+import type { ImageContext } from '@/types/image-context';
 import { pixelStore } from './pixel-store';
 import { exportAllCurvePoints, importAllCurvePoints } from '@/lib/curve-points-store';
 import { migrateV1ToV2, isV1 } from './serializer-migrate';
@@ -52,6 +53,8 @@ interface Manifest {
   viewport: { zoom: number; panX: number; panY: number; fitMode: string };
   curvePoints?: Record<string, Record<string, number[]>>;
   history: HistoryTreeSnapshot;
+  /** Cached image context — restored verbatim on load, no Claude call. */
+  imageContext?: ImageContext;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -168,10 +171,11 @@ export interface SaveOptions {
   history: HistoryTreeSnapshot;
   /** key format: `${nodeId}:${pre|post}:${layerId}` */
   pixelBlobs: Map<string, Blob>;
+  imageContext?: ImageContext;
 }
 
 export async function save(options: SaveOptions): Promise<Blob> {
-  const { meta, layers, activeLayerId, graphPositions, viewport, history, pixelBlobs } = options;
+  const { meta, layers, activeLayerId, graphPositions, viewport, history, pixelBlobs, imageContext } = options;
   const files: Record<string, Uint8Array> = {};
 
   // Layer pixel snapshots (unchanged from v1)
@@ -207,6 +211,7 @@ export async function save(options: SaveOptions): Promise<Blob> {
     viewport,
     curvePoints: exportAllCurvePoints(),
     history,
+    imageContext,
   };
 
   files['manifest.json'] = strToU8(JSON.stringify(manifest, null, 2));
@@ -226,6 +231,7 @@ export interface LoadResult {
   viewport: { zoom: number; panX: number; panY: number; fitMode: string };
   history: HistoryTreeSnapshot;
   historyPixelBlobs: Map<string, Blob>;
+  imageContext?: ImageContext;
 }
 
 export async function load(blob: Blob): Promise<LoadResult> {
@@ -302,5 +308,6 @@ export async function load(blob: Blob): Promise<LoadResult> {
     viewport: manifest.viewport,
     history: manifest.history,
     historyPixelBlobs,
+    imageContext: manifest.imageContext,
   };
 }

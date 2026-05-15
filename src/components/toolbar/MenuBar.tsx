@@ -10,6 +10,7 @@ import { ToolRegistry } from '@/lib/tool-registry';
 import { revertToOriginal } from '@/lib/revert';
 import { editorDocument } from '@/core/document';
 import { useFileIO } from '@/hooks/useFileIO';
+import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
 import { useCanvasZoom } from '@/hooks/useCanvasZoom';
 import { useImageTransform } from '@/hooks/useImageTransform';
 import type { HistoryStoreState } from '@/core/history';
@@ -140,6 +141,7 @@ export function MenuBar({ canvasRef }: { canvasRef: React.RefObject<fabric.Canva
           <LayerMenu />
           <ViewMenu applyZoom={applyZoom} fitOnScreen={fitOnScreen} zoomIn={zoomIn} zoomOut={zoomOut} />
           <FilterMenu />
+          <AiMenu />
           <HelpMenu />
         </Menubar.Root>
 
@@ -455,6 +457,37 @@ function FilterMenu() {
             <Item disabled>Add Noise...</Item>
             <Item disabled>Reduce Noise...</Item>
           </Sub>
+        </Menubar.Content>
+      </Menubar.Portal>
+    </Menubar.Menu>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  AI                                                                */
+/* ------------------------------------------------------------------ */
+
+function AiMenu() {
+  const status = useAiSession((s) => s.status);
+  const hasContext = useAiSession((s) => s.context != null);
+  const hasLayers = useEditorStore((s) => s.layers.length > 0);
+  const analysing = status === 'uploading' || status === 'analysing';
+
+  const handleReanalyse = () => {
+    void analyseFirstImageLayer();
+  };
+
+  return (
+    <Menubar.Menu>
+      <TriggerButton>AI</TriggerButton>
+      <Menubar.Portal>
+        <Menubar.Content className={menuContentClass} align="start" sideOffset={4}>
+          <Item
+            onSelect={handleReanalyse}
+            disabled={!hasLayers || analysing}
+          >
+            {hasContext ? 'Re-analyze image' : 'Analyze image'}
+          </Item>
         </Menubar.Content>
       </Menubar.Portal>
     </Menubar.Menu>

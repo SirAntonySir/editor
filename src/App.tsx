@@ -35,7 +35,7 @@ import { TextTool } from '@/tools/text-tool';
 import { FiltersTool } from '@/tools/filters-tool';
 import { CropTool } from '@/tools/crop-tool';
 import { AnalyseIndicator } from '@/components/ui/AnalyseIndicator';
-import { CommandPalette } from '@/components/ui/CommandPalette';
+import { AiCommandPalette } from '@/components/AiCommandPalette';
 import { ToastHost } from '@/components/ui/Toast';
 import { useAiSession, bindSessionFromFirstImageLayer } from '@/hooks/useImageContext';
 import { generatePanel } from '@/lib/ai-client';
@@ -275,8 +275,8 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
         {showPreferences && <PreferencesPage />}
       </AnimatePresence>
 
-      {/* Cmd+K command palette — submits user goal to /api/panel and inserts an ai-panel layer */}
-      <CommandPalette
+      {/* Cmd+K palette — image preview + candidate-region pills + goal input */}
+      <AiCommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         onSubmit={handlePaletteSubmit}

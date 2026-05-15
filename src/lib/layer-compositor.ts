@@ -106,7 +106,18 @@ class LayerCompositorImpl {
     this.ctx.clearRect(0, 0, outputWidth, outputHeight);
 
     for (const layer of visibleLayers) {
-      const rendered = this.renderLayer(layer);
+      const enabledAdjs = layer.adjustmentStack.adjustments.filter((a) => a.enabled);
+      const hasPixels = CanvasRegistry.has(layer.id);
+
+      let rendered: HTMLCanvasElement | null = null;
+      if (hasPixels) {
+        rendered = this.renderLayer(layer);
+      } else if (enabledAdjs.length > 0 && outputWidth > 0 && outputHeight > 0) {
+        // Adjustment-layer path: pixel-less layer (e.g. ai-panel) processes
+        // the accumulated composite below it through its adjustment stack.
+        PipelineManager.setSourceCanvas(this.outputCanvas);
+        rendered = PipelineManager.renderSync([...enabledAdjs]);
+      }
       if (!rendered) continue;
 
       this.ctx.save();

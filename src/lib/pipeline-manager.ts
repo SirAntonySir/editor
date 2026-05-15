@@ -29,6 +29,16 @@ class PipelineManagerImpl {
     this.getPipeline().setSource(source);
   }
 
+  /**
+   * Use an arbitrary canvas (not a registered layer) as the pipeline source.
+   * Used by adjustment layers — pixel-less layers whose adjustments transform
+   * the accumulated composite of layers below them.
+   */
+  setSourceCanvas(canvas: HTMLCanvasElement | OffscreenCanvas): void {
+    this.currentLayerId = null;
+    this.getPipeline().setSource(canvas);
+  }
+
   requestRender(adjustments: Adjustment[]): void {
     this.currentAdjustments = adjustments;
     if (!this.pendingRender) {

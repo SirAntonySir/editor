@@ -7,6 +7,7 @@ import { kelvinFragment } from './kelvin.glsl.ts';
 import { lutFragment } from './lut.glsl.ts';
 import { blendFragment } from './blend.glsl.ts';
 import { LutRegistry } from '@/lib/lut-registry';
+import { maskStore } from '@/core/mask-store';
 import type { Adjustment, BlendMode } from '@/store/layer-slice';
 
 interface FBO {
@@ -49,6 +50,7 @@ export class WebGLPipeline {
   private blendProgram: WebGLProgram;
   private sourceTexture: WebGLTexture | null = null;
   private lutTextureCache = new Map<string, WebGLTexture>();
+  private maskTexture: WebGLTexture | null = null;
   private width = 0;
   private height = 0;
   private outputCanvas: HTMLCanvasElement;
@@ -68,6 +70,7 @@ export class WebGLPipeline {
     this.vao = this.createQuadVAO();
     this.blendProgram = createProgram(gl, fullscreenQuadVertex, blendFragment);
     this.initShaders();
+    this.maskTexture = gl.createTexture();
   }
 
   private createFBO(width: number, height: number): FBO {
@@ -340,6 +343,31 @@ export class WebGLPipeline {
 
       shader.setUniforms(gl, shader.program, adj);
       tempTextures = shader.extraTextures?.(gl, shader.program, adj) ?? [];
+
+      // Mask binding — upload R8 mask texture when scope.kind === 'mask'
+      const scope = adj.scope ?? { kind: 'global' as const };
+      if (scope.kind === 'mask' && this.maskTexture) {
+        const mask = maskStore.get(scope.maskRef);
+        if (mask) {
+          gl.activeTexture(gl.TEXTURE5);
+          gl.bindTexture(gl.TEXTURE_2D, this.maskTexture);
+          gl.texImage2D(
+            gl.TEXTURE_2D, 0,
+            gl.R8, mask.width, mask.height, 0,
+            gl.RED, gl.UNSIGNED_BYTE, mask.data,
+          );
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.uniform1i(gl.getUniformLocation(shader.program, 'u_mask'), 5);
+          gl.uniform1i(gl.getUniformLocation(shader.program, 'u_useMask'), 1);
+        } else {
+          gl.uniform1i(gl.getUniformLocation(shader.program, 'u_useMask'), 0);
+        }
+      } else {
+        gl.uniform1i(gl.getUniformLocation(shader.program, 'u_useMask'), 0);
+      }
     } else {
       // Passthrough — use basic shader with neutral params
       const basic = this.shaders.get('basic')!;
@@ -356,6 +384,7 @@ export class WebGLPipeline {
       gl.uniform1f(gl.getUniformLocation(basic.program, 'u_highlights'), 0);
       gl.uniform1f(gl.getUniformLocation(basic.program, 'u_shadows'), 0);
       gl.uniform1f(gl.getUniformLocation(basic.program, 'u_vibrance'), 0);
+      gl.uniform1i(gl.getUniformLocation(basic.program, 'u_useMask'), 0);
     }
 
     gl.bindVertexArray(this.vao);
@@ -389,6 +418,7 @@ export class WebGLPipeline {
     this.deleteFBO(this.fboB);
     this.deleteFBO(this.fboC);
     if (this.sourceTexture) gl.deleteTexture(this.sourceTexture);
+    if (this.maskTexture) gl.deleteTexture(this.maskTexture);
     for (const shader of this.shaders.values()) {
       gl.deleteProgram(shader.program);
     }

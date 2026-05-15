@@ -1,7 +1,9 @@
+import { maskSnippet } from './mask-snippet.glsl';
+
 export const lutFragment = `#version 300 es
 precision highp float;
 precision highp sampler3D;
-
+${maskSnippet}
 in vec2 v_texCoord;
 out vec4 fragColor;
 
@@ -18,6 +20,7 @@ void main() {
   vec3 lutCoord = clamp(texel.rgb, 0.0, 1.0) * scale + offset;
 
   vec3 color = texture(u_lut, lutCoord).rgb;
-  fragColor = vec4(color, texel.a);
+  vec4 adjusted = vec4(color, texel.a);
+  fragColor = applyMask(texel, adjusted, v_texCoord);
 }
 `;

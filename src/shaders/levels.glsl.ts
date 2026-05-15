@@ -1,6 +1,8 @@
+import { maskSnippet } from './mask-snippet.glsl';
+
 export const levelsFragment = `#version 300 es
 precision highp float;
-
+${maskSnippet}
 in vec2 v_texCoord;
 out vec4 fragColor;
 
@@ -25,6 +27,7 @@ void main() {
   // Output levels: remap from [0, 1] to [outBlack, outWhite]
   color = mix(vec3(u_outBlack), vec3(u_outWhite), color);
 
-  fragColor = vec4(clamp(color, 0.0, 1.0), texel.a);
+  vec4 adjusted = vec4(clamp(color, 0.0, 1.0), texel.a);
+  fragColor = applyMask(texel, adjusted, v_texCoord);
 }
 `;

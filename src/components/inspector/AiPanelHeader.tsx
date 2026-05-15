@@ -7,7 +7,7 @@ import { toast } from '@/components/ui/Toast';
 
 interface AiPanelHeaderProps {
   layerId: string;
-  /** Session ID from useImageContext. Null if no session is active. */
+  /** Session ID from useAiSession. Null if no session is active. */
   sessionId: string | null;
 }
 

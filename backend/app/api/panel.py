@@ -35,7 +35,11 @@ async def panel(
     except SessionNotFound:
         raise HTTPException(status_code=404, detail="unknown or expired session")
     if record.context is None:
-        context = client.analyze_image(image_bytes=record.image_bytes, mime_type=record.mime_type)
+        context = client.analyze_image(
+            image_bytes=record.image_bytes,
+            mime_type=record.mime_type,
+            session_id=body.session_id,
+        )
         store.set_context(body.session_id, context.model_dump(mode="json"))
     else:
         context = ImageContext.model_validate(record.context)
@@ -44,4 +48,5 @@ async def panel(
         mime_type=record.mime_type,
         context=context,
         user_goal=body.user_goal,
+        session_id=body.session_id,
     )

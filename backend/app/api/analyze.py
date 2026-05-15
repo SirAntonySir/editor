@@ -34,6 +34,10 @@ async def analyze(
         raise HTTPException(status_code=404, detail="unknown or expired session")
     if record.context is not None:
         return ImageContext.model_validate(record.context)
-    context = client.analyze_image(image_bytes=record.image_bytes, mime_type=record.mime_type)
+    context = client.analyze_image(
+        image_bytes=record.image_bytes,
+        mime_type=record.mime_type,
+        session_id=body.session_id,
+    )
     store.set_context(body.session_id, context.model_dump(mode="json"))
     return context

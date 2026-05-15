@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from typing import Any
 
 from anthropic import Anthropic
@@ -9,6 +10,22 @@ from pydantic import ValidationError
 
 from app.schemas.image_context import ImageContext
 from app.schemas.operation_graph import OperationGraph
+
+logger = logging.getLogger(__name__)
+
+
+def _log_cache_stats(call: str, session_id: str | None, response: Any) -> None:
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        logger.warning("call=%s session=%s usage missing on response", call, session_id)
+        return
+    create = getattr(usage, "cache_creation_input_tokens", 0) or 0
+    read = getattr(usage, "cache_read_input_tokens", 0) or 0
+    total_input = getattr(usage, "input_tokens", 0) or 0
+    logger.info(
+        "call=%s session=%s cache_create=%d cache_read=%d input_tokens=%d",
+        call, session_id, create, read, total_input,
+    )
 
 ANALYZE_SYSTEM_PROMPT = """You are a photo-editing assistant. Given an image, \
 produce a structured ImageContext capturing subjects, lighting, dominant \
@@ -60,7 +77,12 @@ class AnthropicClient:
             "cache_control": {"type": "ephemeral"},
         }
 
-    def analyze_image(self, image_bytes: bytes, mime_type: str) -> ImageContext:
+    def analyze_image(
+        self,
+        image_bytes: bytes,
+        mime_type: str,
+        session_id: str | None = None,
+    ) -> ImageContext:
         response = self._client.messages.create(
             model=self._model,
             max_tokens=1024,
@@ -77,6 +99,7 @@ class AnthropicClient:
                 }
             ],
         )
+        _log_cache_stats("analyze", session_id, response)
         for block in response.content:
             if getattr(block, "type", None) == "tool_use" and block.name == "emit_image_context":
                 return ImageContext.model_validate(block.input)
@@ -88,6 +111,7 @@ class AnthropicClient:
         mime_type: str,
         context: ImageContext,
         user_goal: str,
+        session_id: str | None = None,
     ) -> OperationGraph:
         last_error: ValidationError | None = None
         for _ in range(3):  # initial + 2 retries
@@ -112,6 +136,7 @@ class AnthropicClient:
                     }
                 ],
             )
+            _log_cache_stats("panel", session_id, response)
             for block in response.content:
                 if getattr(block, "type", None) == "tool_use" and block.name == "emit_operation_graph":
                     try:
@@ -130,6 +155,7 @@ class AnthropicClient:
         context: ImageContext,
         prior_graph: dict[str, Any],
         instruction: str,
+        session_id: str | None = None,
     ) -> OperationGraph:
         last_error: ValidationError | None = None
         for _ in range(3):
@@ -158,6 +184,7 @@ class AnthropicClient:
                     }
                 ],
             )
+            _log_cache_stats("refine", session_id, response)
             for block in response.content:
                 if getattr(block, "type", None) == "tool_use" and block.name == "emit_operation_graph":
                     try:

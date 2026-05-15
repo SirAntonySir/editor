@@ -36,6 +36,7 @@ import { FiltersTool } from '@/tools/filters-tool';
 import { CropTool } from '@/tools/crop-tool';
 import { AnalyseIndicator } from '@/components/ui/AnalyseIndicator';
 import { CommandPalette } from '@/components/ui/CommandPalette';
+import { ToastHost } from '@/components/ui/Toast';
 import { useAiSession } from '@/hooks/useImageContext';
 import { generatePanel } from '@/lib/ai-client';
 import { addAiPanelLayer } from '@/store/ai-panel-actions';
@@ -313,6 +314,7 @@ export default function App() {
   return (
     <EditorProvider canvasRef={canvasRef}>
       <EditorContent canvasRef={canvasRef} />
+      <ToastHost />
     </EditorProvider>
   );
 }

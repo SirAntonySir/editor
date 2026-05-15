@@ -230,6 +230,10 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
       let sid = session.sessionId;
 
       if (stale) {
+        console.log('[ImageContext] fingerprint changed since last analyse → re-analysing', {
+          before: session.lastAnalysedFingerprint,
+          now: fingerprint,
+        });
         // Manual base-image edits (crop, adjustments) since last analyse.
         // Re-upload the current composite + run a fresh /api/analyze.
         await reanalyseFromComposite();

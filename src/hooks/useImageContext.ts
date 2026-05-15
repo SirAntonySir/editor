@@ -162,6 +162,14 @@ export async function reanalyseFromComposite(): Promise<void> {
   // `document` (used by LayerCompositor's constructor) is undefined.
   const { LayerCompositor } = await import('@/lib/layer-compositor');
   const canvas = LayerCompositor.compositeSync();
-  if (!canvas || canvas.width === 0 || canvas.height === 0) return;
+  if (!canvas || canvas.width === 0 || canvas.height === 0) {
+    console.warn('[ImageContext] reanalyseFromComposite: empty composite, skipping');
+    return;
+  }
+  console.log('[ImageContext] reanalyseFromComposite: uploading composite', {
+    w: canvas.width,
+    h: canvas.height,
+  });
   await useAiSession.getState().uploadAndAnalyse(canvas);
+  console.log('[ImageContext] reanalyseFromComposite: done');
 }

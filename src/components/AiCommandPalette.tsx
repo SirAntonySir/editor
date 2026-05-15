@@ -10,7 +10,7 @@ import { LayerCompositor } from '@/lib/layer-compositor';
 interface AiCommandPaletteProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (text: string) => void;
+  onSubmit: (text: string) => void | Promise<void>;
   disabled?: boolean;
 }
 
@@ -65,11 +65,16 @@ export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiComman
   const baseDimsRef = useRef<{ w: number; h: number } | null>(null);
   const [value, setValue] = useState('');
   const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  // Mirror the AI session status so we can show "Analysing…" while a
+  // reanalyse triggered by stale-fingerprint runs.
+  const aiStatus = useAiSession((s) => s.status);
 
   useEffect(() => {
     if (open) {
       setValue('');
       setHoveredLabel(null);
+      setBusy(false);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [open]);
@@ -170,12 +175,24 @@ export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiComman
     });
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!value.trim() || disabled) return;
-    onSubmit(value.trim());
-    onClose();
+    if (!value.trim() || disabled || busy) return;
+    setBusy(true);
+    try {
+      await onSubmit(value.trim());
+    } finally {
+      setBusy(false);
+      onClose();
+    }
   }
+
+  const statusHint = (() => {
+    if (!busy) return null;
+    if (aiStatus === 'uploading') return 'Uploading image…';
+    if (aiStatus === 'analysing') return 'Re-analysing image…';
+    return 'Generating panel…';
+  })();
 
   return (
     <Tooltip.Provider delayDuration={300}>
@@ -244,16 +261,19 @@ export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiComman
                 </div>
               )}
 
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmit} className="flex items-center gap-2">
                 <input
                   ref={inputRef}
                   type="text"
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
                   placeholder="Describe your edit…"
-                  disabled={disabled}
-                  className="w-full bg-transparent text-sm text-text-primary placeholder:text-text-secondary outline-none"
+                  disabled={disabled || busy}
+                  className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-secondary outline-none disabled:opacity-50"
                 />
+                {statusHint && (
+                  <span className="text-[11px] text-text-secondary">{statusHint}</span>
+                )}
               </form>
             </motion.div>
           </motion.div>

@@ -3,7 +3,7 @@ import type * as fabric from 'fabric';
 import { loadImageToCanvas, hydrateCanvasFromStore } from '@/components/canvas/EditorCanvas';
 import { exportImage, saveAs } from '@/lib/export';
 import { editorDocument } from '@/core/document';
-import { useAiSession } from '@/hooks/useImageContext';
+import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
 
 export function useFileIO(canvasRef: React.RefObject<fabric.Canvas | null>) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -19,6 +19,10 @@ export function useFileIO(canvasRef: React.RefObject<fabric.Canvas | null>) {
         if (file.name.endsWith('.edp')) {
           await editorDocument.openEdp(file);
           hydrateCanvasFromStore(canvasRef.current);
+          // .edp opens hydrate the canvas without going through fresh-image upload;
+          // kick off AI analysis from the restored pixels so Cmd+K becomes usable.
+          useAiSession.getState().reset();
+          void analyseFirstImageLayer();
         } else {
           await loadImageToCanvas(file, canvasRef.current);
           // Fire-and-forget AI analysis on new image open (not session-restore, which goes through the .edp branch).

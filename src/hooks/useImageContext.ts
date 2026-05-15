@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { analyzeImage, createSession } from '@/lib/ai-client';
 import { downscaleForUpload } from '@/lib/downscale-for-upload';
+import { useEditorStore } from '@/store';
+import { pixelStore } from '@/core/pixel-store';
 import type { ImageContext } from '@/types/image-context';
 
 interface AiSessionState {
@@ -35,3 +37,20 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
     set({ sessionId: null, context: null, status: 'idle', error: null });
   },
 }));
+
+/**
+ * Kick off `uploadAndAnalyse` from the first image-type layer's source pixels.
+ * Used after `.edp` open and after IndexedDB session-restore, both of which
+ * hydrate the canvas without going through the fresh-file upload path.
+ * No-op if there is no image layer, no source canvas, or a session is already
+ * active.
+ */
+export async function analyseFirstImageLayer(): Promise<void> {
+  if (useAiSession.getState().sessionId) return;
+  const firstImage = useEditorStore.getState().layers.find((l) => l.type === 'image');
+  if (!firstImage) return;
+  const source = pixelStore.getSource(firstImage.id);
+  if (!source) return;
+  const bitmap = await createImageBitmap(source);
+  await useAiSession.getState().uploadAndAnalyse(bitmap);
+}

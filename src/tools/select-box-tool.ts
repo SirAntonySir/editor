@@ -32,7 +32,18 @@ export const SelectBoxTool: ToolDefinition = {
   cursor: 'crosshair',
   modes: ['develop', 'compose'],
 
-  onActivate: (_ctx: ToolContext) => {
+  onActivate: (ctx: ToolContext) => {
+    const canvas = ctx.canvasRef.current;
+    if (canvas) {
+      canvas.selection = false;
+      canvas.forEachObject((obj) => {
+        obj.selectable = false;
+        obj.evented = false;
+        obj.hasControls = false;
+        obj.lockMovementX = true;
+        obj.lockMovementY = true;
+      });
+    }
     const layerId = useEditorStore.getState().activeLayerId;
     if (layerId) void samClient.ensureEmbedding(layerId).catch(console.error);
   },

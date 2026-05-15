@@ -73,6 +73,20 @@ export const BrushMaskTool: ToolDefinition = {
   modes: ['develop', 'compose'],
   OptionsPanel: BrushMaskOptionsPanel,
 
+  onActivate: (ctx: ToolContext) => {
+    const canvas = ctx.canvasRef.current;
+    if (canvas) {
+      canvas.selection = false;
+      canvas.forEachObject((obj) => {
+        obj.selectable = false;
+        obj.evented = false;
+        obj.hasControls = false;
+        obj.lockMovementX = true;
+        obj.lockMovementY = true;
+      });
+    }
+  },
+
   onPointerDown: (e: CanvasPointerEvent, ctx: ToolContext) => {
     const s = useEditorStore.getState();
     const ref = s.activeMaskRef ?? s.committedMaskRef;

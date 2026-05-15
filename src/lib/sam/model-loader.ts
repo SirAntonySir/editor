@@ -1,5 +1,11 @@
 import * as ort from 'onnxruntime-web';
 
+// Point onnxruntime-web at the matching CDN-hosted runtime WASM/JS files.
+// Without this, the runtime tries to fetch from a relative URL and Vite returns
+// index.html (HTTP 200 with text/html), which is parsed as WASM and fails
+// (hex 3c 21 64 6f = "<!do" — the start of "<!doctype html>").
+ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0/dist/';
+
 // Quantized SAM ViT-B / SlimSAM from Xenova (Hugging Face) — pre-converted to ONNX.
 // SlimSAM-77 is smaller (~80 MB total) and faster; ViT-B is ~92 MB encoder.
 // Update these URLs to point at a CDN you control before shipping to production.

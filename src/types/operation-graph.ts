@@ -1,11 +1,5 @@
-export type ScopeKind = 'global' | 'mask:click' | 'mask:proposed';
-
-export interface Scope {
-  kind: ScopeKind;
-  label?: string;
-  point?: [number, number];
-  confidence?: number;
-}
+import type { Scope } from './scope';
+export type { Scope, MaskRef } from './scope';
 
 export interface Node {
   id: string;

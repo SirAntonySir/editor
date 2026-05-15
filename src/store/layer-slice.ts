@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand';
 import type { OperationGraph, PanelBinding } from '@/types/operation-graph';
 import type { TargetRef } from '@/types/ai-target';
+import type { Scope } from '@/types/scope';
 
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'soft-light' | 'hard-light';
 export type LayerType = string;
@@ -37,6 +38,8 @@ export interface Adjustment {
   params: Record<string, number | Float32Array>;
   /** Provenance for AI-derived adjustments. Populated only for ai-panel-sourced edits. */
   aiSource?: AiSource;
+  /** Scope of this adjustment — defaults to global when absent. */
+  scope?: Scope;
 }
 
 export interface AdjustmentStack {

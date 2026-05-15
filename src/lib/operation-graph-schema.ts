@@ -1,22 +1,45 @@
 import { z } from 'zod';
 import type { OperationGraph } from '@/types/operation-graph';
+import type { Scope } from '@/types/scope';
 
 // Pydantic serialises `Optional[X]` as `null` rather than omitting the field,
 // so the schema accepts both `null` and missing on every optional, then
 // normalises nulls to `undefined` so the downstream TS types stay clean.
+
+// Legacy coercion: backend may still emit `kind: 'mask:click'` — rewrite to
+// `mask:proposed` before passing to the discriminated union parser.
+function coerceLegacyScope(raw: unknown): unknown {
+  if (
+    raw !== null &&
+    typeof raw === 'object' &&
+    (raw as Record<string, unknown>)['kind'] === 'mask:click'
+  ) {
+    const s = raw as Record<string, unknown>;
+    return {
+      kind: 'mask:proposed',
+      label: 'detected',
+      representativePoint: Array.isArray(s['point']) ? s['point'] : [0, 0],
+      confidence: typeof s['confidence'] === 'number' ? s['confidence'] : undefined,
+    };
+  }
+  return raw;
+}
+
 const ScopeSchema = z
-  .object({
-    kind: z.enum(['global', 'mask:click', 'mask:proposed']),
-    label: z.string().nullish(),
-    point: z.tuple([z.number(), z.number()]).nullish(),
-    confidence: z.number().min(0).max(1).nullish(),
-  })
-  .transform((s) => ({
-    kind: s.kind,
-    label: s.label ?? undefined,
-    point: s.point ?? undefined,
-    confidence: s.confidence ?? undefined,
-  }));
+  .unknown()
+  .transform(coerceLegacyScope)
+  .pipe(
+    z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('global') }),
+      z.object({ kind: z.literal('mask'), maskRef: z.string() }),
+      z.object({
+        kind: z.literal('mask:proposed'),
+        label: z.string(),
+        representativePoint: z.tuple([z.number(), z.number()]),
+        confidence: z.number().optional(),
+      }),
+    ]),
+  ) as z.ZodType<Scope>;
 
 const NodeSchema = z.object({
   id: z.string(),

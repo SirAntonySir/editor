@@ -15,6 +15,18 @@ cp .env.example .env
 # Edit .env: set ANTHROPIC_API_KEY
 ```
 
+### Download SAM checkpoint
+
+After installing deps, fetch the SAM ViT-B checkpoint (~375 MB, one-time):
+
+```bash
+./scripts/download_sam.sh
+```
+
+This places the file at `models/sam_vit_b_01ec64.pth`. To use a different
+model variant (ViT-L or ViT-H), set `SAM_MODEL_NAME` and `SAM_CHECKPOINT_PATH`
+in `.env`.
+
 ## Run
 
 ```bash

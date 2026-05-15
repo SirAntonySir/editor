@@ -16,7 +16,11 @@ const IMAGE_MAX_HEIGHT = 200;
 const IMAGE_MAX_WIDTH = 520;
 
 export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiCommandPaletteProps) {
-  const candidateRegions = useAiSession((s) => s.context?.candidateRegions ?? []);
+  // Select the stable context object — deriving `candidateRegions` inline in
+  // the selector returns a new `[]` each render when context is null and
+  // sends Zustand into an infinite re-render loop.
+  const context = useAiSession((s) => s.context);
+  const candidateRegions = context?.candidateRegions ?? [];
   const imageLayerId = useEditorStore((s) => s.layers.find((l) => l.type === 'image')?.id);
   const pixelVersion = useEditorStore((s) => s.pixelVersion);
   const inputRef = useRef<HTMLInputElement | null>(null);

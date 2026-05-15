@@ -34,6 +34,10 @@ export function humanLabelFor(ref: TargetRef): string {
   if (!layer) return 'Unknown target';
   if (ref.kind === 'layer') return layer.name;
 
+  if (ref.kind === 'mask') {
+    return `${layer.name} · Selection`;
+  }
+
   const adj = layer.adjustmentStack?.adjustments.find((a) => a.id === ref.adjustmentId);
   if (!adj) return 'Unknown target';
   return `${layer.name} · ${adj.name}`;
@@ -96,6 +100,16 @@ export async function renderTargetSnapshot(target: TargetRef): Promise<Blob> {
   if (target.kind === 'composite') {
     const composite = LayerCompositor.compositeSync();
     return canvasToDownscaledPng(composite);
+  }
+
+  if (target.kind === 'mask') {
+    const editor = useEditorStore.getState();
+    const layer = editor.layers.find((l) => l.id === target.layerId);
+    if (!layer) throw new Error('renderTargetSnapshot: mask layer missing');
+    const rendered = LayerCompositor.renderLayer(layer);
+    if (!rendered) throw new Error('renderTargetSnapshot: failed to render host layer');
+    return canvasToDownscaledPng(rendered);
+    // TODO(Plan A Task 3): multiply by mask alpha after maskStore lands
   }
 
   // layer or node — render the host layer through its adjustment pipeline.

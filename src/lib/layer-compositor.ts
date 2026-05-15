@@ -2,6 +2,7 @@ import { CanvasRegistry } from './canvas-registry';
 import { PipelineManager } from './pipeline-manager';
 import { useEditorStore } from '@/store';
 import type { Layer, BlendMode } from '@/store/layer-slice';
+import { maskStore } from '@/core/mask-store';
 
 const BLEND_MODE_MAP: Record<BlendMode, GlobalCompositeOperation> = {
   'normal': 'source-over',
@@ -51,25 +52,49 @@ class LayerCompositorImpl {
 
   /** Render a single layer through its adjustment pipeline. Returns an HTMLCanvasElement. */
   renderLayer(layer: Layer): HTMLCanvasElement | null {
-    const working = CanvasRegistry.get(layer.id);
-    if (!working) return null;
-
-    const adjustments = layer.adjustmentStack.adjustments.filter((a) => a.enabled);
-
-    if (adjustments.length === 0) {
-      // No adjustments — just convert working to HTMLCanvasElement
-      const tmp = document.createElement('canvas');
-      tmp.width = working.width;
-      tmp.height = working.height;
-      const tmpCtx = tmp.getContext('2d');
-      if (!tmpCtx) return null;
-      tmpCtx.drawImage(working, 0, 0);
-      return tmp;
+    // 1. Determine source pixels.
+    let source: HTMLCanvasElement | OffscreenCanvas | null;
+    if (layer.parentLayerId) {
+      const parent = useEditorStore.getState().layers.find((l) => l.id === layer.parentLayerId);
+      if (!parent) return null;
+      source = this.renderLayer(parent);
+      if (!source) return null;
+    } else {
+      source = CanvasRegistry.get(layer.id) ?? null;
+      if (!source) return null;
     }
 
-    // Render through WebGL pipeline
-    PipelineManager.setSource(layer.id);
-    return PipelineManager.renderSync([...adjustments]);
+    // 2. Apply the layer's adjustment pipeline.
+    const adjustments = layer.adjustmentStack.adjustments.filter((a) => a.enabled);
+    let result: HTMLCanvasElement;
+    if (adjustments.length === 0) {
+      result = document.createElement('canvas');
+      result.width = source.width;
+      result.height = source.height;
+      const ctx = result.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(source, 0, 0);
+    } else {
+      PipelineManager.setSourceCanvas(source);
+      result = PipelineManager.renderSync([...adjustments]);
+    }
+
+    // 3. Apply the layer mask, if any (multiply alpha by mask).
+    if (layer.layerMask) {
+      const mask = maskStore.get(layer.layerMask);
+      if (mask && mask.width === result.width && mask.height === result.height) {
+        const ctx = result.getContext('2d');
+        if (ctx) {
+          const imgData = ctx.getImageData(0, 0, result.width, result.height);
+          for (let i = 0; i < mask.data.length; i++) {
+            imgData.data[i * 4 + 3] = (imgData.data[i * 4 + 3] * mask.data[i]) / 255;
+          }
+          ctx.putImageData(imgData, 0, 0);
+        }
+      }
+    }
+
+    return result;
   }
 
   private executeComposite(): void {
@@ -109,8 +134,9 @@ class LayerCompositorImpl {
       const enabledAdjs = layer.adjustmentStack.adjustments.filter((a) => a.enabled);
       const hasPixels = CanvasRegistry.has(layer.id);
 
+      const isBranched = !!layer.parentLayerId;
       let rendered: HTMLCanvasElement | null = null;
-      if (hasPixels) {
+      if (hasPixels || isBranched) {
         rendered = this.renderLayer(layer);
       } else if (enabledAdjs.length > 0 && outputWidth > 0 && outputHeight > 0) {
         // Adjustment-layer path: pixel-less layer (e.g. ai-panel) processes

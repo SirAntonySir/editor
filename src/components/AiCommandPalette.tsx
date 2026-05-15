@@ -12,8 +12,8 @@ interface AiCommandPaletteProps {
   disabled?: boolean;
 }
 
-const IMAGE_MAX_HEIGHT = 200;
-const IMAGE_MAX_WIDTH = 520;
+const IMAGE_MAX_HEIGHT = 420;
+const IMAGE_MAX_WIDTH = 640;
 
 export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiCommandPaletteProps) {
   // Select the stable context object — deriving `candidateRegions` inline in
@@ -108,7 +108,7 @@ export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiComman
             onClick={onClose}
           >
             <motion.div
-              className="glass-panel flex w-[560px] max-w-[90vw] flex-col gap-2 p-3"
+              className="glass-panel flex w-[680px] max-w-[92vw] flex-col gap-2 p-3"
               initial={{ opacity: 0, scale: 0.96, y: -8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: -8 }}
@@ -125,14 +125,14 @@ export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiComman
               )}
 
               {candidateRegions.length > 0 && (
-                <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+                <div className="flex flex-wrap gap-1.5 pb-1">
                   {candidateRegions.map((region) => (
                     <Tooltip.Root key={region.label}>
                       <Tooltip.Trigger asChild>
                         <button
                           type="button"
                           onClick={() => insertToken(region.label)}
-                          className="inline-flex flex-none items-center rounded-full bg-surface-secondary/60 px-2 py-0.5 text-[11px] text-text-primary hover:bg-surface-secondary"
+                          className="inline-flex items-center rounded-full bg-surface-secondary/60 px-2 py-0.5 text-[11px] text-text-primary hover:bg-surface-secondary"
                         >
                           @{region.label}
                         </button>

@@ -229,16 +229,22 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
     set((state) => {
       const layer = state.layers.find((l) => l.id === layerId);
       if (!layer) return;
-      layer.adjustmentStack.adjustments.push(adjustment);
+      const s = state as LayerSlice & { activeScope: Scope | null };
+      const scoped = s.activeScope ? { ...adjustment, scope: s.activeScope } : adjustment;
+      layer.adjustmentStack.adjustments.push(scoped);
+      s.activeScope = null;
     }),
 
   insertAdjustment: (layerId, adjustment, atIndex) =>
     set((state) => {
       const layer = state.layers.find((l) => l.id === layerId);
       if (!layer) return;
+      const s = state as LayerSlice & { activeScope: Scope | null };
+      const scoped = s.activeScope ? { ...adjustment, scope: s.activeScope } : adjustment;
       const arr = layer.adjustmentStack.adjustments;
       const clamped = Math.max(0, Math.min(atIndex, arr.length));
-      arr.splice(clamped, 0, adjustment);
+      arr.splice(clamped, 0, scoped);
+      s.activeScope = null;
     }),
 
   removeAdjustment: (layerId, adjustmentId) =>

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useEditorStore } from '@/store';
 
 beforeEach(() => {
@@ -43,5 +43,41 @@ describe('segmentation slice', () => {
     expect(useEditorStore.getState().encoderState).toBe('loading-model');
     useEditorStore.getState().setEncoderState('ready');
     expect(useEditorStore.getState().encoderState).toBe('ready');
+  });
+});
+
+describe('activeScope is consumed by addAdjustment', () => {
+  afterEach(() => {
+    useEditorStore.setState({ layers: [], activeLayerId: null } as unknown as Parameters<typeof useEditorStore.setState>[0]);
+  });
+
+  it('attaches scope to the new adjustment then clears activeScope', () => {
+    useEditorStore.getState().addLayer({
+      id: 'L1', type: 'image', name: 'X',
+      visible: true, opacity: 1, blendMode: 'normal', locked: false,
+    });
+    useEditorStore.getState().setActiveScope({ kind: 'mask', maskRef: 'm1' });
+    useEditorStore.getState().addAdjustment('L1', {
+      id: 'A1', type: 'kelvin', name: 'k', enabled: true,
+      blendMode: 'normal', opacity: 1, params: {},
+    });
+    const adj = useEditorStore.getState().layers[0].adjustmentStack.adjustments[0];
+    expect(adj.scope).toEqual({ kind: 'mask', maskRef: 'm1' });
+    expect(useEditorStore.getState().activeScope).toBeNull();
+  });
+
+  it('insertAdjustment also consumes activeScope', () => {
+    useEditorStore.getState().addLayer({
+      id: 'L1', type: 'image', name: 'X',
+      visible: true, opacity: 1, blendMode: 'normal', locked: false,
+    });
+    useEditorStore.getState().setActiveScope({ kind: 'mask', maskRef: 'm2' });
+    useEditorStore.getState().insertAdjustment('L1', {
+      id: 'A2', type: 'curves', name: 'c', enabled: true,
+      blendMode: 'normal', opacity: 1, params: {},
+    }, 0);
+    const adj = useEditorStore.getState().layers[0].adjustmentStack.adjustments[0];
+    expect(adj.scope).toEqual({ kind: 'mask', maskRef: 'm2' });
+    expect(useEditorStore.getState().activeScope).toBeNull();
   });
 });

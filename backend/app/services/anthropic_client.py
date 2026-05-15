@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from typing import Any
 
 from anthropic import Anthropic
@@ -20,6 +21,13 @@ an OperationGraph: a small set of editing operations bound to user-facing \
 controls. Each control has a goal-relevant label ("warm cast" rather than \
 "kelvin = 4200"). Call the `emit_operation_graph` tool exactly once. Do not \
 return prose."""
+
+REFINE_SYSTEM_PROMPT = """You are a photo-editing assistant refining a prior \
+suggestion. Given an image, its context, your prior OperationGraph, and a \
+refinement instruction from the user (e.g. "more subtle", "only the sky"), \
+produce a NEW OperationGraph that adjusts the suggestion accordingly. Keep \
+labels goal-relevant. Mint a fresh graph `id`. Call the \
+`emit_operation_graph` tool exactly once. Do not return prose."""
 
 IMAGE_CONTEXT_TOOL = {
     "name": "emit_image_context",
@@ -114,3 +122,49 @@ class AnthropicClient:
             else:
                 raise RuntimeError("Anthropic did not emit emit_operation_graph tool call")
         raise RuntimeError(f"Panel generation failed validation after retries: {last_error}")
+
+    def generate_refined_panel(
+        self,
+        image_bytes: bytes,
+        mime_type: str,
+        context: ImageContext,
+        prior_graph: dict[str, Any],
+        instruction: str,
+    ) -> OperationGraph:
+        last_error: ValidationError | None = None
+        for _ in range(3):
+            response = self._client.messages.create(
+                model=self._model,
+                max_tokens=2048,
+                system=[{"type": "text", "text": REFINE_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
+                tools=[OPERATION_GRAPH_TOOL],
+                tool_choice={"type": "tool", "name": "emit_operation_graph"},
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            self._image_block(image_bytes, mime_type),
+                            {
+                                "type": "text",
+                                "text": f"Image context: {context.model_dump_json()}",
+                                "cache_control": {"type": "ephemeral"},
+                            },
+                            {
+                                "type": "text",
+                                "text": f"Prior graph: {json.dumps(prior_graph)}",
+                            },
+                            {"type": "text", "text": f"Refinement instruction: {instruction}"},
+                        ],
+                    }
+                ],
+            )
+            for block in response.content:
+                if getattr(block, "type", None) == "tool_use" and block.name == "emit_operation_graph":
+                    try:
+                        return OperationGraph.model_validate(block.input)
+                    except ValidationError as e:
+                        last_error = e
+                        break
+            else:
+                raise RuntimeError("Anthropic did not emit emit_operation_graph tool call")
+        raise RuntimeError(f"Refine generation failed validation after retries: {last_error}")

@@ -37,7 +37,12 @@ import { CropTool } from '@/tools/crop-tool';
 import { AnalyseIndicator } from '@/components/ui/AnalyseIndicator';
 import { AiCommandPalette } from '@/components/AiCommandPalette';
 import { ToastHost } from '@/components/ui/Toast';
-import { useAiSession, bindSessionFromFirstImageLayer } from '@/hooks/useImageContext';
+import {
+  useAiSession,
+  bindSessionFromFirstImageLayer,
+  currentImageFingerprint,
+  reanalyseFromComposite,
+} from '@/hooks/useImageContext';
 import { generatePanel } from '@/lib/ai-client';
 import { addAiPanelLayer } from '@/store/ai-panel-actions';
 import { Upload } from 'lucide-react';
@@ -218,13 +223,24 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
 
   const handlePaletteSubmit = useCallback(
     async (text: string) => {
-      let sid = useAiSession.getState().sessionId;
-      if (!sid && useAiSession.getState().context) {
+      const session = useAiSession.getState();
+      const fingerprint = currentImageFingerprint();
+      const stale =
+        session.context != null && fingerprint !== session.lastAnalysedFingerprint;
+      let sid = session.sessionId;
+
+      if (stale) {
+        // Manual base-image edits (crop, adjustments) since last analyse.
+        // Re-upload the current composite + run a fresh /api/analyze.
+        await reanalyseFromComposite();
+        sid = useAiSession.getState().sessionId;
+      } else if (!sid && session.context) {
         // Reload case: cached context on disk, backend session is gone.
         // Re-upload pixels and push the cached context — no Claude call.
         await bindSessionFromFirstImageLayer();
         sid = useAiSession.getState().sessionId;
       }
+
       if (!sid) return;
       try {
         const graph = await generatePanel(sid, text);

@@ -34,12 +34,25 @@ export async function analyzeImage(sessionId: string): Promise<ImageContext> {
 /**
  * Bind a pre-computed ImageContext to a freshly-created backend session.
  * Used to re-establish a session after page-reload without re-calling Claude.
+ *
+ * The frontend type uses camelCase keys; the backend Pydantic model uses
+ * snake_case. Convert here to match the wire format the backend expects.
  */
 export async function pushSessionContext(
   sessionId: string,
   context: ImageContext,
 ): Promise<void> {
-  await postJson<unknown>(`/api/session/${sessionId}/context`, context);
+  const body = {
+    subjects: context.subjects,
+    lighting: context.lighting,
+    dominant_tones: context.dominantTones,
+    mood: context.mood,
+    candidate_regions: context.candidateRegions,
+    model_name: context.modelName,
+    model_version: context.modelVersion,
+    generated_at: context.generatedAt,
+  };
+  await postJson<unknown>(`/api/session/${sessionId}/context`, body);
 }
 
 export async function generatePanel(sessionId: string, userGoal: string): Promise<OperationGraph> {

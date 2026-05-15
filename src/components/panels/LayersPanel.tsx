@@ -16,18 +16,22 @@ import {
   Image,
   Paintbrush,
   Type,
+  Sparkles,
 } from 'lucide-react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useEditorStore } from '@/store';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { LutRegistry } from '@/lib/lut-registry';
-import type { Layer, LayerType, Adjustment, BlendMode } from '@/store/layer-slice';
+import type { Layer, Adjustment, BlendMode } from '@/store/layer-slice';
 
-const LAYER_TYPE_ICONS: Record<LayerType, typeof Sun> = {
+// LayerType is `string` (extensible) — Record key is therefore widened.
+// Unknown types fall back to Image at the access site.
+const LAYER_TYPE_ICONS: Record<string, typeof Sun> = {
   image: Image,
   brush: Paintbrush,
   text: Type,
+  'ai-panel': Sparkles,
 };
 
 const ADJUSTMENT_ICONS: Record<Adjustment['type'], typeof Sun> = {
@@ -285,7 +289,7 @@ function LayerRow({
             {layer.type === 'image' ? (
               <LayerThumbnail layerId={layer.id} visible={layer.visible} />
             ) : (
-              (() => { const Icon = LAYER_TYPE_ICONS[layer.type]; return (
+              (() => { const Icon = LAYER_TYPE_ICONS[layer.type] ?? Image; return (
                 <div className={`w-6 h-6 rounded-sm border flex-shrink-0 flex items-center justify-center
                   ${layer.visible ? 'border-separator bg-surface-secondary' : 'border-separator/50 bg-surface-secondary/50 opacity-50'}`}>
                   <Icon size={12} className="text-text-secondary" />

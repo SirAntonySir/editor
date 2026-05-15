@@ -3,6 +3,7 @@ import { useEditor } from '@/components/EditorProvider';
 import { useEditorStore } from '@/store';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { AiPanelSection } from './AiPanelSection';
+import { AiStepSection } from './AiStepSection';
 
 export function InspectorPanel() {
   const { toolContext, getActiveTool } = useEditor();
@@ -20,8 +21,11 @@ export function InspectorPanel() {
 
   const hasPanel = !!(processingDef?.Panel || toolDef?.OptionsPanel);
   const aiPanelLayers = layers.filter((l) => l.type === 'ai-panel' && l.visible);
+  const aiStepLayers = layers.filter(
+    (l) => l.type !== 'ai-panel' && l.visible && l.aiSteps && Object.keys(l.aiSteps).length > 0,
+  );
 
-  if (!hasPanel && aiPanelLayers.length === 0) return null;
+  if (!hasPanel && aiPanelLayers.length === 0 && aiStepLayers.length === 0) return null;
 
   return (
     <motion.div
@@ -62,6 +66,11 @@ export function InspectorPanel() {
             </div>
           ))}
         </div>
+      )}
+      {aiStepLayers.map((layer) =>
+        Object.keys(layer.aiSteps ?? {}).map((graphId) => (
+          <AiStepSection key={`${layer.id}-${graphId}`} layerId={layer.id} graphId={graphId} />
+        )),
       )}
     </motion.div>
   );

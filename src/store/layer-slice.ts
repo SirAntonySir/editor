@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand';
 import type { OperationGraph, PanelBinding } from '@/types/operation-graph';
 import type { TargetRef } from '@/types/ai-target';
-import type { Scope } from '@/types/scope';
+import type { MaskRef, Scope } from '@/types/scope';
 
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'soft-light' | 'hard-light';
 export type LayerType = string;
@@ -89,6 +89,10 @@ export interface Layer {
   panelBindings?: PanelBinding[];
   /** Per-step AI provenance map, keyed by OperationGraph.id. */
   aiSteps?: Record<string, AiStepMeta>;
+  /** Non-destructive branching — references the parent layer ID. */
+  parentLayerId?: string;
+  /** Alpha mask applied at composite time. */
+  layerMask?: MaskRef;
 }
 
 const ADJUSTMENT_NAMES: Record<string, string> = {
@@ -146,6 +150,9 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
 
   addLayer: (layer) =>
     set((state) => {
+      if (layer.parentLayerId && !state.layers.some((l) => l.id === layer.parentLayerId)) {
+        throw new Error(`addLayer: parentLayerId "${layer.parentLayerId}" does not exist`);
+      }
       const order = state.layers.length;
       state.layers.push({ ...layer, order, adjustmentStack: { adjustments: [] } });
       state.activeLayerId = layer.id;
@@ -153,6 +160,8 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
 
   removeLayer: (id) =>
     set((state) => {
+      const hasChildren = state.layers.some((l) => l.parentLayerId === id);
+      if (hasChildren) throw new Error(`removeLayer: layer "${id}" has child layers — remove children first`);
       const index = state.layers.findIndex((l) => l.id === id);
       if (index === -1) return;
       state.layers.splice(index, 1);
@@ -172,9 +181,19 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
   updateLayer: (id, updates) =>
     set((state) => {
       const layer = state.layers.find((l) => l.id === id);
-      if (layer) {
-        Object.assign(layer, updates);
+      if (!layer) return;
+      if ('parentLayerId' in updates && updates.parentLayerId !== undefined) {
+        // Walk the proposed parent chain to detect cycles.
+        let cursor: string | undefined = updates.parentLayerId;
+        const seen = new Set<string>();
+        while (cursor) {
+          if (cursor === id) throw new Error(`updateLayer: parentLayerId would create a cycle (${id})`);
+          if (seen.has(cursor)) break;
+          seen.add(cursor);
+          cursor = state.layers.find((l) => l.id === cursor)?.parentLayerId;
+        }
       }
+      Object.assign(layer, updates);
     }),
 
   reorderLayers: (fromIndex, toIndex) =>

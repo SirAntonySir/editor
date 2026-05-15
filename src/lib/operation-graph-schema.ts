@@ -1,12 +1,22 @@
 import { z } from 'zod';
 import type { OperationGraph } from '@/types/operation-graph';
 
-const ScopeSchema = z.object({
-  kind: z.enum(['global', 'mask:click', 'mask:proposed']),
-  label: z.string().optional(),
-  point: z.tuple([z.number(), z.number()]).optional(),
-  confidence: z.number().min(0).max(1).optional(),
-});
+// Pydantic serialises `Optional[X]` as `null` rather than omitting the field,
+// so the schema accepts both `null` and missing on every optional, then
+// normalises nulls to `undefined` so the downstream TS types stay clean.
+const ScopeSchema = z
+  .object({
+    kind: z.enum(['global', 'mask:click', 'mask:proposed']),
+    label: z.string().nullish(),
+    point: z.tuple([z.number(), z.number()]).nullish(),
+    confidence: z.number().min(0).max(1).nullish(),
+  })
+  .transform((s) => ({
+    kind: s.kind,
+    label: s.label ?? undefined,
+    point: s.point ?? undefined,
+    confidence: s.confidence ?? undefined,
+  }));
 
 const NodeSchema = z.object({
   id: z.string(),
@@ -22,29 +32,29 @@ const PanelBindingSchema = z
     param_key: z.string(),
     label: z.string(),
     control: z.enum(['slider', 'toggle', 'picker']).default('slider'),
-    min: z.number().optional(),
-    max: z.number().optional(),
-    default: z.union([z.number(), z.string(), z.boolean()]).optional(),
-    step: z.number().optional(),
-    reasoning: z.string().optional(),
+    min: z.number().nullish(),
+    max: z.number().nullish(),
+    default: z.union([z.number(), z.string(), z.boolean()]).nullish(),
+    step: z.number().nullish(),
+    reasoning: z.string().nullish(),
   })
   .transform((b) => ({
     nodeId: b.node_id,
     paramKey: b.param_key,
     label: b.label,
     control: b.control,
-    min: b.min,
-    max: b.max,
-    default: b.default,
-    step: b.step,
-    reasoning: b.reasoning,
+    min: b.min ?? undefined,
+    max: b.max ?? undefined,
+    default: b.default ?? undefined,
+    step: b.step ?? undefined,
+    reasoning: b.reasoning ?? undefined,
   }));
 
 export const OperationGraphSchema = z
   .object({
     id: z.string(),
     user_goal: z.string(),
-    reasoning: z.string().optional(),
+    reasoning: z.string().nullish(),
     nodes: z.array(NodeSchema),
     panel_bindings: z.array(PanelBindingSchema),
     metadata: z.record(z.string()).default({}),
@@ -52,7 +62,7 @@ export const OperationGraphSchema = z
   .transform<OperationGraph>((g) => ({
     id: g.id,
     userGoal: g.user_goal,
-    reasoning: g.reasoning,
+    reasoning: g.reasoning ?? undefined,
     nodes: g.nodes,
     panelBindings: g.panel_bindings,
     metadata: g.metadata,

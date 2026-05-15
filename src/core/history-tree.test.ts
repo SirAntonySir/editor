@@ -14,6 +14,7 @@ import {
   evict,
   toSnapshot,
   fromSnapshot,
+  collectPixelBlobs,
 } from './history-tree';
 
 function snap(activeLayerId: string | null = null): SerializableState {
@@ -235,5 +236,27 @@ describe('snapshot round-trip with pre/post pixels', () => {
     const restored = fromSnapshot(snapJson, blobs);
     expect(restored.nodes.get(nodeId)!.prePixels?.get('layer-1')).toBe(preBlob);
     expect(restored.nodes.get(nodeId)!.postPixels?.get('layer-1')).toBe(postBlob);
+  });
+});
+
+describe('collectPixelBlobs', () => {
+  it('flattens pre/post pixel maps to a single keyed Blob map', () => {
+    let t = createTree(snap());
+    const preBlob = new Blob(['pre'], { type: 'image/png' });
+    const postBlob = new Blob(['post'], { type: 'image/png' });
+    t = append(t, {
+      label: 'd',
+      timestamp: 1,
+      kind: 'destructive',
+      metaSnapshot: snap(),
+      prePixels: new Map([['L', preBlob]]),
+      postPixels: new Map([['L', postBlob]]),
+      estimatedSize: 100,
+    });
+    const id = t.currentNodeId;
+    const blobs = collectPixelBlobs(t);
+    expect(blobs.get(`${id}:pre:L`)).toBe(preBlob);
+    expect(blobs.get(`${id}:post:L`)).toBe(postBlob);
+    expect(blobs.size).toBe(2);
   });
 });

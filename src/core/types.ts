@@ -36,8 +36,6 @@ export interface HistoryEntry {
   kind: 'metadata' | 'destructive';
   /** State BEFORE this action was applied. */
   metaSnapshot: SerializableState;
-  /** @deprecated use prePixels/postPixels — kept for transitional callers. */
-  pixelSnapshots?: Map<string, Blob>;
   /** PRE-action pixels per layer (used when undoing AWAY from the resulting node). */
   prePixels?: Map<string, Blob>;
   /** POST-action pixels per layer (used when redoing TO the resulting node). */

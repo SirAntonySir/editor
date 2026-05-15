@@ -206,6 +206,28 @@ export function evict(tree: HistoryTree, budget: EvictionBudget): HistoryTree {
   return { ...tree, nodes };
 }
 
+/**
+ * Flatten the tree's per-node pixel maps into a single key→Blob map suitable
+ * for persistence. Key format: `${nodeId}:${pre|post}:${layerId}` — matches
+ * the encoding `toSnapshot` expects on `fromSnapshot`.
+ */
+export function collectPixelBlobs(tree: HistoryTree): Map<string, Blob> {
+  const out = new Map<string, Blob>();
+  for (const node of tree.nodes.values()) {
+    if (node.prePixels) {
+      for (const [layerId, blob] of node.prePixels) {
+        out.set(`${node.id}:pre:${layerId}`, blob);
+      }
+    }
+    if (node.postPixels) {
+      for (const [layerId, blob] of node.postPixels) {
+        out.set(`${node.id}:post:${layerId}`, blob);
+      }
+    }
+  }
+  return out;
+}
+
 export function toSnapshot(tree: HistoryTree): HistoryTreeSnapshot {
   const nodes: HistoryTreeSnapshot['nodes'] = {};
   for (const [id, node] of tree.nodes) {

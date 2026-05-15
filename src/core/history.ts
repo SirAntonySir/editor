@@ -34,7 +34,7 @@ let restoreCallback: ((snapshot: SerializableState) => void) | null = null;
 
 function estimateEntrySize(entry: HistoryEntry): number {
   let size = 4096;
-  const pre = entry.prePixels ?? entry.pixelSnapshots;
+  const pre = entry.prePixels;
   if (pre) for (const blob of pre.values()) size += blob.size;
   if (entry.postPixels) for (const blob of entry.postPixels.values()) size += blob.size;
   return size;
@@ -81,7 +81,7 @@ export function push(entry: HistoryEntry): void {
     timestamp: entry.timestamp,
     kind: entry.kind,
     metaSnapshot: entry.metaSnapshot,
-    prePixels: entry.prePixels ?? entry.pixelSnapshots,
+    prePixels: entry.prePixels,
     postPixels: entry.postPixels,
     estimatedSize: estimateEntrySize(entry),
   });

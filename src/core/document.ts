@@ -142,19 +142,7 @@ function persistSession(): void {
   let historyPixelBlobs: Map<string, Blob> | undefined;
   if (t) {
     historySnapshot = historyTree.toSnapshot(t);
-    historyPixelBlobs = new Map();
-    for (const node of t.nodes.values()) {
-      if (node.prePixels) {
-        for (const [lid, blob] of node.prePixels) {
-          historyPixelBlobs.set(`${node.id}:pre:${lid}`, blob);
-        }
-      }
-      if (node.postPixels) {
-        for (const [lid, blob] of node.postPixels) {
-          historyPixelBlobs.set(`${node.id}:post:${lid}`, blob);
-        }
-      }
-    }
+    historyPixelBlobs = historyTree.collectPixelBlobs(t);
   }
 
   session.saveSession({
@@ -335,21 +323,7 @@ async function save(): Promise<Blob | null> {
     ? historyTree.toSnapshot(t)
     : historyTree.toSnapshot(historyTree.createTree(captureState()!));
 
-  const pixelBlobs = new Map<string, Blob>();
-  if (t) {
-    for (const node of t.nodes.values()) {
-      if (node.prePixels) {
-        for (const [layerId, blob] of node.prePixels) {
-          pixelBlobs.set(`${node.id}:pre:${layerId}`, blob);
-        }
-      }
-      if (node.postPixels) {
-        for (const [layerId, blob] of node.postPixels) {
-          pixelBlobs.set(`${node.id}:post:${layerId}`, blob);
-        }
-      }
-    }
-  }
+  const pixelBlobs = t ? historyTree.collectPixelBlobs(t) : new Map<string, Blob>();
 
   const blob = await serializer.save({
     meta: updatedMeta,

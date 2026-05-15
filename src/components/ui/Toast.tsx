@@ -54,7 +54,7 @@ export function ToastHost(): React.ReactElement {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 8 }}
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-          className={`pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 glass-panel px-3 py-2 text-[11px] ${
+          className={`pointer-events-none fixed bottom-6 left-6 z-50 glass-panel px-3 py-2 text-[11px] ${
             msg.variant === 'error' ? 'text-red-300' : 'text-text-primary'
           }`}
           role="status"

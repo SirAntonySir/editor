@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { useAiSession } from '@/hooks/useImageContext';
 import { useEditorStore } from '@/store';
+import { useGraphStore } from '@/store/graph-store';
 import { pixelStore } from '@/core/pixel-store';
+import { LayerCompositor } from '@/lib/layer-compositor';
 
 interface AiCommandPaletteProps {
   open: boolean;
@@ -25,19 +27,42 @@ function hueForLabel(label: string): number {
   return h % 360;
 }
 
+/**
+ * Choose what to show in the palette preview. Priority:
+ *  1. In graph mode with a highlighted node — that node's output.
+ *  2. Final composited canvas (= what the user sees, includes crop + edits).
+ *  3. Raw layer source as last resort.
+ */
+function pickPreviewSource(
+  imageLayerId: string | undefined,
+  highlightedNodeId: string | null,
+  editorMode: string,
+): HTMLCanvasElement | OffscreenCanvas | null {
+  if (editorMode === 'graph' && highlightedNodeId) {
+    if (highlightedNodeId.startsWith('source:')) {
+      const lid = highlightedNodeId.slice('source:'.length);
+      const src = pixelStore.getSource(lid);
+      if (src && src.width > 0) return src;
+    }
+    // crop:, blend:, output:, adjustment defId: — all show the final composite.
+    // (A finer per-node preview is the same logic useNodePreview does; once
+    // we extract that into a shared helper this branch can call it.)
+  }
+  const composite = LayerCompositor.compositeSync();
+  if (composite.width > 0 && composite.height > 0) return composite;
+  return imageLayerId ? (pixelStore.getSource(imageLayerId) ?? null) : null;
+}
+
 export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiCommandPaletteProps) {
-  // Select the stable context object — deriving `candidateRegions` inline in
-  // the selector returns a new `[]` each render when context is null and
-  // sends Zustand into an infinite re-render loop.
   const context = useAiSession((s) => s.context);
   const candidateRegions = context?.candidateRegions ?? [];
   const imageLayerId = useEditorStore((s) => s.layers.find((l) => l.type === 'image')?.id);
   const pixelVersion = useEditorStore((s) => s.pixelVersion);
+  const editorMode = useEditorStore((s) => s.editorMode);
+  const highlightedNodeId = useGraphStore((s) => s.highlightedNodeId);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const previewRef = useRef<HTMLCanvasElement | null>(null);
-  // Cache the latest base draw so we can repaint the preview when the hover
-  // overlay changes without re-running `drawImage` of the source canvas.
-  const baseImageRef = useRef<{ w: number; h: number } | null>(null);
+  const baseDimsRef = useRef<{ w: number; h: number } | null>(null);
   const [value, setValue] = useState('');
   const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
 
@@ -49,78 +74,6 @@ export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiComman
     }
   }, [open]);
 
-  // Paint a downscaled preview of the active image into the palette.
-  useEffect(() => {
-    if (!open) return;
-    const canvas = previewRef.current;
-    if (!canvas || !imageLayerId) return;
-    const source = pixelStore.getSource(imageLayerId);
-    if (!source || source.width === 0 || source.height === 0) return;
-    const ratio = source.height / source.width;
-    let w = IMAGE_MAX_WIDTH;
-    let h = Math.round(w * ratio);
-    if (h > IMAGE_MAX_HEIGHT) {
-      h = IMAGE_MAX_HEIGHT;
-      w = Math.round(h / ratio);
-    }
-    canvas.width = w;
-    canvas.height = h;
-    canvas.style.width = `${w}px`;
-    canvas.style.height = `${h}px`;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(source, 0, 0, w, h);
-    baseImageRef.current = { w, h };
-  }, [open, imageLayerId, pixelVersion]);
-
-  // Hover overlay: redraw the source image, then stroke the hovered region.
-  useEffect(() => {
-    if (!open) return;
-    const canvas = previewRef.current;
-    if (!canvas || !imageLayerId) return;
-    const base = baseImageRef.current;
-    if (!base) return;
-    const source = pixelStore.getSource(imageLayerId);
-    if (!source) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Repaint the base image (cheaper than caching a separate buffer).
-    ctx.clearRect(0, 0, base.w, base.h);
-    ctx.drawImage(source, 0, 0, base.w, base.h);
-
-    if (!hoveredLabel) return;
-    const region = candidateRegions.find((r) => r.label === hoveredLabel);
-    if (!region) return;
-
-    const hue = hueForLabel(region.label);
-    const stroke = `hsl(${hue}, 85%, 65%)`;
-    const fill = `hsla(${hue}, 85%, 60%, 0.18)`;
-
-    if (region.bbox) {
-      const [nx, ny, nw, nh] = region.bbox;
-      const x = nx * base.w;
-      const y = ny * base.h;
-      const w = nw * base.w;
-      const h = nh * base.h;
-      ctx.fillStyle = fill;
-      ctx.fillRect(x, y, w, h);
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x, y, w, h);
-    }
-    if (region.representativePoint) {
-      const [px, py] = region.representativePoint;
-      ctx.beginPath();
-      ctx.arc(px * base.w, py * base.h, 5, 0, Math.PI * 2);
-      ctx.fillStyle = stroke;
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    }
-  }, [hoveredLabel, candidateRegions, imageLayerId, open]);
-
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
@@ -129,6 +82,70 @@ export function AiCommandPalette({ open, onClose, onSubmit, disabled }: AiComman
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
+
+  // Single source of truth: paints base + hover overlay together.
+  useEffect(() => {
+    if (!open) return;
+    const canvas = previewRef.current;
+    if (!canvas) return;
+
+    function paint() {
+      const source = pickPreviewSource(imageLayerId, highlightedNodeId, editorMode);
+      if (!source || source.width === 0 || source.height === 0) return;
+      const ratio = source.height / source.width;
+      let w = IMAGE_MAX_WIDTH;
+      let h = Math.round(w * ratio);
+      if (h > IMAGE_MAX_HEIGHT) {
+        h = IMAGE_MAX_HEIGHT;
+        w = Math.round(h / ratio);
+      }
+      if (!canvas) return;
+      if (canvas.width !== w) canvas.width = w;
+      if (canvas.height !== h) canvas.height = h;
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(source, 0, 0, w, h);
+      baseDimsRef.current = { w, h };
+
+      if (!hoveredLabel) return;
+      const region = candidateRegions.find((r) => r.label === hoveredLabel);
+      if (!region) return;
+      const hue = hueForLabel(region.label);
+      const stroke = `hsl(${hue}, 85%, 65%)`;
+      const fill = `hsla(${hue}, 85%, 60%, 0.18)`;
+      if (region.bbox) {
+        const [nx, ny, nw, nh] = region.bbox;
+        const x = nx * w;
+        const y = ny * h;
+        const rw = nw * w;
+        const rh = nh * h;
+        ctx.fillStyle = fill;
+        ctx.fillRect(x, y, rw, rh);
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, rw, rh);
+      }
+      if (region.representativePoint) {
+        const [px, py] = region.representativePoint;
+        ctx.beginPath();
+        ctx.arc(px * w, py * h, 5, 0, Math.PI * 2);
+        ctx.fillStyle = stroke;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+
+    paint();
+    // Live-update when the compositor produces new output (crop committed,
+    // slider dragged, layer visibility toggled, etc).
+    const unsub = LayerCompositor.subscribe(() => paint());
+    return () => unsub();
+  }, [open, imageLayerId, pixelVersion, hoveredLabel, candidateRegions, highlightedNodeId, editorMode]);
 
   function insertToken(label: string) {
     const input = inputRef.current;

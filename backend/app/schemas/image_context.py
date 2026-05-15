@@ -8,6 +8,13 @@ Lighting = Literal["flat", "backlit", "side", "rim", "mixed"]
 DominantTone = Literal["shadows", "midtones", "highlights"]
 
 
+class RegionMask(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    png_base64: str
+    width: int
+    height: int
+
+
 class CandidateRegion(BaseModel):
     model_config = ConfigDict(extra="forbid")
     label: str
@@ -18,6 +25,7 @@ class CandidateRegion(BaseModel):
     # is used in the meantime to draw a hover overlay on the preview.
     bbox: list[float] | None = Field(default=None, min_length=4, max_length=4)
     representative_point: list[float] | None = Field(default=None, min_length=2, max_length=2)
+    mask: RegionMask | None = None
 
 
 class ImageContext(BaseModel):

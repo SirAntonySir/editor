@@ -1,5 +1,5 @@
 from app.schemas.operation_graph import OperationGraph
-from app.schemas.image_context import ImageContext
+from app.schemas.image_context import ImageContext, CandidateRegion, RegionMask
 
 
 def test_operation_graph_roundtrip(sample_operation_graph: dict) -> None:
@@ -36,3 +36,23 @@ def test_panel_binding_preserves_int_types(sample_operation_graph: dict) -> None
     assert isinstance(binding.max, int)
     assert isinstance(binding.step, int)
     assert isinstance(binding.default, int)
+
+
+def test_candidate_region_accepts_mask_field():
+    region = CandidateRegion(
+        label="sky",
+        description="upper portion",
+        representative_point=[0.5, 0.2],
+        mask=RegionMask(png_base64="iVBORw0KGgo=", width=1024, height=768),
+    )
+    assert region.mask is not None
+    assert region.mask.width == 1024
+
+
+def test_candidate_region_mask_is_optional():
+    region = CandidateRegion(
+        label="sky",
+        description="upper portion",
+        representative_point=[0.5, 0.2],
+    )
+    assert region.mask is None

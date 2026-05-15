@@ -37,6 +37,7 @@ import { CropTool } from '@/tools/crop-tool';
 import { SelectPointTool } from '@/tools/select-point-tool';
 import { SelectMultiPointTool } from '@/tools/select-multi-point-tool';
 import { SelectBoxTool } from '@/tools/select-box-tool';
+import { BrushMaskTool } from '@/tools/brush-mask-tool';
 import { AnalyseIndicator } from '@/components/ui/AnalyseIndicator';
 import { AiCommandPalette } from '@/components/AiCommandPalette';
 import { ToastHost } from '@/components/ui/Toast';
@@ -83,6 +84,7 @@ ToolRegistry.register(CropTool);
 ToolRegistry.register(SelectPointTool);
 ToolRegistry.register(SelectMultiPointTool);
 ToolRegistry.register(SelectBoxTool);
+ToolRegistry.register(BrushMaskTool);
 
 // Register all node definitions (structural + processing) into NodeRegistry
 registerAllNodes();

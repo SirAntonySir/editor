@@ -1,18 +1,28 @@
 import { z } from 'zod';
 import type { ImageContext } from '@/types/image-context';
 
+const RegionMaskWireSchema = z.object({
+  png_base64: z.string(),
+  width: z.number(),
+  height: z.number(),
+});
+
 const CandidateRegionSchema = z
   .object({
     label: z.string(),
     description: z.string(),
     bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]).nullish(),
     representative_point: z.tuple([z.number(), z.number()]).nullish(),
+    mask: RegionMaskWireSchema.optional(),
   })
   .transform((r) => ({
     label: r.label,
     description: r.description,
     bbox: (r.bbox ?? undefined) as [number, number, number, number] | undefined,
     representativePoint: (r.representative_point ?? undefined) as [number, number] | undefined,
+    mask: r.mask
+      ? { pngBase64: r.mask.png_base64, width: r.mask.width, height: r.mask.height }
+      : undefined,
   }));
 
 export const ImageContextSchema = z

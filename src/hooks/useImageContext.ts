@@ -3,6 +3,7 @@ import { analyzeImage, createSession, pushSessionContext } from '@/lib/ai-client
 import { downscaleForUpload } from '@/lib/downscale-for-upload';
 import { useEditorStore } from '@/store';
 import { pixelStore } from '@/core/pixel-store';
+import { maskStore } from '@/core/mask-store';
 import type { ImageContext } from '@/types/image-context';
 
 type UploadSource = ImageBitmap | HTMLCanvasElement | OffscreenCanvas;
@@ -42,6 +43,56 @@ export function currentImageFingerprint(): string {
   return `${firstImage.id}:${source.width}x${source.height}:${px[0]},${px[1]},${px[2]},${px[3]}`;
 }
 
+/**
+ * Decode a base64 PNG mask into a Uint8Array of length width×height.
+ * Inlined here to avoid a circular import with sam-client (which imports
+ * useAiSession from this module).
+ */
+async function decodeMaskPng(
+  pngBase64: string,
+): Promise<{ data: Uint8Array; width: number; height: number }> {
+  const dataUrl = `data:image/png;base64,${pngBase64}`;
+  const blob = await (await fetch(dataUrl)).blob();
+  const bitmap = await createImageBitmap(blob);
+  const tmp = new OffscreenCanvas(bitmap.width, bitmap.height);
+  const ctx = tmp.getContext('2d');
+  if (!ctx) throw new Error('decodeMaskPng: no 2d context');
+  ctx.drawImage(bitmap, 0, 0);
+  const imgData = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
+  const out = new Uint8Array(bitmap.width * bitmap.height);
+  for (let i = 0; i < out.length; i++) out[i] = imgData.data[i * 4];
+  bitmap.close();
+  return { data: out, width: bitmap.width, height: bitmap.height };
+}
+
+/**
+ * Register backend-refined region masks from an analysed context into
+ * the maskStore. Skips regions that have no mask or are already registered.
+ * Mutations to `region.maskRef` are intentional — CandidateRegion objects
+ * are plain data (not frozen) and this avoids needing a full context clone.
+ */
+async function registerRegionMasks(context: ImageContext, layerId: string): Promise<void> {
+  if (!context.candidateRegions) return;
+  for (const region of context.candidateRegions) {
+    if (!region.mask || region.maskRef) continue;
+    try {
+      const { data, width, height } = await decodeMaskPng(region.mask.pngBase64);
+      const ref = maskStore.register({
+        layerId,
+        label: region.label,
+        width,
+        height,
+        data,
+        source: 'ai-proposed',
+        createdAt: Date.now(),
+      });
+      region.maskRef = ref;
+    } catch (err) {
+      console.error('[ImageContext] failed to register region mask:', region.label, err);
+    }
+  }
+}
+
 export const useAiSession = create<AiSessionState>((set, get) => ({
   sessionId: null,
   context: null,
@@ -58,6 +109,11 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
       const context = await analyzeImage(sessionId);
       console.log('[ImageContext]', context);
       if (get().sessionId !== sessionId) return;
+      const activeLayerId = useEditorStore.getState().activeLayerId
+        ?? useEditorStore.getState().layers.find((l) => l.type === 'image')?.id;
+      if (activeLayerId) {
+        await registerRegionMasks(context, activeLayerId);
+      }
       set({ context, status: 'ready', lastAnalysedFingerprint: fingerprint });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -103,6 +159,12 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
       error: null,
       lastAnalysedFingerprint: currentImageFingerprint(),
     });
+    const activeLayerId = useEditorStore.getState().activeLayerId
+      ?? useEditorStore.getState().layers.find((l) => l.type === 'image')?.id;
+    if (activeLayerId) {
+      // fire-and-forget: masks are non-blocking enhancements; failures logged inside helper
+      void registerRegionMasks(context, activeLayerId);
+    }
   },
   reset() {
     set({ sessionId: null, context: null, status: 'idle', error: null, lastAnalysedFingerprint: null });

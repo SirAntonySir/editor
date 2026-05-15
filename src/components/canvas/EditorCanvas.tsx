@@ -8,6 +8,7 @@ import { editorDocument } from '@/core/document';
 import { applyCropForExport } from '@/lib/crop-display';
 import { useAdjustmentPipeline } from './useAdjustmentPipeline';
 import { MaskOverlay } from './MaskOverlay';
+import { SegmentActionsBar } from './SegmentActionsBar';
 
 interface EditorCanvasProps {
   canvasRef: React.MutableRefObject<fabric.Canvas | null>;
@@ -372,6 +373,7 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
     >
       <canvas ref={canvasElRef} />
       <MaskOverlay canvasWidth={canvasWidth} canvasHeight={canvasHeight} />
+      <SegmentActionsBar />
     </div>
   );
 }

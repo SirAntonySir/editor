@@ -174,6 +174,9 @@ export function addAiStepNode(target: TargetRef, graph: OperationGraph): void {
         generatedAt: graph.metadata.generated_at ?? new Date().toISOString(),
       },
     };
+    if (target.kind === 'mask') {
+      adjustment.scope = { kind: 'mask', maskRef: target.maskRef };
+    }
     useEditorStore.getState().insertAdjustment(hostLayerId, adjustment, cursor);
     cursor += 1;
   }

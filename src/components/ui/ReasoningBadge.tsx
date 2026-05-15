@@ -4,10 +4,12 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 interface ReasoningBadgeProps {
   reasoning: string;
   modelName?: string;
+  modelVersion?: string;
   timestamp?: string;
 }
 
-export function ReasoningBadge({ reasoning, modelName, timestamp }: ReasoningBadgeProps) {
+export function ReasoningBadge({ reasoning, modelName, modelVersion, timestamp }: ReasoningBadgeProps) {
+  const meta = [modelName, modelVersion, timestamp].filter(Boolean).join(' · ');
   return (
     <Tooltip.Provider delayDuration={150}>
       <Tooltip.Root>
@@ -27,13 +29,7 @@ export function ReasoningBadge({ reasoning, modelName, timestamp }: ReasoningBad
             className="glass-panel max-w-[240px] px-2 py-1 text-[11px] text-text-primary"
           >
             <p>{reasoning}</p>
-            {(modelName || timestamp) && (
-              <p className="mt-1 text-[10px] text-text-secondary">
-                {modelName ?? ''}
-                {modelName && timestamp ? ' · ' : ''}
-                {timestamp ?? ''}
-              </p>
-            )}
+            {meta && <p className="mt-1 text-[10px] text-text-secondary">{meta}</p>}
           </Tooltip.Content>
         </Tooltip.Portal>
       </Tooltip.Root>

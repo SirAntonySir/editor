@@ -34,6 +34,10 @@ export function buildGraphFromLayers(
   let prevChainEnd: string | null = null;
   let maxX = 0;
 
+  // Records the final output node (crop tip) for each layer, keyed by layer id.
+  // Used in the second pass to wire branched layers to their parent's output.
+  const chainTipByLayerId = new Map<string, string>();
+
   for (let i = 0; i < sorted.length; i++) {
     const layer = sorted[i];
     const y = i * Y_STEP;
@@ -103,6 +107,9 @@ export function buildGraphFromLayers(
     chainTip = cropKey;
     x += X_STEP;
 
+    // Record this layer's final output so child layers can branch from it.
+    chainTipByLayerId.set(layer.id, chainTip);
+
     maxX = Math.max(maxX, x);
 
     // Blend chain
@@ -143,6 +150,34 @@ export function buildGraphFromLayers(
     }
   }
 
+  // ─── Branch pass: wire child layers to their parent's output ────────
+  // For any layer that declares parentLayerId, its chain should begin from
+  // the parent's crop-tip rather than an independent source node.
+  // We remove the child's source node and repoint the first edge of the
+  // child's chain to the parent's tip instead.
+  for (const layer of sorted) {
+    if (!layer.parentLayerId) continue;
+    const parentTip = chainTipByLayerId.get(layer.parentLayerId);
+    if (!parentTip) continue;
+
+    const sourceNodeId = `source:${layer.id}`;
+
+    // Find the first edge that leaves this layer's source node and redirect
+    // it to come from the parent's tip instead.
+    const firstEdge = graph.edges.find((e) => e.source === sourceNodeId);
+    if (firstEdge) {
+      firstEdge.source = parentTip;
+      firstEdge.id = `${parentTip}->${firstEdge.target}`;
+    }
+
+    // Remove the now-orphaned source node and any remaining edges that
+    // still reference it (there should be none, but guard for safety).
+    graph.nodes = graph.nodes.filter((n) => n.id !== sourceNodeId);
+    graph.edges = graph.edges.filter(
+      (e) => e.source !== sourceNodeId && e.target !== sourceNodeId,
+    );
+  }
+
   // Output node
   const outKey = 'output:_';
   const outY = sorted.length > 0 ? ((sorted.length - 1) * Y_STEP) / 2 : 0;
@@ -174,7 +209,7 @@ function computeStructureKey(layers: Layer[]): string {
   return layers
     .map(
       (l) =>
-        `${l.id}:${l.order}:${l.cropMeta ? 'crop' : ''}:${l.adjustmentStack.adjustments.map((a) => `${a.id}:${a.type}`).join(',')}`,
+        `${l.id}:${l.order}:${l.parentLayerId ?? ''}:${l.cropMeta ? 'crop' : ''}:${l.adjustmentStack.adjustments.map((a) => `${a.id}:${a.type}`).join(',')}`,
     )
     .join('|');
 }

@@ -7,6 +7,7 @@ import { CanvasRegistry } from '@/lib/canvas-registry';
 import { editorDocument } from '@/core/document';
 import { applyCropForExport } from '@/lib/crop-display';
 import { useAdjustmentPipeline } from './useAdjustmentPipeline';
+import { MaskOverlay } from './MaskOverlay';
 
 interface EditorCanvasProps {
   canvasRef: React.MutableRefObject<fabric.Canvas | null>;
@@ -36,6 +37,8 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
   const spaceHeld = useRef(false);
 
   const editorMode = useEditorStore((s) => s.editorMode);
+  const canvasWidth = useEditorStore((s) => s.canvasWidth);
+  const canvasHeight = useEditorStore((s) => s.canvasHeight);
   const editorModeRef = useRef(editorMode);
   editorModeRef.current = editorMode;
   const objectStateSnapshot = useRef<WeakMap<fabric.FabricObject, { selectable: boolean; evented: boolean }>>(new WeakMap());
@@ -368,6 +371,7 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
       onDragOver={(e) => e.preventDefault()}
     >
       <canvas ref={canvasElRef} />
+      <MaskOverlay canvasWidth={canvasWidth} canvasHeight={canvasHeight} />
     </div>
   );
 }

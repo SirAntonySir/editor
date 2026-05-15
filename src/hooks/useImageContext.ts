@@ -21,33 +21,25 @@ interface AiSessionState {
 }
 
 /**
- * Fingerprint the user's manual base-image edits (crop + non-AI adjustments)
- * across all non-`ai-panel` layers. Excluding ai-panel layers is deliberate:
- * adding AI suggestions should NOT invalidate the cached context — otherwise
- * every multi-panel flow would trigger a fresh analyse and break the
- * thesis-spec's ≥80% prompt-cache exit criterion.
+ * Hash of the source-image pixels for the document.
+ * Used to decide when to re-analyse the base image (e.g. user replaced the source).
+ * Adjustments, new layers, ai-step output do NOT invalidate this.
  */
 export function currentImageFingerprint(): string {
-  const layers = useEditorStore
-    .getState()
-    .layers.filter((l) => l.type !== 'ai-panel');
-  return JSON.stringify(
-    layers.map((l) => ({
-      id: l.id,
-      type: l.type,
-      visible: l.visible,
-      opacity: l.opacity,
-      blendMode: l.blendMode,
-      cropMeta: l.cropMeta ?? null,
-      adjustments: l.adjustmentStack.adjustments.map((a) => ({
-        type: a.type,
-        params: a.params,
-        enabled: a.enabled,
-        opacity: a.opacity,
-        blendMode: a.blendMode,
-      })),
-    })),
-  );
+  const editor = useEditorStore.getState();
+  const firstImage = editor.layers.find((l) => l.type === 'image');
+  if (!firstImage) return 'empty';
+  const source = pixelStore.getSource(firstImage.id);
+  if (!source) return `nopixels:${firstImage.id}`;
+  // Use width × height × an arbitrary corner pixel as a cheap content hash.
+  // The expensive option (full pixel digest) is unnecessary — we only need to
+  // catch source replacement, not adjustment drift.
+  const ctx = source instanceof HTMLCanvasElement
+    ? source.getContext('2d')
+    : (source as OffscreenCanvas).getContext('2d');
+  if (!ctx) return `${firstImage.id}:${source.width}x${source.height}`;
+  const px = ctx.getImageData(0, 0, 1, 1).data;
+  return `${firstImage.id}:${source.width}x${source.height}:${px[0]},${px[1]},${px[2]},${px[3]}`;
 }
 
 export const useAiSession = create<AiSessionState>((set, get) => ({
@@ -152,24 +144,3 @@ export async function bindSessionFromFirstImageLayer(): Promise<void> {
   await useAiSession.getState().bindCachedSession(bitmap);
 }
 
-/**
- * Re-analyse using the current composited canvas (= what the user sees,
- * including crop + base-image adjustments). Called automatically on Cmd+K
- * when the fingerprint indicates the cached context is stale.
- */
-export async function reanalyseFromComposite(): Promise<void> {
-  // Dynamic-import so this module stays loadable in a node test env where
-  // `document` (used by LayerCompositor's constructor) is undefined.
-  const { LayerCompositor } = await import('@/lib/layer-compositor');
-  const canvas = LayerCompositor.compositeSync();
-  if (!canvas || canvas.width === 0 || canvas.height === 0) {
-    console.warn('[ImageContext] reanalyseFromComposite: empty composite, skipping');
-    return;
-  }
-  console.log('[ImageContext] reanalyseFromComposite: uploading composite', {
-    w: canvas.width,
-    h: canvas.height,
-  });
-  await useAiSession.getState().uploadAndAnalyse(canvas);
-  console.log('[ImageContext] reanalyseFromComposite: done');
-}

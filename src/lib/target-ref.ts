@@ -1,6 +1,7 @@
 import { useEditorStore } from '@/store';
 import { useGraphStore } from '@/store/graph-store';
 import type { TargetRef } from '@/types/ai-target';
+import { maskStore } from '@/core/mask-store';
 
 export function resolveSmartTarget(): TargetRef {
   const editor = useEditorStore.getState();
@@ -35,7 +36,8 @@ export function humanLabelFor(ref: TargetRef): string {
   if (ref.kind === 'layer') return layer.name;
 
   if (ref.kind === 'mask') {
-    return `${layer.name} · Selection`;
+    const mask = maskStore.get(ref.maskRef);
+    return `${layer.name} · ${mask?.label ?? 'Selection'}`;
   }
 
   const adj = layer.adjustmentStack?.adjustments.find((a) => a.id === ref.adjustmentId);
@@ -105,11 +107,27 @@ export async function renderTargetSnapshot(target: TargetRef): Promise<Blob> {
   if (target.kind === 'mask') {
     const editor = useEditorStore.getState();
     const layer = editor.layers.find((l) => l.id === target.layerId);
-    if (!layer) throw new Error('renderTargetSnapshot: mask layer missing');
+    const mask = maskStore.get(target.maskRef);
+    if (!layer || !mask) throw new Error('renderTargetSnapshot: mask or layer missing');
     const rendered = LayerCompositor.renderLayer(layer);
     if (!rendered) throw new Error('renderTargetSnapshot: failed to render host layer');
-    return canvasToDownscaledPng(rendered);
-    // TODO(Plan A Task 3): multiply by mask alpha after maskStore lands
+    if (mask.width !== rendered.width || mask.height !== rendered.height) {
+      // Dimensions must match — skip the multiply for now and return the raw render.
+      // Future: resize mask to layer dims.
+      return canvasToDownscaledPng(rendered);
+    }
+    const out = document.createElement('canvas');
+    out.width = rendered.width;
+    out.height = rendered.height;
+    const ctx = out.getContext('2d');
+    if (!ctx) throw new Error('renderTargetSnapshot: no 2d context');
+    ctx.drawImage(rendered, 0, 0);
+    const imgData = ctx.getImageData(0, 0, rendered.width, rendered.height);
+    for (let i = 0; i < mask.data.length; i++) {
+      imgData.data[i * 4 + 3] = (imgData.data[i * 4 + 3] * mask.data[i]) / 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+    return canvasToDownscaledPng(out);
   }
 
   // layer or node — render the host layer through its adjustment pipeline.

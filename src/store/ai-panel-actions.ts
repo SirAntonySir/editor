@@ -1,6 +1,7 @@
 import { useEditorStore } from '@/store';
 import type { Adjustment } from '@/store/layer-slice';
 import type { OperationGraph } from '@/types/operation-graph';
+import { editorDocument } from '@/core/document';
 
 let counter = 0;
 
@@ -67,4 +68,60 @@ export function addAiPanelLayer(graph: OperationGraph): void {
     };
     useEditorStore.getState().addAdjustment(id, adjustment);
   }
+}
+
+/**
+ * Materialise a refined OperationGraph as a NEW sibling ai-panel layer placed
+ * immediately above the prior layer in the stack. The prior layer is untouched.
+ *
+ * Throws if `priorLayerId` is not in the store.
+ */
+export function addRefinedAiPanelLayer(priorLayerId: string, graph: OperationGraph): void {
+  const priorIndex = useEditorStore.getState().layers.findIndex((l) => l.id === priorLayerId);
+  if (priorIndex === -1) {
+    throw new Error(`addRefinedAiPanelLayer: unknown priorLayerId "${priorLayerId}"`);
+  }
+
+  addAiPanelLayer(graph);
+
+  // addAiPanelLayer appended the new layer at the end of `layers`; move it
+  // to just above the prior layer (priorIndex + 1).
+  const newIndex = useEditorStore.getState().layers.length - 1;
+  const targetIndex = priorIndex + 1;
+  if (newIndex !== targetIndex) {
+    useEditorStore.getState().reorderLayers(newIndex, targetIndex);
+  }
+}
+
+/**
+ * Restore every AI-sourced adjustment on the given ai-panel layer to its
+ * binding default. Non-AI adjustments and non-ai-panel layers are ignored.
+ * Recorded as a single undoable action.
+ */
+export function resetPanelToSuggestion(layerId: string): void {
+  const store = useEditorStore.getState();
+  const layer = store.layers.find((l) => l.id === layerId);
+  if (!layer || layer.type !== 'ai-panel' || !layer.panelBindings) return;
+
+  const bindingsByNode = new Map<string, typeof layer.panelBindings>();
+  for (const b of layer.panelBindings) {
+    const arr = bindingsByNode.get(b.nodeId) ?? [];
+    arr.push(b);
+    bindingsByNode.set(b.nodeId, arr);
+  }
+
+  // Group all param updates into one recordAction so it's a single undo step.
+  editorDocument.recordAction('Reset to suggestion', () => {
+    for (const adj of layer.adjustmentStack.adjustments) {
+      const nodeId = adj.aiSource?.nodeId;
+      if (!nodeId) continue;
+      const bindings = bindingsByNode.get(nodeId);
+      if (!bindings) continue;
+      const nextParams: Record<string, number | Float32Array> = { ...adj.params };
+      for (const b of bindings) {
+        if (typeof b.default === 'number') nextParams[b.paramKey] = b.default;
+      }
+      useEditorStore.getState().updateAdjustmentParams(layerId, adj.id, nextParams);
+    }
+  });
 }

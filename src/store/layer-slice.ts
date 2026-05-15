@@ -109,6 +109,12 @@ export interface LayerSlice {
     adjustmentId: string,
     updates: Partial<Pick<Adjustment, 'blendMode' | 'opacity' | 'enabled' | 'name'>>,
   ) => void;
+  // Replace an adjustment's params map by ID
+  updateAdjustmentParams: (
+    layerId: string,
+    adjustmentId: string,
+    params: Record<string, number | Float32Array>,
+  ) => void;
   // Toggle by type (for singleton adjustments)
   toggleAdjustment: (layerId: string, type: string, enabled: boolean) => void;
   // Reorder adjustment layers
@@ -209,6 +215,16 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
       const adj = layer.adjustmentStack.adjustments.find((a) => a.id === adjustmentId);
       if (adj) {
         Object.assign(adj, updates);
+      }
+    }),
+
+  updateAdjustmentParams: (layerId, adjustmentId, params) =>
+    set((state) => {
+      const layer = state.layers.find((l) => l.id === layerId);
+      if (!layer) return;
+      const adj = layer.adjustmentStack.adjustments.find((a) => a.id === adjustmentId);
+      if (adj) {
+        adj.params = params;
       }
     }),
 

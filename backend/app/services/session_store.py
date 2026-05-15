@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from threading import Lock
 from typing import Any
 
@@ -18,6 +18,7 @@ class SessionRecord:
     created_at: float
     last_seen: float
     context: dict[str, Any] | None = None
+    graphs: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 class SessionStore:
@@ -53,8 +54,16 @@ class SessionStore:
             return record
 
     def touch(self, sid: str) -> None:
-        self.get(sid)  # raises if missing/expired; side effect: updates last_seen
+        self.get(sid)
 
     def set_context(self, sid: str, context: dict[str, Any]) -> None:
         record = self.get(sid)
         record.context = context
+
+    def store_graph(self, sid: str, graph_id: str, graph: dict[str, Any]) -> None:
+        record = self.get(sid)
+        record.graphs[graph_id] = graph
+
+    def get_graph(self, sid: str, graph_id: str) -> dict[str, Any] | None:
+        record = self.get(sid)
+        return record.graphs.get(graph_id)

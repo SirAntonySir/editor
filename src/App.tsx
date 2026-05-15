@@ -42,7 +42,10 @@ import {
   bindSessionFromFirstImageLayer,
 } from '@/hooks/useImageContext';
 import { generatePanel } from '@/lib/ai-client';
-import { addAiPanelLayer } from '@/store/ai-panel-actions';
+import { resolveSmartTarget, renderTargetSnapshot } from '@/lib/target-ref';
+import { addAiStepNode } from '@/store/ai-panel-actions';
+import { setPaletteOpenHandler, bindSeedSetter } from '@/lib/palette-bus';
+import type { TargetRef, InsertionIntent } from '@/types/ai-target';
 import { Upload } from 'lucide-react';
 
 // Lazy-load GraphEditor so @xyflow/react CSS doesn't interfere with Fabric.js canvas
@@ -205,6 +208,10 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
   // either a live sessionId exists OR a cached context is available (in which
   // case the submit handler lazy-binds a fresh session, no Claude call).
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteSeed, setPaletteSeed] = useState<{
+    target: TargetRef;
+    intent: InsertionIntent;
+  } | null>(null);
   const sessionId = useAiSession((s) => s.sessionId);
   const hasContext = useAiSession((s) => s.context != null);
 
@@ -219,6 +226,18 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  useEffect(() => {
+    setPaletteOpenHandler((t, i) => {
+      setPaletteSeed({ target: t, intent: i });
+      setPaletteOpen(true);
+    });
+    bindSeedSetter(setPaletteSeed);
+    return () => {
+      setPaletteOpenHandler(null);
+      bindSeedSetter(null);
+    };
+  }, []);
+
   const handlePaletteSubmit = useCallback(
     async (text: string) => {
       const session = useAiSession.getState();
@@ -228,20 +247,23 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
         sid = useAiSession.getState().sessionId;
       }
       if (!sid) return;
+
+      const target: TargetRef = paletteSeed?.target ?? resolveSmartTarget();
+      const intent: InsertionIntent = paletteSeed?.intent ?? 'append';
+
       try {
-        // TEMP: full new flow lands in Task 8
-        const fakeSnapshot = new Blob([new Uint8Array([0])], { type: 'image/png' });
+        const snapshot = await renderTargetSnapshot(target);
         const graph = await generatePanel(sid, text, {
-          targetSnapshotPng: fakeSnapshot,
-          targetRef: { kind: 'composite' },
-          insertionIntent: 'append',
+          targetSnapshotPng: snapshot,
+          targetRef: target,
+          insertionIntent: intent,
         });
-        addAiPanelLayer(graph);
+        addAiStepNode(target, graph);
       } catch (err) {
-        console.error(err);
+        console.error('[Cmd+K] generate failed:', err);
       }
     },
-    [],
+    [paletteSeed],
   );
 
   const handleFileOpen = useCallback(() => {
@@ -286,7 +308,10 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
       {/* Cmd+K palette — image preview + candidate-region pills + goal input */}
       <AiCommandPalette
         open={paletteOpen}
-        onClose={() => setPaletteOpen(false)}
+        onClose={() => {
+          setPaletteOpen(false);
+          setPaletteSeed(null);
+        }}
         onSubmit={handlePaletteSubmit}
         disabled={!sessionId && !hasContext}
       />

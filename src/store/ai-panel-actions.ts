@@ -45,8 +45,8 @@ export function addAiPanelLayer(graph: OperationGraph): void {
 
   // Push each graph node as an adjustment with AI provenance.
   for (const node of graph.nodes) {
-    const label =
-      graph.panelBindings.find((b) => b.nodeId === node.id)?.label ?? node.type;
+    const firstBinding = graph.panelBindings.find((b) => b.nodeId === node.id);
+    const label = firstBinding?.label ?? node.type;
     const adjustment: Adjustment = {
       id: `${id}-${node.id}`,
       type: node.type,
@@ -59,10 +59,10 @@ export function addAiPanelLayer(graph: OperationGraph): void {
         graphId: graph.id,
         nodeId: node.id,
         label,
-        reasoning: graph.reasoning,
+        reasoning: firstBinding?.reasoning ?? graph.reasoning,
         modelName: graph.metadata.model_name ?? '',
         modelVersion: graph.metadata.model_version ?? '',
-        generatedAt: new Date().toISOString(),
+        generatedAt: graph.metadata.generated_at ?? new Date().toISOString(),
       },
     };
     useEditorStore.getState().addAdjustment(id, adjustment);

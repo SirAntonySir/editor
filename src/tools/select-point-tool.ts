@@ -65,12 +65,9 @@ export const SelectPointTool: ToolDefinition = {
         prompts: [{ kind: 'point', data: [imageX, imageY, 1] }],
       });
       useEditorStore.getState().setActiveMask(maskRef);
+      useEditorStore.getState().commitMask();
     } catch (err) {
       console.error('[SelectPoint] segment failed:', err);
     }
-  },
-
-  onPointerUp: (_e: CanvasPointerEvent, _ctx: ToolContext) => {
-    useEditorStore.getState().commitMask();
   },
 };

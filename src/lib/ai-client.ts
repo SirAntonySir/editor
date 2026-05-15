@@ -35,3 +35,16 @@ export async function generatePanel(sessionId: string, userGoal: string): Promis
   const raw = await postJson<unknown>('/api/panel', { session_id: sessionId, user_goal: userGoal });
   return OperationGraphSchema.parse(raw);
 }
+
+export async function refinePanel(
+  sessionId: string,
+  priorGraphId: string,
+  instruction: string,
+): Promise<OperationGraph> {
+  const raw = await postJson<unknown>('/api/refine', {
+    session_id: sessionId,
+    prior_graph_id: priorGraphId,
+    instruction,
+  });
+  return OperationGraphSchema.parse(raw);
+}

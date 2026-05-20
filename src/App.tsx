@@ -13,6 +13,7 @@ import { PreferencesPage } from '@/components/PreferencesPage';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { registerAllProcessing } from '@/processing';
+import { registerAllToolManifests } from '@/lib/tool-manifest';
 import { registerAllNodes } from '@/components/graph/registerNodes';
 import { initNodeTypes } from '@/components/graph/nodeTypes';
 import { useEditorStore } from '@/store';
@@ -55,6 +56,9 @@ import {
 
 // Register processing definitions (must happen before tool registration and nodeTypes init)
 registerAllProcessing();
+
+// Register LLM-facing tool manifests (Plan 2)
+registerAllToolManifests();
 
 // Register tools
 ToolRegistry.register(SelectTool);

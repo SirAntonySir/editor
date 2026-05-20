@@ -8,6 +8,7 @@ import { editorDocument } from '@/core/document';
 import { applyCropForExport } from '@/lib/crop-display';
 import { useAdjustmentPipeline } from './useAdjustmentPipeline';
 import { useFabricOverlays } from './useFabricOverlays';
+import { SelectionActionsOverlay } from './SelectionActionsOverlay';
 
 interface EditorCanvasProps {
   canvasRef: React.MutableRefObject<fabric.Canvas | null>;
@@ -372,6 +373,7 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
       onDragOver={(e) => e.preventDefault()}
     >
       <canvas ref={canvasElRef} />
+      <SelectionActionsOverlay />
     </div>
   );
 }

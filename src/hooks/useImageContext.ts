@@ -4,6 +4,7 @@ import { downscaleForUpload } from '@/lib/downscale-for-upload';
 import { useEditorStore } from '@/store';
 import { pixelStore } from '@/core/pixel-store';
 import { maskStore } from '@/core/mask-store';
+import { maskPngBase64ToBytes } from '@/lib/sam/sam-client';
 import type { ImageContext, RegionPolygon } from '@/types/image-context';
 
 type UploadSource = ImageBitmap | HTMLCanvasElement | OffscreenCanvas;
@@ -77,10 +78,16 @@ function rasterisePathsToMask(
 }
 
 /**
- * Register each region's polygon-paths as a rasterised mask in `maskStore`
- * so the existing scope/shader pipeline can consume them via `maskRef`.
- * Rasterised at the source layer's native resolution for pixel-accurate
- * alignment. Regions without paths are skipped (no chip will render).
+ * Register each region's mask in `maskStore` so the existing scope/shader
+ * pipeline can consume them via `maskRef`.
+ *
+ * Two sources, in priority order:
+ *   1. `mask_png_base64` — raw SAM mask returned by `/api/analyze`.
+ *      Pixel-accurate, no roundtrip. Preferred path.
+ *   2. `paths` — polygon contours. Lossy fallback used only when the backend
+ *      didn't ship a PNG (cached contexts predating this change).
+ *
+ * Regions without either are skipped (no chip will render).
  */
 async function registerRegionPaths(context: ImageContext, layerId: string): Promise<void> {
   if (!context.candidateRegions) return;
@@ -93,21 +100,40 @@ async function registerRegionPaths(context: ImageContext, layerId: string): Prom
     return;
   }
   for (const region of context.candidateRegions) {
-    if (!region.paths || region.paths.length === 0) continue;
-    // A maskRef carried over from a cached context is stale unless it still
-    // resolves in the current session's maskStore (which is in-memory only).
     if (region.maskRef && maskStore.get(region.maskRef)) continue;
     region.maskRef = undefined;
-    const data = rasterisePathsToMask(region.paths, width, height);
-    if (!data) {
-      console.warn('[ImageContext] failed to rasterise paths for region:', region.label);
-      continue;
+
+    let maskWidth = width;
+    let maskHeight = height;
+    let data: Uint8Array | null = null;
+
+    if (region.maskPngBase64) {
+      try {
+        const decoded = await maskPngBase64ToBytes(region.maskPngBase64);
+        data = decoded.data;
+        maskWidth = decoded.width;
+        maskHeight = decoded.height;
+      } catch (err) {
+        console.warn('[ImageContext] failed to decode mask PNG for region:', region.label, err);
+      }
     }
+
+    if (!data) {
+      if (!region.paths || region.paths.length === 0) continue;
+      data = rasterisePathsToMask(region.paths, width, height);
+      maskWidth = width;
+      maskHeight = height;
+      if (!data) {
+        console.warn('[ImageContext] failed to rasterise paths for region:', region.label);
+        continue;
+      }
+    }
+
     const ref = maskStore.register({
       layerId,
       label: region.label,
-      width,
-      height,
+      width: maskWidth,
+      height: maskHeight,
       data,
       source: 'ai-proposed',
       createdAt: Date.now(),

@@ -3,12 +3,13 @@ import { SlidersHorizontal, Sparkles } from 'lucide-react';
 import { usePreferencesStore, type RightSidebarTab } from '@/store/preferences-store';
 import { useEditorStore } from '@/store';
 import { useAiSession } from '@/hooks/useImageContext';
+import { useAiChips } from '@/store/ai-chips-store';
 import { setPaletteOpenHandler } from '@/lib/palette-bus';
 import { SidebarShell } from './SidebarShell';
 import { InspectorPanelBody } from '@/components/inspector/InspectorPanel';
 import { GraphPropertiesPanelBody } from '@/components/graph/GraphPropertiesPanel';
 import { AiCommandPalette } from '@/components/AiCommandPalette';
-import { submitPaletteText } from '@/lib/ai-palette-submit';
+
 const TABS: { id: RightSidebarTab; label: string; Icon: typeof SlidersHorizontal }[] = [
   { id: 'inspector', label: 'Inspector', Icon: SlidersHorizontal },
   { id: 'ai', label: 'AI', Icon: Sparkles },
@@ -48,15 +49,17 @@ export function RightSidebar() {
     };
   }, []);
 
-  // Auto-open the right sidebar on the Inspector tab when a mask is committed.
+  // Auto-open the right sidebar on the AI tab when a new chip is added.
   useEffect(() => {
-    return useEditorStore.subscribe((state, prev) => {
-      if (state.committedMaskRef && !prev.committedMaskRef) {
+    let prevLen = useAiChips.getState().chips.length;
+    return useAiChips.subscribe((state) => {
+      if (state.chips.length > prevLen) {
         usePreferencesStore.setState({
           rightSidebarCollapsed: false,
-          rightSidebarTab: 'inspector',
+          rightSidebarTab: 'ai',
         });
       }
+      prevLen = state.chips.length;
     });
   }, []);
 
@@ -77,10 +80,7 @@ export function RightSidebar() {
         )}
         {tab === 'ai' && (
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-            <AiCommandPalette
-              onSubmit={(text) => submitPaletteText(text, null)}
-              disabled={!sessionId && !hasContext}
-            />
+            <AiCommandPalette disabled={!sessionId && !hasContext} />
           </div>
         )}
       </div>

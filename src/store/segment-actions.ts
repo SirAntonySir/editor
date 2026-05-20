@@ -34,13 +34,29 @@ export function extractLayerFromMask(args: {
   const ctx = baked.getContext('2d');
   if (!ctx) throw new Error('extractLayerFromMask: unable to acquire 2D context');
   ctx.drawImage(rendered, 0, 0);
-  if (mask.width === rendered.width && mask.height === rendered.height) {
-    const imgData = ctx.getImageData(0, 0, baked.width, baked.height);
-    for (let i = 0; i < mask.data.length; i++) {
-      imgData.data[i * 4 + 3] = (imgData.data[i * 4 + 3] * mask.data[i]) / 255;
-    }
-    ctx.putImageData(imgData, 0, 0);
+
+  // Build a white-on-transparent alpha canvas from the mask bytes, then clip
+  // the baked pixels with `destination-in`. drawImage auto-scales the mask to
+  // the rendered size, so masks coming from the SAM backend (which often arrive
+  // at a different resolution than the layer's source canvas) align correctly.
+  const maskCanvas = new OffscreenCanvas(mask.width, mask.height);
+  const maskCtx = maskCanvas.getContext('2d');
+  if (!maskCtx) throw new Error('extractLayerFromMask: unable to acquire mask 2D context');
+  const maskImg = maskCtx.createImageData(mask.width, mask.height);
+  const md = maskImg.data;
+  for (let i = 0; i < mask.data.length; i++) {
+    const j = i * 4;
+    md[j] = 255;
+    md[j + 1] = 255;
+    md[j + 2] = 255;
+    md[j + 3] = mask.data[i];
   }
+  maskCtx.putImageData(maskImg, 0, 0);
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.drawImage(maskCanvas, 0, 0, baked.width, baked.height);
+  ctx.restore();
 
   const newId = crypto.randomUUID();
   pixelStore.register(newId, baked);

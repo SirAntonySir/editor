@@ -31,6 +31,11 @@ class CandidateRegion(BaseModel):
     # polygons cover disjoint mask components. Populated by `_refine_regions`
     # after SAM runs; regions where SAM fails are dropped from the response.
     paths: list[list[list[float]]] | None = None
+    # Raw SAM mask as a base64-encoded PNG (1-channel, 0/255). Carries the
+    # full pixel-accurate result so the frontend can register it without going
+    # through the lossy polygon-rasterise roundtrip. `paths` is retained for
+    # the colored overlay rendered on top of the preview canvas.
+    mask_png_base64: str | None = None
 
 
 class ImageContext(BaseModel):
@@ -67,3 +72,11 @@ class RegionRefinement(BaseModel):
 class ContextRefinements(BaseModel):
     model_config = ConfigDict(extra="forbid")
     refinements: list[RegionRefinement] = Field(default_factory=list)
+
+
+class RegionLabel(BaseModel):
+    """Output of /api/name-region — a short, concrete label for a SAM mask
+    the user just created. Claude is shown the original image with the mask
+    outlined in magenta and asked to label the highlighted region."""
+    model_config = ConfigDict(extra="forbid")
+    label: str = Field(min_length=1, max_length=64)

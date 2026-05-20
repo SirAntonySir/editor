@@ -15,10 +15,18 @@ export interface CandidateRegion {
    * SAM-derived polygon paths in normalised 0–1 image coordinates.
    * Multiple polygons represent disjoint components of the mask.
    * Set by the backend `/api/analyze` pass; absence means SAM didn't find
-   * a usable segment for this region.
+   * a usable segment for this region. Used by the preview canvas to render
+   * the colored overlay.
    */
   paths?: RegionPolygon[];
-  /** Frontend-only ref into maskStore; set after lazily rasterising paths. */
+  /**
+   * Raw SAM mask as a base64-encoded PNG (1-channel, 0/255). Preferred
+   * source when registering the mask into `maskStore` — pixel-accurate, no
+   * polygon roundtrip. Falls back to rasterising `paths` when absent
+   * (older cached contexts).
+   */
+  maskPngBase64?: string;
+  /** Frontend-only ref into maskStore; set after lazily registering the mask. */
   maskRef?: string;
 }
 

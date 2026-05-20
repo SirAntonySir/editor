@@ -3,7 +3,8 @@ import * as fabric from 'fabric';
 import { useEditorStore } from '@/store';
 import { maskStore, type Mask } from '@/core/mask-store';
 import { maskToOutlinePathData } from '@/lib/mask-outline';
-import type { MaskOverlayLayer, OutlineOverlayLayer, OverlayLayer } from '@/types/overlay';
+import { maskCentroid } from '@/lib/mask-centroid';
+import type { MaskOverlayLayer, OutlineOverlayLayer, OverlayLayer, TextLabelOverlayLayer } from '@/types/overlay';
 
 /**
  * Tag attached to Fabric objects we own. Used to find and clean them up
@@ -96,7 +97,7 @@ function selectOverlayLayers(
   const ref = activeRef ?? committedRef;
   if (!ref) return [];
   const state: 'active' | 'committed' = activeRef ? 'active' : 'committed';
-  return [
+  const layers: OverlayLayer[] = [
     {
       kind: 'mask',
       id: `fill:${ref}`,
@@ -111,6 +112,23 @@ function selectOverlayLayers(
       maskRef: ref,
     } satisfies OutlineOverlayLayer,
   ];
+
+  // If the mask carries a label (from region fusion or an explicit caller),
+  // anchor a text overlay at its centroid.
+  const mask = maskStore.get(ref);
+  if (mask?.label) {
+    const centroid = maskCentroid(mask);
+    if (centroid) {
+      layers.push({
+        kind: 'text-label',
+        id: `label:${ref}`,
+        anchorTo: imageLayerId,
+        text: mask.label,
+        anchorPoint: centroid,
+      } satisfies TextLabelOverlayLayer);
+    }
+  }
+  return layers;
 }
 
 /**
@@ -169,6 +187,8 @@ export function useFabricOverlays(canvasRef: RefObject<fabric.Canvas | null>): v
 
     // Add/update wanted overlays.
     for (const layer of overlayLayers) {
+      // Text-label overlays don't carry a mask — handled elsewhere.
+      if (layer.kind !== 'mask' && layer.kind !== 'outline') continue;
       const mask = maskStore.get(layer.maskRef);
       if (!mask || mask.width <= 0 || mask.height <= 0) continue;
 

@@ -105,9 +105,10 @@ function MainLayout({
   const isGraph = editorMode === 'graph' && layers.length > 0;
   const isCropEditing = useCropEditingStore((s) => s.isCropEditing);
   const showHUD = !isGraph;
-  // Left sidebar (Layers/History) is canvas-mode only.
-  // Right sidebar (Inspector/AI) stays visible in every mode, including graph.
-  const showLeftSidebar = !isGraph;
+  // Left sidebar (Layers + History) is only relevant in compose mode where
+  // the user juggles multiple layers. Hidden in develop (single-image edit)
+  // and graph (full-screen node view).
+  const showLeftSidebar = editorMode === 'compose';
 
   return (
     <div className="relative flex-1 min-h-0 flex flex-row">
@@ -233,7 +234,7 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
       <KeyboardShortcuts />
 
       {/* Menu bar — fixed at top */}
-      <div className="relative z-30 flex-none h-[24px] flex items-center px-1 bg-canvas-bg">
+      <div className="relative z-30 flex-none h-[24px] flex items-center px-1 bg-surface border-b border-separator">
         <MenuBar canvasRef={canvasRef} />
       </div>
 

@@ -10,6 +10,7 @@ const CandidateRegionSchema = z
     bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]).nullish(),
     representative_point: z.tuple([z.number(), z.number()]).nullish(),
     paths: z.array(RegionPolygonSchema).nullish(),
+    mask_png_base64: z.string().nullish(),
   })
   .transform((r) => ({
     label: r.label,
@@ -17,6 +18,7 @@ const CandidateRegionSchema = z
     bbox: (r.bbox ?? undefined) as [number, number, number, number] | undefined,
     representativePoint: (r.representative_point ?? undefined) as [number, number] | undefined,
     paths: (r.paths ?? undefined) as RegionPolygon[] | undefined,
+    maskPngBase64: r.mask_png_base64 ?? undefined,
   }));
 
 export const ImageContextSchema = z

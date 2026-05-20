@@ -11,19 +11,21 @@ import {
   ArrowUp,
   BoxSelect,
   Crosshair,
-  Image as ImageIcon,
-  Layers as LayersIcon,
   MousePointerClick,
   Pencil,
-  Sparkles,
   X,
 } from 'lucide-react';
 import { useAiSession } from '@/hooks/useImageContext';
 import { useEditorStore } from '@/store';
 import { pixelStore } from '@/core/pixel-store';
 import { maskStore } from '@/core/mask-store';
-import { LayerCompositor } from '@/lib/layer-compositor';
-import { useAiChips, type AiTargetKind } from '@/store/ai-chips-store';
+import { maskUnion } from '@/lib/mask-overlap';
+import {
+  useAiChips,
+  chipKey,
+  layerKey,
+  type TargetKey,
+} from '@/store/ai-chips-store';
 import { submitPaletteText } from '@/lib/ai-palette-submit';
 import type { Layer } from '@/store/layer-slice';
 import type { AiChip } from '@/store/ai-chips-store';
@@ -34,7 +36,6 @@ interface AiCommandPaletteProps {
 }
 
 type TargetItem =
-  | { kind: 'composite' }
   | { kind: 'layer'; layer: Layer }
   | { kind: 'chip'; chip: AiChip };
 
@@ -42,9 +43,9 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const chips = useAiChips((s) => s.chips);
-  const activeKind = useAiChips((s) => s.activeTargetKind);
-  const activeId = useAiChips((s) => s.activeTargetId);
-  const setActiveTarget = useAiChips((s) => s.setActiveTarget);
+  const selectedTargets = useAiChips((s) => s.selectedTargets);
+  const toggleTarget = useAiChips((s) => s.toggleTarget);
+  const selectTarget = useAiChips((s) => s.selectTarget);
   const removeChip = useAiChips((s) => s.removeChip);
   const renameChip = useAiChips((s) => s.renameChip);
 
@@ -53,14 +54,58 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
 
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
+  const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
+  const [mentionIdx, setMentionIdx] = useState(0);
   const aiStatus = useAiSession((s) => s.status);
 
+  const visibleLayers = layers
+    .filter((l) => l.type !== 'ai-panel')
+    .sort((a, b) => b.order - a.order);
+
+  // Flat list of all @-mentionable names + their store key, in display order.
+  const allMentionable = [
+    ...visibleLayers.map((l) => ({ label: l.name, key: layerKey(l.id) })),
+    ...chips.map((c) => ({ label: c.label, key: chipKey(c.id) })),
+  ];
+
+  // Filtered options when a mention is active.
+  const mentionOptions = mention
+    ? allMentionable
+        .filter((t) => t.label.toLowerCase().includes(mention.query.toLowerCase()))
+        .slice(0, 8)
+    : [];
+
+  const clampedMentionIdx = mentionOptions.length > 0
+    ? Math.min(mentionIdx, mentionOptions.length - 1)
+    : 0;
+
+  function updateValue(next: string, cursor: number) {
+    setValue(next);
+    setMention(findActiveMention(next, cursor));
+    setMentionIdx(0);
+  }
+
+  function insertMention(opt: { label: string; key: TargetKey }) {
+    if (!mention) return;
+    const before = value.slice(0, mention.start);
+    const after = value.slice(mention.start + 1 + mention.query.length);
+    const inserted = `@${opt.label} `;
+    const next = `${before}${inserted}${after}`;
+    const cursor = before.length + inserted.length;
+    setValue(next);
+    setMention(null);
+    selectTarget(opt.key);
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(cursor, cursor);
+    });
+  }
+
+  // No more "Whole image" entry — empty selection means composite at submit.
   const items: TargetItem[] = [
-    { kind: 'composite' as const },
-    ...layers
-      .filter((l) => l.type !== 'ai-panel')
-      .sort((a, b) => b.order - a.order)
-      .map((l) => ({ kind: 'layer' as const, layer: l })),
+    ...visibleLayers.map((l) => ({ kind: 'layer' as const, layer: l })),
     ...chips.map((c) => ({ kind: 'chip' as const, chip: c })),
   ];
 
@@ -70,7 +115,7 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
     e.preventDefault();
     if (!canSubmit) return;
     setBusy(true);
-    const target = buildTargetRef(activeKind, activeId, chips);
+    const target = buildTargetRef(selectedTargets, chips, layers);
     try {
       await submitPaletteText(value.trim(), target ? { target, intent: 'append' } : null);
       setValue('');
@@ -89,8 +134,8 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
   return (
     <Tooltip.Provider delayDuration={300}>
       <div className="flex w-full h-full flex-col">
-        {/* Selection buttons */}
-        <div className="flex-none flex items-center gap-1 px-2 py-2 border-b border-separator">
+        {/* Selection buttons — compact icon row */}
+        <div className="flex-none flex items-center gap-0.5 px-2 py-1.5 border-b border-separator">
           <SelectionButton
             icon={MousePointerClick}
             label="Point"
@@ -111,12 +156,19 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
           />
         </div>
 
-        {/* Target list */}
+        {/* Target list — multi-select via click toggle.
+            Empty selection = composite (implicit). */}
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          {items.length === 0 ? (
+            <div className="px-3 py-4 text-[11px] text-text-secondary/70 leading-snug">
+              Use Point / Multi / Box to create selections. Edits with no
+              selection apply to the whole image.
+            </div>
+          ) : null}
           <AnimatePresence initial={false}>
             {items.map((item) => {
               const key = keyFor(item);
-              const active = isActive(item, activeKind, activeId);
+              const active = selectedTargets.has(keyForStore(item));
               return (
                 <motion.div
                   key={key}
@@ -128,11 +180,7 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
                   <TargetRow
                     item={item}
                     active={active}
-                    onSelect={() => {
-                      if (item.kind === 'composite') setActiveTarget('composite');
-                      else if (item.kind === 'layer') setActiveTarget('layer', item.layer.id);
-                      else setActiveTarget('chip', item.chip.id);
-                    }}
+                    onSelect={() => toggleTarget(keyForStore(item))}
                     onRemove={item.kind === 'chip' ? () => removeChip(item.chip.id) : undefined}
                     onRename={
                       item.kind === 'chip'
@@ -149,8 +197,39 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
         {/* Composer */}
         <form
           onSubmit={handleSubmit}
-          className="flex-none min-h-[100px] flex flex-col px-3 pb-3 pt-2 border-t border-separator"
+          className="relative flex-none min-h-[100px] flex flex-col px-3 pb-3 pt-2 border-t border-separator"
         >
+          {/* @-mention popup — floats above the textarea while a mention
+              query is active and there's at least one match. */}
+          {mention && mentionOptions.length > 0 && (
+            <div
+              className="absolute left-3 right-3 bottom-full mb-1 glass-panel z-50
+                max-h-48 overflow-y-auto p-1 text-[11px] shadow-lg"
+            >
+              {mentionOptions.map((opt, i) => {
+                const active = i === clampedMentionIdx;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      insertMention(opt);
+                    }}
+                    onMouseEnter={() => setMentionIdx(i)}
+                    className={`w-full text-left px-2 py-1 rounded-sm truncate cursor-default
+                      ${active
+                        ? 'bg-accent/20 text-text-primary'
+                        : 'text-text-secondary hover:bg-surface-secondary'
+                      }`}
+                  >
+                    @{opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           <div
             className="flex-1 flex flex-col rounded-md border border-separator
               bg-surface-secondary/60 transition-colors
@@ -159,14 +238,43 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
             <textarea
               ref={inputRef}
               value={value}
-              onChange={(e) => setValue(e.target.value)}
+              onChange={(e) => updateValue(e.target.value, e.target.selectionStart)}
+              onSelect={(e) => {
+                const el = e.currentTarget;
+                setMention(findActiveMention(el.value, el.selectionStart));
+              }}
               onKeyDown={(e) => {
+                // Mention navigation first — only when popup is showing.
+                if (mention && mentionOptions.length > 0) {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setMentionIdx((i) => (i + 1) % mentionOptions.length);
+                    return;
+                  }
+                  if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setMentionIdx((i) =>
+                      (i - 1 + mentionOptions.length) % mentionOptions.length,
+                    );
+                    return;
+                  }
+                  if (e.key === 'Enter' || e.key === 'Tab') {
+                    e.preventDefault();
+                    insertMention(mentionOptions[clampedMentionIdx]);
+                    return;
+                  }
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setMention(null);
+                    return;
+                  }
+                }
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                   e.preventDefault();
                   handleSubmit(e as unknown as FormEvent);
                 }
               }}
-              placeholder="Describe your edit…"
+              placeholder="Describe your edit… (type @ to mention a target)"
               disabled={disabled || busy}
               data-palette-input="sidebar"
               rows={2}
@@ -202,35 +310,116 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-function keyFor(item: TargetItem): string {
-  if (item.kind === 'composite') return 'composite';
-  if (item.kind === 'layer') return `layer:${item.layer.id}`;
-  return `chip:${item.chip.id}`;
-}
-
-function isActive(
-  item: TargetItem,
-  activeKind: AiTargetKind,
-  activeId: string,
-): boolean {
-  if (item.kind === 'composite') return activeKind === 'composite';
-  if (item.kind === 'layer') return activeKind === 'layer' && activeId === item.layer.id;
-  return activeKind === 'chip' && activeId === item.chip.id;
-}
-
-function buildTargetRef(
-  kind: AiTargetKind,
-  id: string,
-  chips: AiChip[],
-): TargetRef | null {
-  if (kind === 'composite') return { kind: 'composite' };
-  if (kind === 'layer') return { kind: 'layer', layerId: id };
-  if (kind === 'chip') {
-    const chip = chips.find((c) => c.id === id);
-    if (!chip) return null;
-    return { kind: 'mask', layerId: chip.sourceLayerId, maskRef: chip.maskRef };
+/**
+ * Detect whether the textarea cursor is inside an active @-mention zone.
+ * A mention is "active" when there's an unfinished `@token` ending at the
+ * cursor: the `@` is at the start of the input or preceded by whitespace,
+ * and only non-whitespace characters lie between the `@` and the cursor.
+ */
+function findActiveMention(
+  text: string,
+  cursor: number,
+): { start: number; query: string } | null {
+  for (let i = cursor - 1; i >= 0; i--) {
+    const ch = text[i];
+    if (ch === '@') {
+      if (i === 0 || /\s/.test(text[i - 1])) {
+        return { start: i, query: text.slice(i + 1, cursor) };
+      }
+      return null;
+    }
+    if (/\s/.test(ch)) return null;
   }
   return null;
+}
+
+/** React key for the row's <motion.div>. */
+function keyFor(item: TargetItem): string {
+  return item.kind === 'layer' ? `layer:${item.layer.id}` : `chip:${item.chip.id}`;
+}
+
+/** Store-side TargetKey for the selection set. */
+function keyForStore(item: TargetItem): TargetKey {
+  return item.kind === 'layer' ? layerKey(item.layer.id) : chipKey(item.chip.id);
+}
+
+/**
+ * Translate the multi-selection set into a single TargetRef for submit.
+ *
+ *  - empty                                  → composite
+ *  - 1 layer (no chips)                     → layer
+ *  - 1 chip  (no layers)                    → mask
+ *  - many chips (any layers ignored here)   → register a fresh OR-merged
+ *                                              mask in maskStore and return
+ *                                              a mask TargetRef pointing at it
+ *  - 1 chip + 1+ layers (mixed)             → mask of the chip (layer
+ *                                              ignored — the mask is more
+ *                                              specific)
+ *  - many chips + 1+ layers                 → merged chip mask
+ *  - only layers (multiple)                 → composite (no useful single
+ *                                              layer to pick)
+ */
+function buildTargetRef(
+  selected: Set<TargetKey>,
+  chips: AiChip[],
+  layers: Layer[],
+): TargetRef | null {
+  if (selected.size === 0) return { kind: 'composite' };
+
+  const selectedChips: AiChip[] = [];
+  const selectedLayers: Layer[] = [];
+  for (const k of selected) {
+    if (k.startsWith('chip:')) {
+      const id = k.slice(5);
+      const c = chips.find((x) => x.id === id);
+      if (c) selectedChips.push(c);
+    } else if (k.startsWith('layer:')) {
+      const id = k.slice(6);
+      const l = layers.find((x) => x.id === id);
+      if (l) selectedLayers.push(l);
+    }
+  }
+
+  if (selectedChips.length === 0) {
+    if (selectedLayers.length === 1) {
+      return { kind: 'layer', layerId: selectedLayers[0].id };
+    }
+    return { kind: 'composite' };
+  }
+
+  if (selectedChips.length === 1) {
+    const chip = selectedChips[0];
+    return { kind: 'mask', layerId: chip.sourceLayerId, maskRef: chip.maskRef };
+  }
+
+  // Multiple chips → union into a new mask.
+  let merged: { data: Uint8Array; width: number; height: number } | null = null;
+  for (const chip of selectedChips) {
+    const m = maskStore.get(chip.maskRef);
+    if (!m) continue;
+    if (merged === null) {
+      merged = { data: m.data.slice(), width: m.width, height: m.height };
+    } else {
+      // Reuse maskUnion: we need a `Mask` shape on both sides.
+      const result = maskUnion(
+        { id: '', layerId: '', width: merged.width, height: merged.height, data: merged.data, source: 'sam-points', createdAt: 0 },
+        m,
+      );
+      merged = result;
+    }
+  }
+  if (!merged) return { kind: 'composite' };
+  const firstChip = selectedChips[0];
+  const mergedRef = maskStore.register({
+    layerId: firstChip.sourceLayerId,
+    label: selectedChips.map((c) => c.label).join(' + '),
+    width: merged.width,
+    height: merged.height,
+    data: merged.data,
+    source: 'sam-points',
+    createdAt: Date.now(),
+  });
+  return { kind: 'mask', layerId: firstChip.sourceLayerId, maskRef: mergedRef };
 }
 
 // ─── SelectionButton ─────────────────────────────────────────────────
@@ -252,11 +441,11 @@ function SelectionButton({
         <button
           type="button"
           onClick={onClick}
-          className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px]
-            rounded-md border border-separator bg-surface-secondary/40 text-text-primary
-            hover:bg-surface-secondary hover:border-accent/40 transition-colors cursor-default"
+          className="flex-1 flex items-center justify-center gap-1 px-1.5 py-1 text-[10px]
+            rounded-sm text-text-secondary
+            hover:bg-surface-secondary hover:text-text-primary transition-colors cursor-default"
         >
-          <Icon size={12} className="text-text-secondary" />
+          <Icon size={11} />
           {label}
         </button>
       </Tooltip.Trigger>
@@ -308,7 +497,7 @@ function TargetRow({
   return (
     <div
       onClick={onSelect}
-      className={`group flex items-center gap-2 px-3 py-1.5 border-l-2 border-b border-separator
+      className={`group flex items-center gap-2 pl-2 pr-2 py-1 border-l-2
         cursor-default transition-colors
         ${active
           ? 'border-l-accent bg-accent/10 text-text-primary'
@@ -316,16 +505,7 @@ function TargetRow({
         }`}
     >
       <TargetThumbnail item={item} />
-      <div className="flex-1 min-w-0 flex items-center gap-1.5">
-        {item.kind === 'composite' && (
-          <ImageIcon size={11} className="text-text-secondary shrink-0" />
-        )}
-        {item.kind === 'layer' && (
-          <LayersIcon size={11} className="text-text-secondary shrink-0" />
-        )}
-        {item.kind === 'chip' && (
-          <Sparkles size={11} className="text-text-secondary shrink-0" />
-        )}
+      <div className="flex-1 min-w-0 flex items-center">
         {editing ? (
           <input
             autoFocus
@@ -341,14 +521,14 @@ function TargetRow({
               e.stopPropagation();
             }}
             onClick={(e) => e.stopPropagation()}
-            className="flex-1 min-w-0 bg-surface px-1 py-0.5 text-[12px] text-text-primary
+            className="flex-1 min-w-0 bg-surface px-1 py-0.5 text-[11px] text-text-primary
               border border-accent/60 rounded-sm outline-none"
           />
         ) : (
-          <span className="flex-1 truncate text-[12px]">{label}</span>
+          <span className="flex-1 truncate text-[11px]">{label}</span>
         )}
       </div>
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
         {onRename && !editing && (
           <button
             type="button"
@@ -359,7 +539,7 @@ function TargetRow({
             }}
             className="p-0.5 rounded text-text-secondary hover:text-text-primary hover:bg-surface transition-colors"
           >
-            <Pencil size={11} />
+            <Pencil size={10} />
           </button>
         )}
         {onRemove && (
@@ -372,7 +552,7 @@ function TargetRow({
             }}
             className="p-0.5 rounded text-text-secondary hover:text-text-primary hover:bg-surface transition-colors"
           >
-            <X size={11} />
+            <X size={10} />
           </button>
         )}
       </div>
@@ -381,7 +561,6 @@ function TargetRow({
 }
 
 function labelFor(item: TargetItem): string {
-  if (item.kind === 'composite') return 'Whole image';
   if (item.kind === 'layer') return item.layer.name;
   return item.chip.label;
 }
@@ -397,9 +576,9 @@ function TargetThumbnail({ item }: { item: TargetItem }) {
   return (
     <canvas
       ref={ref}
-      width={48}
-      height={36}
-      className="block w-12 h-9 rounded-sm border border-separator bg-canvas-bg shrink-0"
+      width={32}
+      height={24}
+      className="block w-8 h-6 rounded-sm border border-separator bg-canvas-bg shrink-0"
     />
   );
 }
@@ -441,10 +620,6 @@ function useThumbnail(
 }
 
 function sourceCanvasFor(item: TargetItem): HTMLCanvasElement | OffscreenCanvas | null {
-  if (item.kind === 'composite') {
-    const c = LayerCompositor.getOutput();
-    return c.width > 0 ? c : null;
-  }
   if (item.kind === 'layer') {
     return pixelStore.get(item.layer.id) ?? null;
   }

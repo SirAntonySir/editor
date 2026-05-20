@@ -107,7 +107,7 @@ export async function createChipFromMask(args: {
     return maskIoU(mask, otherMask) >= DUPLICATE_IOU;
   });
   if (duplicate) {
-    chipStore.setActiveTarget('chip', duplicate.id);
+    chipStore.selectTarget(`chip:${duplicate.id}`);
     return duplicate;
   }
 
@@ -135,14 +135,17 @@ export async function createChipFromMask(args: {
     label = `Selection ${chipStore.chips.length + 1}`;
   }
 
+  // Disambiguate collisions so every chip has a unique @-mentionable name.
+  const finalLabel = chipStore.uniqueLabel(label);
+
   const chip: AiChip = {
     id: crypto.randomUUID(),
-    label,
+    label: finalLabel,
     maskRef: args.maskRef,
     sourceLayerId: args.sourceLayerId,
     createdAt: Date.now(),
   };
   chipStore.addChip(chip);
-  chipStore.setActiveTarget('chip', chip.id);
+  chipStore.selectTarget(`chip:${chip.id}`);
   return chip;
 }

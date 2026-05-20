@@ -17,29 +17,38 @@ export interface AiChip {
   createdAt: number;
 }
 
-/** What the AI panel is currently targeting for the next prompt. */
-export type AiTargetKind = 'composite' | 'layer' | 'chip';
+/** Tagged key for the selection set so chips and layers coexist. Composite
+ *  (whole image) is implicit when the set is empty — never has a key. */
+export type TargetKey = `chip:${string}` | `layer:${string}`;
+
+export function chipKey(id: string): TargetKey {
+  return `chip:${id}`;
+}
+export function layerKey(id: string): TargetKey {
+  return `layer:${id}`;
+}
 
 interface AiChipsState {
   chips: AiChip[];
-  activeTargetKind: AiTargetKind;
-  /** For 'layer' and 'chip' kinds: the id. Empty string for 'composite'. */
-  activeTargetId: string;
+  /** Selected targets. Empty set = composite. */
+  selectedTargets: Set<TargetKey>;
 
   addChip: (chip: AiChip) => void;
   removeChip: (id: string) => void;
   renameChip: (id: string, label: string) => void;
-  setActiveTarget: (kind: AiTargetKind, id?: string) => void;
-  /** Find a chip whose mask significantly overlaps a candidate one — used to
-   *  short-circuit duplicate chip creation. */
+  toggleTarget: (key: TargetKey) => void;
+  selectTarget: (key: TargetKey) => void;
+  clearTargets: () => void;
+  /** Generate a label unique against existing chips by suffixing `(2)`,
+   *  `(3)`, ... so every chip is unambiguously @-mentionable. */
+  uniqueLabel: (base: string) => string;
   findOverlappingChip: (predicate: (chip: AiChip) => boolean) => AiChip | undefined;
   reset: () => void;
 }
 
 export const useAiChips = create<AiChipsState>((set, get) => ({
   chips: [],
-  activeTargetKind: 'composite',
-  activeTargetId: '',
+  selectedTargets: new Set<TargetKey>(),
 
   addChip: (chip) =>
     set((s) => ({ chips: [...s.chips, chip] })),
@@ -47,11 +56,9 @@ export const useAiChips = create<AiChipsState>((set, get) => ({
   removeChip: (id) =>
     set((s) => {
       const chips = s.chips.filter((c) => c.id !== id);
-      // If we just removed the active chip, fall back to composite.
-      if (s.activeTargetKind === 'chip' && s.activeTargetId === id) {
-        return { chips, activeTargetKind: 'composite', activeTargetId: '' };
-      }
-      return { chips };
+      const selectedTargets = new Set(s.selectedTargets);
+      selectedTargets.delete(chipKey(id));
+      return { chips, selectedTargets };
     }),
 
   renameChip: (id, label) =>
@@ -59,11 +66,37 @@ export const useAiChips = create<AiChipsState>((set, get) => ({
       chips: s.chips.map((c) => (c.id === id ? { ...c, label } : c)),
     })),
 
-  setActiveTarget: (kind, id = '') =>
-    set({ activeTargetKind: kind, activeTargetId: kind === 'composite' ? '' : id }),
+  toggleTarget: (key) =>
+    set((s) => {
+      const selectedTargets = new Set(s.selectedTargets);
+      if (selectedTargets.has(key)) selectedTargets.delete(key);
+      else selectedTargets.add(key);
+      return { selectedTargets };
+    }),
+
+  selectTarget: (key) =>
+    set((s) => {
+      if (s.selectedTargets.has(key)) return {};
+      const selectedTargets = new Set(s.selectedTargets);
+      selectedTargets.add(key);
+      return { selectedTargets };
+    }),
+
+  clearTargets: () => set({ selectedTargets: new Set<TargetKey>() }),
+
+  uniqueLabel: (base) => {
+    const trimmed = base.trim() || 'Selection';
+    const existing = new Set(get().chips.map((c) => c.label));
+    if (!existing.has(trimmed)) return trimmed;
+    for (let i = 2; i < 1000; i++) {
+      const candidate = `${trimmed} (${i})`;
+      if (!existing.has(candidate)) return candidate;
+    }
+    return `${trimmed} ${crypto.randomUUID().slice(0, 4)}`;
+  },
 
   findOverlappingChip: (predicate) => get().chips.find(predicate),
 
   reset: () =>
-    set({ chips: [], activeTargetKind: 'composite', activeTargetId: '' }),
+    set({ chips: [], selectedTargets: new Set<TargetKey>() }),
 }));

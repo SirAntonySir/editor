@@ -11,7 +11,8 @@ import type { MaskRef } from './scope';
  */
 export type OverlayLayer =
   | MaskOverlayLayer
-  | OutlineOverlayLayer;
+  | OutlineOverlayLayer
+  | TextLabelOverlayLayer;
 
 export interface MaskOverlayLayer {
   kind: 'mask';
@@ -37,5 +38,24 @@ export interface OutlineOverlayLayer {
   style?: {
     strokeHsl?: [number, number, number];
     dashed?: boolean;
+  };
+}
+
+/**
+ * A text label anchored at a point inside the parent image. Used to show
+ * the semantic label of a mask (e.g. "subject", "sky") so the user can
+ * see what region-fusion identified.
+ */
+export interface TextLabelOverlayLayer {
+  kind: 'text-label';
+  id: string;
+  anchorTo: string;
+  /** Text content. */
+  text: string;
+  /** Anchor point in the parent image's native pixel coordinates. */
+  anchorPoint: { x: number; y: number };
+  style?: {
+    fontSize?: number;
+    fillHsl?: [number, number, number];
   };
 }

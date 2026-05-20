@@ -52,7 +52,7 @@ def test_analyze_unknown_session_404(client_with_fake_anthropic: TestClient) -> 
     assert response.status_code == 404
 
 
-def test_analyze_bundles_region_paths(tmp_path):
+def test_analyze_bundles_region_paths(tmp_path, monkeypatch):
     """When Claude returns regions with representative points, the analyze
     handler runs SAM at each point and bundles simplified polygon paths into
     the response."""
@@ -60,6 +60,11 @@ def test_analyze_bundles_region_paths(tmp_path):
 
     import numpy as np
     from PIL import Image
+
+    # Pre-segmentation + pass-2 refinement are off by default. Opt in for this
+    # test so we still exercise the legacy bundling code path.
+    monkeypatch.setenv("ANALYZE_PRESEGMENT", "1")
+    monkeypatch.setenv("ANALYZE_REFINE", "1")
 
     from app.api.deps import get_anthropic_client, get_sam_client, get_session_store
     from app.schemas.image_context import CandidateRegion, ImageContext

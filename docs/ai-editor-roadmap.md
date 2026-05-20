@@ -41,7 +41,22 @@ migrated.
 
 ---
 
-## Plan 2 — MCP-shaped tool surface  `[ ]`
+## Plan 2 — MCP-shaped tool surface  `[x]`
+
+**Implemented as 10 tools** (SAM exposure hidden per inventory review):
+
+- Query: `get_image_context`, `list_named_regions`, `get_active_selection`, `list_layers`
+- Selection: `select_named_region`, `clear_selection`
+- Action: `apply_adjustment` (confident/mechanical), `propose_panel` (subjective/curated)
+- Annotation: `highlight_region`, `add_note`
+
+Lives at `src/lib/tool-manifest/` with one file per tool, a `ToolManifest`
+type backed by zod schemas, a registry, and a minimal `zodToJsonSchema`
+converter producing Anthropic-shaped tool blocks via
+`serializeAllManifests()`. Wiring the backend Claude call to consume these
+manifests is a follow-up (the existing hardcoded tool block on the backend
+stays in place until that swap is made).
+
 
 Every editor capability the LLM can invoke is described by a uniform schema.
 Plays the role of MCP whether or not an MCP server is actually exposed today.

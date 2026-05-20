@@ -1,8 +1,9 @@
 // src/lib/sam/sam-client.ts
 import { bindSessionFromFirstImageLayer, useAiSession } from '@/hooks/useImageContext';
 import { useEditorStore } from '@/store';
-import { maskStore, type SamPrompt } from '@/core/mask-store';
+import { maskStore, type Mask, type SamPrompt } from '@/core/mask-store';
 import { pixelStore } from '@/core/pixel-store';
+import { findBestRegionMatch } from '@/lib/mask-overlap';
 import type { MaskRef } from '@/types/scope';
 
 const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
@@ -164,15 +165,32 @@ export const samClient = {
     const scale = uploadScaleForLayer(args.layerId);
     const scaledPrompts = scalePromptsForUpload(args.prompts, scale);
 
-    const res = await postJson<{
+    // Auto-recover from "session not embedded" — happens when (a) the tool was
+    // activated and the user clicked before the async embed finished, or
+    // (b) the backend restarted (uvicorn --reload) and lost its in-memory
+    // SAM embeddings while the frontend's sessionId persisted. One embed +
+    // retry resolves both.
+    let res: {
       mask_png_base64: string;
       width: number;
       height: number;
       model: string;
-    }>('/api/segment/decode', {
-      session_id: sessionId,
-      prompts: scaledPrompts,
-    });
+    };
+    try {
+      res = await postJson('/api/segment/decode', {
+        session_id: sessionId,
+        prompts: scaledPrompts,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes('not embedded')) throw err;
+      console.warn('[samClient] session not embedded — embedding and retrying');
+      await this.ensureEmbedding(args.layerId);
+      res = await postJson('/api/segment/decode', {
+        session_id: sessionId,
+        prompts: scaledPrompts,
+      });
+    }
 
     if (!res.mask_png_base64 || res.mask_png_base64.length === 0) {
       console.error('[samClient] /api/segment/decode returned empty mask_png_base64', res);
@@ -193,9 +211,18 @@ export const samClient = {
       throw new Error(`Segment decode produced a 0×0 mask (backend said ${res.width}×${res.height}).`);
     }
 
+    // Region-aware fusion (Plan 3): if the freshly produced mask significantly
+    // overlaps a Claude-named region for this layer, inherit that region's
+    // label. Lets the LLM and user see "subject" / "sky" instead of an
+    // anonymous SAM blob. Explicit caller label still wins.
+    const fusedLabel = args.label ?? fuseLabelFromRegions(
+      args.layerId,
+      { width, height, data },
+    );
+
     return maskStore.register({
       layerId: args.layerId,
-      label: args.label,
+      label: fusedLabel,
       width,
       height,
       data,
@@ -209,3 +236,44 @@ export const samClient = {
     });
   },
 };
+
+/**
+ * Compare a freshly produced SAM mask against every Claude-named region
+ * registered for the same layer. If one overlaps significantly, return
+ * its label. Returns `undefined` when no region passes the thresholds.
+ */
+function fuseLabelFromRegions(
+  layerId: string,
+  newMask: { width: number; height: number; data: Uint8Array },
+): string | undefined {
+  const context = useAiSession.getState().context;
+  if (!context?.candidateRegions) return undefined;
+
+  const candidates: Array<{ label: string; mask: Mask; maskRef: string }> = [];
+  for (const region of context.candidateRegions) {
+    if (!region.maskRef) continue;
+    const mask = maskStore.get(region.maskRef);
+    if (!mask || mask.layerId !== layerId) continue;
+    candidates.push({ label: region.label, mask, maskRef: region.maskRef });
+  }
+  if (candidates.length === 0) return undefined;
+
+  const probe: Mask = {
+    id: 'probe',
+    layerId,
+    width: newMask.width,
+    height: newMask.height,
+    data: newMask.data,
+    source: 'sam-point',
+    createdAt: 0,
+  };
+  const match = findBestRegionMatch(probe, candidates);
+  if (!match) return undefined;
+  console.log('[samClient] region fusion:', {
+    label: match.label,
+    iou: match.iou.toFixed(3),
+    containment: match.containment.toFixed(3),
+    matchedBy: match.matchedBy,
+  });
+  return match.label;
+}

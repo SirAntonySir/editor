@@ -22,6 +22,7 @@ import * as ContextMenu from '@radix-ui/react-context-menu';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useEditorStore } from '@/store';
 import { CanvasRegistry } from '@/lib/canvas-registry';
+import { duplicateLayer } from '@/store/segment-actions';
 import { LutRegistry } from '@/lib/lut-registry';
 import type { Layer, Adjustment, BlendMode } from '@/store/layer-slice';
 
@@ -206,18 +207,7 @@ export function LayersPanelBody() {
                 updateLayer(layer.id, { locked: !layer.locked })
               }
               onDelete={() => removeLayer(layer.id)}
-              onDuplicate={() => {
-                const id = crypto.randomUUID();
-                useEditorStore.getState().addLayer({
-                  id,
-                  type: layer.type,
-                  name: `${layer.name} copy`,
-                  visible: layer.visible,
-                  opacity: layer.opacity,
-                  blendMode: layer.blendMode,
-                  locked: false,
-                });
-              }}
+              onDuplicate={() => duplicateLayer(layer.id)}
             />
           ))}
         </AnimatePresence>

@@ -4,14 +4,12 @@ import { useEditorStore } from '@/store';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { AiPanelSection } from './AiPanelSection';
 import { AiStepSection } from './AiStepSection';
-import { SegmentActionsSection } from './SegmentActionsSection';
 
 export function InspectorPanelBody() {
   const { toolContext, getActiveTool } = useEditor();
   const activeTool = useEditorStore((s) => s.activeTool);
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
   const layers = useEditorStore((s) => s.layers);
-  const hasCommittedMask = useEditorStore((s) => s.committedMaskRef != null);
   const toolDef = getActiveTool();
 
   const processingDef = toolDef?.processingId
@@ -24,11 +22,7 @@ export function InspectorPanelBody() {
     (l) => l.type !== 'ai-panel' && l.visible && l.aiSteps && Object.keys(l.aiSteps).length > 0,
   );
 
-  const isEmpty =
-    !hasPanel &&
-    aiPanelLayers.length === 0 &&
-    aiStepLayers.length === 0 &&
-    !hasCommittedMask;
+  const isEmpty = !hasPanel && aiPanelLayers.length === 0 && aiStepLayers.length === 0;
 
   if (isEmpty) {
     return (
@@ -42,7 +36,6 @@ export function InspectorPanelBody() {
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-      <SegmentActionsSection />
       {hasPanel && (
         <AnimatePresence mode="wait">
           <motion.div

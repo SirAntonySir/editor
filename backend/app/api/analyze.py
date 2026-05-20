@@ -1,5 +1,7 @@
+import base64
 import io
 import logging
+import os
 
 import cv2
 import numpy as np
@@ -10,6 +12,8 @@ from pydantic import BaseModel
 from app.schemas.image_context import (
     CandidateRegion,
     ImageContext,
+    RegionLabel,
+    RegionRefinement,
     SamPromptSet,
 )
 from app.services.anthropic_client import AnthropicClient
@@ -30,6 +34,23 @@ _POLY_EPSILON_FRAC = 0.0015
 # stray single-pixel components on edges.
 _MIN_CONTOUR_AREA = 50.0
 
+# Feature flag: run the Claude-driven pass-2 refinement (annotated composite
+# review + per-region accept/refine/drop + re-run SAM with richer prompts).
+# Currently disabled by default — empirically the refinement step has been
+# bloating masks in crowded scenes by adding bbox-spanning positive points
+# Claude inferred from the annotated overview. Set ANALYZE_REFINE=1 to re-enable.
+def _refine_enabled() -> bool:
+    return os.environ.get("ANALYZE_REFINE", "0") not in ("0", "", "false", "False")
+
+
+# Feature flag: pre-segment every candidate region during /analyze (run SAM
+# per region, attach paths + mask_png_base64). Default off — the new chip
+# workflow creates masks on-demand from user clicks, so /analyze only needs to
+# return labels + bbox + representative_point. Saves SAM time + bytes on every
+# analyse. Set ANALYZE_PRESEGMENT=1 to re-enable the legacy pre-segmentation.
+def _presegment_enabled() -> bool:
+    return os.environ.get("ANALYZE_PRESEGMENT", "0") not in ("0", "", "false", "False")
+
 
 class AnalyzeRequest(BaseModel):
     session_id: str
@@ -38,6 +59,50 @@ class AnalyzeRequest(BaseModel):
 def _decode_image_rgb(image_bytes: bytes) -> np.ndarray:
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     return np.array(img)
+
+
+def _mask_centroid_normalised(mask: np.ndarray) -> tuple[float, float] | None:
+    """Return the [x, y] centroid of the mask in normalised 0–1 coords.
+
+    Guaranteed to land *inside* the mask: if the geometric mean falls outside
+    a non-convex shape (e.g. a ring or an L), falls back to the masked pixel
+    nearest to the geometric mean. Returns None if the mask is empty.
+
+    Used to overwrite Claude's pre-SAM `representative_point` after refinement
+    so the visual anchor on the AI palette always reflects where the actual
+    mask is, not Claude's pre-segmentation guess.
+    """
+    h, w = mask.shape[:2]
+    if h == 0 or w == 0:
+        return None
+    mask_bool = mask.astype(bool) if mask.dtype != bool else mask
+    ys, xs = np.where(mask_bool)
+    if xs.size == 0:
+        return None
+    cx = float(xs.mean())
+    cy = float(ys.mean())
+    ix = max(0, min(w - 1, int(round(cx))))
+    iy = max(0, min(h - 1, int(round(cy))))
+    if not bool(mask_bool[iy, ix]):
+        # Non-convex shape: snap to the nearest masked pixel.
+        distances_sq = (xs - cx) ** 2 + (ys - cy) ** 2
+        idx = int(np.argmin(distances_sq))
+        cx = float(xs[idx])
+        cy = float(ys[idx])
+    return cx / w, cy / h
+
+
+def _mask_to_png_base64(mask: np.ndarray) -> str:
+    """Encode a boolean / 0–255 mask as a 1-channel PNG and return base64.
+
+    The frontend decodes this directly into a Uint8Array — no polygon
+    rasterisation, no lossy contour extraction.
+    """
+    mask_u8 = (mask.astype(np.uint8)) * 255 if mask.dtype == bool else mask.astype(np.uint8)
+    ok, buf = cv2.imencode(".png", mask_u8)
+    if not ok:
+        return ""
+    return base64.b64encode(buf.tobytes()).decode("ascii")
 
 
 def _mask_to_paths(mask: np.ndarray) -> list[list[list[float]]]:
@@ -225,20 +290,26 @@ def _refine_regions(
         return
 
     # --- Pass 2: Claude reviews the annotated composite --------------------
-    try:
-        composite = _render_annotated_composite(image_rgb, pass1_masks)
-        refinements = anthropic.refine_image_context(
-            annotated_image=composite,
-            mime_type="image/jpeg",
-            regions=valid_regions,
-            session_id=sid,
-        )
-        ref_by_idx = {r.region_index - 1: r for r in refinements.refinements}
-    except Exception as err:
-        # If the refinement call fails for any reason, fall back to pass-1
-        # masks rather than dropping the whole analyse — graceful degradation.
-        logger.warning("[analyze] refinement pass failed, using pass-1 masks: %s", err)
-        ref_by_idx = {}
+    # Gated by ANALYZE_REFINE env var. When off, the refinement step is
+    # skipped entirely (no extra Claude call, no extra SAM decode) and pass-1
+    # masks are used as the final masks.
+    ref_by_idx: dict[int, RegionRefinement] = {}
+    if _refine_enabled():
+        try:
+            composite = _render_annotated_composite(image_rgb, pass1_masks)
+            refinements = anthropic.refine_image_context(
+                annotated_image=composite,
+                mime_type="image/jpeg",
+                regions=valid_regions,
+                session_id=sid,
+            )
+            ref_by_idx = {r.region_index - 1: r for r in refinements.refinements}
+        except Exception as err:
+            # If the refinement call fails for any reason, fall back to pass-1
+            # masks rather than dropping the whole analyse — graceful degradation.
+            logger.warning("[analyze] refinement pass failed, using pass-1 masks: %s", err)
+    else:
+        logger.info("[analyze] refinement pass disabled (ANALYZE_REFINE not set) — using pass-1 masks")
 
     # --- Apply refinements + convert to paths ------------------------------
     final_regions: list[CandidateRegion] = []
@@ -265,6 +336,13 @@ def _refine_regions(
         if not paths:
             continue
         region.paths = paths
+        region.mask_png_base64 = _mask_to_png_base64(final_mask)
+        # Replace Claude's pre-SAM point guess with the actual mask centroid so
+        # the AI palette's visual anchor and any downstream SAM re-prompting
+        # both sit inside the segmented region.
+        centroid = _mask_centroid_normalised(final_mask)
+        if centroid is not None:
+            region.representative_point = [centroid[0], centroid[1]]
         final_regions.append(region)
     context.candidate_regions = final_regions
 
@@ -293,8 +371,117 @@ async def analyze(
     except RuntimeError as err:
         raise HTTPException(status_code=502, detail=f"image analysis failed: {err}")
 
-    image_rgb = _decode_image_rgb(record.image_bytes)
-    _refine_regions(context, image_rgb, sam, client, body.session_id)
+    if _presegment_enabled():
+        image_rgb = _decode_image_rgb(record.image_bytes)
+        _refine_regions(context, image_rgb, sam, client, body.session_id)
+    else:
+        # New chip workflow: /analyze returns labels + bbox + representative_point
+        # only; SAM runs per-click in the frontend. Drop regions without a
+        # representative_point (unusable for any downstream selection).
+        context.candidate_regions = [
+            r for r in context.candidate_regions if r.representative_point is not None
+        ]
+        logger.info(
+            "[analyze] pre-segmentation disabled (ANALYZE_PRESEGMENT not set) — "
+            "returning %d labelled regions",
+            len(context.candidate_regions),
+        )
 
     store.set_context(body.session_id, context.model_dump(mode="json"))
     return context
+
+
+# ─── /api/name-region ─────────────────────────────────────────────────
+
+
+class NameRegionRequest(BaseModel):
+    session_id: str
+    # 1-channel PNG (0/255) base64-encoded; same format the frontend sends to
+    # /api/segment/decode. The endpoint draws this mask's outline on top of the
+    # session's cached image to give Claude visual context.
+    mask_png_base64: str
+
+
+def _decode_mask_png_base64(b64: str) -> np.ndarray:
+    """Decode a 1-channel base64 PNG mask into a numpy bool array."""
+    raw = base64.b64decode(b64)
+    pil = Image.open(io.BytesIO(raw))
+    # Force 1-channel grayscale.
+    if pil.mode != "L":
+        pil = pil.convert("L")
+    arr = np.array(pil)
+    return arr > 127
+
+
+def _resize_mask_to(mask: np.ndarray, target_h: int, target_w: int) -> np.ndarray:
+    """Resize a 0/1 mask to (target_h, target_w) using nearest-neighbour."""
+    if mask.shape[0] == target_h and mask.shape[1] == target_w:
+        return mask
+    mask_u8 = (mask.astype(np.uint8)) * 255 if mask.dtype == bool else mask.astype(np.uint8)
+    resized = cv2.resize(mask_u8, (target_w, target_h), interpolation=cv2.INTER_NEAREST)
+    return resized > 127
+
+
+def _render_outlined_region(image_rgb: np.ndarray, mask: np.ndarray) -> bytes:
+    """Draw the mask outline in magenta on the original image.
+    Returns JPEG bytes suitable for Claude's vision input."""
+    out = image_rgb.copy()
+    mask_u8 = (mask.astype(np.uint8)) * 255 if mask.dtype == bool else mask.astype(np.uint8)
+    contours, _ = cv2.findContours(mask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    thickness = max(3, int(min(image_rgb.shape[:2]) * 0.006))
+    cv2.drawContours(out, contours, -1, (255, 0, 255), thickness)
+    pil = Image.fromarray(out)
+    buf = io.BytesIO()
+    pil.save(buf, format="JPEG", quality=85)
+    return buf.getvalue()
+
+
+def _summarise_context(ctx_json: dict | None) -> str:
+    """Render a short, plain-text summary of the cached ImageContext so
+    Claude can disambiguate similar objects when naming a new region."""
+    if not ctx_json:
+        return "(no prior context available)"
+    subjects = ", ".join(ctx_json.get("subjects") or []) or "(none)"
+    lighting = ctx_json.get("lighting") or "?"
+    tones = ", ".join(ctx_json.get("dominant_tones") or []) or "(none)"
+    mood = ctx_json.get("mood") or "?"
+    region_labels = [r.get("label") for r in (ctx_json.get("candidate_regions") or []) if r.get("label")]
+    region_str = ", ".join(region_labels) if region_labels else "(none)"
+    return (
+        f"Subjects: {subjects}\n"
+        f"Lighting: {lighting}\n"
+        f"Dominant tones: {tones}\n"
+        f"Mood: {mood}\n"
+        f"Previously named regions in this image: {region_str}"
+    )
+
+
+@router.post("/name-region", response_model=RegionLabel)
+async def name_region(
+    body: NameRegionRequest,
+    store: SessionStore = Depends(deps.get_session_store),
+    client: AnthropicClient = Depends(deps.get_anthropic_client),
+) -> RegionLabel:
+    try:
+        record = store.get(body.session_id)
+    except SessionNotFound:
+        raise HTTPException(status_code=404, detail="unknown or expired session")
+
+    image_rgb = _decode_image_rgb(record.image_bytes)
+    h, w = image_rgb.shape[:2]
+    mask = _decode_mask_png_base64(body.mask_png_base64)
+    mask = _resize_mask_to(mask, h, w)
+    annotated = _render_outlined_region(image_rgb, mask)
+    summary = _summarise_context(record.context)
+
+    try:
+        label = client.name_region(
+            annotated_image=annotated,
+            mime_type="image/jpeg",
+            context_summary=summary,
+            session_id=body.session_id,
+        )
+    except RuntimeError as err:
+        raise HTTPException(status_code=502, detail=f"region naming failed: {err}")
+
+    return RegionLabel(label=label)

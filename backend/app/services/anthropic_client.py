@@ -8,7 +8,7 @@ from typing import Any
 from anthropic import Anthropic
 from pydantic import ValidationError
 
-from app.schemas.image_context import ContextRefinements, ImageContext
+from app.schemas.image_context import ContextRefinements, ImageContext, RegionLabel
 from app.schemas.operation_graph import OperationGraph
 
 logger = logging.getLogger(__name__)
@@ -31,10 +31,19 @@ ANALYZE_SYSTEM_PROMPT = """You are a photo-editing assistant. Given an image, \
 produce a structured ImageContext capturing subjects, lighting, dominant \
 tonal regions, mood, and candidate regions a user might want to edit. \
 \
-ALWAYS emit at least 3 (preferably 4–8) `candidate_regions` covering the \
-distinct subjects, foreground objects, and notable zones a user could plausibly \
-want to adjust separately (e.g. "the subject's face", "the sky", "the shadow \
-on the left wall"). Empty or near-empty region lists are invalid. \
+ALWAYS emit at least 4 (preferably 6–10) `candidate_regions`, mixing THREE \
+LEVELS OF GRANULARITY so the user can target the right scope: \
+  (a) WHOLE-SUBJECT — every distinct person, animal, or major foreground object \
+      as ONE region covering its full body, head to feet, clothing and held \
+      objects included. For a two-person portrait you MUST emit `"left person"` \
+      and `"right person"`, not just their faces. \
+  (b) PART-LEVEL — useful sub-parts when retouching them matters: face, hair, \
+      hands, distinct clothing, a held object. Emit IN ADDITION to (a). \
+  (c) ENVIRONMENT — sky, water, walls, background, light sources, tonal zones. \
+\
+Region labels: short and concrete. Use whole-subject names without redundant \
+qualifiers (`"right person"`, not `"right person's body"`). Parts name the part \
+inside the subject (`"right person's face"`). Empty region lists are invalid. \
 \
 COORDINATE SYSTEM — read carefully, this is the most common source of errors: \
   - All coordinates are normalised to [0, 1]. \
@@ -46,13 +55,15 @@ For each candidate region, emit: \
   - `bbox`: [x, y, width, height]. The (x, y) pair is the TOP-LEFT CORNER of \
     the rectangle — NOT the centre, NOT the bottom-left. So a box covering the \
     upper-left quarter of the image is [0.0, 0.0, 0.5, 0.5], NOT [0.25, 0.25, \
-    0.5, 0.5]. Make the box TIGHT around the actual object: its top edge should \
-    touch the topmost pixel of the object, its left edge the leftmost pixel, etc. \
-  - `representative_point`: [x, y]. A single point that lies UNAMBIGUOUSLY inside \
-    the visible body of the region — pick a dense, central, recognisable spot \
-    (e.g. for a person, the chest; for a car, the bonnet, not the windscreen). \
-    This point is fed directly to SAM as a click target — if it lands on the \
-    wrong sub-part, SAM will segment that sub-part instead of the whole object. \
+    0.5, 0.5]. Make the box TIGHT around the actual object. For a WHOLE-SUBJECT \
+    region, the bbox must enclose the ENTIRE subject (head to feet), not just \
+    its head. \
+  - `representative_point`: [x, y]. A single point UNAMBIGUOUSLY inside the \
+    region — SAM segments outward from this click, so the point determines the \
+    scope. For a WHOLE-SUBJECT person, click on the TORSO/CHEST (clicking on \
+    the face returns just the face). For a FACE region, click on the cheek or \
+    nose. When you emit both a whole-subject and a face region for the same \
+    person, the two points MUST land on different parts (torso vs face). \
 \
 Both fields are strongly recommended; regions without `representative_point` will \
 be discarded downstream. \
@@ -146,6 +157,32 @@ CONTEXT_REFINEMENTS_TOOL = {
 }
 
 
+NAME_REGION_SYSTEM_PROMPT = """You are labelling ONE region the user just \
+selected in a photo. You see the original image with the region's outline \
+drawn in magenta (a thick magenta line traces the selection boundary). \
+\
+Return a short, concrete English label naming the OUTLINED object/region. \
+Match the style of the ImageContext labels you'd emit during /analyze: \
+  - 3–6 words max. \
+  - Use whole-subject names without redundant qualifiers (`right person`, \
+    not `right person's body`). \
+  - For parts, name the part inside the subject (`left person's face`, \
+    `right hand`). \
+  - For environment, name the thing (`sky`, `red wall`, `dark background`). \
+  - Lowercase except proper nouns / brand names visible in the photo. \
+\
+The image context (subjects, mood, dominant tones) is provided in the user \
+message — use it for disambiguation when multiple similar objects exist. \
+\
+Call the `emit_region_label` tool exactly once. Do not return prose."""
+
+LABEL_REGION_TOOL = {
+    "name": "emit_region_label",
+    "description": "Emit a short concrete label for the magenta-outlined region.",
+    "input_schema": RegionLabel.model_json_schema(),
+}
+
+
 class AnthropicClient:
     """Wrapper around the Anthropic SDK with structured tool use + prompt caching."""
 
@@ -174,7 +211,11 @@ class AnthropicClient:
         for _ in range(3):  # initial + 2 retries — Claude occasionally omits required fields
             response = self._client.messages.create(
                 model=self._model,
-                max_tokens=1024,
+                # Output budget: ImageContext + 6–10 candidate_regions (each with
+                # label, description, bbox, representative_point) regularly
+                # exceeds 1024 tokens. 2048 leaves comfortable headroom and
+                # matches the panel endpoint.
+                max_tokens=2048,
                 system=[{"type": "text", "text": ANALYZE_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
                 tools=[IMAGE_CONTEXT_TOOL],
                 tool_choice={"type": "tool", "name": "emit_image_context"},
@@ -258,6 +299,47 @@ class AnthropicClient:
             else:
                 raise RuntimeError("Anthropic did not emit emit_context_refinements tool call")
         raise RuntimeError(f"Context refinement failed after retries: {last_error}")
+
+    def name_region(
+        self,
+        annotated_image: bytes,
+        mime_type: str,
+        context_summary: str,
+        session_id: str | None = None,
+    ) -> str:
+        """Label a single magenta-outlined region. `context_summary` is a short
+        paragraph derived from the cached ImageContext (subjects, mood, tones)
+        so Claude can disambiguate similar objects (e.g. left vs right person)."""
+        last_error: ValidationError | None = None
+        for _ in range(2):
+            response = self._client.messages.create(
+                model=self._model,
+                max_tokens=128,
+                system=[{"type": "text", "text": NAME_REGION_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
+                tools=[LABEL_REGION_TOOL],
+                tool_choice={"type": "tool", "name": "emit_region_label"},
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            self._image_block(annotated_image, mime_type),
+                            {"type": "text", "text": f"Image context:\n{context_summary}\n\nLabel the magenta-outlined region."},
+                        ],
+                    }
+                ],
+            )
+            _log_cache_stats("name_region", session_id, response)
+            for block in response.content:
+                if getattr(block, "type", None) == "tool_use" and block.name == "emit_region_label":
+                    try:
+                        return RegionLabel.model_validate(block.input).label
+                    except ValidationError as e:
+                        last_error = e
+                        logger.warning("name_region validation failed, retrying: %s", e)
+                        break
+            else:
+                raise RuntimeError("Anthropic did not emit emit_region_label tool call")
+        raise RuntimeError(f"Region naming failed after retries: {last_error}")
 
     def generate_panel(
         self,

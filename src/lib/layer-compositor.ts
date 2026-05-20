@@ -20,6 +20,7 @@ class LayerCompositorImpl {
   private ctx: CanvasRenderingContext2D;
   private rafId: number | null = null;
   private pendingRender = false;
+  private isCompositing = false;
   private onComposite: ((canvas: HTMLCanvasElement) => void) | null = null;
   private listeners = new Set<(canvas: HTMLCanvasElement) => void>();
 
@@ -47,6 +48,16 @@ class LayerCompositorImpl {
 
   compositeSync(): HTMLCanvasElement {
     this.executeComposite();
+    return this.outputCanvas;
+  }
+
+  /**
+   * Return the cached composite canvas without triggering a new composite.
+   * Use this from inside a listener (e.g. AiCommandPalette's paint) — calling
+   * compositeSync there would fire executeComposite again and re-enter the
+   * listeners, causing infinite recursion.
+   */
+  getOutput(): HTMLCanvasElement {
     return this.outputCanvas;
   }
 
@@ -98,6 +109,18 @@ class LayerCompositorImpl {
   }
 
   private executeComposite(): void {
+    // Re-entry guard: a listener that triggers another composite (e.g. via
+    // compositeSync from an unaware caller) must not re-enter the pipeline.
+    if (this.isCompositing) return;
+    this.isCompositing = true;
+    try {
+      this.executeCompositeInner();
+    } finally {
+      this.isCompositing = false;
+    }
+  }
+
+  private executeCompositeInner(): void {
     const state = useEditorStore.getState();
     const layers = state.layers;
     const visibleLayers = layers

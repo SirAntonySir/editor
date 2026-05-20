@@ -7,11 +7,10 @@ import numpy as np
 
 try:
     import torch
-    from segment_anything import SamPredictor, sam_model_registry
-except ImportError:  # pragma: no cover — missing in dev without GPU env
+    from sam2.sam2_image_predictor import SAM2ImagePredictor
+except ImportError:  # pragma: no cover — missing in dev envs without sam2 installed
     torch = None  # type: ignore[assignment]
-    SamPredictor = None  # type: ignore[assignment,misc]
-    sam_model_registry = None  # type: ignore[assignment]
+    SAM2ImagePredictor = None  # type: ignore[assignment,misc]
 
 if TYPE_CHECKING:
     from app.config import Settings
@@ -28,20 +27,25 @@ def _pick_device() -> str:
 
 
 class SamClient:
-    """Wraps Meta's segment-anything predictor.
+    """Wraps Meta's SAM 2.1 image predictor.
 
     Singleton lifetime — model load is expensive. Single-active-session
     embedding cache: calling embed() with a new session_id invalidates the
     previous embedding.
+
+    SAM 2.1 was chosen over SAM 3 because SAM 3 has CUDA-only hardcodes that
+    prevent it from running on Apple Silicon. The SAM 3 integration is
+    preserved in `sam_client_sam3.py.future` for re-introduction when the
+    backend moves to a Linux+CUDA host.
     """
 
     def __init__(self, settings: "Settings") -> None:
         device = _pick_device()
-        sam = sam_model_registry[settings.sam_model_name](
-            checkpoint=settings.sam_checkpoint_path,
+        predictor = SAM2ImagePredictor.from_pretrained(
+            settings.sam_model_name,
+            device=device,
         )
-        sam.to(device)
-        self._predictor = SamPredictor(sam)
+        self._predictor = predictor
         self._embedded_session: str | None = None
         self._lock = Lock()
         self.device = device
@@ -76,7 +80,7 @@ class SamClient:
                 multimask_output=True,
             )
         best = int(np.argmax(scores))
-        return masks[best]
+        return masks[best].astype(bool)
 
     def decode_box(self, session_id: str, box: np.ndarray) -> np.ndarray:
         """Returns a single 2D bool mask for a box prompt."""
@@ -87,4 +91,32 @@ class SamClient:
                 multimask_output=True,
             )
         best = int(np.argmax(scores))
-        return masks[best]
+        return masks[best].astype(bool)
+
+    def decode_combined(
+        self,
+        session_id: str,
+        points: np.ndarray | None = None,
+        labels: np.ndarray | None = None,
+        box: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Predict a single mask using any combination of points + box.
+
+        Used by the two-pass refinement flow where Claude returns richer prompts
+        (e.g. a bbox + several positive clicks + negative clicks excluding
+        adjacent objects). `multimask_output=False` because SAM returns a single
+        best mask when given multiple disambiguating prompts.
+        """
+        if (points is None) != (labels is None):
+            raise ValueError("points and labels must be provided together")
+        if points is None and box is None:
+            raise ValueError("at least one of points or box must be provided")
+        with self._lock:
+            self._ensure_embedded(session_id)
+            masks, _, _ = self._predictor.predict(
+                point_coords=points,
+                point_labels=labels,
+                box=box,
+                multimask_output=False,
+            )
+        return masks[0].astype(bool)

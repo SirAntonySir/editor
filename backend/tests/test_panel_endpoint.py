@@ -53,7 +53,12 @@ def client(fake_client: MagicMock, monkeypatch) -> TestClient:
     # analyze.py uses Depends(deps.get_sam_client) directly → dependency_overrides
     fake_sam = MagicMock()
     fake_sam.model_name = "vit_b"
+    # Return an empty mask so _refine_regions short-circuits on the SAM pass and
+    # the test never enters the contour/refinement path (analyze.py's Depends
+    # captures deps.get_anthropic_client at import time, so the monkeypatch
+    # above doesn't reach the /api/analyze endpoint — see panel.py's wrapper).
     fake_sam.decode_point.return_value = np.zeros((1, 1), dtype=bool)
+    fake_sam.decode_combined.return_value = np.zeros((1, 1), dtype=bool)
     app.dependency_overrides[get_sam_client] = lambda: fake_sam
     try:
         yield TestClient(app)

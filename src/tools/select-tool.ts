@@ -6,7 +6,7 @@ export const SelectTool: ToolDefinition = {
   label: 'Select',
   icon: MousePointer2,
   category: 'select',
-  modes: ['compose'],
+  modes: ['develop', 'compose'],
   shortcut: 'V',
   cursor: 'default',
 

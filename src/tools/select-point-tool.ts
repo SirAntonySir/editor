@@ -3,6 +3,7 @@ import { MousePointerClick } from 'lucide-react';
 import type { ToolDefinition, ToolContext, CanvasPointerEvent } from '@/types/tool';
 import { useEditorStore } from '@/store';
 import { samClient } from '@/lib/sam/sam-client';
+import { toast } from '@/components/ui/Toast';
 
 /**
  * Convert a scene-space point (from canvas.getScenePoint) into image-pixel
@@ -36,6 +37,7 @@ export const SelectPointTool: ToolDefinition = {
   modes: ['develop', 'compose'],
   shortcut: 'P',
   cursor: 'crosshair',
+  requiresAiContext: true,
 
   onActivate: (ctx: ToolContext) => {
     const canvas = ctx.canvasRef.current;
@@ -50,7 +52,10 @@ export const SelectPointTool: ToolDefinition = {
       });
     }
     const layerId = useEditorStore.getState().activeLayerId;
-    if (layerId) void samClient.ensureEmbedding(layerId).catch(console.error);
+    if (layerId) void samClient.ensureEmbedding(layerId).catch((err) => {
+      console.error('[SelectPoint] embed failed:', err);
+      toast.error('Segment encoder unavailable — is the backend running?');
+    });
   },
 
   onPointerDown: async (e: CanvasPointerEvent, ctx: ToolContext) => {
@@ -79,6 +84,7 @@ export const SelectPointTool: ToolDefinition = {
       useEditorStore.getState().commitMask();
     } catch (err) {
       console.error('[SelectPoint] segment failed:', err);
+      toast.error(err instanceof Error ? err.message : 'Segmentation failed.');
     }
   },
 };

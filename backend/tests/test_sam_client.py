@@ -7,21 +7,19 @@ from unittest.mock import MagicMock, patch
 from app.services.sam_client import SamClient
 
 
-def _fake_settings(model="vit_b", path="/fake/path"):
+def _fake_settings(name="facebook/sam2.1-hiera-base-plus", path=None):
     s = MagicMock()
-    s.sam_model_name = model
+    s.sam_model_name = name
     s.sam_checkpoint_path = path
     return s
 
 
 @pytest.fixture
 def patched_sam():
-    """Patches the sam_model_registry + SamPredictor to skip real model load."""
-    with patch("app.services.sam_client.sam_model_registry") as registry, \
-         patch("app.services.sam_client.SamPredictor") as predictor_cls:
-        registry.__getitem__.return_value.return_value = MagicMock()
+    """Patches SAM2ImagePredictor.from_pretrained to skip real model load."""
+    with patch("app.services.sam_client.SAM2ImagePredictor") as predictor_cls:
         predictor = MagicMock()
-        predictor_cls.return_value = predictor
+        predictor_cls.from_pretrained.return_value = predictor
         yield predictor
 
 

@@ -30,16 +30,35 @@ const RADIUS_VALUES: Record<RadiusScale, { panel: string; button: string; sm: st
   full: { panel: '20px', button: '16px', sm: '10px' },
 };
 
+export type RightSidebarTab = 'inspector' | 'ai';
+
 export interface PreferencesState {
   themeMode: ThemeMode;
   accentColor: string;
   radiusScale: RadiusScale;
   showPreferences: boolean;
+  leftSidebarCollapsed: boolean;
+  rightSidebarCollapsed: boolean;
+  leftSidebarWidth: number;
+  rightSidebarWidth: number;
+  rightSidebarTab: RightSidebarTab;
 
   setThemeMode: (mode: ThemeMode) => void;
   setAccentColor: (color: string) => void;
   setRadiusScale: (scale: RadiusScale) => void;
   setShowPreferences: (show: boolean) => void;
+  toggleLeftSidebar: () => void;
+  toggleRightSidebar: () => void;
+  setLeftSidebarWidth: (w: number) => void;
+  setRightSidebarWidth: (w: number) => void;
+  setRightSidebarTab: (tab: RightSidebarTab) => void;
+}
+
+export const SIDEBAR_MIN_WIDTH = 200;
+export const SIDEBAR_MAX_WIDTH = 480;
+
+function clampSidebarWidth(w: number): number {
+  return Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Math.round(w)));
 }
 
 export const usePreferencesStore = create<PreferencesState>()(
@@ -49,11 +68,25 @@ export const usePreferencesStore = create<PreferencesState>()(
       accentColor: '#0071e3',
       radiusScale: 'medium',
       showPreferences: false,
+      leftSidebarCollapsed: false,
+      rightSidebarCollapsed: false,
+      leftSidebarWidth: 248,
+      rightSidebarWidth: 264,
+      rightSidebarTab: 'inspector',
 
       setThemeMode: (mode) => set({ themeMode: mode }),
       setAccentColor: (color) => set({ accentColor: color }),
       setRadiusScale: (scale) => set({ radiusScale: scale }),
       setShowPreferences: (show) => set({ showPreferences: show }),
+      toggleLeftSidebar: () =>
+        set((s) => ({ leftSidebarCollapsed: !s.leftSidebarCollapsed })),
+      toggleRightSidebar: () =>
+        set((s) => ({ rightSidebarCollapsed: !s.rightSidebarCollapsed })),
+      setLeftSidebarWidth: (w) =>
+        set({ leftSidebarWidth: clampSidebarWidth(w) }),
+      setRightSidebarWidth: (w) =>
+        set({ rightSidebarWidth: clampSidebarWidth(w) }),
+      setRightSidebarTab: (tab) => set({ rightSidebarTab: tab }),
     }),
     {
       name: 'editor-preferences',
@@ -61,6 +94,11 @@ export const usePreferencesStore = create<PreferencesState>()(
         themeMode: state.themeMode,
         accentColor: state.accentColor,
         radiusScale: state.radiusScale,
+        leftSidebarCollapsed: state.leftSidebarCollapsed,
+        rightSidebarCollapsed: state.rightSidebarCollapsed,
+        leftSidebarWidth: state.leftSidebarWidth,
+        rightSidebarWidth: state.rightSidebarWidth,
+        rightSidebarTab: state.rightSidebarTab,
       }),
     },
   ),

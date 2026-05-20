@@ -52,10 +52,10 @@ def test_analyze_unknown_session_404(client_with_fake_anthropic: TestClient) -> 
     assert response.status_code == 404
 
 
-def test_analyze_bundles_region_masks(tmp_path):
+def test_analyze_bundles_region_paths(tmp_path):
     """When Claude returns regions with representative points, the analyze
-    handler runs SAM at each point and bundles the mask into the response."""
-    import base64
+    handler runs SAM at each point and bundles simplified polygon paths into
+    the response."""
     import io
 
     import numpy as np
@@ -65,7 +65,7 @@ def test_analyze_bundles_region_masks(tmp_path):
     from app.schemas.image_context import CandidateRegion, ImageContext
     from app.services.session_store import SessionStore
 
-    img = Image.new("RGB", (8, 8), color=(0, 128, 0))
+    img = Image.new("RGB", (64, 64), color=(0, 128, 0))
     buf = io.BytesIO()
     img.save(buf, format="PNG")
 
@@ -82,7 +82,7 @@ def test_analyze_bundles_region_masks(tmp_path):
             CandidateRegion(
                 label="plant",
                 description="leafy plant in centre",
-                representative_point=[4.0, 4.0],
+                representative_point=[32.0, 32.0],
             ),
         ],
         model_name="claude",
@@ -90,9 +90,19 @@ def test_analyze_bundles_region_masks(tmp_path):
         generated_at="2025-01-01T00:00:00Z",
     )
 
+    # Filled central square — yields a single polygon contour after simplification.
+    mask = np.zeros((64, 64), dtype=bool)
+    mask[16:48, 16:48] = True
     sam = MagicMock()
-    sam.decode_point.return_value = np.ones((8, 8), dtype=bool)
+    sam.decode_combined.return_value = mask
     sam.model_name = "vit_b"
+
+    # Refinement pass: accept the single region as-is so we don't re-run SAM
+    # with refined prompts. Pass-1 mask becomes the final mask.
+    from app.schemas.image_context import ContextRefinements, RegionRefinement
+    anthropic.refine_image_context.return_value = ContextRefinements(
+        refinements=[RegionRefinement(region_index=1, action="accept")],
+    )
 
     app.dependency_overrides[get_session_store] = lambda: store
     app.dependency_overrides[get_anthropic_client] = lambda: anthropic
@@ -101,16 +111,19 @@ def test_analyze_bundles_region_masks(tmp_path):
     try:
         with TestClient(app) as client:
             res = client.post("/api/analyze", json={"session_id": sid})
-            assert res.status_code == 200
+            assert res.status_code == 200, res.text
             body = res.json()
             assert len(body["candidate_regions"]) == 1
             region = body["candidate_regions"][0]
-            assert region["mask"] is not None
-            assert region["mask"]["width"] == 8
-            assert region["mask"]["height"] == 8
-            raw = base64.b64decode(region["mask"]["png_base64"])
-            assert raw[:8] == b"\x89PNG\r\n\x1a\n"
+            assert region["paths"] is not None
+            assert len(region["paths"]) == 1
+            poly = region["paths"][0]
+            assert len(poly) >= 3
+            for x, y in poly:
+                assert 0.0 <= x <= 1.0
+                assert 0.0 <= y <= 1.0
         sam.embed.assert_called_once()
-        sam.decode_point.assert_called_once()
+        sam.decode_combined.assert_called()
+        anthropic.refine_image_context.assert_called_once()
     finally:
         app.dependency_overrides.clear()

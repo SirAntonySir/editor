@@ -1,11 +1,8 @@
 export type Lighting = 'flat' | 'backlit' | 'side' | 'rim' | 'mixed';
 export type DominantTone = 'shadows' | 'midtones' | 'highlights';
 
-export interface RegionMask {
-  pngBase64: string;
-  width: number;
-  height: number;
-}
+/** One polygon in normalised (0–1) image coordinates. */
+export type RegionPolygon = [number, number][];
 
 export interface CandidateRegion {
   label: string;
@@ -14,9 +11,14 @@ export interface CandidateRegion {
   bbox?: [number, number, number, number];
   /** Normalised 0–1 click target inside the region: [x, y]. */
   representativePoint?: [number, number];
-  /** Backend-refined SAM mask for this region (populated by analyse step). */
-  mask?: RegionMask;
-  /** Frontend-only ref into maskStore; set after registering the mask. */
+  /**
+   * SAM-derived polygon paths in normalised 0–1 image coordinates.
+   * Multiple polygons represent disjoint components of the mask.
+   * Set by the backend `/api/analyze` pass; absence means SAM didn't find
+   * a usable segment for this region.
+   */
+  paths?: RegionPolygon[];
+  /** Frontend-only ref into maskStore; set after lazily rasterising paths. */
   maskRef?: string;
 }
 

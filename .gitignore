@@ -34,4 +34,8 @@ backend/.venv/
 backend/**/__pycache__/
 backend/**/*.pyc
 backend/.pytest_cache/
+backend/models/
 .superpowers/
+
+# Experimental / in-progress files
+*.future

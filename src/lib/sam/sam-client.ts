@@ -1,13 +1,62 @@
 // src/lib/sam/sam-client.ts
-import { useAiSession } from '@/hooks/useImageContext';
+import { bindSessionFromFirstImageLayer, useAiSession } from '@/hooks/useImageContext';
 import { useEditorStore } from '@/store';
 import { maskStore, type SamPrompt } from '@/core/mask-store';
+import { pixelStore } from '@/core/pixel-store';
 import type { MaskRef } from '@/types/scope';
 
-const API_BASE = '/api';
+const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
+
+/**
+ * The backend embeds a downscaled copy of the image (longest edge clamped
+ * to `UPLOAD_MAX_EDGE`). Prompts must be in that downscaled coordinate
+ * space, not the original. Keep this value in sync with
+ * `downscale-for-upload.ts:MAX_EDGE`.
+ */
+const UPLOAD_MAX_EDGE = 1024;
+
+/** Compute the upload-time downscale factor for a layer's source canvas. */
+function uploadScaleForLayer(layerId: string): number {
+  const source = pixelStore.getSource(layerId);
+  if (!source || source.width <= 0 || source.height <= 0) return 1;
+  return Math.min(1, UPLOAD_MAX_EDGE / Math.max(source.width, source.height));
+}
+
+/**
+ * Scale prompt coordinates from the original-image pixel space to the
+ * downscaled embedding's pixel space. Labels (the third entry on point
+ * prompts) are not scaled.
+ */
+function scalePromptsForUpload(prompts: SamPrompt[], scale: number): SamPrompt[] {
+  if (scale === 1) return prompts;
+  return prompts.map((p) => {
+    if (p.kind === 'point') {
+      const [x, y, label] = p.data;
+      return { kind: 'point', data: [x * scale, y * scale, label] };
+    }
+    // box: [x1, y1, x2, y2]
+    return { kind: 'box', data: p.data.map((v) => v * scale) };
+  });
+}
+
+/**
+ * Resolve a backend session id, lazily re-binding from the cached ImageContext
+ * if the page was reloaded (context restored from disk, sessionId still null).
+ * Mirrors the Cmd+K palette pattern in App.tsx.
+ */
+async function requireSession(): Promise<string> {
+  let sid = useAiSession.getState().sessionId;
+  if (sid) return sid;
+  if (useAiSession.getState().context) {
+    await bindSessionFromFirstImageLayer();
+    sid = useAiSession.getState().sessionId;
+  }
+  if (!sid) throw new Error('samClient: no AI session and no cached context to rebind');
+  return sid;
+}
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -23,30 +72,81 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
  * Decode a base64 PNG (single-channel grayscale; backend writes 0 or 255)
  * into a Uint8Array of length width*height.
  */
+/**
+ * Decode a base64 PNG via an HTMLImageElement. More permissive across browsers
+ * than `createImageBitmap` for some edge-case PNG payloads (e.g. mode "L"
+ * single-channel PNGs).
+ */
+function decodeViaImage(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('decodeViaImage: <img> failed to load PNG'));
+    img.src = dataUrl;
+  });
+}
+
 export async function maskPngBase64ToBytes(
   pngBase64: string,
 ): Promise<{ data: Uint8Array; width: number; height: number }> {
-  const dataUrl = `data:image/png;base64,${pngBase64}`;
-  const blob = await (await fetch(dataUrl)).blob();
-  const bitmap = await createImageBitmap(blob);
-  const tmp = new OffscreenCanvas(bitmap.width, bitmap.height);
+  const cleaned = pngBase64.replace(/\s+/g, '');
+  if (!cleaned.startsWith('iVBORw0KGgo')) {
+    console.warn('[maskPngBase64ToBytes] base64 does not start with PNG signature', cleaned.slice(0, 16));
+  }
+  const dataUrl = `data:image/png;base64,${cleaned}`;
+
+  // Try createImageBitmap first; fall back to <img> if it produces a 0×0
+  // bitmap (some browsers silently fail rather than throw on mode-L PNGs).
+  let width = 0;
+  let height = 0;
+  let drawSource: ImageBitmap | HTMLImageElement | null = null;
+  try {
+    const binary = atob(cleaned);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: 'image/png' });
+    const bitmap = await createImageBitmap(blob);
+    if (bitmap.width > 0 && bitmap.height > 0) {
+      drawSource = bitmap;
+      width = bitmap.width;
+      height = bitmap.height;
+    } else {
+      console.warn('[maskPngBase64ToBytes] createImageBitmap returned 0×0, falling back to <img>');
+      bitmap.close();
+    }
+  } catch (err) {
+    console.warn('[maskPngBase64ToBytes] createImageBitmap threw, falling back to <img>:', err);
+  }
+
+  if (!drawSource) {
+    const img = await decodeViaImage(dataUrl);
+    width = img.naturalWidth;
+    height = img.naturalHeight;
+    drawSource = img;
+  }
+
+  if (width === 0 || height === 0) {
+    if (drawSource instanceof ImageBitmap) drawSource.close();
+    throw new Error(`maskPngBase64ToBytes: decoded image is 0×0 (input ${cleaned.length} chars)`);
+  }
+
+  const tmp = new OffscreenCanvas(width, height);
   const ctx = tmp.getContext('2d');
   if (!ctx) throw new Error('maskPngBase64ToBytes: no 2d context');
-  ctx.drawImage(bitmap, 0, 0);
-  const imgData = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
-  const out = new Uint8Array(bitmap.width * bitmap.height);
+  ctx.drawImage(drawSource, 0, 0);
+  const imgData = ctx.getImageData(0, 0, width, height);
+  const out = new Uint8Array(width * height);
   for (let i = 0; i < out.length; i++) out[i] = imgData.data[i * 4];
-  bitmap.close();
-  return { data: out, width: bitmap.width, height: bitmap.height };
+  if (drawSource instanceof ImageBitmap) drawSource.close();
+  return { data: out, width, height };
 }
 
 export const samClient = {
   async ensureEmbedding(_layerId: string): Promise<void> {
-    const sessionId = useAiSession.getState().sessionId;
-    if (!sessionId) throw new Error('samClient.ensureEmbedding: no AI session');
+    const sessionId = await requireSession();
     useEditorStore.getState().setEncoderState('encoding');
     try {
-      await postJson('/segment/embed', { session_id: sessionId });
+      await postJson('/api/segment/embed', { session_id: sessionId });
       useEditorStore.getState().setEncoderState('ready');
     } catch (err) {
       useEditorStore.getState().setEncoderState('error');
@@ -59,20 +159,40 @@ export const samClient = {
     prompts: SamPrompt[];
     label?: string;
   }): Promise<MaskRef> {
-    const sessionId = useAiSession.getState().sessionId;
-    if (!sessionId) throw new Error('samClient.segment: no AI session');
+    const sessionId = await requireSession();
+
+    const scale = uploadScaleForLayer(args.layerId);
+    const scaledPrompts = scalePromptsForUpload(args.prompts, scale);
 
     const res = await postJson<{
       mask_png_base64: string;
       width: number;
       height: number;
       model: string;
-    }>('/segment/decode', {
+    }>('/api/segment/decode', {
       session_id: sessionId,
-      prompts: args.prompts,
+      prompts: scaledPrompts,
+    });
+
+    if (!res.mask_png_base64 || res.mask_png_base64.length === 0) {
+      console.error('[samClient] /api/segment/decode returned empty mask_png_base64', res);
+      throw new Error('Segment decode returned an empty mask. The backend likely failed to load the SAM model.');
+    }
+
+    console.log('[samClient] decode response', {
+      base64Length: res.mask_png_base64.length,
+      base64Prefix: res.mask_png_base64.slice(0, 24),
+      responseWidth: res.width,
+      responseHeight: res.height,
+      model: res.model,
     });
 
     const { data, width, height } = await maskPngBase64ToBytes(res.mask_png_base64);
+    if (width === 0 || height === 0) {
+      console.error('[samClient] decoded mask has zero dimensions', { responseMeta: { width: res.width, height: res.height, model: res.model } });
+      throw new Error(`Segment decode produced a 0×0 mask (backend said ${res.width}×${res.height}).`);
+    }
+
     return maskStore.register({
       layerId: args.layerId,
       label: args.label,

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useEditor } from '@/components/EditorProvider';
 import { useEditorStore } from '@/store';
+import { useAiSession } from '@/hooks/useImageContext';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as Separator from '@radix-ui/react-separator';
@@ -16,25 +17,22 @@ export function Toolbar() {
   const activeTool = useEditorStore((s) => s.activeTool);
   const setActiveTool = useEditorStore((s) => s.setActiveTool);
   const editorMode = useEditorStore((s) => s.editorMode);
+  const hasAiContext = useAiSession((s) => s.context !== null);
   const tools = registry.getForMode(editorMode);
 
   const grouped = useMemo(() => {
+    const visible = hasAiContext ? tools : tools.filter((t) => !t.requiresAiContext);
     const groups: { category: string; tools: ToolDefinition[] }[] = [];
     for (const cat of CATEGORY_ORDER) {
-      const catTools = tools.filter((t) => t.category === cat);
+      const catTools = visible.filter((t) => t.category === cat);
       if (catTools.length > 0) groups.push({ category: cat, tools: catTools });
     }
     return groups;
-  }, [tools]);
+  }, [tools, hasAiContext]);
 
   return (
     <Tooltip.Provider delayDuration={300}>
-      <motion.div
-        className="glass-panel flex items-center gap-0.5 px-1.5 py-1"
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-      >
+      <div className="flex-none h-7 flex items-center justify-center px-2 bg-surface border-b border-separator">
         <ToggleGroup.Root
           type="single"
           value={activeTool}
@@ -48,7 +46,7 @@ export function Toolbar() {
               {gi > 0 && (
                 <Separator.Root
                   orientation="vertical"
-                  className="w-px h-4 bg-separator mx-0.5"
+                  className="w-px h-4 bg-separator mx-1"
                 />
               )}
               {group.tools.map((tool) => (
@@ -61,7 +59,7 @@ export function Toolbar() {
             </div>
           ))}
         </ToggleGroup.Root>
-      </motion.div>
+      </div>
     </Tooltip.Provider>
   );
 }
@@ -77,7 +75,7 @@ function ToolButton({ tool, isActive }: { tool: ToolDefinition; isActive: boolea
         >
           <motion.button
             className={`
-              relative flex items-center justify-center w-8 h-8
+              relative flex items-center justify-center w-6 h-6
               transition-colors duration-150
               ${isActive
                 ? 'text-white'
@@ -95,7 +93,7 @@ function ToolButton({ tool, isActive }: { tool: ToolDefinition; isActive: boolea
                 transition={{ type: 'spring', stiffness: 500, damping: 35 }}
               />
             )}
-            <span className="relative z-10"><Icon size={18} /></span>
+            <span className="relative z-10"><Icon size={14} /></span>
           </motion.button>
         </ToggleGroup.Item>
       </Tooltip.Trigger>

@@ -19,7 +19,9 @@ def fake_anthropic_response_image_context() -> MagicMock:
             "lighting": "backlit",
             "dominant_tones": ["shadows"],
             "mood": "calm",
-            "candidate_regions": [],
+            "candidate_regions": [
+                {"label": "subject", "description": "centre figure", "representative_point": [0.5, 0.5]},
+            ],
             "model_name": "claude-opus-4-7",
             "model_version": "2026-01",
             "generated_at": "2026-05-11T10:00:00Z",
@@ -53,7 +55,9 @@ def test_analyze_uses_cache_control() -> None:
                 "lighting": "flat",
                 "dominant_tones": [],
                 "mood": "neutral",
-                "candidate_regions": [],
+                "candidate_regions": [
+                {"label": "subject", "description": "centre figure", "representative_point": [0.5, 0.5]},
+            ],
                 "model_name": "claude-opus-4-7",
                 "model_version": "2026-01",
                 "generated_at": "2026-05-11T10:00:00Z",

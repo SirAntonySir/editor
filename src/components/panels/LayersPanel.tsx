@@ -99,7 +99,47 @@ const LAYER_BLEND_MODES: BlendMode[] = [
   'normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'soft-light', 'hard-light',
 ];
 
-export function LayersPanel() {
+export function LayersPanelActions() {
+  const layers = useEditorStore((s) => s.layers);
+  const activeLayerId = useEditorStore((s) => s.activeLayerId);
+  const removeLayer = useEditorStore((s) => s.removeLayer);
+
+  return (
+    <>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          const id = crypto.randomUUID();
+          useEditorStore.getState().addLayer({
+            id,
+            type: 'image',
+            name: `Layer ${layers.length + 1}`,
+            visible: true,
+            opacity: 1,
+            blendMode: 'normal',
+            locked: false,
+          });
+        }}
+        className="p-0.5 rounded hover:bg-surface-secondary text-text-secondary hover:text-text-primary transition-colors"
+      >
+        <Plus size={14} />
+      </button>
+      {activeLayerId && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            removeLayer(activeLayerId);
+          }}
+          className="p-0.5 rounded hover:bg-surface-secondary text-text-secondary hover:text-text-primary transition-colors"
+        >
+          <Trash2 size={14} />
+        </button>
+      )}
+    </>
+  );
+}
+
+export function LayersPanelBody() {
   const layers = useEditorStore((s) => s.layers);
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
   const activeLayer = useEditorStore((s) => s.layers.find((l) => l.id === s.activeLayerId));
@@ -107,47 +147,10 @@ export function LayersPanel() {
   const updateLayer = useEditorStore((s) => s.updateLayer);
   const removeLayer = useEditorStore((s) => s.removeLayer);
 
-  // Reverse so top layer shows first
   const sortedLayers = [...layers].sort((a, b) => b.order - a.order);
 
   return (
-    <motion.div
-      className="absolute top-12 left-2 z-20 w-48 max-h-[calc(100vh-5rem)] glass-panel flex flex-col overflow-hidden"
-      initial={{ opacity: 0, x: -12 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-    >
-      <div className="px-3 py-2 text-xs font-medium text-text-secondary border-b border-separator flex items-center justify-between">
-        <span>Layers</span>
-        <div className="flex gap-1">
-          <button
-            onClick={() => {
-              const id = crypto.randomUUID();
-              useEditorStore.getState().addLayer({
-                id,
-                type: 'image',
-                name: `Layer ${layers.length + 1}`,
-                visible: true,
-                opacity: 1,
-                blendMode: 'normal',
-                locked: false,
-              });
-            }}
-            className="p-0.5 rounded hover:bg-surface-secondary text-text-secondary hover:text-text-primary transition-colors"
-          >
-            <Plus size={14} />
-          </button>
-          {activeLayerId && (
-            <button
-              onClick={() => removeLayer(activeLayerId)}
-              className="p-0.5 rounded hover:bg-surface-secondary text-text-secondary hover:text-text-primary transition-colors"
-            >
-              <Trash2 size={14} />
-            </button>
-          )}
-        </div>
-      </div>
-
+    <div className="flex flex-col h-full">
       {/* Opacity + Blend Mode for active layer */}
       {activeLayer && (
         <div className="px-2 py-1.5 border-b border-separator flex flex-col gap-1.5">
@@ -219,7 +222,7 @@ export function LayersPanel() {
           ))}
         </AnimatePresence>
       </div>
-    </motion.div>
+    </div>
   );
 }
 

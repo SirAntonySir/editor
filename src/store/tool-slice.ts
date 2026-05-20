@@ -7,12 +7,14 @@ export interface ToolSlice {
   editorMode: EditorMode;
   toolConfigs: Record<string, unknown>;
   showHistoryPanel: boolean;
+  layersSectionOpen: boolean;
 
   setActiveTool: (name: string) => void;
   setEditorMode: (mode: EditorMode) => void;
   setToolConfig: (toolName: string, config: unknown) => void;
   getToolConfig: <T = unknown>(toolName: string) => T | undefined;
   toggleHistoryPanel: () => void;
+  toggleLayersSection: () => void;
 }
 
 export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]], []> = (set, get) => ({
@@ -20,6 +22,7 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   editorMode: 'develop',
   toolConfigs: {},
   showHistoryPanel: false,
+  layersSectionOpen: true,
 
   setActiveTool: (name) =>
     set((state) => {
@@ -44,5 +47,10 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   toggleHistoryPanel: () =>
     set((state) => {
       state.showHistoryPanel = !state.showHistoryPanel;
+    }),
+
+  toggleLayersSection: () =>
+    set((state) => {
+      state.layersSectionOpen = !state.layersSectionOpen;
     }),
 });

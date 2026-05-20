@@ -3,17 +3,21 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGraphStore } from '@/store/graph-store';
 import { NodeRegistry } from '@/lib/node-registry';
 import { useNodePreview } from '@/hooks/useNodePreview';
-import type { ProcessingGraph } from '@/types/graph';
+import { useDerivedGraph } from '@/core/derived-graph';
 
-const PANEL_W = 288; // w-72 = 18rem = 288px
+const PANEL_W = 264; // matches the right sidebar inner width
 
-export function GraphPropertiesPanel({ graph }: { graph: ProcessingGraph }) {
+/**
+ * Body of the graph node properties panel — used inside the docked right
+ * sidebar (Inspector tab) when the editor is in graph mode.
+ */
+export function GraphPropertiesPanelBody() {
+  const graph = useDerivedGraph();
   const highlightedNodeId = useGraphStore((s) => s.highlightedNodeId);
-  const selectedNode = highlightedNodeId
+  const selectedNode = highlightedNodeId && graph
     ? graph.nodes.find((n) => n.id === highlightedNodeId)
     : null;
 
-  // Track the container width for full-size preview rendering
   const containerRef = useRef<HTMLDivElement>(null);
   const [previewW, setPreviewW] = useState(PANEL_W);
 
@@ -36,25 +40,24 @@ export function GraphPropertiesPanel({ graph }: { graph: ProcessingGraph }) {
     selectedNode?.data.layerId,
     selectedNode?.data.adjustmentId,
     previewW,
-    0, // live — no debounce for the inspector
+    0,
   );
 
-  if (!selectedNode) return null;
+  if (!selectedNode) {
+    return (
+      <div className="flex-1 flex items-center justify-center px-6 py-8">
+        <p className="text-xs text-text-secondary text-center leading-relaxed">
+          Select a node in the graph to inspect its parameters.
+        </p>
+      </div>
+    );
+  }
 
   const def = NodeRegistry.get(selectedNode.type);
   const Panel = def?.Panel;
 
   return (
-    <motion.div
-      ref={containerRef}
-      className="absolute top-12 right-2 z-20 max-h-[calc(100vh-5rem)] glass-panel overflow-y-auto overflow-x-hidden flex flex-col"
-      style={{ width: PANEL_W }}
-      initial={{ opacity: 0, x: 12 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 12 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-    >
-      {/* Full-size per-node preview */}
+    <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col">
       <div className="border-b border-separator">
         <canvas
           ref={canvasRef}
@@ -63,12 +66,10 @@ export function GraphPropertiesPanel({ graph }: { graph: ProcessingGraph }) {
         />
       </div>
 
-      {/* Node label header */}
       <div className="px-3 py-2 text-xs font-medium text-text-secondary border-b border-separator">
         {selectedNode.data.label}
       </div>
 
-      {/* Node panel content */}
       <AnimatePresence mode="wait">
         <motion.div
           key={selectedNode.id}
@@ -80,6 +81,6 @@ export function GraphPropertiesPanel({ graph }: { graph: ProcessingGraph }) {
           {Panel ? <Panel node={selectedNode} /> : null}
         </motion.div>
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }

@@ -1,8 +1,9 @@
 import * as fabric from 'fabric';
-import { MousePointer } from 'lucide-react';
+import { Crosshair } from 'lucide-react';
 import type { ToolDefinition, ToolContext, CanvasPointerEvent } from '@/types/tool';
 import { useEditorStore } from '@/store';
 import { samClient } from '@/lib/sam/sam-client';
+import { toast } from '@/components/ui/Toast';
 import type { SamPrompt } from '@/core/mask-store';
 
 // ---------------------------------------------------------------------------
@@ -44,6 +45,7 @@ async function rerunSegmentation(): Promise<void> {
     useEditorStore.getState().setActiveMask(maskRef);
   } catch (err) {
     console.error('[SelectMultiPoint] segment failed:', err);
+    toast.error(err instanceof Error ? err.message : 'Segmentation failed.');
   }
 }
 
@@ -54,11 +56,12 @@ async function rerunSegmentation(): Promise<void> {
 export const SelectMultiPointTool: ToolDefinition = {
   name: 'select-multi-point',
   label: 'Select Multi-Point',
-  icon: MousePointer,
+  icon: Crosshair,
   category: 'select',
   shortcut: 'M',
   cursor: 'crosshair',
   modes: ['develop', 'compose'],
+  requiresAiContext: true,
 
   onActivate: (ctx: ToolContext) => {
     const canvas = ctx.canvasRef.current;
@@ -74,7 +77,10 @@ export const SelectMultiPointTool: ToolDefinition = {
     }
     prompts = [];
     layerId = useEditorStore.getState().activeLayerId;
-    if (layerId) void samClient.ensureEmbedding(layerId).catch(console.error);
+    if (layerId) void samClient.ensureEmbedding(layerId).catch((err) => {
+      console.error('[SelectMultiPoint] embed failed:', err);
+      toast.error('Segment encoder unavailable — is the backend running?');
+    });
 
     // Wire Enter → commit the accumulated mask and reset prompts.
     enterListener = (e: KeyboardEvent) => {

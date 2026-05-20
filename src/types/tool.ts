@@ -51,6 +51,8 @@ export interface ToolDefinition<TConfig = unknown> {
   defaultConfig?: TConfig;
   /** Link to a ProcessingDefinition ID. When set, the processing's Panel is used for the inspector. */
   processingId?: string;
+  /** When true, the tool is hidden from the toolbar and shortcuts are inert until an AI image context is bound. */
+  requiresAiContext?: boolean;
 
   OptionsPanel?: ComponentType<ToolOptionsPanelProps<TConfig>>;
   CanvasOverlay?: ComponentType<CanvasOverlayProps>;

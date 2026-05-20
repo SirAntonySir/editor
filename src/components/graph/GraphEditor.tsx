@@ -21,7 +21,6 @@ import { computeAutoLayout, computeElkLayout } from '@/lib/graph-layout';
 import { nodeTypes } from './nodeTypes';
 import { CustomConnectionLine } from './CustomConnectionLine';
 import { CustomEdge } from './CustomEdge';
-import { GraphPropertiesPanel } from './GraphPropertiesPanel';
 import type { ProcessingGraph, NodePosition } from '@/types/graph';
 import type { EdgeTypes } from '@xyflow/react';
 
@@ -233,9 +232,6 @@ export function GraphEditor() {
         </Controls>
         <AutoLayoutHandler structureKey={structureKey} graph={graph} onLayout={handleElkLayout} />
       </ReactFlow>
-
-      {/* Properties panel — floating, same position as InspectorPanel */}
-      <GraphPropertiesPanel graph={graph} />
     </div>
   );
 }

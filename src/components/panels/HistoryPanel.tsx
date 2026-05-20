@@ -1,5 +1,3 @@
-import { motion } from 'framer-motion';
-import { History } from 'lucide-react';
 import { useSyncExternalStore } from 'react';
 import { editorDocument } from '@/core/document';
 import * as history from '@/core/history';
@@ -13,7 +11,7 @@ function useHistoryStore<T>(selector: (state: HistoryStoreState) => T): T {
   );
 }
 
-export function HistoryPanel() {
+export function HistoryPanelBody() {
   const entries = useHistoryStore((s) => s.entries);
   const canUndo = useHistoryStore((s) => s.canUndo);
   const isRestoring = useHistoryStore((s) => s.isRestoring);
@@ -26,17 +24,7 @@ export function HistoryPanel() {
   };
 
   return (
-    <motion.div
-      className="absolute top-12 left-2 z-20 w-44 max-h-[calc(100vh-5rem)] glass-panel flex flex-col overflow-hidden"
-      initial={{ opacity: 0, x: -12 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-    >
-      <div className="px-3 py-2 text-xs font-medium text-text-secondary border-b border-separator flex items-center gap-1.5">
-        <History size={12} />
-        <span>History</span>
-      </div>
-
+    <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto min-h-0">
         {/* Initial state */}
         <button
@@ -70,6 +58,6 @@ export function HistoryPanel() {
           </button>
         ))}
       </div>
-    </motion.div>
+    </div>
   );
 }

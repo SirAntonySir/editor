@@ -1,6 +1,7 @@
 import { ToolRegistry } from './tool-registry';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
+import { useAiSession } from '@/hooks/useImageContext';
 import { revertToOriginal } from '@/lib/revert';
 import { editorDocument } from '@/core/document';
 
@@ -25,9 +26,9 @@ function buildShortcuts(): ShortcutEntry[] {
         action: () => {
           const state = useEditorStore.getState();
           // Only activate if tool is available in current mode
-          if (!tool.modes || tool.modes.includes(state.editorMode)) {
-            state.setActiveTool(tool.name);
-          }
+          if (tool.modes && !tool.modes.includes(state.editorMode)) return;
+          if (tool.requiresAiContext && !useAiSession.getState().context) return;
+          state.setActiveTool(tool.name);
         },
         label: tool.label,
       });
@@ -79,6 +80,18 @@ function buildShortcuts(): ShortcutEntry[] {
     label: 'Preferences',
   });
 
+  shortcuts.push({
+    key: '[',
+    ctrl: true,
+    action: () => usePreferencesStore.getState().toggleLeftSidebar(),
+    label: 'Toggle Left Sidebar',
+  });
+  shortcuts.push({
+    key: ']',
+    ctrl: true,
+    action: () => usePreferencesStore.getState().toggleRightSidebar(),
+    label: 'Toggle Right Sidebar',
+  });
 
   return shortcuts;
 }

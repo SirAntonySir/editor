@@ -7,8 +7,7 @@ import { CanvasRegistry } from '@/lib/canvas-registry';
 import { editorDocument } from '@/core/document';
 import { applyCropForExport } from '@/lib/crop-display';
 import { useAdjustmentPipeline } from './useAdjustmentPipeline';
-import { MaskOverlay } from './MaskOverlay';
-import { SegmentActionsBar } from './SegmentActionsBar';
+import { useFabricOverlays } from './useFabricOverlays';
 
 interface EditorCanvasProps {
   canvasRef: React.MutableRefObject<fabric.Canvas | null>;
@@ -38,8 +37,6 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
   const spaceHeld = useRef(false);
 
   const editorMode = useEditorStore((s) => s.editorMode);
-  const canvasWidth = useEditorStore((s) => s.canvasWidth);
-  const canvasHeight = useEditorStore((s) => s.canvasHeight);
   const editorModeRef = useRef(editorMode);
   editorModeRef.current = editorMode;
   const objectStateSnapshot = useRef<WeakMap<fabric.FabricObject, { selectable: boolean; evented: boolean }>>(new WeakMap());
@@ -48,6 +45,9 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
 
   // Connect WebGL adjustment pipeline
   useAdjustmentPipeline(canvasRef);
+  // Render mask / annotation overlays as Fabric children of the active image
+  // so pan/zoom/rotate/flip are tracked automatically.
+  useFabricOverlays(canvasRef);
 
   // Hydrate canvas from store when layers appear or change (session restore, edp load)
   const layers = useEditorStore((s) => s.layers);
@@ -372,8 +372,6 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
       onDragOver={(e) => e.preventDefault()}
     >
       <canvas ref={canvasElRef} />
-      <MaskOverlay canvasWidth={canvasWidth} canvasHeight={canvasHeight} />
-      <SegmentActionsBar />
     </div>
   );
 }

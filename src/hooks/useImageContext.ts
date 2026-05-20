@@ -4,7 +4,7 @@ import { downscaleForUpload } from '@/lib/downscale-for-upload';
 import { useEditorStore } from '@/store';
 import { pixelStore } from '@/core/pixel-store';
 import { maskStore } from '@/core/mask-store';
-import type { ImageContext } from '@/types/image-context';
+import type { ImageContext, RegionPolygon } from '@/types/image-context';
 
 type UploadSource = ImageBitmap | HTMLCanvasElement | OffscreenCanvas;
 
@@ -44,53 +44,88 @@ export function currentImageFingerprint(): string {
 }
 
 /**
- * Decode a base64 PNG mask into a Uint8Array of length width×height.
- * Inlined here to avoid a circular import with sam-client (which imports
- * useAiSession from this module).
+ * Rasterise normalised-coordinate polygon paths into a single-channel
+ * Uint8Array mask at the target resolution. Pixels inside any polygon are
+ * `255`, everything else `0`. Uses Canvas2D `fill()` with even-odd rule so
+ * nested polygons cut out holes.
  */
-async function decodeMaskPng(
-  pngBase64: string,
-): Promise<{ data: Uint8Array; width: number; height: number }> {
-  const dataUrl = `data:image/png;base64,${pngBase64}`;
-  const blob = await (await fetch(dataUrl)).blob();
-  const bitmap = await createImageBitmap(blob);
-  const tmp = new OffscreenCanvas(bitmap.width, bitmap.height);
+function rasterisePathsToMask(
+  paths: RegionPolygon[],
+  width: number,
+  height: number,
+): Uint8Array | null {
+  if (width <= 0 || height <= 0 || paths.length === 0) return null;
+  const tmp = new OffscreenCanvas(width, height);
   const ctx = tmp.getContext('2d');
-  if (!ctx) throw new Error('decodeMaskPng: no 2d context');
-  ctx.drawImage(bitmap, 0, 0);
-  const imgData = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
-  const out = new Uint8Array(bitmap.width * bitmap.height);
+  if (!ctx) return null;
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = 'white';
+  const path = new Path2D();
+  for (const poly of paths) {
+    if (poly.length < 3) continue;
+    path.moveTo(poly[0][0] * width, poly[0][1] * height);
+    for (let i = 1; i < poly.length; i++) {
+      path.lineTo(poly[i][0] * width, poly[i][1] * height);
+    }
+    path.closePath();
+  }
+  ctx.fill(path, 'evenodd');
+  const imgData = ctx.getImageData(0, 0, width, height);
+  const out = new Uint8Array(width * height);
   for (let i = 0; i < out.length; i++) out[i] = imgData.data[i * 4];
-  bitmap.close();
-  return { data: out, width: bitmap.width, height: bitmap.height };
+  return out;
 }
 
 /**
- * Register backend-refined region masks from an analysed context into
- * the maskStore. Skips regions that have no mask or are already registered.
- * Mutations to `region.maskRef` are intentional — CandidateRegion objects
- * are plain data (not frozen) and this avoids needing a full context clone.
+ * Register each region's polygon-paths as a rasterised mask in `maskStore`
+ * so the existing scope/shader pipeline can consume them via `maskRef`.
+ * Rasterised at the source layer's native resolution for pixel-accurate
+ * alignment. Regions without paths are skipped (no chip will render).
  */
-async function registerRegionMasks(context: ImageContext, layerId: string): Promise<void> {
+async function registerRegionPaths(context: ImageContext, layerId: string): Promise<void> {
   if (!context.candidateRegions) return;
-  for (const region of context.candidateRegions) {
-    if (!region.mask || region.maskRef) continue;
-    try {
-      const { data, width, height } = await decodeMaskPng(region.mask.pngBase64);
-      const ref = maskStore.register({
-        layerId,
-        label: region.label,
-        width,
-        height,
-        data,
-        source: 'ai-proposed',
-        createdAt: Date.now(),
-      });
-      region.maskRef = ref;
-    } catch (err) {
-      console.error('[ImageContext] failed to register region mask:', region.label, err);
-    }
+  const source = pixelStore.getSource(layerId);
+  if (!source) return;
+  const width = source.width;
+  const height = source.height;
+  if (width <= 0 || height <= 0) {
+    console.warn('[ImageContext] source has zero dimensions, skipping region registration', { layerId, width, height });
+    return;
   }
+  for (const region of context.candidateRegions) {
+    if (!region.paths || region.paths.length === 0) continue;
+    // A maskRef carried over from a cached context is stale unless it still
+    // resolves in the current session's maskStore (which is in-memory only).
+    if (region.maskRef && maskStore.get(region.maskRef)) continue;
+    region.maskRef = undefined;
+    const data = rasterisePathsToMask(region.paths, width, height);
+    if (!data) {
+      console.warn('[ImageContext] failed to rasterise paths for region:', region.label);
+      continue;
+    }
+    const ref = maskStore.register({
+      layerId,
+      label: region.label,
+      width,
+      height,
+      data,
+      source: 'ai-proposed',
+      createdAt: Date.now(),
+    });
+    region.maskRef = ref;
+  }
+}
+
+/**
+ * A cached context is considered stale if it has candidate regions but none
+ * of them carry the new `paths` field — that means the cache predates the
+ * polygon-paths migration and the user should re-analyse. Returning `true`
+ * causes restoreContext to discard the cache so the UI can prompt a fresh run.
+ */
+function contextIsStale(context: ImageContext): boolean {
+  const regions = context.candidateRegions ?? [];
+  if (regions.length === 0) return false;
+  return regions.every((r) => !r.paths || r.paths.length === 0);
 }
 
 export const useAiSession = create<AiSessionState>((set, get) => ({
@@ -112,7 +147,7 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
       const activeLayerId = useEditorStore.getState().activeLayerId
         ?? useEditorStore.getState().layers.find((l) => l.type === 'image')?.id;
       if (activeLayerId) {
-        await registerRegionMasks(context, activeLayerId);
+        await registerRegionPaths(context, activeLayerId);
       }
       set({ context, status: 'ready', lastAnalysedFingerprint: fingerprint });
     } catch (err) {
@@ -152,6 +187,13 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
    * produced this cached context.
    */
   restoreContext(context) {
+    if (contextIsStale(context)) {
+      // Predates the polygon-paths migration — drop it so the UI prompts a
+      // fresh analyse instead of showing a context with no usable segments.
+      console.warn('[ImageContext] discarding stale cached context (no paths) — re-analyse needed');
+      set({ sessionId: null, context: null, status: 'idle', error: null, lastAnalysedFingerprint: null });
+      return;
+    }
     console.log('[ImageContext] (restored from disk)', context);
     set({
       context,
@@ -162,8 +204,7 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
     const activeLayerId = useEditorStore.getState().activeLayerId
       ?? useEditorStore.getState().layers.find((l) => l.type === 'image')?.id;
     if (activeLayerId) {
-      // fire-and-forget: masks are non-blocking enhancements; failures logged inside helper
-      void registerRegionMasks(context, activeLayerId);
+      void registerRegionPaths(context, activeLayerId);
     }
   },
   reset() {

@@ -3,6 +3,7 @@ import { BoxSelect } from 'lucide-react';
 import type { ToolDefinition, ToolContext, CanvasPointerEvent } from '@/types/tool';
 import { useEditorStore } from '@/store';
 import { samClient } from '@/lib/sam/sam-client';
+import { toast } from '@/components/ui/Toast';
 
 let startX = 0;
 let startY = 0;
@@ -31,6 +32,7 @@ export const SelectBoxTool: ToolDefinition = {
   shortcut: 'X',
   cursor: 'crosshair',
   modes: ['develop', 'compose'],
+  requiresAiContext: true,
 
   onActivate: (ctx: ToolContext) => {
     const canvas = ctx.canvasRef.current;
@@ -45,7 +47,10 @@ export const SelectBoxTool: ToolDefinition = {
       });
     }
     const layerId = useEditorStore.getState().activeLayerId;
-    if (layerId) void samClient.ensureEmbedding(layerId).catch(console.error);
+    if (layerId) void samClient.ensureEmbedding(layerId).catch((err) => {
+      console.error('[SelectBox] embed failed:', err);
+      toast.error('Segment encoder unavailable — is the backend running?');
+    });
   },
 
   onPointerDown: (e: CanvasPointerEvent, ctx: ToolContext) => {
@@ -81,6 +86,7 @@ export const SelectBoxTool: ToolDefinition = {
       useEditorStore.getState().commitMask();
     } catch (err) {
       console.error('[SelectBox] segment failed:', err);
+      toast.error(err instanceof Error ? err.message : 'Segmentation failed.');
     }
   },
 };

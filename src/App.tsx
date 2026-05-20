@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useState, lazy, Suspense } from 'react';
+import { useRef, useCallback, useEffect, lazy, Suspense } from 'react';
 import type * as fabric from 'fabric';
 import { AnimatePresence } from 'framer-motion';
 import { EditorProvider, useEditor } from '@/components/EditorProvider';
@@ -7,9 +7,8 @@ import { EditorCanvas, loadImageToCanvas } from '@/components/canvas/EditorCanva
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 import { Toolbar } from '@/components/toolbar/Toolbar';
 import { MenuBar } from '@/components/toolbar/MenuBar';
-import { InspectorPanel } from '@/components/inspector/InspectorPanel';
-import { LayersPanel } from '@/components/panels/LayersPanel';
-import { HistoryPanel } from '@/components/panels/HistoryPanel';
+import { LeftSidebar } from '@/components/panels/LeftSidebar';
+import { RightSidebar } from '@/components/panels/RightSidebar';
 import { PreferencesPage } from '@/components/PreferencesPage';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { ToolRegistry } from '@/lib/tool-registry';
@@ -38,18 +37,7 @@ import { SelectPointTool } from '@/tools/select-point-tool';
 import { SelectMultiPointTool } from '@/tools/select-multi-point-tool';
 import { SelectBoxTool } from '@/tools/select-box-tool';
 import { BrushMaskTool } from '@/tools/brush-mask-tool';
-import { AnalyseIndicator } from '@/components/ui/AnalyseIndicator';
-import { AiCommandPalette } from '@/components/AiCommandPalette';
-import { ToastHost } from '@/components/ui/Toast';
-import {
-  useAiSession,
-  bindSessionFromFirstImageLayer,
-} from '@/hooks/useImageContext';
-import { generatePanel } from '@/lib/ai-client';
-import { resolveSmartTarget, renderTargetSnapshot } from '@/lib/target-ref';
-import { addAiStepNode } from '@/store/ai-panel-actions';
-import { setPaletteOpenHandler, bindSeedSetter } from '@/lib/palette-bus';
-import type { TargetRef, InsertionIntent } from '@/types/ai-target';
+import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
 import { Upload } from 'lucide-react';
 
 // Lazy-load GraphEditor so @xyflow/react CSS doesn't interfere with Fabric.js canvas
@@ -100,7 +88,6 @@ function MainLayout({
   toolDef,
   toolContext,
   activeTool,
-  showHistoryPanel,
   handleFileOpen,
 }: {
   canvasRef: React.RefObject<fabric.Canvas | null>;
@@ -109,96 +96,87 @@ function MainLayout({
   toolDef: ReturnType<ReturnType<typeof useEditor>['getActiveTool']>;
   toolContext: ReturnType<typeof useEditor>['toolContext'];
   activeTool: string;
-  showHistoryPanel: boolean;
   handleFileOpen: () => void;
 }) {
   const isGraph = editorMode === 'graph' && layers.length > 0;
   const isCropEditing = useCropEditingStore((s) => s.isCropEditing);
   const showHUD = !isGraph;
+  // Left sidebar (Layers/History) is canvas-mode only.
+  // Right sidebar (Inspector/AI) stays visible in every mode, including graph.
+  const showLeftSidebar = !isGraph;
 
   return (
-    <div className="relative flex-1 min-h-0">
-      {/* Canvas pane — always mounted to avoid remounting Fabric.
-          In graph mode: hidden but kept in DOM so the pipeline stays active. */}
-      <div className={isGraph ? 'w-0 h-0 overflow-hidden absolute' : 'absolute inset-0'}>
-        <CanvasContextMenu>
-          <div className="absolute inset-0">
-            <EditorCanvas canvasRef={canvasRef} />
-          </div>
-        </CanvasContextMenu>
-      </div>
+    <div className="relative flex-1 min-h-0 flex flex-row">
+      {/* Left sidebar — canvas modes only */}
+      {showLeftSidebar && <LeftSidebar />}
 
-      {/* Graph pane — full screen in graph mode */}
-      {isGraph && (
-        <Suspense fallback={<div className="absolute inset-0 bg-canvas-bg" />}>
-          <div className="absolute inset-0 bg-canvas-bg">
-            <GraphEditor />
-          </div>
-        </Suspense>
-      )}
+      {/* Canvas column */}
+      <div className="relative flex-1 min-w-0 min-h-0">
+        {/* Canvas pane — always mounted to avoid remounting Fabric.
+            In graph mode: hidden but kept in DOM so the pipeline stays active. */}
+        <div className={isGraph ? 'w-0 h-0 overflow-hidden absolute' : 'absolute inset-0'}>
+          <CanvasContextMenu>
+            <div className="absolute inset-0">
+              <EditorCanvas canvasRef={canvasRef} />
+            </div>
+          </CanvasContextMenu>
+        </div>
 
-      {/* Crop canvas overlay — shown when crop editing is active (any mode) */}
-      {isCropEditing && <CropCanvasOverlay canvasRef={canvasRef} />}
-
-      {/* Tool canvas overlay — not in graph or crop editing mode */}
-      {showHUD && !isCropEditing && toolDef?.CanvasOverlay && <toolDef.CanvasOverlay ctx={toolContext} />}
-
-      {/* Empty state */}
-      <AnimatePresence>
-        {layers.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-            <Empty className="pointer-events-auto">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <Upload />
-                </EmptyMedia>
-                <EmptyTitle>No image loaded</EmptyTitle>
-                <EmptyDescription>
-                  Open an image to start editing, or drag & drop a file onto the canvas.
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <button
-                  onClick={handleFileOpen}
-                  className="glass-panel px-4 py-2 text-sm text-text-primary hover:bg-surface-secondary transition-colors cursor-pointer"
-                >
-                  Open Image
-                </button>
-              </EmptyContent>
-            </Empty>
-          </div>
+        {/* Graph pane — full screen in graph mode */}
+        {isGraph && (
+          <Suspense fallback={<div className="absolute inset-0 bg-canvas-bg" />}>
+            <div className="absolute inset-0 bg-canvas-bg">
+              <GraphEditor />
+            </div>
+          </Suspense>
         )}
-      </AnimatePresence>
 
-      {/* AI analyse status indicator — floats above all modes */}
-      <AnalyseIndicator />
+        {/* Crop canvas overlay — shown when crop editing is active (any mode) */}
+        {isCropEditing && <CropCanvasOverlay canvasRef={canvasRef} />}
 
-      {/* HUDs — hidden in graph mode */}
-      {showHUD && (
-        <>
-          {/* Top toolbar */}
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
-            <Toolbar />
-          </div>
+        {/* Tool canvas overlay — not in graph or crop editing mode */}
+        {showHUD && !isCropEditing && toolDef?.CanvasOverlay && <toolDef.CanvasOverlay ctx={toolContext} />}
 
-          {/* Layers panel — only in compose mode */}
-          {editorMode === 'compose' && layers.length > 0 && <LayersPanel />}
+        {/* Empty state */}
+        <AnimatePresence>
+          {layers.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+              <Empty className="pointer-events-auto">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <Upload />
+                  </EmptyMedia>
+                  <EmptyTitle>No image loaded</EmptyTitle>
+                  <EmptyDescription>
+                    Open an image to start editing, or drag & drop a file onto the canvas.
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <button
+                    onClick={handleFileOpen}
+                    className="glass-panel px-4 py-2 text-sm text-text-primary hover:bg-surface-secondary transition-colors cursor-pointer"
+                  >
+                    Open Image
+                  </button>
+                </EmptyContent>
+              </Empty>
+            </div>
+          )}
+        </AnimatePresence>
 
-          {/* History panel — toggled via View menu */}
-          {showHistoryPanel && layers.length > 0 && <HistoryPanel />}
-
-          {/* Inspector panel */}
-          <InspectorPanel />
-
-          {/* Status bar */}
+        {/* Status bar — bottom-right of canvas column */}
+        {showHUD && (
           <div className="absolute bottom-0 right-0 z-20 flex items-center gap-2
             px-2 py-0.5 text-xs text-text-secondary bg-surface/70 backdrop-blur-sm rounded-tl-sm">
             <span className="capitalize">{isCropEditing ? 'crop' : activeTool}</span>
             <span className="text-separator">|</span>
             <ZoomDisplay />
           </div>
-        </>
-      )}
+        )}
+      </div>
+
+      {/* Right sidebar — only when not in graph mode */}
+      <RightSidebar />
     </div>
   );
 }
@@ -207,72 +185,31 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
   const { toolContext, getActiveTool } = useEditor();
   const activeTool = useEditorStore((s) => s.activeTool);
   const editorMode = useEditorStore((s) => s.editorMode);
-  const showHistoryPanel = useEditorStore((s) => s.showHistoryPanel);
   const layers = useEditorStore((s) => s.layers);
   const showPreferences = usePreferencesStore((s) => s.showPreferences);
   const toolDef = getActiveTool();
 
-  // Command palette — Cmd+K opens regardless of editor state. Enabled if
-  // either a live sessionId exists OR a cached context is available (in which
-  // case the submit handler lazy-binds a fresh session, no Claude call).
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  const [paletteSeed, setPaletteSeed] = useState<{
-    target: TargetRef;
-    intent: InsertionIntent;
-  } | null>(null);
-  const sessionId = useAiSession((s) => s.sessionId);
-  const hasContext = useAiSession((s) => s.context != null);
-
+  // ⌘K opens the AI tab of the right sidebar and focuses the palette input.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setPaletteOpen(true);
+        usePreferencesStore.setState({
+          rightSidebarCollapsed: false,
+          rightSidebarTab: 'ai',
+        });
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const el = document.querySelector<HTMLTextAreaElement>('[data-palette-input="sidebar"]');
+            el?.focus();
+            el?.select();
+          });
+        });
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-
-  useEffect(() => {
-    setPaletteOpenHandler((t, i) => {
-      setPaletteSeed({ target: t, intent: i });
-      setPaletteOpen(true);
-    });
-    bindSeedSetter(setPaletteSeed);
-    return () => {
-      setPaletteOpenHandler(null);
-      bindSeedSetter(null);
-    };
-  }, []);
-
-  const handlePaletteSubmit = useCallback(
-    async (text: string) => {
-      const session = useAiSession.getState();
-      let sid = session.sessionId;
-      if (!sid && session.context) {
-        await bindSessionFromFirstImageLayer();
-        sid = useAiSession.getState().sessionId;
-      }
-      if (!sid) return;
-
-      const target: TargetRef = paletteSeed?.target ?? resolveSmartTarget();
-      const intent: InsertionIntent = paletteSeed?.intent ?? 'append';
-
-      try {
-        const snapshot = await renderTargetSnapshot(target);
-        const graph = await generatePanel(sid, text, {
-          targetSnapshotPng: snapshot,
-          targetRef: target,
-          insertionIntent: intent,
-        });
-        addAiStepNode(target, graph);
-      } catch (err) {
-        console.error('[Cmd+K] generate failed:', err);
-      }
-    },
-    [paletteSeed],
-  );
 
   const handleFileOpen = useCallback(() => {
     const input = document.createElement('input');
@@ -296,6 +233,14 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
         <MenuBar canvasRef={canvasRef} />
       </div>
 
+      {/* Docked toolbar + backend status strip — hidden in graph mode */}
+      {editorMode !== 'graph' && (
+        <>
+          <Toolbar />
+          <BackendStatusBar />
+        </>
+      )}
+
       {/* Main canvas area */}
       <MainLayout
         canvasRef={canvasRef}
@@ -304,7 +249,6 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
         toolDef={toolDef}
         toolContext={toolContext}
         activeTool={activeTool}
-        showHistoryPanel={showHistoryPanel}
         handleFileOpen={handleFileOpen}
       />
 
@@ -312,17 +256,6 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
       <AnimatePresence>
         {showPreferences && <PreferencesPage />}
       </AnimatePresence>
-
-      {/* Cmd+K palette — image preview + candidate-region pills + goal input */}
-      <AiCommandPalette
-        open={paletteOpen}
-        onClose={() => {
-          setPaletteOpen(false);
-          setPaletteSeed(null);
-        }}
-        onSubmit={handlePaletteSubmit}
-        disabled={!sessionId && !hasContext}
-      />
     </div>
   );
 }
@@ -367,7 +300,6 @@ export default function App() {
   return (
     <EditorProvider canvasRef={canvasRef}>
       <EditorContent canvasRef={canvasRef} />
-      <ToastHost />
     </EditorProvider>
   );
 }

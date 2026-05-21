@@ -20,6 +20,25 @@ def _err(code: str, message: str, retryable: bool = False, recovery_hint: str | 
     )
 
 
+def _classify_exception(exc: Exception) -> ToolResponseEnvelope | None:
+    """Map well-known exception subclass names to typed envelope errors.
+    Returns None if the exception is not a registry-mapped one (caller
+    should fall through to internal_error)."""
+    if isinstance(exc, KeyError):
+        ex_name = exc.__class__.__name__
+        code = "unknown_widget"
+        if ex_name == "_UnknownRegion":
+            code = "unknown_region"
+        elif ex_name == "_UnknownMask":
+            code = "unknown_mask"
+        elif ex_name == "_ScopeUnresolvable":
+            code = "scope_unresolvable"
+        return _err(code, str(exc), retryable=False)
+    if exc.__class__.__name__ == "_SamFailed":
+        return _err("sam_failed", str(exc), retryable=False)
+    return None
+
+
 class BackendToolRegistry:
     def __init__(self, store: SessionStore, event_bus: EventBus) -> None:
         self._tools: dict[str, BackendTool] = {}
@@ -89,38 +108,20 @@ class BackendToolRegistry:
             with self._store.with_document_lock(session_id) as doc:
                 try:
                     output = await tool.handler(doc, parsed)
-                except KeyError as exc:
-                    ex_name = exc.__class__.__name__
-                    code = "unknown_widget"
-                    if ex_name == "_UnknownRegion":
-                        code = "unknown_region"
-                    elif ex_name == "_UnknownMask":
-                        code = "unknown_mask"
-                    elif ex_name == "_ScopeUnresolvable":
-                        code = "scope_unresolvable"
-                    return _err(code, str(exc), retryable=False)
                 except Exception as exc:
-                    if exc.__class__.__name__ == "_SamFailed":
-                        return _err("sam_failed", str(exc), retryable=False)
+                    classified = _classify_exception(exc)
+                    if classified is not None:
+                        return classified
                     return _err("internal_error", repr(exc), retryable=False)
                 self._flush_history_to_bus(doc, session_id)
         else:
             doc = self._store.get_document(session_id)
             try:
                 output = await tool.handler(doc, parsed)
-            except KeyError as exc:
-                ex_name = exc.__class__.__name__
-                code = "unknown_widget"
-                if ex_name == "_UnknownRegion":
-                    code = "unknown_region"
-                elif ex_name == "_UnknownMask":
-                    code = "unknown_mask"
-                elif ex_name == "_ScopeUnresolvable":
-                    code = "scope_unresolvable"
-                return _err(code, str(exc), retryable=False)
             except Exception as exc:
-                if exc.__class__.__name__ == "_SamFailed":
-                    return _err("sam_failed", str(exc), retryable=False)
+                classified = _classify_exception(exc)
+                if classified is not None:
+                    return classified
                 return _err("internal_error", repr(exc), retryable=False)
 
         return ToolResponseEnvelope(ok=True, output=output.model_dump(mode="json"))

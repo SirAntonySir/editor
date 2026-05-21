@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from app.schemas.image_context import ImageContext
 from app.schemas.widget import (
@@ -37,6 +37,8 @@ class SessionDocument(BaseModel):
     revision: int = 0
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    _published_idx: int = PrivateAttr(default=0)
 
     # ---------------- helpers ----------------
 

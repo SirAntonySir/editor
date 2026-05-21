@@ -128,11 +128,8 @@ class BackendToolRegistry:
     # ---------------- internals ----------------
 
     def _flush_history_to_bus(self, doc, session_id: str) -> None:
-        """Publish any history entries that haven't been published yet.
-
-        We track the last-published index on the document via a runtime attribute.
-        Uses object.__setattr__ to bypass Pydantic's extra="forbid" validation."""
-        last_idx: int = getattr(doc, "_published_idx", 0)
+        """Publish any history entries that haven't been published yet."""
+        last_idx = doc._published_idx
         for ev in doc.history[last_idx:]:
             self._bus.publish(session_id, ev)
-        object.__setattr__(doc, "_published_idx", len(doc.history))
+        doc._published_idx = len(doc.history)

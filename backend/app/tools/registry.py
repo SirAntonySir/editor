@@ -36,8 +36,11 @@ def _classify_exception(exc: Exception) -> ToolResponseEnvelope | None:
         elif ex_name == "_FusedToolNotFound":
             code = "fused_tool_not_found"
         return _err(code, str(exc), retryable=False)
-    if exc.__class__.__name__ == "_SamFailed":
+    cls_name = exc.__class__.__name__
+    if cls_name == "_SamFailed":
         return _err("sam_failed", str(exc), retryable=False)
+    if cls_name == "_InvalidInput":
+        return _err("invalid_input", str(exc), retryable=False)
     return None
 
 

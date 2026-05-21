@@ -2,13 +2,32 @@ from __future__ import annotations
 
 import time
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import Any
+from typing import TYPE_CHECKING, Any, Iterator
+
+if TYPE_CHECKING:
+    from app.state.document import SessionDocument
 
 
 class SessionNotFound(KeyError):
     pass
+
+
+def _new_document(sid: str, record: "SessionRecord") -> "SessionDocument":
+    """Lazy-create a SessionDocument from a SessionRecord.
+
+    Imported inside the function to avoid pulling app.state.document into
+    the session-store module at definition time — keeps the store a pure
+    registry. SessionDocument transitively imports image_context etc.,
+    so we defer until actually needed."""
+    from app.state.document import SessionDocument
+    return SessionDocument(
+        session_id=sid,
+        image_bytes=record.image_bytes,
+        mime_type=record.mime_type,
+    )
 
 
 @dataclass
@@ -19,6 +38,8 @@ class SessionRecord:
     last_seen: float
     context: dict[str, Any] | None = None
     graphs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    document: "SessionDocument | None" = None  # lazily created
+    write_lock: Lock = field(default_factory=Lock)
 
 
 class SessionStore:
@@ -67,3 +88,17 @@ class SessionStore:
     def get_graph(self, sid: str, graph_id: str) -> dict[str, Any] | None:
         record = self.get(sid)
         return record.graphs.get(graph_id)
+
+    def get_document(self, sid: str) -> "SessionDocument":
+        record = self.get(sid)
+        if record.document is None:
+            record.document = _new_document(sid, record)
+        return record.document
+
+    @contextmanager
+    def with_document_lock(self, sid: str) -> Iterator["SessionDocument"]:
+        record = self.get(sid)
+        if record.document is None:
+            record.document = _new_document(sid, record)
+        with record.write_lock:
+            yield record.document

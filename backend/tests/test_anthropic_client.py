@@ -76,3 +76,51 @@ def test_analyze_uses_cache_control() -> None:
         user_blocks = messages[0]["content"]
         # At least one block must have cache_control.
         assert any("cache_control" in block for block in user_blocks), user_blocks
+
+
+from app.schemas.enriched_context import EnrichedImageContext
+
+
+def test_augment_context_returns_typed_fields(monkeypatch) -> None:
+    from app.services.anthropic_client import AnthropicClient
+    from app.schemas.enriched_context import Problem
+
+    class _FakeResponse:
+        usage = type("U", (), {"cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "input_tokens": 0})()
+        content = [type("Block", (), {
+            "type": "tool_use",
+            "name": "emit_context_soft_fields",
+            "input": {
+                "estimated_white_point": [255, 255, 255],
+                "wb_neutral_confidence": 0.8,
+                "grade_character": "warm-amber",
+                "problems": [{
+                    "kind": "clipped_highlights", "severity": 0.7,
+                    "region_label": None, "bbox": None,
+                    "suggested_fused_tools": ["sky_recovery"],
+                }],
+                "region_soft_fields": [],
+            },
+        })()]
+
+    class _FakeClient:
+        class messages:
+            @staticmethod
+            def create(**kwargs):
+                return _FakeResponse()
+
+    client = AnthropicClient(api_key="x", model="claude-opus-4-7")
+    monkeypatch.setattr(client, "_client", _FakeClient())
+    result = client.augment_context_soft_fields(
+        image_bytes=b"x",
+        mime_type="image/jpeg",
+        base_context_json={
+            "subjects": [], "lighting": "flat", "dominant_tones": [], "mood": "calm",
+            "candidate_regions": [],
+            "model_name": "x", "model_version": "y", "generated_at": "2026-05-21T00:00:00Z",
+        },
+        cheap_pass_summary={"median_luma": 128.0, "cast_strength": 0.1},
+        session_id="s",
+    )
+    assert result.grade_character == "warm-amber"
+    assert isinstance(result.problems[0], Problem)

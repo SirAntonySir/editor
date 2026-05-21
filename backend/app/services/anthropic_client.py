@@ -6,8 +6,9 @@ import logging
 from typing import Any
 
 from anthropic import Anthropic
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
+from app.schemas.enriched_context import Problem
 from app.schemas.image_context import ContextRefinements, ImageContext, RegionLabel
 from app.schemas.operation_graph import OperationGraph
 
@@ -181,6 +182,35 @@ LABEL_REGION_TOOL = {
     "description": "Emit a short concrete label for the magenta-outlined region.",
     "input_schema": RegionLabel.model_json_schema(),
 }
+
+
+class _ContextSoftFields(BaseModel):
+    estimated_white_point: tuple[float, float, float]
+    wb_neutral_confidence: float
+    grade_character: str
+    problems: list[Problem]
+    region_soft_fields: list[dict]  # per-region {label, is_skin_likely, is_sky_likely}
+
+
+_SOFT_FIELDS_TOOL = {
+    "name": "emit_context_soft_fields",
+    "description": "Emit the soft fields completing the EnrichedImageContext.",
+    "input_schema": _ContextSoftFields.model_json_schema(),
+}
+
+
+_AUGMENT_PROMPT = """You are completing an EnrichedImageContext for a photo editor. \
+You see ONE image and a JSON summary of cheap statistics (histograms, median luma, cast). \
+Fill in: estimated_white_point (RGB of the most likely neutral pixels), \
+wb_neutral_confidence (0..1; low if no clearly-neutral region exists), \
+grade_character (short label: warm-amber / cool-cinematic / neutral / teal-orange / ...), \
+problems[] (one entry per detected issue with severity 0..1 and suggested_fused_tools), \
+and region_soft_fields[] (per candidate region label, is_skin_likely + is_sky_likely). \
+\
+Suggested fused tool ids are: warm_grade, cool_grade, exposure_balance, sky_recovery, \
+portrait_glow, bw_cinematic, cast_correct, teal_orange, subject_pop. \
+\
+Call the `emit_context_soft_fields` tool exactly once. Do not return prose."""
 
 
 class AnthropicClient:
@@ -431,3 +461,41 @@ class AnthropicClient:
             else:
                 raise RuntimeError("Anthropic did not emit emit_operation_graph tool call")
         raise RuntimeError(f"Refine generation failed validation after retries: {last_error}")
+
+    def augment_context_soft_fields(
+        self,
+        image_bytes: bytes,
+        mime_type: str,
+        base_context_json: dict,
+        cheap_pass_summary: dict,
+        session_id: str | None = None,
+    ) -> _ContextSoftFields:
+        last_error = None
+        for attempt in range(3):
+            response = self._client.messages.create(
+                model=self._model,
+                max_tokens=1500,
+                system=[{"type": "text", "text": _AUGMENT_PROMPT, "cache_control": {"type": "ephemeral"}}],
+                tools=[_SOFT_FIELDS_TOOL],
+                tool_choice={"type": "tool", "name": "emit_context_soft_fields"},
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            self._image_block(image_bytes, mime_type),
+                            {"type": "text", "text": f"Cheap-pass summary: {cheap_pass_summary}"},
+                            {"type": "text", "text": f"Base context: {base_context_json}"},
+                        ],
+                    }
+                ],
+            )
+            _log_cache_stats("augment_context", session_id, response)
+            for block in response.content:
+                if getattr(block, "type", None) == "tool_use" and block.name == "emit_context_soft_fields":
+                    try:
+                        return _ContextSoftFields.model_validate(block.input)
+                    except ValidationError as e:
+                        logger.warning("augment_context validation failed (attempt %d): %s", attempt, e)
+                        last_error = e
+                        break
+        raise RuntimeError(f"augment_context_soft_fields failed: {last_error}")

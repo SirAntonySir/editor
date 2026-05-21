@@ -76,6 +76,8 @@ class BackendToolRegistry:
             with self._store.with_document_lock(session_id) as doc:
                 try:
                     output = await tool.handler(doc, parsed)
+                except KeyError as exc:
+                    return _err("unknown_widget", str(exc), retryable=False)
                 except Exception as exc:
                     return _err("internal_error", repr(exc), retryable=False)
                 self._flush_history_to_bus(doc, session_id)
@@ -83,6 +85,8 @@ class BackendToolRegistry:
             doc = self._store.get_document(session_id)
             try:
                 output = await tool.handler(doc, parsed)
+            except KeyError as exc:
+                return _err("unknown_widget", str(exc), retryable=False)
             except Exception as exc:
                 return _err("internal_error", repr(exc), retryable=False)
 

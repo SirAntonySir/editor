@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -21,7 +21,7 @@ class ToolError(BaseModel):
     message: str
     retryable: bool
     recovery_hint: str | None = None
-    details: dict | None = None
+    details: dict[str, Any] | None = None
 
 
 class ToolResponseEnvelope(BaseModel):
@@ -34,6 +34,10 @@ class ToolResponseEnvelope(BaseModel):
     def _check_envelope(self) -> "ToolResponseEnvelope":
         if self.ok and self.output is None:
             raise ValueError("ok=True requires output")
+        if self.ok and self.error is not None:
+            raise ValueError("ok=True must not have error set")
         if not self.ok and self.error is None:
             raise ValueError("ok=False requires error")
+        if not self.ok and self.output is not None:
+            raise ValueError("ok=False must not have output set")
         return self

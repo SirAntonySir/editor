@@ -14,7 +14,7 @@ def test_error_codes_include_required_values() -> None:
         "fused_tool_not_found", "skin_safety_violation",
         "transport_error", "internal_error",
     }
-    assert required.issubset(set(ErrorCode.__args__))
+    assert set(ErrorCode.__args__) == required
 
 
 def test_tool_error_roundtrip() -> None:
@@ -22,7 +22,7 @@ def test_tool_error_roundtrip() -> None:
         code="missing_context",
         message="call analyze_image first",
         retryable=True,
-        recovery_hint="call analyze_image",
+        recovery_hint="call analyze_image first",
     )
     dumped = err.model_dump()
     assert ToolError.model_validate(dumped) == err
@@ -48,3 +48,15 @@ def test_envelope_fail_success_path() -> None:
     err = ToolError(code="invalid_input", message="bad", retryable=False)
     env = ToolResponseEnvelope(ok=False, error=err)
     assert env.output is None
+
+
+def test_envelope_ok_rejects_error_present() -> None:
+    err = ToolError(code="invalid_input", message="bad", retryable=False)
+    with pytest.raises(ValidationError):
+        ToolResponseEnvelope(ok=True, output={"x": 1}, error=err)
+
+
+def test_envelope_fail_rejects_output_present() -> None:
+    err = ToolError(code="invalid_input", message="bad", retryable=False)
+    with pytest.raises(ValidationError):
+        ToolResponseEnvelope(ok=False, error=err, output={"x": 1})

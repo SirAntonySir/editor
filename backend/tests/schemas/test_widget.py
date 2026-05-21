@@ -2,11 +2,31 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.widget import (
+    BeforeAfterToggleSchema,
+    ChoiceSchema,
+    ColorSchema,
+    ControlBinding,
+    ControlSchema,
+    ControlType,
+    CurvePointSchema,
+    CurveSchema,
     GlobalScope,
+    HistogramMarkerSchema,
     MaskScope,
+    MaskThumbnailSchema,
     NamedRegionScope,
     NodeParamTarget,
+    NumericPairSchema,
+    RegionPickerSchema,
     Scope,
+    SliderSchema,
+    TextSchema,
+    ToggleSchema,
+    Widget,
+    WidgetNode,
+    WidgetOrigin,
+    WidgetOriginKind,
+    WidgetPreview,
 )
 
 
@@ -35,24 +55,6 @@ def test_scope_unknown_kind_rejected() -> None:
 def test_node_param_target_roundtrip() -> None:
     t = NodeParamTarget(node_id="n1", param_key="temperature")
     assert NodeParamTarget.model_validate(t.model_dump()) == t
-
-
-from app.schemas.widget import (
-    ChoiceSchema,
-    ColorSchema,
-    ControlBinding,
-    ControlSchema,
-    CurvePointSchema,
-    CurveSchema,
-    HistogramMarkerSchema,
-    MaskThumbnailSchema,
-    NumericPairSchema,
-    RegionPickerSchema,
-    SliderSchema,
-    TextSchema,
-    ToggleSchema,
-    BeforeAfterToggleSchema,
-)
 
 
 def test_slider_schema_required_fields() -> None:
@@ -102,7 +104,6 @@ def test_control_binding_color_value_is_rgb_tuple() -> None:
 
 
 def test_control_type_set() -> None:
-    from app.schemas.widget import ControlType
     expected = {
         "slider", "numeric_pair", "toggle", "choice", "color", "curve",
         "curve_point", "mask_thumbnail", "region_picker",
@@ -115,12 +116,6 @@ def test_control_type_matches_union_members() -> None:
     """ControlType literal set must equal the set of control_type literals
     across the schemas in the discriminated union. Catches drift when adding
     a new control type but forgetting to register it (or vice versa)."""
-    from app.schemas.widget import (
-        ControlType,
-        SliderSchema, NumericPairSchema, ToggleSchema, ChoiceSchema, ColorSchema,
-        CurveSchema, CurvePointSchema, MaskThumbnailSchema, RegionPickerSchema,
-        BeforeAfterToggleSchema, HistogramMarkerSchema, TextSchema,
-    )
     schemas = [
         SliderSchema, NumericPairSchema, ToggleSchema, ChoiceSchema, ColorSchema,
         CurveSchema, CurvePointSchema, MaskThumbnailSchema, RegionPickerSchema,
@@ -129,15 +124,6 @@ def test_control_type_matches_union_members() -> None:
     # Each control_type field is Literal["..."] with a single value — pull it out.
     union_literals = {s.model_fields["control_type"].annotation.__args__[0] for s in schemas}
     assert set(ControlType.__args__) == union_literals
-
-
-from app.schemas.widget import (
-    Widget,
-    WidgetNode,
-    WidgetOrigin,
-    WidgetOriginKind,
-    WidgetPreview,
-)
 
 
 def test_widget_origin_kinds() -> None:

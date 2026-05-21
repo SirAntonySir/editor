@@ -87,6 +87,8 @@ class BackendToolRegistry:
                         code = "scope_unresolvable"
                     return _err(code, str(exc), retryable=False)
                 except Exception as exc:
+                    if exc.__class__.__name__ == "_SamFailed":
+                        return _err("sam_failed", str(exc), retryable=False)
                     return _err("internal_error", repr(exc), retryable=False)
                 self._flush_history_to_bus(doc, session_id)
         else:
@@ -104,6 +106,8 @@ class BackendToolRegistry:
                     code = "scope_unresolvable"
                 return _err(code, str(exc), retryable=False)
             except Exception as exc:
+                if exc.__class__.__name__ == "_SamFailed":
+                    return _err("sam_failed", str(exc), retryable=False)
                 return _err("internal_error", repr(exc), retryable=False)
 
         return ToolResponseEnvelope(ok=True, output=output.model_dump(mode="json"))

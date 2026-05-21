@@ -80,3 +80,6 @@ class RegionLabel(BaseModel):
     outlined in magenta and asked to label the highlighted region."""
     model_config = ConfigDict(extra="forbid")
     label: str = Field(min_length=1, max_length=64)
+
+
+from .enriched_context import EnrichedImageContext  # noqa: F401

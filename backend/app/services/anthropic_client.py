@@ -199,6 +199,15 @@ _SOFT_FIELDS_TOOL = {
 }
 
 
+_FUSED_RESOLVE_PROMPT = """You are tuning the numeric parameters of a fused photo-edit \
+tool. The user (or a prior call) supplies an intent and an image context summary. \
+\
+Emit a single `emit_fused_tool_values` tool_use whose input matches the response \
+schema you are given. Stay within the param envelope hinted in the schema; the \
+calling framework clamps anything outside the envelope and may retry. \
+\
+Do not return prose."""
+
 _AUGMENT_PROMPT = """You are completing an EnrichedImageContext for a photo editor. \
 You see ONE image and a JSON summary of cheap statistics (histograms, median luma, cast). \
 Fill in: estimated_white_point (RGB of the most likely neutral pixels), \
@@ -461,6 +470,37 @@ class AnthropicClient:
             else:
                 raise RuntimeError("Anthropic did not emit emit_operation_graph tool call")
         raise RuntimeError(f"Refine generation failed validation after retries: {last_error}")
+
+    def resolve_fused_tool(
+        self,
+        template_id: str,
+        prompt_payload: dict,
+        response_schema: dict,
+        session_id: str | None = None,
+    ) -> dict:
+        tool = {
+            "name": "emit_fused_tool_values",
+            "description": f"Emit tunable values for fused tool {template_id}",
+            "input_schema": response_schema,
+        }
+        response = self._client.messages.create(
+            model=self._model,
+            max_tokens=1024,
+            system=[{"type": "text", "text": _FUSED_RESOLVE_PROMPT, "cache_control": {"type": "ephemeral"}}],
+            tools=[tool],
+            tool_choice={"type": "tool", "name": "emit_fused_tool_values"},
+            messages=[
+                {"role": "user", "content": [
+                    {"type": "text", "text": f"Template: {template_id}"},
+                    {"type": "text", "text": f"Payload: {prompt_payload}"},
+                ]},
+            ],
+        )
+        _log_cache_stats(f"resolve_fused/{template_id}", session_id, response)
+        for block in response.content:
+            if getattr(block, "type", None) == "tool_use" and block.name == "emit_fused_tool_values":
+                return dict(block.input)
+        raise RuntimeError(f"resolve_fused_tool: no tool_use for {template_id}")
 
     def augment_context_soft_fields(
         self,

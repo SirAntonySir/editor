@@ -124,3 +124,30 @@ def test_augment_context_returns_typed_fields(monkeypatch) -> None:
     )
     assert result.grade_character == "warm-amber"
     assert isinstance(result.problems[0], Problem)
+
+
+def test_resolve_fused_tool_returns_dict(monkeypatch) -> None:
+    from app.services.anthropic_client import AnthropicClient
+
+    class _FakeResponse:
+        usage = type("U", (), {"cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "input_tokens": 0})()
+        content = [type("Block", (), {
+            "type": "tool_use",
+            "name": "emit_fused_tool_values",
+            "input": {"values": {"temperature": 700}, "reasoning": "image is cool"},
+        })()]
+
+    class _FakeClient:
+        class messages:
+            @staticmethod
+            def create(**kwargs):
+                return _FakeResponse()
+
+    client = AnthropicClient(api_key="x", model="claude-opus-4-7")
+    monkeypatch.setattr(client, "_client", _FakeClient())
+    out = client.resolve_fused_tool(
+        template_id="warm_grade",
+        prompt_payload={"intent": "warm"},
+        response_schema={"type": "object", "properties": {"values": {"type": "object"}}},
+    )
+    assert out["values"]["temperature"] == 700

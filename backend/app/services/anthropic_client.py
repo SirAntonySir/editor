@@ -236,6 +236,25 @@ portrait_glow, bw_cinematic, cast_correct, teal_orange, subject_pop. \
 Call the `emit_context_soft_fields` tool exactly once. Do not return prose."""
 
 
+_FLESH_BINDING_PROMPT = """You are extending a fused widget with a new binding. \
+Given the existing widget and the user's request, emit one new ControlBinding \
+and any WidgetNode additions it needs. Return only via the emit_new_binding tool."""
+
+
+_FLESH_BINDING_TOOL = {
+    "name": "emit_new_binding",
+    "description": "Emit one new ControlBinding plus optional new nodes.",
+    "input_schema": {
+        "type": "object",
+        "required": ["binding"],
+        "properties": {
+            "binding": {"type": "object"},
+            "additional_nodes": {"type": "array"},
+        },
+    },
+}
+
+
 class AnthropicClient:
     """Wrapper around the Anthropic SDK with structured tool use + prompt caching."""
 
@@ -537,6 +556,27 @@ class AnthropicClient:
             if getattr(block, "type", None) == "tool_use" and block.name == "emit_chosen_fused_tool":
                 return block.input.get("chosen_id")
         return None
+
+    def flesh_out_binding(
+        self, request: str, widget: dict, response_schema: dict | None = None, session_id: str | None = None,
+    ) -> dict:
+        response = self._client.messages.create(
+            model=self._model, max_tokens=1024,
+            system=[{"type": "text", "text": _FLESH_BINDING_PROMPT, "cache_control": {"type": "ephemeral"}}],
+            tools=[_FLESH_BINDING_TOOL],
+            tool_choice={"type": "tool", "name": "emit_new_binding"},
+            messages=[
+                {"role": "user", "content": [
+                    {"type": "text", "text": f"Existing widget: {widget}"},
+                    {"type": "text", "text": f"User request: {request}"},
+                ]},
+            ],
+        )
+        _log_cache_stats("flesh_out_binding", session_id, response)
+        for block in response.content:
+            if getattr(block, "type", None) == "tool_use" and block.name == "emit_new_binding":
+                return dict(block.input)
+        raise RuntimeError("flesh_out_binding: no tool_use returned")
 
     def augment_context_soft_fields(
         self,

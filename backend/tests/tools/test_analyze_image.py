@@ -36,6 +36,21 @@ def client():
         deps._anthropic_client = _prev
 
 
+def test_analyze_image_syncs_record_context(client) -> None:
+    from io import BytesIO
+
+    from PIL import Image
+
+    buf = BytesIO()
+    Image.new("RGB", (8, 8), (50, 80, 100)).save(buf, format="JPEG")
+    files = {"image": ("a.jpg", buf.getvalue(), "image/jpeg")}
+    sid = client.post("/api/session", files=files).json()["session_id"]
+    client.post("/api/tools/analyze_image", json={"session_id": sid, "input": {}})
+    record = deps.get_session_store().get(sid)
+    assert record.context is not None
+    assert record.context["mood"] == "calm"
+
+
 def test_analyze_image_runs_and_caches(client) -> None:
     from io import BytesIO
 

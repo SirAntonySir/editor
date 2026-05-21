@@ -38,4 +38,9 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
             session_id=doc.session_id,
         )
         doc.image_context = ctx
+        # Keep the legacy SessionRecord.context in sync so /api/panel and
+        # /api/refine continue to work after a tool-driven analyse.
+        deps.get_session_store().set_context(doc.session_id, ctx.model_dump(mode="json"))
+        # Emit context.updated event so subscribers see the analysis result.
+        doc._emit("context.updated", {"available": True})  # type: ignore[attr-defined]
         return _Output.model_validate(ctx.model_dump(mode="json"))

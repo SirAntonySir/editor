@@ -40,3 +40,6 @@ backend/models/
 
 # Experimental / in-progress files
 *.future
+
+# Worktrees (created by superpowers:using-git-worktrees)
+.worktrees/

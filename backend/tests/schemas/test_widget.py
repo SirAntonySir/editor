@@ -35,3 +35,77 @@ def test_scope_unknown_kind_rejected() -> None:
 def test_node_param_target_roundtrip() -> None:
     t = NodeParamTarget(node_id="n1", param_key="temperature")
     assert NodeParamTarget.model_validate(t.model_dump()) == t
+
+
+from app.schemas.widget import (
+    ChoiceSchema,
+    ColorSchema,
+    ControlBinding,
+    ControlSchema,
+    CurvePointSchema,
+    CurveSchema,
+    HistogramMarkerSchema,
+    MaskThumbnailSchema,
+    NumericPairSchema,
+    RegionPickerSchema,
+    SliderSchema,
+    TextSchema,
+    ToggleSchema,
+    BeforeAfterToggleSchema,
+)
+
+
+def test_slider_schema_required_fields() -> None:
+    s = SliderSchema(control_type="slider", min=0, max=100, step=1, unit="")
+    assert s.control_type == "slider"
+
+
+def test_control_schema_dispatches_by_type() -> None:
+    raw = {"control_type": "toggle", "on_label": "On", "off_label": "Off"}
+    cs = ControlSchema.model_validate(raw)
+    assert isinstance(cs.root, ToggleSchema)
+
+
+def test_control_schema_rejects_unknown_type() -> None:
+    with pytest.raises(ValidationError):
+        ControlSchema.model_validate({"control_type": "frob"})
+
+
+def test_control_binding_validates_value_against_slider_schema() -> None:
+    binding = ControlBinding(
+        param_key="intensity",
+        label="Intensity",
+        control_type="slider",
+        target=NodeParamTarget(node_id="n1", param_key="amount"),
+        schema=ControlSchema.model_validate(
+            {"control_type": "slider", "min": 0, "max": 100, "step": 1, "unit": ""}
+        ),
+        value=42,
+        default=0,
+    )
+    assert binding.value == 42
+
+
+def test_control_binding_color_value_is_rgb_tuple() -> None:
+    binding = ControlBinding(
+        param_key="tint",
+        label="Tint",
+        control_type="color",
+        target=NodeParamTarget(node_id="n2", param_key="rgb"),
+        schema=ControlSchema.model_validate(
+            {"control_type": "color", "space": "rgb", "show_alpha": False, "presets": []}
+        ),
+        value=[255, 200, 100],
+        default=[128, 128, 128],
+    )
+    assert binding.value == [255, 200, 100]
+
+
+def test_control_type_set() -> None:
+    from app.schemas.widget import ControlType
+    expected = {
+        "slider", "numeric_pair", "toggle", "choice", "color", "curve",
+        "curve_point", "mask_thumbnail", "region_picker",
+        "before_after_toggle", "histogram_marker", "text",
+    }
+    assert set(ControlType.__args__) == expected

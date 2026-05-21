@@ -9,6 +9,9 @@ from app.services.session_store import SessionNotFound, SessionStore
 from app.state.events import EventBus
 from app.tools.base import BackendTool
 
+# Tools that bootstrap a new session — registry skips session resolution for these.
+_BOOTSTRAP_TOOLS = {"create_session"}
+
 
 def _err(code: str, message: str, retryable: bool = False, recovery_hint: str | None = None) -> ToolResponseEnvelope:
     return ToolResponseEnvelope(
@@ -49,6 +52,16 @@ class BackendToolRegistry:
             parsed = tool.input_schema.model_validate(raw_input)
         except ValidationError as e:
             return _err("invalid_input", str(e), retryable=False)
+
+        # Bootstrap-only path: skip session resolution + use a transient empty doc.
+        if tool.name in _BOOTSTRAP_TOOLS:
+            from app.state.document import SessionDocument
+            doc = SessionDocument(session_id="", image_bytes=b"", mime_type="")
+            try:
+                output = await tool.handler(doc, parsed)
+            except Exception as exc:
+                return _err("internal_error", repr(exc), retryable=False)
+            return ToolResponseEnvelope(ok=True, output=output.model_dump(mode="json"))
 
         # Resolve session
         try:

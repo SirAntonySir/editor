@@ -186,12 +186,12 @@ ControlValue = Union[float, int, str, bool, list, dict]
 
 
 class ControlBinding(BaseModel):
-    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+    model_config = ConfigDict(extra="forbid")
     param_key: str = Field(min_length=1)
     label: str
     control_type: ControlType
     target: NodeParamTarget
-    schema: ControlSchema
+    control_schema: ControlSchema
     value: ControlValue
     default: ControlValue
     reasoning: str | None = None

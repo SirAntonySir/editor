@@ -71,13 +71,13 @@ def test_control_schema_rejects_unknown_type() -> None:
         ControlSchema.model_validate({"control_type": "frob"})
 
 
-def test_control_binding_validates_value_against_slider_schema() -> None:
+def test_control_binding_construction_with_slider_schema() -> None:
     binding = ControlBinding(
         param_key="intensity",
         label="Intensity",
         control_type="slider",
         target=NodeParamTarget(node_id="n1", param_key="amount"),
-        schema=ControlSchema.model_validate(
+        control_schema=ControlSchema.model_validate(
             {"control_type": "slider", "min": 0, "max": 100, "step": 1, "unit": ""}
         ),
         value=42,
@@ -92,7 +92,7 @@ def test_control_binding_color_value_is_rgb_tuple() -> None:
         label="Tint",
         control_type="color",
         target=NodeParamTarget(node_id="n2", param_key="rgb"),
-        schema=ControlSchema.model_validate(
+        control_schema=ControlSchema.model_validate(
             {"control_type": "color", "space": "rgb", "show_alpha": False, "presets": []}
         ),
         value=[255, 200, 100],
@@ -109,3 +109,23 @@ def test_control_type_set() -> None:
         "before_after_toggle", "histogram_marker", "text",
     }
     assert set(ControlType.__args__) == expected
+
+
+def test_control_type_matches_union_members() -> None:
+    """ControlType literal set must equal the set of control_type literals
+    across the schemas in the discriminated union. Catches drift when adding
+    a new control type but forgetting to register it (or vice versa)."""
+    from app.schemas.widget import (
+        ControlType,
+        SliderSchema, NumericPairSchema, ToggleSchema, ChoiceSchema, ColorSchema,
+        CurveSchema, CurvePointSchema, MaskThumbnailSchema, RegionPickerSchema,
+        BeforeAfterToggleSchema, HistogramMarkerSchema, TextSchema,
+    )
+    schemas = [
+        SliderSchema, NumericPairSchema, ToggleSchema, ChoiceSchema, ColorSchema,
+        CurveSchema, CurvePointSchema, MaskThumbnailSchema, RegionPickerSchema,
+        BeforeAfterToggleSchema, HistogramMarkerSchema, TextSchema,
+    ]
+    # Each control_type field is Literal["..."] with a single value — pull it out.
+    union_literals = {s.model_fields["control_type"].annotation.__args__[0] for s in schemas}
+    assert set(ControlType.__args__) == union_literals

@@ -25,3 +25,23 @@ def get_sam_client() -> SamClient:
     if _sam_client is None:
         _sam_client = SamClient(_settings)
     return _sam_client
+
+
+from app.state.events import EventBus
+from app.tools.registry import BackendToolRegistry
+
+_event_bus = EventBus()
+_registry: BackendToolRegistry | None = None
+
+
+def get_event_bus() -> EventBus:
+    return _event_bus
+
+
+def get_tool_registry() -> BackendToolRegistry:
+    global _registry
+    if _registry is None:
+        _registry = BackendToolRegistry(store=_session_store, event_bus=_event_bus)
+        # Atomic tools are registered by app.tools.atomic.register_all_atomic_tools
+        # which is invoked from app.main on startup once it exists.
+    return _registry

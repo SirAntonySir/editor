@@ -42,6 +42,8 @@ def get_tool_registry() -> BackendToolRegistry:
     global _registry
     if _registry is None:
         from app.tools.atomic import register_all_atomic_tools
+        from app.tools.widgets import register_all_widget_tools
         _registry = BackendToolRegistry(store=_session_store, event_bus=_event_bus)
         register_all_atomic_tools(_registry)
+        register_all_widget_tools(_registry)
     return _registry

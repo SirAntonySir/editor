@@ -199,6 +199,20 @@ _SOFT_FIELDS_TOOL = {
 }
 
 
+_NAME_PICK_TOOL = {
+    "name": "emit_chosen_fused_tool",
+    "description": "Pick the most appropriate fused tool id for the given intent, or null.",
+    "input_schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["chosen_id"],
+        "properties": {
+            "chosen_id": {"type": ["string", "null"]},
+            "reasoning": {"type": "string"},
+        },
+    },
+}
+
 _FUSED_RESOLVE_PROMPT = """You are tuning the numeric parameters of a fused photo-edit \
 tool. The user (or a prior call) supplies an intent and an image context summary. \
 \
@@ -501,6 +515,28 @@ class AnthropicClient:
             if getattr(block, "type", None) == "tool_use" and block.name == "emit_fused_tool_values":
                 return dict(block.input)
         raise RuntimeError(f"resolve_fused_tool: no tool_use for {template_id}")
+
+    def name_pick_fused_tool(
+        self, intent: str, candidates: list[dict], session_id: str | None = None,
+    ) -> str | None:
+        response = self._client.messages.create(
+            model=self._model,
+            max_tokens=512,
+            system=[{"type": "text", "text": "Pick the fused tool id whose description best matches the intent. Return null if nothing fits.", "cache_control": {"type": "ephemeral"}}],
+            tools=[_NAME_PICK_TOOL],
+            tool_choice={"type": "tool", "name": "emit_chosen_fused_tool"},
+            messages=[
+                {"role": "user", "content": [
+                    {"type": "text", "text": f"Intent: {intent}"},
+                    {"type": "text", "text": f"Candidates: {candidates}"},
+                ]},
+            ],
+        )
+        _log_cache_stats("name_pick_fused_tool", session_id, response)
+        for block in response.content:
+            if getattr(block, "type", None) == "tool_use" and block.name == "emit_chosen_fused_tool":
+                return block.input.get("chosen_id")
+        return None
 
     def augment_context_soft_fields(
         self,

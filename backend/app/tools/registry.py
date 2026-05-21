@@ -77,7 +77,15 @@ class BackendToolRegistry:
                 try:
                     output = await tool.handler(doc, parsed)
                 except KeyError as exc:
-                    return _err("unknown_widget", str(exc), retryable=False)
+                    ex_name = exc.__class__.__name__
+                    code = "unknown_widget"
+                    if ex_name == "_UnknownRegion":
+                        code = "unknown_region"
+                    elif ex_name == "_UnknownMask":
+                        code = "unknown_mask"
+                    elif ex_name == "_ScopeUnresolvable":
+                        code = "scope_unresolvable"
+                    return _err(code, str(exc), retryable=False)
                 except Exception as exc:
                     return _err("internal_error", repr(exc), retryable=False)
                 self._flush_history_to_bus(doc, session_id)
@@ -86,7 +94,15 @@ class BackendToolRegistry:
             try:
                 output = await tool.handler(doc, parsed)
             except KeyError as exc:
-                return _err("unknown_widget", str(exc), retryable=False)
+                ex_name = exc.__class__.__name__
+                code = "unknown_widget"
+                if ex_name == "_UnknownRegion":
+                    code = "unknown_region"
+                elif ex_name == "_UnknownMask":
+                    code = "unknown_mask"
+                elif ex_name == "_ScopeUnresolvable":
+                    code = "scope_unresolvable"
+                return _err(code, str(exc), retryable=False)
             except Exception as exc:
                 return _err("internal_error", repr(exc), retryable=False)
 

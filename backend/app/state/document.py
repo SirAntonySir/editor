@@ -94,3 +94,6 @@ class SessionDocument(BaseModel):
     def add_mask(self, mask: MaskRecord) -> list[StateEvent]:
         self.masks[mask.id] = mask
         return [self._emit("mask.created", {"mask_id": mask.id, "source": mask.source})]
+
+    def emit_selection_changed(self, mask_id: str | None, state: str, label: str | None) -> list[StateEvent]:
+        return [self._emit("selection.changed", {"mask_id": mask_id, "state": state, "label": label})]

@@ -27,6 +27,8 @@ class SessionDocument(BaseModel):
     mime_type: str = "image/jpeg"
     image_context: ImageContext | None = None
     masks: dict[str, MaskRecord] = Field(default_factory=dict)
+    active_mask_id: str | None = None
+    committed_mask_id: str | None = None
     widgets: dict[str, Widget] = Field(default_factory=dict)
     widget_order: list[str] = Field(default_factory=list)
     dismissals: list[DismissalRule] = Field(default_factory=list)

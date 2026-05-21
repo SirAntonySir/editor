@@ -10,16 +10,25 @@ from app.schemas.widget import (
     ControlType,
     CurvePointSchema,
     CurveSchema,
+    DismissalRule,
     GlobalScope,
     HistogramMarkerSchema,
+    MaskRecord,
     MaskScope,
     MaskThumbnailSchema,
     NamedRegionScope,
     NodeParamTarget,
+    Note,
+    NoteAnchor,
+    NoteAnchorImage,
+    NoteAnchorPoint,
+    NoteAnchorRegion,
     NumericPairSchema,
     RegionPickerSchema,
     Scope,
     SliderSchema,
+    StateEvent,
+    StateEventKind,
     TextSchema,
     ToggleSchema,
     Widget,
@@ -180,3 +189,41 @@ def test_widget_full_roundtrip() -> None:
     )
     dumped = w.model_dump(mode="json")
     assert Widget.model_validate(dumped).id == "w_1"
+
+
+def test_mask_record_required_fields() -> None:
+    m = MaskRecord(
+        id="m_1", width=512, height=512,
+        png_b64="aGVsbG8=", source="sam_point",
+        parent_mask_ids=[], label=None,
+    )
+    assert m.source == "sam_point"
+
+
+def test_note_anchor_region() -> None:
+    a = NoteAnchor.model_validate({"kind": "region", "label": "subject"})
+    assert isinstance(a.root, NoteAnchorRegion)
+
+
+def test_note_anchor_point() -> None:
+    a = NoteAnchor.model_validate({"kind": "point", "x": 0.5, "y": 0.5})
+    assert isinstance(a.root, NoteAnchorPoint)
+
+
+def test_dismissal_rule_required_fields() -> None:
+    r = DismissalRule(
+        id="d_1", source_widget_id="w_1",
+        intent_norm="warm subject", scope_signature="named_region:left person",
+        fused_tool_id="warm_grade",
+    )
+    assert r.fused_tool_id == "warm_grade"
+
+
+def test_state_event_kinds() -> None:
+    expected = {
+        "widget.created", "widget.updated", "widget.deleted",
+        "widget.accepted", "widget.restored",
+        "mask.created", "selection.changed",
+        "context.updated", "dismissal.added",
+    }
+    assert set(StateEventKind.__args__) == expected

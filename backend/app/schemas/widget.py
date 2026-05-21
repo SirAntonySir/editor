@@ -262,3 +262,82 @@ class Widget(BaseModel):
     revision: int = 1
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# ------------------------------------------------------------------
+# Mask, note, dismissal, event
+# ------------------------------------------------------------------
+
+
+class MaskRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(min_length=1)
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    png_b64: str = Field(min_length=1)
+    source: Literal["sam_point", "sam_box", "named_region", "painted", "combined"]
+    parent_mask_ids: list[str] = Field(default_factory=list)
+    label: str | None = None
+
+
+class NoteAnchorRegion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["region"]
+    label: str = Field(min_length=1)
+
+
+class NoteAnchorPoint(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["point"]
+    x: float
+    y: float
+
+
+class NoteAnchorImage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["image"]
+
+
+_NoteAnchorAny = Annotated[
+    Union[NoteAnchorRegion, NoteAnchorPoint, NoteAnchorImage],
+    Field(discriminator="kind"),
+]
+
+
+class NoteAnchor(RootModel[_NoteAnchorAny]):
+    """Discriminated union over note anchor kinds."""
+    pass
+
+
+class Note(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(min_length=1)
+    text: str = Field(min_length=1)
+    anchor: NoteAnchor
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class DismissalRule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(min_length=1)
+    source_widget_id: str = Field(min_length=1)
+    intent_norm: str
+    scope_signature: str
+    fused_tool_id: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+StateEventKind = Literal[
+    "widget.created", "widget.updated", "widget.deleted",
+    "widget.accepted", "widget.restored",
+    "mask.created", "selection.changed",
+    "context.updated", "dismissal.added",
+]
+
+
+class StateEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision: int = Field(ge=0)
+    kind: StateEventKind
+    payload: dict
+    emitted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

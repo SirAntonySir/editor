@@ -28,3 +28,4 @@ def test_add_note_image_anchor(client) -> None:
     doc = deps.get_session_store().get_document(sid)
     assert len(doc.notes) == 1
     assert doc.notes[0].text == "remember to check exposure"
+    assert doc.history[-1].kind == "note.created"

@@ -332,6 +332,7 @@ StateEventKind = Literal[
     "widget.accepted", "widget.restored",
     "mask.created", "selection.changed",
     "context.updated", "dismissal.added",
+    "note.created",
 ]
 
 

@@ -32,5 +32,5 @@ class AddNoteTool(BackendTool[_Input, _Output]):
             id=nid, text=input.text,
             anchor=NoteAnchor.model_validate(input.anchor),
         )
-        doc.notes.append(note)
+        doc.emit_note_created(note)
         return _Output(note_id=nid)

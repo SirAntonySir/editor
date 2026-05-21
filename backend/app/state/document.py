@@ -97,3 +97,9 @@ class SessionDocument(BaseModel):
 
     def emit_selection_changed(self, mask_id: str | None, state: str, label: str | None) -> list[StateEvent]:
         return [self._emit("selection.changed", {"mask_id": mask_id, "state": state, "label": label})]
+
+    # ---------------- note mutations ----------------
+
+    def emit_note_created(self, note: Note) -> list[StateEvent]:
+        self.notes.append(note)
+        return [self._emit("note.created", {"note_id": note.id})]

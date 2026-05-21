@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel
@@ -195,3 +196,69 @@ class ControlBinding(BaseModel):
     value: ControlValue
     default: ControlValue
     reasoning: str | None = None
+
+
+# ------------------------------------------------------------------
+# Node fragment + origin + preview
+# ------------------------------------------------------------------
+
+
+ParamValue = Union[float, int, str, bool]
+
+
+class WidgetNode(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(min_length=1)
+    type: str = Field(min_length=1)
+    params: dict[str, ParamValue] = Field(default_factory=dict)
+    scope: Scope
+    inputs: list[str] = Field(default_factory=list)
+    widget_id: str = Field(min_length=1)
+
+
+WidgetOriginKind = Literal[
+    "mcp_user_prompt", "mcp_autonomous", "user_palette", "fused_expansion",
+]
+
+
+class WidgetOrigin(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: WidgetOriginKind
+    prompt: str | None = None
+    parent_widget_id: str | None = None
+
+
+class WidgetPreview(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["thumbnail", "histogram_delta", "color_swatches", "none"]
+    auto_before_after: bool = False
+
+
+class ResolvedNumbers(BaseModel):
+    """One attempt's tunable values + optional reasoning. Used both by the
+    fused-tool framework (Plan 2) and by Widget.rejected_attempts for the
+    repeat-widget anchor log."""
+    model_config = ConfigDict(extra="forbid")
+    values: dict[str, ParamValue]
+    reasoning: str | None = None
+
+
+class Widget(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(min_length=1)
+    intent: str = Field(min_length=1)
+    reasoning: str | None = None
+    scope: Scope
+    origin: WidgetOrigin
+    fused_tool_id: str | None = None
+    composed: bool = False
+    nodes: list[WidgetNode] = Field(default_factory=list)
+    bindings: list[ControlBinding] = Field(default_factory=list)
+    preview: WidgetPreview = Field(
+        default_factory=lambda: WidgetPreview(kind="thumbnail", auto_before_after=True)
+    )
+    rejected_attempts: list[ResolvedNumbers] = Field(default_factory=list)
+    status: Literal["active", "dismissed"] = "active"
+    revision: int = 1
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

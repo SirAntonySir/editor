@@ -90,8 +90,58 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
         deps.get_session_store().set_context(doc.session_id, ctx.model_dump(mode="json"))
         # Emit context.updated for SSE subscribers (preserved from Plan 1 cleanup).
         doc._emit("context.updated", {"available": True})  # type: ignore[attr-defined]
-        # Plan 2 Task 22 will plug the autonomous-suggestion pass in here.
+        await _mint_autonomous_suggestions(doc, ctx, client)
         return _Output.model_validate(ctx.model_dump(mode="json"))
+
+
+async def _mint_autonomous_suggestions(doc, ctx, anthropic) -> None:
+    """For each high-severity Problem, run the suggested fused tool with
+    origin.kind='mcp_autonomous'. Suggestions whose (fused_tool_id, scope)
+    matches an existing dismissal rule are skipped."""
+    from app.schemas.widget import Scope, WidgetOrigin
+    from app.tools.fused import all_fused_templates
+    from app.tools.fused_framework import run_fused_tool
+
+    templates = {t.id: t for t in all_fused_templates()}
+
+    def _scope_for(problem) -> Scope:
+        if problem.region_label:
+            return Scope.model_validate({"kind": "named_region", "label": problem.region_label})
+        return Scope.model_validate({"kind": "global"})
+
+    def _dismissed(fused_id: str, scope: Scope) -> bool:
+        root = scope.root
+        if root.kind == "global":
+            sig = "global"
+        elif root.kind == "named_region":
+            sig = f"named_region:{root.label}"
+        else:
+            sig = f"mask:{root.mask_id}"
+        for rule in doc.dismissals:
+            if rule.fused_tool_id == fused_id and rule.scope_signature == sig:
+                return True
+        return False
+
+    for problem in ctx.problems:
+        if problem.severity < 0.5:
+            continue
+        for fused_id in problem.suggested_fused_tools:
+            if fused_id not in templates:
+                continue
+            scope = _scope_for(problem)
+            if _dismissed(fused_id, scope):
+                continue
+            origin = WidgetOrigin(kind="mcp_autonomous", prompt=None)
+            try:
+                widget = await run_fused_tool(
+                    templates[fused_id], intent=problem.kind.replace("_", " "),
+                    scope=scope, ctx=ctx, prior=None, instruction=None,
+                    anthropic=anthropic, origin=origin,
+                )
+            except Exception:
+                continue
+            doc.add_widget(widget)
+            break  # one per problem
 
 
 def _compute_region_stats(

@@ -33,6 +33,9 @@ class _FakeClaudeFull(_FakeClaude):
             region_soft_fields=[],
         )
 
+    def suggest_fused_tools_for_character(self, *, grade_character, lighting, dominant_tones, subjects, exclude, n, session_id=None):
+        return []
+
 
 @pytest.fixture
 def client():
@@ -145,3 +148,147 @@ def test_autonomous_suggestions_minted_from_problems(client) -> None:
     auto = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
     assert len(auto) >= 1
     assert auto[0].fused_tool_id == "exposure_balance"
+
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.api import deps
+from app.main import app
+from app.schemas.enriched_context import EnrichedImageContext, Problem
+from app.services.anthropic_client import _ContextSoftFields
+
+
+def _fake_claude_for_topup(
+    *,
+    problems: list[Problem],
+    topup_picks: list[str],
+    resolve_values: dict,
+):
+    """Builds a MagicMock that walks a session through analyze_image + the
+    fused-tool minting for each problem and (if needed) the top-up."""
+    from unittest.mock import MagicMock
+    from app.schemas.image_context import ImageContext
+    fake = MagicMock()
+    fake.analyze_image.return_value = ImageContext(
+        subjects=["scene"], lighting="flat", dominant_tones=["midtones"],
+        mood="calm", candidate_regions=[],
+        model_name="fake", model_version="0", generated_at="2026-05-23T00:00:00Z",
+    )
+    fake.augment_context_soft_fields.return_value = _ContextSoftFields(
+        estimated_white_point=(255, 255, 255), wb_neutral_confidence=0.7,
+        grade_character="neutral", problems=problems, region_soft_fields=[],
+    )
+    fake.resolve_fused_tool.return_value = {"values": resolve_values, "reasoning": ""}
+    fake.suggest_fused_tools_for_character.return_value = topup_picks
+    return fake
+
+
+def _bootstrap_session() -> str:
+    from io import BytesIO
+    from PIL import Image
+    client = TestClient(app)
+    buf = BytesIO(); Image.new("RGB", (64, 64), (128, 128, 128)).save(buf, format="JPEG")
+    files = {"image": ("a.jpg", buf.getvalue(), "image/jpeg")}
+    return client.post("/api/session", files=files).json()["session_id"]
+
+
+def test_analyze_mints_two_when_no_problems(monkeypatch) -> None:
+    """Zero problems → top-up fills both slots."""
+    fake = _fake_claude_for_topup(
+        problems=[],
+        topup_picks=["warm_grade", "exposure_balance"],
+        resolve_values={
+            "temperature": 200, "highlight_warmth": 5, "saturation_lift": 2,
+            "shadows": 10, "highlights": -10, "whites": 0, "blacks": 0,
+        },
+    )
+    monkeypatch.setattr(deps, "_anthropic_client", fake)
+    sid = _bootstrap_session()
+    client = TestClient(app)
+    r = client.post("/api/tools/analyze_image", json={"session_id": sid, "input": {}})
+    assert r.status_code == 200, r.text
+    assert r.json()["ok"] is True
+    doc = deps.get_session_store().get_document(sid)
+    autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
+    assert len(autonomous) == 2
+    fused_ids = {w.fused_tool_id for w in autonomous}
+    assert fused_ids == {"warm_grade", "exposure_balance"}
+
+
+def test_analyze_tops_up_when_one_problem(monkeypatch) -> None:
+    """One high-severity problem → 1 minted from problem + 1 from top-up."""
+    fake = _fake_claude_for_topup(
+        problems=[Problem(
+            kind="clipped_highlights", severity=0.8, region_label=None,
+            suggested_fused_tools=["sky_recovery"],
+        )],
+        topup_picks=["exposure_balance"],
+        resolve_values={
+            "temperature": 0, "highlight_warmth": 0, "saturation_lift": 0,
+            "shadows": 5, "highlights": -15, "whites": -5, "blacks": 5,
+            "highlight_amount": 0.8, "luma_curve_strength": 0.5,
+        },
+    )
+    monkeypatch.setattr(deps, "_anthropic_client", fake)
+    sid = _bootstrap_session()
+    client = TestClient(app)
+    client.post("/api/tools/analyze_image", json={"session_id": sid, "input": {}})
+    doc = deps.get_session_store().get_document(sid)
+    autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
+    assert len(autonomous) == 2
+    assert {w.fused_tool_id for w in autonomous} == {"sky_recovery", "exposure_balance"}
+    args, kwargs = fake.suggest_fused_tools_for_character.call_args
+    assert "sky_recovery" in kwargs["exclude"]
+
+
+def test_analyze_no_topup_when_two_problems(monkeypatch) -> None:
+    """Two high-severity problems → top-up not called."""
+    fake = _fake_claude_for_topup(
+        problems=[
+            Problem(kind="clipped_highlights", severity=0.8, region_label=None,
+                    suggested_fused_tools=["sky_recovery"]),
+            Problem(kind="crushed_shadows", severity=0.8, region_label=None,
+                    suggested_fused_tools=["exposure_balance"]),
+        ],
+        topup_picks=["warm_grade"],
+        resolve_values={
+            "temperature": 0, "highlight_warmth": 0, "saturation_lift": 0,
+            "shadows": 30, "highlights": -20, "whites": 0, "blacks": 0,
+            "highlight_amount": 0.5, "luma_curve_strength": 0.3,
+        },
+    )
+    monkeypatch.setattr(deps, "_anthropic_client", fake)
+    sid = _bootstrap_session()
+    client = TestClient(app)
+    client.post("/api/tools/analyze_image", json={"session_id": sid, "input": {}})
+    doc = deps.get_session_store().get_document(sid)
+    autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
+    assert len(autonomous) == 2
+    fake.suggest_fused_tools_for_character.assert_not_called()
+
+
+def test_analyze_skips_dismissed_topup_picks(monkeypatch) -> None:
+    """If a dismissal rule already covers a top-up candidate, skip it."""
+    from app.schemas.widget import DismissalRule
+    fake = _fake_claude_for_topup(
+        problems=[],
+        topup_picks=["warm_grade", "exposure_balance"],
+        resolve_values={
+            "temperature": 200, "highlight_warmth": 5, "saturation_lift": 2,
+            "shadows": 0, "highlights": 0, "whites": 0, "blacks": 0,
+        },
+    )
+    monkeypatch.setattr(deps, "_anthropic_client", fake)
+    sid = _bootstrap_session()
+    doc = deps.get_session_store().get_document(sid)
+    doc.dismissals.append(DismissalRule(
+        id="rule-1", fused_tool_id="warm_grade", scope_signature="global",
+        source_widget_id="dummy", intent_norm="",
+    ))
+    client = TestClient(app)
+    client.post("/api/tools/analyze_image", json={"session_id": sid, "input": {}})
+    autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
+    fused_ids = {w.fused_tool_id for w in autonomous}
+    assert "warm_grade" not in fused_ids
+    assert "exposure_balance" in fused_ids

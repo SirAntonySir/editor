@@ -143,6 +143,62 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic) -> None:
             doc.add_widget(widget)
             break  # one per problem
 
+    # >=2 guarantee - top up via image-character match if the problem-driven
+    # pass produced fewer than 2 autonomous widgets.
+    MIN_AUTONOMOUS_SUGGESTIONS = 2
+
+    def _count_autonomous_active() -> int:
+        return sum(
+            1 for w in doc.widgets.values()
+            if w.origin.kind == "mcp_autonomous" and w.status == "active"
+        )
+
+    if _count_autonomous_active() >= MIN_AUTONOMOUS_SUGGESTIONS:
+        return
+
+    already_used = {
+        w.fused_tool_id for w in doc.widgets.values()
+        if w.origin.kind == "mcp_autonomous" and w.fused_tool_id
+    }
+    dismissed_global = {
+        rule.fused_tool_id for rule in doc.dismissals
+        if rule.scope_signature == "global"
+    }
+    needed = MIN_AUTONOMOUS_SUGGESTIONS - _count_autonomous_active()
+    exclude = list(already_used | dismissed_global)
+    candidates = anthropic.suggest_fused_tools_for_character(
+        grade_character=ctx.grade_character,
+        lighting=ctx.lighting,
+        dominant_tones=ctx.dominant_tones,
+        subjects=ctx.subjects,
+        exclude=exclude,
+        n=needed,
+        session_id=doc.session_id,
+    )
+
+    global_scope = Scope.model_validate({"kind": "global"})
+    for fused_id in candidates:
+        if _count_autonomous_active() >= MIN_AUTONOMOUS_SUGGESTIONS:
+            break
+        if fused_id not in templates or fused_id in already_used:
+            continue
+        if _dismissed(fused_id, global_scope):
+            continue
+        origin = WidgetOrigin(kind="mcp_autonomous", prompt=None)
+        intent = templates[fused_id].typical_use[:60] if templates[fused_id].typical_use else fused_id
+        try:
+            widget = await run_fused_tool(
+                templates[fused_id], intent=intent, scope=global_scope,
+                ctx=ctx, prior=None, instruction=None,
+                anthropic=anthropic, origin=origin,
+            )
+        except Exception:
+            continue
+        if widget is None:
+            continue
+        doc.add_widget(widget)
+        already_used.add(fused_id)
+
 
 def _compute_region_stats(
     image_rgb: np.ndarray,

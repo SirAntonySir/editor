@@ -76,6 +76,9 @@ class _FakeClaude:
     def name_pick_fused_tool(self, intent, candidates, session_id=None):
         return "warm_grade"
 
+    def suggest_fused_tools_for_character(self, *, grade_character, lighting, dominant_tones, subjects, exclude, n, session_id=None):
+        return []
+
     def flesh_out_binding(self, request, widget, response_schema=None, session_id=None):
         # ControlBinding has `control_schema` (not `schema`) and forbids extras.
         # additional_nodes need {type, params, scope} so refine_widget can build

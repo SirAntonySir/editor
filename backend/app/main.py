@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api import router as api_router
 from .config import get_settings
+from .mcp.server import router as mcp_router
 
 
 def create_app() -> FastAPI:
@@ -22,6 +23,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(api_router)
+    app.include_router(mcp_router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

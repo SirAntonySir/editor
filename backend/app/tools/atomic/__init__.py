@@ -13,6 +13,7 @@ from .highlight_region import HighlightRegionTool
 from .list_layers import ListLayersTool
 from .list_named_regions import ListNamedRegionsTool
 from .list_widgets import ListWidgetsTool
+from .preview_widget import PreviewWidgetTool
 from .select_by_box import SelectByBoxTool
 from .select_by_point import SelectByPointTool
 from .list_fused_tools import ListFusedToolsTool
@@ -37,3 +38,4 @@ def register_all_atomic_tools(registry: BackendToolRegistry) -> None:
     registry.register(CreateSessionTool())
     registry.register(AnalyzeImageTool())
     registry.register(ListFusedToolsTool())
+    registry.register(PreviewWidgetTool())

@@ -557,6 +557,80 @@ class AnthropicClient:
                 return block.input.get("chosen_id")
         return None
 
+    def suggest_fused_tools_for_character(
+        self,
+        *,
+        grade_character: str | None,
+        lighting: str | None,
+        dominant_tones: list[str],
+        subjects: list[str],
+        exclude: list[str],
+        n: int,
+        session_id: str | None = None,
+    ) -> list[str]:
+        """Ask Claude to name N fused-tool ids that fit the image's overall
+        character, excluding ones already suggested. Returns template ids
+        in priority order. Used by analyze_image to top up suggestions
+        when problem-driven minting yields fewer than 2."""
+        from app.tools.fused import all_fused_templates
+
+        templates = list(all_fused_templates())
+        catalog = [
+            {"id": t.id, "description": t.description, "typical_use": t.typical_use}
+            for t in templates
+        ]
+
+        tool_schema = {
+            "name": "suggest_fused_tools",
+            "description": "Pick fused tools that fit the image character.",
+            "input_schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["picks"],
+                "properties": {
+                    "picks": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 0,
+                        "maxItems": n,
+                        "description": (
+                            "Up to N fused-tool ids from the catalog, in priority order. "
+                            f"N={n}. Do NOT include any id from the exclude list."
+                        ),
+                    },
+                },
+            },
+        }
+
+        user_text = (
+            f"Pick up to {n} fused tools whose typical_use fits this image.\n\n"
+            f"Catalog: {catalog}\n\n"
+            f"Image character:\n"
+            f"- grade_character: {grade_character}\n"
+            f"- lighting: {lighting}\n"
+            f"- dominant_tones: {dominant_tones}\n"
+            f"- subjects: {subjects}\n\n"
+            f"Exclude (already suggested): {exclude}\n\n"
+            f"Return picks as fused-tool ids in priority order. Empty list is fine if nothing fits."
+        )
+
+        response = self._client.messages.create(
+            model=self._model,
+            max_tokens=512,
+            system=[{"type": "text", "text": "Pick fused tools whose typical_use best fits the image's character. Skip ids in the exclude list. Return an empty list if nothing fits.", "cache_control": {"type": "ephemeral"}}],
+            tools=[tool_schema],
+            tool_choice={"type": "tool", "name": "suggest_fused_tools"},
+            messages=[
+                {"role": "user", "content": [{"type": "text", "text": user_text}]},
+            ],
+        )
+        _log_cache_stats("suggest_fused_tools_for_character", session_id, response)
+        for block in response.content:
+            if getattr(block, "type", None) == "tool_use" and block.name == "suggest_fused_tools":
+                picks = block.input.get("picks", []) or []
+                return [p for p in picks if p not in exclude]
+        return []
+
     def flesh_out_binding(
         self, request: str, widget: dict, response_schema: dict | None = None, session_id: str | None = None,
     ) -> dict:

@@ -1,22 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
-from app.schemas.image_context import ImageContext
+from app.api import deps
 from app.schemas.operation_graph import OperationGraph
-from app.services.anthropic_client import AnthropicClient
 from app.services.session_store import SessionNotFound, SessionStore
-
-from . import deps
+from app.state.operations import project_to_graph
 
 router = APIRouter()
-
-
-def _get_store() -> SessionStore:
-    return deps.get_session_store()
-
-
-def _get_client() -> AnthropicClient:
-    return deps.get_anthropic_client()
 
 
 class RefineRequest(BaseModel):
@@ -28,33 +18,34 @@ class RefineRequest(BaseModel):
 @router.post("/refine", response_model=OperationGraph)
 async def refine(
     body: RefineRequest,
-    store: SessionStore = Depends(_get_store),
-    client: AnthropicClient = Depends(_get_client),
+    response: Response,
+    store: SessionStore = Depends(deps.get_session_store),
 ) -> OperationGraph:
+    """Deprecated shim. Calls refine_widget on every active widget with
+    the given instruction. Returns the new projected OperationGraph."""
+    response.headers["Deprecation"] = "true"
+    response.headers["Sunset"] = "see /api/tools/refine_widget"
     try:
-        record = store.get(body.session_id)
+        doc = store.get_document(body.session_id)
     except SessionNotFound:
         raise HTTPException(status_code=404, detail="unknown or expired session")
-
-    prior = store.get_graph(body.session_id, body.prior_graph_id)
-    if prior is None:
-        raise HTTPException(status_code=404, detail="prior graph not found")
-
-    if record.context is None:
-        raise HTTPException(status_code=400, detail="session has no image context")
-    context = ImageContext.model_validate(record.context)
-
-    try:
-        graph = client.generate_refined_panel(
-            image_bytes=record.image_bytes,
-            mime_type=record.mime_type,
-            context=context,
-            prior_graph=prior,
-            instruction=body.instruction,
+    registry = deps.get_tool_registry()
+    for wid, w in list(doc.widgets.items()):
+        if w.status != "active":
+            continue
+        envelope = await registry.invoke(
+            name="refine_widget",
             session_id=body.session_id,
+            raw_input={
+                "widget_id": wid,
+                "edits": [],
+                "additions": [],
+                "instruction": body.instruction,
+            },
         )
-    except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=f"refine failed: {e}")
-
-    store.store_graph(body.session_id, graph.id, graph.model_dump(mode="json"))
-    return graph
+        if not envelope.ok:
+            raise HTTPException(
+                status_code=502,
+                detail=envelope.error.message if envelope.error else "refine failed",
+            )
+    return project_to_graph(doc)

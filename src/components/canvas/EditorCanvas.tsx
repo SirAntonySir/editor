@@ -10,6 +10,7 @@ import { useAdjustmentPipeline } from './useAdjustmentPipeline';
 import { useFabricOverlays } from './useFabricOverlays';
 import { SelectionActionsOverlay } from './SelectionActionsOverlay';
 import { SegmentOverlay } from './SegmentOverlay';
+import { CanvasWidgetLayer } from '@/components/widget/CanvasWidgetLayer';
 
 interface EditorCanvasProps {
   canvasRef: React.MutableRefObject<fabric.Canvas | null>;
@@ -375,6 +376,7 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
     >
       <canvas ref={canvasElRef} />
       <SegmentOverlay fabricCanvasRef={canvasRef} />
+      <CanvasWidgetLayer fabricCanvasRef={canvasRef} />
       <SelectionActionsOverlay />
     </div>
   );

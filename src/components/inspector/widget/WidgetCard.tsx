@@ -10,12 +10,15 @@ import type { MaskSummary, Widget } from '@/types/widget';
 interface WidgetCardProps {
   widget: Widget;
   isSuggestion: boolean;
+  variant?: 'ai' | 'tool';             // default 'ai'
+  mode?: 'canvas' | 'inspector-row';   // default 'canvas'; only 'canvas' active in v1
 }
 
 // Stable empty array so the masks selector never returns a new reference.
 const EMPTY_MASKS: MaskSummary[] = [];
 
-export function WidgetCard({ widget, isSuggestion }: WidgetCardProps) {
+export function WidgetCard({ widget, isSuggestion, variant = 'ai', mode = 'canvas' }: WidgetCardProps) {
+  void mode; // reserved for Task 12 inspector-row rendering
   const sessionId = useBackendState((s) => s.sessionId);
   const masks = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
   const optimistic = useBackendState((s) => s.optimistic);
@@ -30,7 +33,12 @@ export function WidgetCard({ widget, isSuggestion }: WidgetCardProps) {
   }
 
   return (
-    <div className="rounded-lg bg-surface border border-glass-border p-3 flex flex-col gap-3">
+    <div
+      className={
+        'rounded-lg bg-surface border p-3 flex flex-col gap-3 ' +
+        (variant === 'ai' ? 'border-accent/60' : 'border-glass-border')
+      }
+    >
       <div className="flex items-start gap-3">
         {isSuggestion && <PreviewThumbnail widget={widget} maxDim={64} />}
         <div className="flex-1 min-w-0">
@@ -72,7 +80,7 @@ export function WidgetCard({ widget, isSuggestion }: WidgetCardProps) {
 
       {(expanded || isSuggestion) && (
         <div className="pt-1 border-t border-glass-border">
-          <LifecycleActions widget={widget} isSuggestion={isSuggestion} />
+          <LifecycleActions widget={widget} isSuggestion={isSuggestion} variant={variant} />
         </div>
       )}
     </div>

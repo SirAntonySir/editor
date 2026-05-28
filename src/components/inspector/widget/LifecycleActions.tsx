@@ -6,9 +6,11 @@ import type { Widget } from '@/types/widget';
 interface LifecycleActionsProps {
   widget: Widget;
   isSuggestion: boolean;
+  variant?: 'ai' | 'tool';
+  onClose?: () => void;
 }
 
-export function LifecycleActions({ widget, isSuggestion }: LifecycleActionsProps) {
+export function LifecycleActions({ widget, isSuggestion, variant = 'ai', onClose }: LifecycleActionsProps) {
   const sessionId = useBackendState((s) => s.sessionId);
   const [refining, setRefining] = useState(false);
   const [instruction, setInstruction] = useState('');
@@ -18,6 +20,17 @@ export function LifecycleActions({ widget, isSuggestion }: LifecycleActionsProps
     if (!sessionId) return;
     setBusy(true);
     try { await fn(); } finally { setBusy(false); }
+  }
+
+  if (variant === 'tool') {
+    return (
+      <div className="flex gap-2 justify-end">
+        <button
+          onClick={() => onClose?.()}
+          className="text-xs px-2 py-1 rounded bg-surface-secondary text-text-secondary"
+        >Close</button>
+      </div>
+    );
   }
 
   if (isSuggestion) {

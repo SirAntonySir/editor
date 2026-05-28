@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-
-afterEach(cleanup);
 import { SliderControl } from './SliderControl';
 import { ToggleControl } from './ToggleControl';
 import { ChoiceControl } from './ChoiceControl';
 import { ColorControl } from './ColorControl';
 import { MaskThumbnailControl } from './MaskThumbnailControl';
 import { RegionPickerControl } from './RegionPickerControl';
+
+afterEach(cleanup);
 
 describe('SliderControl', () => {
   it('renders value and emits onChange', () => {

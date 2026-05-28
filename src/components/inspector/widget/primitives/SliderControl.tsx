@@ -17,7 +17,6 @@ export function SliderControl({ label, value, schema, onChange }: SliderControlP
       </div>
       <input
         type="range"
-        role="slider"
         min={schema.min}
         max={schema.max}
         step={schema.step}

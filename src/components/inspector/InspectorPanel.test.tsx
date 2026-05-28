@@ -27,7 +27,7 @@ describe('InspectorPanel — four-section layout', () => {
     useSegmentSelection.setState({ selectedSegmentId: ref });
     render(<InspectorPanel />);
     expect(screen.getByText('sky')).toBeDefined();
-    expect(screen.getByText(/of image/i)).toBeDefined();
+    expect(screen.getByText(/\d+%/)).toBeDefined();
   });
 
   it('renders suggestions section when autonomous widgets present', () => {

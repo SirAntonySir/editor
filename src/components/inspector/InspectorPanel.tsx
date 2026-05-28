@@ -15,8 +15,6 @@ export function InspectorPanel() {
   useBackendState((s) => s.snapshot?.revision ?? 0);
   const masksIndex = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
   // Subscribe so projection recomputes when any layer's adjustment stack changes.
-  // Returns a stable signature string (same input → same string → no re-render);
-  // length alone misses removeAdjustment when the layer count doesn't change.
   useEditorStore((s) =>
     s.layers.map((l) => `${l.id}:${l.adjustmentStack.adjustments.length}`).join('|'),
   );
@@ -28,82 +26,89 @@ export function InspectorPanel() {
   const actives = all.filter((w) => !suggestions.includes(w));
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-4">
+    <div className="flex-1 min-h-0 overflow-y-auto px-2.5 py-2.5 flex flex-col">
 
-      {/* Selection */}
-      <section className="rounded-md bg-surface border-l-2 border-accent px-3 py-2">
-        <div className="text-[10px] uppercase tracking-wide text-text-secondary mb-1">Selection</div>
-        {selectedSegmentId ? (
-          <SelectionCard maskId={selectedSegmentId} />
-        ) : (
-          <div className="text-[11px] text-text-secondary">Click a segment on the canvas to scope tools and prompts.</div>
-        )}
-      </section>
+      {/* Selection — single row */}
+      <SelectionRow maskId={selectedSegmentId} />
 
       {/* Active widgets */}
       {actives.length > 0 && (
-        <section className="flex flex-col gap-1">
-          <div className="text-[10px] uppercase tracking-wide text-text-secondary flex justify-between mb-1">
-            <span>Active widgets</span><span>{actives.length}</span>
-          </div>
+        <>
+          <SectionHeading label="Active" count={actives.length} />
           {actives.map((w) => <InspectorWidgetRow key={w.id} uw={w} />)}
-        </section>
+        </>
       )}
 
       {/* Suggestions */}
       {suggestions.length > 0 && (
-        <section className="flex flex-col gap-1">
-          <div className="text-[10px] uppercase tracking-wide text-text-secondary flex justify-between mb-1">
-            <span>Suggestions</span><span>{suggestions.length}</span>
-          </div>
+        <>
+          <SectionHeading label="Suggestions" count={suggestions.length} />
           {suggestions.map((w) => <InspectorWidgetRow key={w.id} uw={w} />)}
-        </section>
+        </>
       )}
 
-      {/* Segments */}
+      {/* Segments — chip cloud */}
       {masksIndex.length > 0 && (
-        <section>
-          <div className="text-[10px] uppercase tracking-wide text-text-secondary flex justify-between mb-2">
-            <span>Segments</span><span>{masksIndex.length}</span>
+        <>
+          <div className="text-[9px] uppercase tracking-wide text-text-secondary mt-3.5 mb-1.5">
+            Segments · {masksIndex.length}
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1">
             {masksIndex.map((m) => {
               const sel = selectedSegmentId === m.id;
               return (
                 <button
                   key={m.id}
+                  type="button"
                   onClick={() => useSegmentSelection.setState({ selectedSegmentId: m.id })}
                   className={
-                    'px-2 py-0.5 rounded-full text-[10px] ' +
-                    (sel ? 'bg-accent text-white' : 'bg-surface-secondary text-text-primary hover:bg-surface-secondary/80')
+                    'px-1.5 py-px rounded-full text-[9px] ' +
+                    (sel ? 'bg-accent text-white font-semibold' : 'bg-surface-secondary text-text-primary hover:bg-surface-secondary/80')
                   }
                 >{m.label ?? m.id.slice(0, 6)}</button>
               );
             })}
           </div>
-        </section>
+        </>
       )}
 
     </div>
   );
 }
 
-// Re-export under the old name so any leftover importer of InspectorPanelBody still works.
 export const InspectorPanelBody = InspectorPanel;
 
-function SelectionCard({ maskId }: { maskId: string }) {
+function SectionHeading({ label, count }: { label: string; count: number }) {
+  return (
+    <div className="text-[9px] uppercase tracking-wide text-text-secondary mt-3.5 mb-1 pb-0.5 border-b border-separator">
+      {label} · {count}
+    </div>
+  );
+}
+
+function SelectionRow({ maskId }: { maskId: string | null }) {
+  if (!maskId) {
+    return (
+      <div className="text-[10px] text-text-secondary px-1.5 py-1">
+        Click a segment to scope tools and prompts.
+      </div>
+    );
+  }
   const mask = maskStore.get(maskId);
-  if (!mask) return <div className="text-[11px] text-text-secondary">Resolving segment…</div>;
+  if (!mask) {
+    return <div className="text-[10px] text-text-secondary px-1.5 py-1">Resolving segment…</div>;
+  }
   let setPixels = 0;
   for (let i = 0; i < mask.data.length; i++) if (mask.data[i]) setPixels++;
   const totalPixels = mask.width * mask.height;
-  const pct = totalPixels > 0 ? (setPixels / totalPixels) * 100 : 0;
+  const pct = totalPixels > 0 ? Math.round((setPixels / totalPixels) * 100) : 0;
   return (
-    <div className="flex flex-col gap-1">
-      <div className="text-sm font-medium text-text-primary">{mask.label ?? 'segment'}</div>
-      <div className="text-[10px] text-text-secondary">
-        {pct.toFixed(0)}% of image · {setPixels.toLocaleString()} px
-      </div>
+    <div className="flex items-center gap-2 px-1.5 py-1 text-[10px]">
+      <span className="text-[8px] uppercase tracking-wide text-text-secondary">Sel</span>
+      <span className="bg-accent text-white px-1.5 py-px rounded-full text-[9px] font-semibold">
+        {mask.label ?? 'segment'}
+      </span>
+      <span className="text-text-secondary text-[9px]">{pct}%</span>
     </div>
   );
 }

@@ -38,16 +38,6 @@ let beforeUnloadHandler: ((e: BeforeUnloadEvent) => void) | null = null;
 let sessionSaveTimer: ReturnType<typeof setTimeout> | null = null;
 let aiSessionUnsubscribe: (() => void) | null = null;
 
-// ─── Discrete action debouncing ──────────────────────────────────
-// Groups rapid discrete actions (e.g. slider drags routed through recordAction)
-// into a single undo entry when they share the same label within 250ms.
-const ACTION_DEBOUNCE_MS = 250;
-let pendingAction: {
-  label: string;
-  preSnapshot: SerializableState;
-  timer: ReturnType<typeof setTimeout>;
-} | null = null;
-
 // ─── Deep equality (handles Float32Array) ───────────────────────────
 
 function deepEqual(a: unknown, b: unknown): boolean {
@@ -175,7 +165,6 @@ function init(zustandStore: StoreApi<EditorState>): void {
 }
 
 function dispose(): void {
-  flushPendingAction();
   if (beforeUnloadHandler) {
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     beforeUnloadHandler = null;
@@ -332,68 +321,34 @@ function endInteraction(): void {
 // ─── Discrete actions (toggle visibility, reorder, etc.) ────────────
 
 /**
- * Flush any pending debounced action into the history stack immediately.
- * Called before undo/redo and interaction boundaries.
- */
-function flushPendingAction(): void {
-  if (!pendingAction) return;
-  clearTimeout(pendingAction.timer);
-  const post = captureState();
-  if (post) {
-    if (statesChanged(pendingAction.preSnapshot, post)) {
-      history.push(post);
-      markDirty();
-    }
-  }
-  pendingAction = null;
-}
-
-/**
- * Record a discrete action with 250ms debounce grouping.
+ * Record a discrete mutation and immediately push a snapshot to history.
  *
- * Rapid calls with the same label within 250ms are merged into a single
- * undo entry (e.g. toggling a checkbox repeatedly, or rapid crop adjustments).
+ * Use this for one-shot actions (e.g. revert, layer reorder, visibility toggle)
+ * that should each produce a distinct undo entry without debouncing.
  */
-function recordAction(label: string, fn: () => void): void {
-  // If there's a pending action with a DIFFERENT label, flush it first
-  if (pendingAction && pendingAction.label !== label) {
-    flushPendingAction();
+function recordSnapshot(_label: string, fn: () => void): void {
+  if (!store) {
+    fn(); // not initialized — action runs but no history entry
+    return;
   }
-
-  // Capture pre-state only for the first call in this debounce window
-  if (!pendingAction) {
-    const pre = captureState();
-    if (!pre) {
-      fn(); // not initialized — action runs but no history entry
-      return;
-    }
-    pendingAction = {
-      label,
-      preSnapshot: pre,
-      timer: setTimeout(flushPendingAction, ACTION_DEBOUNCE_MS),
-    };
-  } else {
-    // Same label — extend the debounce window
-    clearTimeout(pendingAction.timer);
-    pendingAction.timer = setTimeout(flushPendingAction, ACTION_DEBOUNCE_MS);
-  }
-
-  // Execute the mutation
   fn();
+  const snap = captureState();
+  if (snap) {
+    history.push(snap);
+    markDirty();
+  }
 }
 
 // ─── Undo / redo ────────────────────────────────────────────────────
 
 function undoAction(): void {
   if (interaction) endInteraction();
-  flushPendingAction();
   const snap = history.undo<SerializableState>();
   if (snap) restoreState(snap);
 }
 
 function redoAction(): void {
   if (interaction) endInteraction();
-  flushPendingAction();
   const snap = history.redo<SerializableState>();
   if (snap) restoreState(snap);
 }
@@ -474,7 +429,7 @@ export const editorDocument = {
   },
 
   // Discrete actions
-  recordAction,
+  recordSnapshot,
 
   // Undo / redo
   undo: undoAction,

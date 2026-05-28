@@ -3,7 +3,7 @@ import { CanvasRegistry } from './canvas-registry';
 import { editorDocument } from '@/core/document';
 
 export function revertToOriginal() {
-  editorDocument.recordAction('Revert to Original', () => {
+  editorDocument.recordSnapshot('Revert to Original', () => {
     const state = useEditorStore.getState();
     // Reset all image layers' working canvases back to source
     for (const layer of state.layers) {

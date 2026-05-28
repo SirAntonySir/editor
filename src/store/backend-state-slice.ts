@@ -7,6 +7,8 @@ import type {
   Widget,
   MaskSummary,
 } from '@/types/widget';
+import { useEditorStore } from '@/store';
+import { materializeAdjustments } from '@/lib/materialize-adjustments';
 
 // Required so immer can produce drafts of Map<WidgetId, OptimisticPatch>.
 enableMapSet();
@@ -90,6 +92,20 @@ export const useBackendState = create<BackendState>()(
           case 'widget.accepted': {
             const id = payload.widget_id as string;
             s.acceptedSuggestions.add(id);
+            const widget = s.snapshot?.widgets.find((w) => w.id === id);
+            if (widget) {
+              const activeLayerId = useEditorStore.getState().activeLayerId;
+              if (activeLayerId) {
+                const adjustments = materializeAdjustments(widget);
+                for (const adj of adjustments) {
+                  useEditorStore.getState().addAdjustment(activeLayerId, adj);
+                }
+              }
+              // Remove widget from snapshot
+              if (s.snapshot) {
+                s.snapshot.widgets = s.snapshot.widgets.filter((w) => w.id !== id);
+              }
+            }
             break;
           }
           case 'mask.created': {

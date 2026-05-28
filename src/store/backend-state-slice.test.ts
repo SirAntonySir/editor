@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useBackendState } from './backend-state-slice';
+import { useEditorStore } from '@/store';
 import type { SessionStateSnapshot, StateEvent, Widget } from '@/types/widget';
 
 function makeWidget(id: string, overrides: Partial<Widget> = {}): Widget {
@@ -127,6 +128,39 @@ describe('BackendStateSlice', () => {
       emitted_at: '2026-05-23T00:00:01Z',
     });
     expect(useBackendState.getState().snapshot!.widgets[0].status).toBe('active');
+  });
+
+  it('widget.accepted bakes the widget into adjustments + removes from snapshot', () => {
+    const widget = makeWidget('w_x', { nodes: [{
+      id: 'n1', type: 'kelvin', params: { temperature: 7000 },
+      scope: { kind: 'global' }, inputs: [], widget_id: 'w_x',
+    }] });
+    useBackendState.setState({
+      snapshot: { ...baseSnapshot(), widgets: [widget], revision: 1 },
+    });
+
+    // Add a layer to the editor store so addAdjustment has a target
+    const layerId = 'test-layer-1';
+    useEditorStore.getState().addLayer({
+      id: layerId,
+      type: 'raster',
+      name: 'Test Layer',
+      visible: true,
+      opacity: 1,
+      blendMode: 'normal',
+      locked: false,
+    });
+    useEditorStore.setState({ activeLayerId: layerId } as never);
+
+    useBackendState.getState().applyEvent({
+      revision: 2, kind: 'widget.accepted',
+      payload: { widget_id: 'w_x' },
+      emitted_at: '2026-05-28T00:00:01Z',
+    });
+
+    expect(useBackendState.getState().snapshot!.widgets.find(w => w.id === 'w_x')).toBeUndefined();
+    const layer = useEditorStore.getState().layers.find(l => l.id === layerId)!;
+    expect(layer.adjustmentStack.adjustments.some(a => a.aiSource?.widgetId === 'w_x')).toBe(true);
   });
 });
 

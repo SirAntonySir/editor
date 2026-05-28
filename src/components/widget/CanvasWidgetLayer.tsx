@@ -7,6 +7,8 @@ import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { ToolWidgetCard } from './ToolWidgetCard';
 
+const PHASE_SKELETON_PHASES = new Set(['mask_precompute', 'widget_mint']);
+
 interface CanvasWidgetLayerProps {
   fabricCanvasRef: React.RefObject<fabric.Canvas | null>;
 }
@@ -23,6 +25,28 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
   const layersSig = useEditorStore((s) => s.layers);
   void widgetsSig; void layersSig;
   const widgets = selectAllWidgets();
+
+  const phase = useBackendState((s) => s.currentPhase);
+  const snapshotCtx = useBackendState((s) => s.snapshot?.image_context);
+
+  const showSkeletons = phase && PHASE_SKELETON_PHASES.has(phase.phase);
+
+  const realWidgetLabels = new Set(
+    widgets
+      .filter((w) => w.variant === 'ai')
+      .map((w) => {
+        const sc = w.scope;
+        if (sc.kind === 'named_region') return sc.label;
+        if (sc.kind === 'mask:proposed') return sc.label;
+        return null;
+      })
+      .filter((x): x is string => !!x),
+  );
+
+  const skeletonRegions = showSkeletons
+    ? (snapshotCtx as { candidate_regions?: Array<{ label: string; bbox: number[]; representativePoint?: number[] }> } | null)
+      ?.candidate_regions?.filter((r) => !realWidgetLabels.has(r.label)) ?? []
+    : [];
 
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -117,6 +141,37 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
           );
         }
         return null;
+      })}
+      {/* eslint-disable-next-line react-hooks/refs -- intentional: fabricCanvasRef.current is read to compute pixel positions for skeleton widgets; setTick() re-triggers render on viewport changes */}
+      {skeletonRegions.map((r, i) => {
+        const f = fabricCanvasRef.current;
+        if (!f) return null;
+        const img = f.getObjects().find((o) => o instanceof fabric.FabricImage) as fabric.FabricImage | undefined;
+        if (!img) return null;
+        const scaleX = img.scaleX ?? 1;
+        const scaleY = img.scaleY ?? 1;
+        const imgLeft = (img.left ?? 0) - ((img.width ?? 0) * scaleX) / 2;
+        const imgTop = (img.top ?? 0) - ((img.height ?? 0) * scaleY) / 2;
+        const px = r.representativePoint?.[0] ?? (r.bbox[0] + r.bbox[2] / 2);
+        const py = r.representativePoint?.[1] ?? (r.bbox[1] + r.bbox[3] / 2);
+        const w = img.width ?? 0;
+        const h = img.height ?? 0;
+        return (
+          <div
+            key={`sk_${r.label}_${i}`}
+            className="absolute pointer-events-none rounded-lg p-2 bg-surface/80 border border-dashed border-glass-border"
+            style={{
+              left: imgLeft + px * w * scaleX,
+              top: imgTop + py * h * scaleY,
+              width: 140,
+              animation: 'pulse 1.4s ease-in-out infinite',
+            }}
+          >
+            <div className="h-2 w-1/2 bg-surface-secondary rounded mb-1" />
+            <div className="h-1.5 bg-surface-secondary rounded mb-1" />
+            <div className="h-1.5 bg-surface-secondary rounded w-3/4" />
+          </div>
+        );
       })}
     </div>
   );

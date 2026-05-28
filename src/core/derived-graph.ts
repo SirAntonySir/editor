@@ -34,7 +34,7 @@ export function buildGraphFromLayers(
   let prevChainEnd: string | null = null;
   let maxX = 0;
 
-  // Records the final output node (crop tip) for each layer, keyed by layer id.
+  // Records the final output node for each layer, keyed by layer id.
   // Used in the second pass to wire branched layers to their parent's output.
   const chainTipByLayerId = new Map<string, string>();
 
@@ -90,22 +90,6 @@ export function buildGraphFromLayers(
         x += X_STEP;
       }
     }
-
-    // Crop node (always present — shows "No crop" when inactive)
-    const cropKey = `crop:${layer.id}`;
-    graph.nodes.push({
-      id: cropKey,
-      type: 'crop',
-      position: getPos(cropKey, { x, y }),
-      data: { label: 'Crop', layerId: layer.id },
-    });
-    graph.edges.push({
-      id: `${chainTip}->${cropKey}`,
-      source: chainTip,
-      target: cropKey,
-    });
-    chainTip = cropKey;
-    x += X_STEP;
 
     // Record this layer's final output so child layers can branch from it.
     chainTipByLayerId.set(layer.id, chainTip);
@@ -209,7 +193,7 @@ function computeStructureKey(layers: Layer[]): string {
   return layers
     .map(
       (l) =>
-        `${l.id}:${l.order}:${l.parentLayerId ?? ''}:${l.cropMeta ? 'crop' : ''}:${l.adjustmentStack.adjustments.map((a) => `${a.id}:${a.type}`).join(',')}`,
+        `${l.id}:${l.order}:${l.parentLayerId ?? ''}:${l.adjustmentStack.adjustments.map((a) => `${a.id}:${a.type}`).join(',')}`,
     )
     .join('|');
 }

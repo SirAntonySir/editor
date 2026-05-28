@@ -1,22 +1,18 @@
 import { useEffect, useRef } from 'react';
 import type * as fabric from 'fabric';
 import { useEditorStore } from '@/store';
-import { useCropEditingStore } from '@/store/crop-editing-slice';
 import { useBackendState } from '@/store/backend-state-slice';
 import { PipelineManager } from '@/lib/pipeline-manager';
 import { LayerCompositor } from '@/lib/layer-compositor';
-import { applyCropForExport } from '@/lib/crop-display';
-import type { Adjustment, CropMeta } from '@/store/layer-slice';
+import type { Adjustment } from '@/store/layer-slice';
 import { selectPipelineNodes } from '@/lib/select-pipeline-nodes';
 import { nodeToAdjustment } from '@/lib/node-to-adjustment';
 
 /**
  * Connects the Zustand store to the WebGL pipeline and layer compositor.
  *
- * After the pipeline renders the full adjusted image, this hook applies
- * CropMeta (if any) by rendering the cropped+rotated result into the
- * display canvas. Source pixels in PixelStore are never touched — crop
- * is purely a display-time operation that also runs at export.
+ * After the pipeline renders the full adjusted image, this hook pushes
+ * the result to the Fabric canvas image object.
  */
 export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas | null>) {
   const prevRef = useRef<{
@@ -25,14 +21,12 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
     adjustments: Adjustment[] | undefined;
     layerHash: string;
     pixelVersion: number;
-    cropMeta: CropMeta | undefined;
   }>({
     mode: '',
     layerId: null,
     adjustments: undefined,
     layerHash: '',
     pixelVersion: -1,
-    cropMeta: undefined,
   });
 
   /** Track the last displayed dimensions so we only re-fit when they change. */
@@ -48,21 +42,7 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
       const fabricImg = objects[0] as fabric.FabricImage;
       if (!fabricImg) return;
 
-      const state = useEditorStore.getState();
-      const layer = state.layers.find((l) => l.id === state.activeLayerId);
-      const cropMeta = layer?.cropMeta;
-      const inCropMode = useCropEditingStore.getState().isCropEditing;
-
-      let displayCanvas: HTMLCanvasElement | OffscreenCanvas;
-
-      if (cropMeta && !inCropMode) {
-        // ── Crop active: render cropped+rotated preview ──
-        // Uses the same function as export so preview matches output exactly.
-        displayCanvas = applyCropForExport(outputCanvas, cropMeta);
-      } else {
-        // ── No crop or in crop-editing mode: show full image ──
-        displayCanvas = outputCanvas;
-      }
+      const displayCanvas = outputCanvas;
 
       // Push to Fabric
       const tmp = document.createElement('canvas');
@@ -79,10 +59,6 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
       // Clear any leftover cropX/cropY from previous states
       (fabricImg as unknown as Record<string, number>).cropX = 0;
       (fabricImg as unknown as Record<string, number>).cropY = 0;
-      // Clear rotation — it's baked into the display canvas when crop is applied
-      if (cropMeta && !inCropMode) {
-        fabricImg.set({ angle: 0, flipX: false, flipY: false });
-      }
 
       // Only re-fit when the visible dimensions actually change
       const newW = tmp.width;
@@ -111,7 +87,6 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
       const state = useEditorStore.getState();
       const { activeLayerId, editorMode, layers, pixelVersion } = state;
       const layer = layers.find((l) => l.id === activeLayerId);
-      const cropMeta = layer?.cropMeta;
 
       if (editorMode === 'develop') {
         const widgetNodes = selectPipelineNodes();
@@ -135,8 +110,7 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
           prevRef.current.mode === editorMode &&
           prevRef.current.layerId === activeLayerId &&
           prevRef.current.layerHash === combinedSig &&
-          prevRef.current.pixelVersion === pixelVersion &&
-          prevRef.current.cropMeta === cropMeta
+          prevRef.current.pixelVersion === pixelVersion
         ) {
           return;
         }
@@ -146,7 +120,6 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
           adjustments: combined,
           layerHash: combinedSig,
           pixelVersion,
-          cropMeta,
         };
 
         if (!activeLayerId) return;
@@ -173,8 +146,7 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
           prevRef.current.mode === editorMode &&
           prevRef.current.layerHash === layerHash &&
           prevRef.current.adjustments === activeAdj &&
-          prevRef.current.pixelVersion === pixelVersion &&
-          prevRef.current.cropMeta === cropMeta
+          prevRef.current.pixelVersion === pixelVersion
         ) {
           return;
         }
@@ -184,7 +156,6 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
           adjustments: activeAdj,
           layerHash,
           pixelVersion,
-          cropMeta,
         };
 
         LayerCompositor.requestComposite();

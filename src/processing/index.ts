@@ -5,7 +5,6 @@ import { kelvinProcessing } from './kelvin';
 import { curvesProcessing } from './curves';
 import { levelsProcessing } from './levels';
 import { filtersProcessing } from './filters';
-import { cropProcessing } from './crop';
 
 export function registerAllProcessing(): void {
   ProcessingRegistry.register(lightProcessing);
@@ -14,7 +13,6 @@ export function registerAllProcessing(): void {
   ProcessingRegistry.register(curvesProcessing);
   ProcessingRegistry.register(levelsProcessing);
   ProcessingRegistry.register(filtersProcessing);
-  ProcessingRegistry.register(cropProcessing);
 }
 
 export {
@@ -24,5 +22,4 @@ export {
   curvesProcessing,
   levelsProcessing,
   filtersProcessing,
-  cropProcessing,
 };

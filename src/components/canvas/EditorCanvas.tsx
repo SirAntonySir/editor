@@ -5,7 +5,6 @@ import { useEditor } from '@/components/EditorProvider';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { editorDocument } from '@/core/document';
-import { applyCropForExport } from '@/lib/crop-display';
 import { useAdjustmentPipeline } from './useAdjustmentPipeline';
 import { useFabricOverlays } from './useFabricOverlays';
 import { SelectionActionsOverlay } from './SelectionActionsOverlay';
@@ -411,18 +410,7 @@ export function hydrateCanvasFromStore(canvas: fabric.Canvas | null) {
     if (!tmpCtx) continue;
     tmpCtx.drawImage(working, 0, 0);
 
-    // Apply CropMeta if present — render cropped preview into the display canvas
-    let displayCanvas: HTMLCanvasElement | OffscreenCanvas = tmpCanvas;
-    if (layer.cropMeta) {
-      displayCanvas = applyCropForExport(tmpCanvas, layer.cropMeta);
-    }
-
-    const displayTmp = document.createElement('canvas');
-    displayTmp.width = displayCanvas.width;
-    displayTmp.height = displayCanvas.height;
-    displayTmp.getContext('2d')?.drawImage(displayCanvas, 0, 0);
-
-    const img = new fabric.FabricImage(displayTmp);
+    const img = new fabric.FabricImage(tmpCanvas);
 
     const visW = img.width;
     const visH = img.height;

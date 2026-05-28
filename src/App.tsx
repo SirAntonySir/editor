@@ -19,15 +19,12 @@ import { useEditorStore } from '@/store';
 import { usePreferencesStore, applyPreferences } from '@/store/preferences-store';
 import { editorDocument } from '@/core/document';
 import { initLayerLifecycle } from '@/core/layer-lifecycle';
-import { CropCanvasOverlay } from '@/components/canvas/CropOverlay';
-import { useCropEditingStore } from '@/store/crop-editing-slice';
 import { LightTool } from '@/tools/light-tool';
 import { ColorTool } from '@/tools/color-tool';
 import { KelvinTool } from '@/tools/kelvin-tool';
 import { CurvesTool } from '@/tools/curves-tool';
 import { LevelsTool } from '@/tools/levels-tool';
 import { FiltersTool } from '@/tools/filters-tool';
-import { CropTool } from '@/tools/crop-tool';
 import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
 import { SpawnPaletteWidget } from '@/components/widget/SpawnPaletteWidget';
 import { CursorBindGhost } from '@/components/widget/CursorBindGhost';
@@ -54,14 +51,13 @@ registerAllProcessing();
 // Register LLM-facing tool manifests (Plan 2)
 registerAllToolManifests();
 
-// Register tools (lean canvas-centric set — adjustment widget tools + crop)
+// Register tools (lean canvas-centric set — adjustment widget tools)
 ToolRegistry.register(LightTool);
 ToolRegistry.register(ColorTool);
 ToolRegistry.register(KelvinTool);
 ToolRegistry.register(CurvesTool);
 ToolRegistry.register(LevelsTool);
 ToolRegistry.register(FiltersTool);
-ToolRegistry.register(CropTool);
 
 // Register all node definitions (structural + processing) into NodeRegistry
 registerAllNodes();
@@ -88,7 +84,6 @@ function MainLayout({
   handleFileOpen: () => void;
 }) {
   const isGraph = editorMode === 'graph' && layers.length > 0;
-  const isCropEditing = useCropEditingStore((s) => s.isCropEditing);
   const showHUD = !isGraph;
 
   return (
@@ -116,11 +111,8 @@ function MainLayout({
           </Suspense>
         )} */}
 
-        {/* Crop canvas overlay — shown when crop editing is active (any mode) */}
-        {isCropEditing && <CropCanvasOverlay canvasRef={canvasRef} />}
-
-        {/* Tool canvas overlay — not in graph or crop editing mode */}
-        {showHUD && !isCropEditing && toolDef?.CanvasOverlay && <toolDef.CanvasOverlay ctx={toolContext} />}
+        {/* Tool canvas overlay — not in graph mode */}
+        {showHUD && toolDef?.CanvasOverlay && <toolDef.CanvasOverlay ctx={toolContext} />}
 
         {/* Empty state */}
         <AnimatePresence>
@@ -155,7 +147,7 @@ function MainLayout({
             px-2 py-0.5 text-xs text-text-secondary bg-surface/70 backdrop-blur-sm rounded-tl-sm">
             <ScopeDisplay />
             <span className="text-separator">|</span>
-            <span className="capitalize">{isCropEditing ? 'crop' : activeTool}</span>
+            <span className="capitalize">{activeTool}</span>
             <span className="text-separator">|</span>
             <ZoomDisplay />
           </div>

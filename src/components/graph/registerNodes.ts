@@ -1,15 +1,13 @@
-import { Image, Layers, Crop, Flag } from 'lucide-react';
+import { Image, Layers, Flag } from 'lucide-react';
 import { NodeRegistry } from '@/lib/node-registry';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { SourceNode } from './nodes/SourceNode';
 import { BlendNode } from './nodes/BlendNode';
-import { CropNode } from './nodes/CropNode';
 import { OutputNode } from './nodes/OutputNode';
 import { AdjustmentNode } from './nodes/AdjustmentNode';
 import { SourcePanel } from './panels/SourcePanel';
 import { BlendPanel } from './panels/BlendPanel';
 import { OutputPanel } from './panels/OutputPanel';
-import { CropPanel } from './panels/CropPanel';
 
 /**
  * Register all node definitions into the NodeRegistry.
@@ -31,14 +29,6 @@ export function registerAllNodes(): void {
     icon: Layers,
     NodeComponent: BlendNode,
     Panel: BlendPanel,
-  });
-
-  NodeRegistry.register({
-    id: 'crop',
-    label: 'Crop',
-    icon: Crop,
-    NodeComponent: CropNode,
-    Panel: CropPanel,
   });
 
   NodeRegistry.register({

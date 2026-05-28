@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { PipelineManager } from '@/lib/pipeline-manager';
 import { LayerCompositor } from '@/lib/layer-compositor';
 import { CanvasRegistry } from '@/lib/canvas-registry';
-import { applyCropForExport } from '@/lib/crop-display';
 import { useEditorStore } from '@/store';
 
 /**
@@ -31,22 +30,6 @@ function renderNodeOutput(
   }
 
   if (!layer) return null;
-
-  // Crop node: all adjustments + crop applied
-  if (nodeType === 'crop') {
-    const adjs = layer.adjustmentStack.adjustments.filter((a) => a.enabled);
-    let output: HTMLCanvasElement | OffscreenCanvas | null;
-    if (adjs.length > 0) {
-      PipelineManager.setSource(layerId);
-      output = PipelineManager.renderSync(adjs);
-    } else {
-      output = CanvasRegistry.get(layerId) ?? null;
-    }
-    if (output && layer.cropMeta) {
-      return applyCropForExport(output, layer.cropMeta);
-    }
-    return output;
-  }
 
   // Adjustment node: render the chain up to and including this adjustment
   if (adjustmentId) {

@@ -34,20 +34,6 @@ export interface AdjustmentStack {
   adjustments: Adjustment[];
 }
 
-/** Non-destructive crop parameters — stored per-layer so re-entering crop mode restores the selection. */
-export interface CropMeta {
-  /** Crop rect as fraction of the full original image (0–1, rotation-independent). */
-  rx: number;
-  ry: number;
-  rw: number;
-  rh: number;
-  /** Rotation/flip that was applied when cropping. */
-  baseRotation: number;
-  straighten: number;
-  flipX: boolean;
-  flipY: boolean;
-}
-
 export interface Layer {
   id: string;
   type: LayerType;
@@ -58,7 +44,6 @@ export interface Layer {
   locked: boolean;
   order: number;
   adjustmentStack: AdjustmentStack;
-  cropMeta?: CropMeta;
   /** Non-destructive branching — references the parent layer ID. */
   parentLayerId?: string;
   /** Alpha mask applied at composite time. */
@@ -284,10 +269,9 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
     set((state) => {
       // Remove all non-image layers (pixel cleanup handled by caller)
       state.layers = state.layers.filter((l) => l.type === 'image');
-      // Clear all adjustment stacks and crop metadata on remaining layers
+      // Clear all adjustment stacks on remaining layers
       for (const layer of state.layers) {
         layer.adjustmentStack.adjustments = [];
-        layer.cropMeta = undefined;
       }
       // Reset active layer
       state.activeLayerId = state.layers[0]?.id ?? null;

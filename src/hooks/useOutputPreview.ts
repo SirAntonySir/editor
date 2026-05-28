@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { PipelineManager } from '@/lib/pipeline-manager';
 import { LayerCompositor } from '@/lib/layer-compositor';
 import { CanvasRegistry } from '@/lib/canvas-registry';
-import { applyCropForExport } from '@/lib/crop-display';
 import { useEditorStore } from '@/store';
 
 /**
@@ -24,21 +23,13 @@ export function useOutputPreview(
     const canvas = canvasRef.current;
     if (!canvas || source.width === 0 || source.height === 0) return;
 
-    // Apply crop if the active layer has one
-    const state = useEditorStore.getState();
-    const layer = state.layers.find((l) => l.id === state.activeLayerId);
-    let display: HTMLCanvasElement | OffscreenCanvas = source;
-    if (layer?.cropMeta) {
-      display = applyCropForExport(source, layer.cropMeta);
-    }
-
-    const aspect = display.height / display.width;
+    const aspect = source.height / source.width;
     const h = Math.round(width * aspect);
     canvas.width = width;
     canvas.height = h;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.drawImage(display, 0, 0, width, h);
+    ctx.drawImage(source, 0, 0, width, h);
     setHeight(h);
   }, [canvasRef, width]);
 

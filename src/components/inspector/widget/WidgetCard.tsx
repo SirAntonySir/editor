@@ -38,19 +38,20 @@ export function WidgetCard({ widget, isSuggestion, variant = 'ai', mode = 'canva
         'rounded-lg bg-surface border p-3 flex flex-col gap-3 ' +
         (variant === 'ai' ? 'border-accent/60' : 'border-glass-border')
       }
+      style={{ width: 260 }}
     >
       <div className="flex items-start gap-3">
         {isSuggestion && <PreviewThumbnail widget={widget} maxDim={64} />}
         <div className="flex-1 min-w-0">
           <button
             onClick={() => setExpanded((v) => !v)}
-            className="flex items-center gap-1 text-sm font-medium text-text-primary"
+            className="flex items-start gap-1 text-sm font-medium text-text-primary text-left w-full"
           >
-            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            {widget.intent}
+            {expanded ? <ChevronDown size={14} className="shrink-0 mt-0.5" /> : <ChevronRight size={14} className="shrink-0 mt-0.5" />}
+            <span className="line-clamp-2 break-words">{widget.intent}</span>
           </button>
           {widget.reasoning && (
-            <p className="text-xs text-text-secondary mt-1">{widget.reasoning}</p>
+            <p className="text-xs text-text-secondary mt-1 line-clamp-3 break-words">{widget.reasoning}</p>
           )}
         </div>
       </div>

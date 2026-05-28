@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 import { WidgetCard } from '@/components/inspector/widget/WidgetCard';
 import { selectAllWidgets, type UnifiedWidget } from '@/lib/widget-projection';
@@ -57,73 +57,145 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
     return () => { f.off('after:render', refresh as never); };
   }, [fabricCanvasRef]);
 
-  function anchorPx(w: UnifiedWidget): { left: number; top: number } | null {
-    const f = fabricCanvasRef.current;
-    if (!f) return null;
-    const img = f.getObjects().find((o) => o instanceof fabric.FabricImage) as fabric.FabricImage | undefined;
-    if (!img) return { left: 16, top: 60 };
-    const scaleX = img.scaleX ?? 1;
-    const scaleY = img.scaleY ?? 1;
-    const imgLeft = (img.left ?? 0) - ((img.width ?? 0) * scaleX) / 2;
-    const imgTop = (img.top ?? 0) - ((img.height ?? 0) * scaleY) / 2;
+  const WIDGET_W = 260;
+  const ESTIMATED_WIDGET_H = 160;
+  const GLOBAL_STACK_GAP = 12;
 
-    const anchor = w.anchor;
-    switch (anchor.kind) {
-      case 'global':
-        return { left: f.getWidth() - 260, top: 60 };
-      case 'image_point':
-        return {
+  function computePositions(ws: UnifiedWidget[]): Map<string, { left: number; top: number }> {
+    const out = new Map<string, { left: number; top: number }>();
+    const f = fabricCanvasRef.current;
+    if (!f) return out;
+    const img = f.getObjects().find((o) => o instanceof fabric.FabricImage) as fabric.FabricImage | undefined;
+
+    let globalStackTop = 60;
+
+    for (const w of ws) {
+      if (!img) {
+        out.set(w.id, { left: 16, top: globalStackTop });
+        globalStackTop += ESTIMATED_WIDGET_H + GLOBAL_STACK_GAP;
+        continue;
+      }
+      const scaleX = img.scaleX ?? 1;
+      const scaleY = img.scaleY ?? 1;
+      const imgLeft = (img.left ?? 0) - ((img.width ?? 0) * scaleX) / 2;
+      const imgTop = (img.top ?? 0) - ((img.height ?? 0) * scaleY) / 2;
+      const imgRight = imgLeft + (img.width ?? 0) * scaleX;
+
+      const anchor = w.anchor;
+      if (anchor.kind === 'global') {
+        out.set(w.id, {
+          left: imgRight - WIDGET_W - 16,
+          top: imgTop + globalStackTop - 60,
+        });
+        globalStackTop += ESTIMATED_WIDGET_H + GLOBAL_STACK_GAP;
+        continue;
+      }
+      if (anchor.kind === 'image_point') {
+        out.set(w.id, {
           left: imgLeft + anchor.x * scaleX,
           top: imgTop + anchor.y * scaleY,
-        };
-      case 'mask_id': {
-        const mask = maskStore.get(anchor.mask_id);
-        if (!mask) return { left: f.getWidth() - 260, top: 60 };
-        let sx = 0, sy = 0, n = 0;
-        for (let y = 0; y < mask.height; y++) {
-          for (let x = 0; x < mask.width; x++) {
-            if (mask.data[y * mask.width + x]) { sx += x; sy += y; n++; }
-          }
-        }
-        if (n === 0) return { left: f.getWidth() - 260, top: 60 };
-        return {
-          left: imgLeft + (sx / n) * scaleX,
-          top: imgTop + (sy / n) * scaleY,
-        };
+        });
+        continue;
       }
-      case 'region_label': {
-        const mask = maskStore.all().find((m) => m.label === anchor.label);
-        if (!mask) return { left: f.getWidth() - 260, top: 60 };
+      if (anchor.kind === 'mask_id' || anchor.kind === 'region_label') {
+        const mask =
+          anchor.kind === 'mask_id'
+            ? maskStore.get(anchor.mask_id)
+            : maskStore.all().find((m) => m.label === anchor.label);
+        if (!mask) {
+          out.set(w.id, { left: imgRight - WIDGET_W - 16, top: imgTop + globalStackTop - 60 });
+          globalStackTop += ESTIMATED_WIDGET_H + GLOBAL_STACK_GAP;
+          continue;
+        }
         let sx = 0, sy = 0, n = 0;
         for (let y = 0; y < mask.height; y++) {
           for (let x = 0; x < mask.width; x++) {
             if (mask.data[y * mask.width + x]) { sx += x; sy += y; n++; }
           }
         }
-        if (n === 0) return { left: f.getWidth() - 260, top: 60 };
-        return {
+        if (n === 0) {
+          out.set(w.id, { left: imgRight - WIDGET_W - 16, top: imgTop + 60 });
+          continue;
+        }
+        out.set(w.id, {
           left: imgLeft + (sx / n) * scaleX,
           top: imgTop + (sy / n) * scaleY,
-        };
+        });
       }
     }
+    return out;
   }
+
+  // Drag state
+  const [dragOffsets, setDragOffsets] = useState<Map<string, { dx: number; dy: number }>>(new Map());
+  const dragStateRef = useRef<{
+    widgetId: string;
+    startX: number;
+    startY: number;
+    baseDx: number;
+    baseDy: number;
+  } | null>(null);
+
+  function onWidgetPointerDown(widgetId: string, e: React.PointerEvent) {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, textarea')) return;
+    const existing = dragOffsets.get(widgetId) ?? { dx: 0, dy: 0 };
+    dragStateRef.current = {
+      widgetId,
+      startX: e.clientX,
+      startY: e.clientY,
+      baseDx: existing.dx,
+      baseDy: existing.dy,
+    };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+
+  function onWidgetPointerMove(e: React.PointerEvent) {
+    const st = dragStateRef.current;
+    if (!st) return;
+    const dx = st.baseDx + (e.clientX - st.startX);
+    const dy = st.baseDy + (e.clientY - st.startY);
+    setDragOffsets((prev) => {
+      const next = new Map(prev);
+      next.set(st.widgetId, { dx, dy });
+      return next;
+    });
+  }
+
+  function onWidgetPointerUp(e: React.PointerEvent) {
+    if (!dragStateRef.current) return;
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    dragStateRef.current = null;
+  }
+
+  // eslint-disable-next-line react-hooks/refs -- intentional: fabricCanvasRef.current is read to compute pixel positions; setTick() re-triggers render on viewport changes so positions stay current
+  const positions = computePositions(widgets);
 
   return (
     <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10 }}>
-      {/* eslint-disable-next-line react-hooks/refs -- intentional: fabricCanvasRef.current is read to compute pixel positions; setTick() re-triggers render on viewport changes so positions stay current */}
       {widgets.map((w) => {
-        const pos = anchorPx(w);
-        if (!pos) return null;
+        const base = positions.get(w.id);
+        if (!base) return null;
+        const off = dragOffsets.get(w.id) ?? { dx: 0, dy: 0 };
+        const left = base.left + off.dx;
+        const top = base.top + off.dy;
         const positionedStyle: React.CSSProperties = {
-          left: pos.left,
-          top: pos.top,
+          left,
+          top,
           transform: 'translate(-8px, -8px)',
-          maxWidth: 260,
+          cursor: dragStateRef.current?.widgetId === w.id ? 'grabbing' : 'grab',
         };
         if (w.variant === 'ai' && w._widget) {
           return (
-            <div key={w.id} className="absolute pointer-events-auto" style={positionedStyle}>
+            <div
+              key={w.id}
+              className="absolute pointer-events-auto"
+              style={positionedStyle}
+              onPointerDown={(e) => onWidgetPointerDown(w.id, e)}
+              onPointerMove={onWidgetPointerMove}
+              onPointerUp={onWidgetPointerUp}
+            >
               <WidgetCard
                 widget={w._widget}
                 isSuggestion={w._widget.origin.kind === 'mcp_autonomous'}
@@ -135,7 +207,14 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
         }
         if (w.variant === 'tool') {
           return (
-            <div key={w.id} className="absolute pointer-events-auto" style={positionedStyle}>
+            <div
+              key={w.id}
+              className="absolute pointer-events-auto"
+              style={positionedStyle}
+              onPointerDown={(e) => onWidgetPointerDown(w.id, e)}
+              onPointerMove={onWidgetPointerMove}
+              onPointerUp={onWidgetPointerUp}
+            >
               <ToolWidgetCard uw={w} />
             </div>
           );

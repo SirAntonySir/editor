@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { useEditorStore } from '@/store';
+import { useBackendState } from '@/store/backend-state-slice';
+import { backendTools } from '@/lib/backend-tools';
 import { useAiSession } from '@/hooks/useImageContext';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { ackSchema, scopeSchema, type ScopeInput } from '../shared-schemas';
@@ -42,7 +44,7 @@ export const applyAdjustmentTool: ToolManifest<typeof input, typeof ackSchema> =
     'The scope can be global, the active selection, or a named region. The handler resolves named regions automatically — you do not need to select first.',
   inputSchema: input,
   outputSchema: ackSchema,
-  handler: ({ scope, kind, params, label }) => {
+  handler: ({ scope, kind, label }) => {
     const definition = ProcessingRegistry.get(kind);
     if (!definition) {
       return { ok: false, message: `Unknown adjustment kind "${kind}". Valid kinds: ${ProcessingRegistry.getAll().map((d) => d.adjustmentType).join(', ')}.` };
@@ -56,24 +58,17 @@ export const applyAdjustmentTool: ToolManifest<typeof input, typeof ackSchema> =
     const layerId = state.activeLayerId ?? state.layers.find((l) => l.type === 'image')?.id;
     if (!layerId) return { ok: false, message: 'No image layer to apply adjustment to.' };
 
-    // Coerce param values to the numeric shape addAdjustment expects.
-    const numericParams: Record<string, number | Float32Array> = {};
-    for (const [k, v] of Object.entries(params)) {
-      if (typeof v === 'number') numericParams[k] = v;
-      else if (typeof v === 'boolean') numericParams[k] = v ? 1 : 0;
-      // String params are not yet supported in the runtime shape; skip with a note.
-    }
+    const sid = useBackendState.getState().sessionId;
+    if (!sid) return { ok: false, message: 'Backend session not available.' };
 
-    state.setActiveScope(resolved);
-    state.addAdjustment(layerId, {
-      id: `tool-${kind}-${Date.now()}`,
-      type: definition.adjustmentType,
-      name: label ?? definition.label ?? kind,
-      enabled: true,
-      blendMode: 'normal',
-      opacity: 1,
-      params: numericParams,
+    // Route adjustment through backend as a proposed widget.
+    void backendTools.propose_widget(sid, {
+      intent: label ?? `${kind} adjustment`,
+      scope: resolved,
+      fused_tool_id: kind,
+      layer_id: layerId,
+      origin: 'tool_invoked',
     });
-    return { ok: true, message: `Applied ${kind} with scope ${scope.kind}.` };
+    return { ok: true, message: `Proposing ${kind} with scope ${scope.kind}.` };
   },
 };

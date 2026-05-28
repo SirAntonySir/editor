@@ -1,4 +1,4 @@
-import type { BlendMode } from '@/store/layer-slice';
+import type { BlendMode } from '@/types/adjustment';
 
 // ─── Node types ─────────────────────────────────────────────────────
 // ProcessingNodeType is now a string — the ProcessingRegistry defines

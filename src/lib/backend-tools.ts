@@ -1,4 +1,4 @@
-import type { Widget, Scope, ControlValue } from '@/types/widget';
+import type { Widget, Scope, ControlValue, WidgetOriginKind } from '@/types/widget';
 
 const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
@@ -36,7 +36,14 @@ export const backendTools = {
   list_widgets(sessionId: string) {
     return invokeTool<{ widgets: Widget[] }>('list_widgets', sessionId, {});
   },
-  propose_widget(sessionId: string, args: { intent: string; scope: Scope; fused_tool_id?: string; prompt?: string }) {
+  propose_widget(sessionId: string, args: {
+    intent: string;
+    scope: Scope;
+    fused_tool_id?: string;
+    prompt?: string;
+    layer_id: string;
+    origin: WidgetOriginKind;
+  }) {
     return invokeTool<{ widget: Widget }>('propose_widget', sessionId, args);
   },
   refine_widget(sessionId: string, args: {

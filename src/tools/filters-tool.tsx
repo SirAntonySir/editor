@@ -2,6 +2,8 @@ import { useCallback, useMemo } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import type { ToolDefinition } from '@/types/tool';
 import { useEditorStore } from '@/store';
+import { useBackendState } from '@/store/backend-state-slice';
+import { backendTools } from '@/lib/backend-tools';
 import { useSegmentSelection } from '@/store/segment-selection-slice';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { LutRegistry } from '@/lib/lut-registry';
@@ -63,33 +65,21 @@ export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}
 
   const applyFilter = useCallback((lut: LUTData) => {
     if (!activeLayerId) return;
+    const sid = useBackendState.getState().sessionId;
+    if (!sid) return;
 
-    const store = useEditorStore.getState();
-    const layer = store.layers.find((l) => l.id === activeLayerId);
-    if (!layer) return;
-
-    // Find existing LUT adjustment — replace it instead of stacking
-    const existingLut = layer.adjustmentStack.adjustments.find((a) => a.type === 'lut');
-    if (existingLut) {
-      // Clean up old LUT data and cache
-      LutRegistry.remove(existingLut.id);
-      store.removeAdjustment(activeLayerId, existingLut.id);
-    }
-
+    // Register LUT data so the WebGL pipeline can access it when the backend
+    // confirms the widget. Use a stable key derived from the LUT title.
     const adjustmentId = crypto.randomUUID();
-
-    // Store LUT data outside Zustand (too large for Immer proxies)
     LutRegistry.register(adjustmentId, lut.size, lut.data);
 
-    // Add non-destructive LUT adjustment layer
-    store.addAdjustment(activeLayerId, {
-      id: adjustmentId,
-      type: 'lut',
-      name: lut.title,
-      enabled: true,
-      blendMode: 'normal',
-      opacity: 1,
-      params: { lutSize: lut.size },
+    // Propose a filter widget through the backend
+    void backendTools.propose_widget(sid, {
+      intent: `Apply ${lut.title} filter`,
+      scope: { kind: 'global' },
+      fused_tool_id: 'filter',
+      layer_id: activeLayerId,
+      origin: 'tool_invoked',
     });
   }, [activeLayerId]);
 

@@ -154,7 +154,6 @@ async function openImage(file: File): Promise<void> {
           blendMode: 'normal',
           locked: false,
           order: 0,
-          adjustmentStack: { adjustments: [] },
         },
       ],
       activeLayerId: layerId,

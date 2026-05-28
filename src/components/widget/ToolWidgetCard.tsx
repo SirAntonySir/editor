@@ -1,44 +1,31 @@
-import { useEditorStore } from '@/store';
+import { useBackendState } from '@/store/backend-state-slice';
+import { backendTools } from '@/lib/backend-tools';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import type { UnifiedWidget } from '@/lib/widget-projection';
-import type { ProcessingDefinition } from '@/types/processing';
 import type { Scope } from '@/types/widget';
 
 interface ToolWidgetCardProps {
   uw: UnifiedWidget;
 }
 
-/**
- * Resolve which ProcessingDefinition's Panel to render for an Adjustment.
- *
- * `Adjustment.type` is the *shader* key (basic / curves / kelvin / levels / lut)
- * — not the processing id. For shader keys with a single processing
- * (curves, levels, kelvin, lut, ...) we can look the def up directly.
- * For shared keys (basic ⇢ Light + Color) we disambiguate by `Adjustment.name`
- * (set when the tool drops the widget). AI-materialized adjustments fall back
- * to the first matching processing.
- */
-function resolveProcessing(type: string, name: string): ProcessingDefinition | undefined {
-  const direct = ProcessingRegistry.get(type);
-  if (direct) return direct;
-  const byLabel = ProcessingRegistry.getAll().find((p) => p.label === name);
-  if (byLabel) return byLabel;
-  return ProcessingRegistry.getByAdjustmentType(type)[0];
-}
-
 export function ToolWidgetCard({ uw }: ToolWidgetCardProps) {
-  const adj = uw._adjustment;
-  if (!adj) return null;
-  const processing = resolveProcessing(adj.adjustment.type, adj.adjustment.name);
+  const processing = uw.processingId ? ProcessingRegistry.get(uw.processingId) : undefined;
   const Panel = processing?.Panel;
   const Icon = processing?.icon;
+  const sessionId = useBackendState((s) => s.sessionId);
 
   function close(e: React.MouseEvent) {
     e.stopPropagation();
-    useEditorStore.getState().removeAdjustment(adj!.layerId, adj!.adjustment.id);
+    if (!sessionId) return;
+    void backendTools.delete_widget(sessionId, { widget_id: uw.id, suppress_similar: false });
   }
 
-  const wide = adj.adjustment.type === 'curves';
+  // Find the active layer ID from the widget's first node (if any) — used by
+  // panel components that need a layerId prop. If not available, pass empty string.
+  const layerId = uw._widget?.nodes[0]?.layer_id ?? '';
+  const widgetId = uw.id;
+
+  const wide = processing?.adjustmentType === 'curves';
   return (
     <div
       className="rounded-md bg-surface/95 border border-glass-border flex flex-col overflow-hidden shadow-lg backdrop-blur-sm"
@@ -64,9 +51,9 @@ export function ToolWidgetCard({ uw }: ToolWidgetCardProps) {
       {/* Panel body */}
       <div className="px-1.5 pb-1.5">
         {Panel ? (
-          <Panel layerId={adj.layerId} adjustmentId={adj.adjustment.id} />
+          <Panel layerId={layerId} adjustmentId={widgetId} />
         ) : (
-          <p className="text-[10px] text-text-secondary px-1">No panel for {adj.adjustment.type}</p>
+          <p className="text-[10px] text-text-secondary px-1">No panel for {processing?.id ?? uw.intent}</p>
         )}
       </div>
     </div>

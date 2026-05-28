@@ -9,9 +9,8 @@ import { AskAiInput } from './AskAiInput';
 export function SuggestionsSection() {
   // Subscribe so projection recomputes when snapshot or layers change.
   useBackendState((s) => s.snapshot?.revision ?? 0);
-  useEditorStore((s) =>
-    s.layers.map((l) => `${l.id}:${l.adjustmentStack.adjustments.length}`).join('|'),
-  );
+  // Subscribe to layer changes so projection recomputes when layers change.
+  useEditorStore((s) => s.layers.map((l) => l.id).join('|'));
   const activeScope = useEditorStore((s) => s.activeScope);
   const accepted = useBackendState((s) => s.acceptedSuggestions);
   const sessionId = useBackendState((s) => s.sessionId);

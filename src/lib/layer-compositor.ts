@@ -1,8 +1,11 @@
 import { CanvasRegistry } from './canvas-registry';
 import { PipelineManager } from './pipeline-manager';
 import { useEditorStore } from '@/store';
-import type { Layer, BlendMode } from '@/store/layer-slice';
+import type { BlendMode } from '@/types/adjustment';
+import type { Layer } from '@/store/layer-slice';
 import { maskStore } from '@/core/mask-store';
+import { selectPipelineNodes } from './select-pipeline-nodes';
+import { nodeToAdjustment } from './node-to-adjustment';
 
 const BLEND_MODE_MAP: Record<BlendMode, GlobalCompositeOperation> = {
   'normal': 'source-over',
@@ -75,8 +78,9 @@ class LayerCompositorImpl {
       if (!source) return null;
     }
 
-    // 2. Apply the layer's adjustment pipeline.
-    const adjustments = layer.adjustmentStack.adjustments.filter((a) => a.enabled);
+    // 2. Apply the layer's adjustment pipeline from the backend snapshot.
+    const pipelineNodes = selectPipelineNodes().filter((n) => n.layer_id === layer.id);
+    const adjustments = pipelineNodes.map(nodeToAdjustment).filter((a) => a.enabled);
     let result: HTMLCanvasElement;
     if (adjustments.length === 0) {
       result = document.createElement('canvas');
@@ -154,18 +158,20 @@ class LayerCompositorImpl {
     this.ctx.clearRect(0, 0, outputWidth, outputHeight);
 
     for (const layer of visibleLayers) {
-      const enabledAdjs = layer.adjustmentStack.adjustments.filter((a) => a.enabled);
       const hasPixels = CanvasRegistry.has(layer.id);
-
       const isBranched = !!layer.parentLayerId;
       let rendered: HTMLCanvasElement | null = null;
       if (hasPixels || isBranched) {
         rendered = this.renderLayer(layer);
-      } else if (enabledAdjs.length > 0 && outputWidth > 0 && outputHeight > 0) {
-        // Adjustment-layer path: pixel-less layer (e.g. adjustment-only layer) processes
-        // the accumulated composite below it through its adjustment stack.
-        PipelineManager.setSourceCanvas(this.outputCanvas);
-        rendered = PipelineManager.renderSync([...enabledAdjs]);
+      } else {
+        // Pixel-less adjustment-only layer: apply backend pipeline nodes over
+        // the accumulated composite below it.
+        const pipelineNodes = selectPipelineNodes().filter((n) => n.layer_id === layer.id);
+        const enabledAdjs = pipelineNodes.map(nodeToAdjustment).filter((a) => a.enabled);
+        if (enabledAdjs.length > 0 && outputWidth > 0 && outputHeight > 0) {
+          PipelineManager.setSourceCanvas(this.outputCanvas);
+          rendered = PipelineManager.renderSync([...enabledAdjs]);
+        }
       }
       if (!rendered) continue;
 

@@ -21,7 +21,8 @@ import { useSegmentSelection } from '@/store/segment-selection-slice';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { duplicateLayer } from '@/store/segment-actions';
 import { SegmentRow } from './SegmentRow';
-import type { Layer, BlendMode } from '@/store/layer-slice';
+import type { BlendMode } from '@/types/adjustment';
+import type { Layer } from '@/store/layer-slice';
 import type { MaskSummary } from '@/types/widget';
 
 // LayerType is `string` (extensible) — Record key is therefore widened.

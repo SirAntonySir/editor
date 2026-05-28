@@ -1,18 +1,17 @@
 import { Image as ImageIcon } from 'lucide-react';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
 import { FiltersPanel as FiltersPanelImpl } from '@/tools/filters-tool';
-import { useEditorStore } from '@/store';
+import { useBackendState } from '@/store/backend-state-slice';
 
 function FiltersPanel({ layerId }: ProcessingPanelProps) {
   return <FiltersPanelImpl layerId={layerId} />;
 }
 
 function FiltersNodeCompact({ layerId }: ProcessingPanelProps) {
-  const filterName = useEditorStore((s) => {
-    const layer = s.layers.find((l) => l.id === layerId);
-    if (!layer) return null;
-    const lutAdj = layer.adjustmentStack.adjustments.find((a) => a.type === 'lut');
-    return lutAdj?.name ?? null;
+  const filterName = useBackendState((s) => {
+    const nodes = s.snapshot?.operation_graph.nodes ?? [];
+    const lutNode = nodes.find((n) => n.layer_id === layerId && n.type === 'lut');
+    return lutNode?.params?.['lutName'] as string | undefined ?? null;
   });
 
   return (

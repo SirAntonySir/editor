@@ -31,7 +31,7 @@ export const listLayersTool: ToolManifest<typeof input, typeof output> = {
         type: l.type,
         name: l.name ?? l.type,
         isActive: l.id === s.activeLayerId,
-        adjustmentCount: l.adjustmentStack?.adjustments.length ?? 0,
+        adjustmentCount: 0, // adjustment count now lives in the backend snapshot
       })),
     };
   },

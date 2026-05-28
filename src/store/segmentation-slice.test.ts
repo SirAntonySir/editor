@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { useEditorStore } from '@/store';
 
 beforeEach(() => {
@@ -44,40 +44,11 @@ describe('segmentation slice', () => {
     useEditorStore.getState().setEncoderState('ready');
     expect(useEditorStore.getState().encoderState).toBe('ready');
   });
-});
 
-describe('activeScope is consumed by addAdjustment', () => {
-  afterEach(() => {
-    useEditorStore.setState({ layers: [], activeLayerId: null } as unknown as Parameters<typeof useEditorStore.setState>[0]);
-  });
-
-  it('attaches scope to the new adjustment then clears activeScope', () => {
-    useEditorStore.getState().addLayer({
-      id: 'L1', type: 'image', name: 'X',
-      visible: true, opacity: 1, blendMode: 'normal', locked: false,
-    });
+  it('setActiveScope sets the active scope', () => {
     useEditorStore.getState().setActiveScope({ kind: 'mask', mask_id: 'm1' });
-    useEditorStore.getState().addAdjustment('L1', {
-      id: 'A1', type: 'kelvin', name: 'k', enabled: true,
-      blendMode: 'normal', opacity: 1, params: {},
-    });
-    const adj = useEditorStore.getState().layers[0].adjustmentStack.adjustments[0];
-    expect(adj.scope).toEqual({ kind: 'mask', mask_id: 'm1' });
-    expect(useEditorStore.getState().activeScope).toBeNull();
-  });
-
-  it('insertAdjustment also consumes activeScope', () => {
-    useEditorStore.getState().addLayer({
-      id: 'L1', type: 'image', name: 'X',
-      visible: true, opacity: 1, blendMode: 'normal', locked: false,
-    });
-    useEditorStore.getState().setActiveScope({ kind: 'mask', mask_id: 'm2' });
-    useEditorStore.getState().insertAdjustment('L1', {
-      id: 'A2', type: 'curves', name: 'c', enabled: true,
-      blendMode: 'normal', opacity: 1, params: {},
-    }, 0);
-    const adj = useEditorStore.getState().layers[0].adjustmentStack.adjustments[0];
-    expect(adj.scope).toEqual({ kind: 'mask', mask_id: 'm2' });
+    expect(useEditorStore.getState().activeScope).toEqual({ kind: 'mask', mask_id: 'm1' });
+    useEditorStore.getState().setActiveScope(null);
     expect(useEditorStore.getState().activeScope).toBeNull();
   });
 });

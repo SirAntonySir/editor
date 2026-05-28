@@ -1,5 +1,5 @@
 import type { Node } from '@/types/operation-graph';
-import type { Adjustment } from '@/store/layer-slice';
+import type { Adjustment } from '@/types/adjustment';
 
 /** Map a widget OperationGraph Node into an Adjustment for the WebGL pipeline.
  *  Non-number params are dropped (Adjustment.params accepts only numeric values).

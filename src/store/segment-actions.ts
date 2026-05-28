@@ -109,21 +109,9 @@ export function duplicateLayer(layerId: string): string | null {
     locked: false,
   });
 
-  // Copy the adjustment stack (deep clone with fresh adjustment IDs so
-  // edits to the duplicate don't collide with the source's adjustments).
-  if (source.adjustmentStack.adjustments.length > 0) {
-    const clonedAdjustments = source.adjustmentStack.adjustments.map((adj) => ({
-      ...adj,
-      id: crypto.randomUUID(),
-      params: { ...adj.params },
-    }));
-    editor.updateLayer(newId, {
-      adjustmentStack: {
-        ...source.adjustmentStack,
-        adjustments: clonedAdjustments,
-      },
-    });
-  }
+  // Adjustment state is now owned by the backend snapshot — no client-side
+  // adjustmentStack to clone. The duplicate layer starts with no adjustments.
+  // TODO: T25 — trigger a backend duplicate-layer operation when available.
 
   editor.setActiveLayer(newId);
   return newId;

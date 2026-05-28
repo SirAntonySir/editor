@@ -8,7 +8,6 @@ import { maskStore } from '@/core/mask-store';
 import { ToolWidgetCard } from './ToolWidgetCard';
 import { useCursorBindStore } from '@/store/cursor-bind-slice';
 import { ToolRegistry } from '@/lib/tool-registry';
-import { ProcessingRegistry } from '@/lib/processing-registry';
 import { backendTools } from '@/lib/backend-tools';
 import { scopeEquals } from '@/types/scope';
 import { useFocusedWidget } from '@/store/focus-slice';
@@ -270,21 +269,19 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
     if (pending.kind === 'tool') {
       const tool = ToolRegistry.get(pending.toolName);
       const procId = tool?.processingId;
-      if (!procId) { useCursorBindStore.getState().cancel(); return; }
-      const proc = ProcessingRegistry.get(procId);
-      const activeLayerId = useEditorStore.getState().activeLayerId;
-      if (!activeLayerId) { useCursorBindStore.getState().cancel(); return; }
-      const adj = {
-        id: crypto.randomUUID(),
-        type: proc?.adjustmentType ?? procId,
-        name: proc?.label ?? procId,
-        enabled: true,
-        blendMode: 'normal' as const,
-        opacity: 1,
-        params: {},
-        ...(pending.scope ? { scope: pending.scope } : {}),
-      };
-      useEditorStore.getState().addAdjustment(activeLayerId, adj);
+      const layerId = useEditorStore.getState().activeLayerId;
+      const sid = useBackendState.getState().sessionId;
+      if (!procId || !layerId || !sid) {
+        useCursorBindStore.getState().cancel();
+        return;
+      }
+      void backendTools.propose_widget(sid, {
+        intent: tool?.label ?? procId,
+        scope: pending.scope ?? { kind: 'global' },
+        fused_tool_id: procId,
+        layer_id: layerId,
+        origin: 'tool_invoked',
+      });
     } else if (sessionId) {
       void backendTools.accept_widget(sessionId, { widget_id: pending.widgetId });
     }

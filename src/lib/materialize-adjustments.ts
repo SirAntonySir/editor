@@ -1,5 +1,5 @@
 import { nodeToAdjustment } from './node-to-adjustment';
-import type { Adjustment, AiSource } from '@/store/layer-slice';
+import type { Adjustment, AiSource } from '@/types/adjustment';
 import type { Widget } from '@/types/widget';
 import type { Node } from '@/types/operation-graph';
 

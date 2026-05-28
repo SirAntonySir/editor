@@ -34,11 +34,9 @@ export function CurvesPanel({ layerId: layerIdProp }: { layerId?: string } = {})
     (newPoints: CurvePointsMap) => {
       if (!activeLayerId) return;
       setPoints(newPoints);
-      const params: Record<string, Float32Array> = {};
-      for (const ch of ['rgb', 'red', 'green', 'blue'] as Channel[]) {
-        params[ch] = evaluateCubicSpline(newPoints[ch]);
-      }
-      useEditorStore.getState().setAdjustment(activeLayerId, 'curves', params);
+      // TODO: route curve updates through backendTools.set_widget_param when
+      // curves widget exists in the backend snapshot (T26 smoke test).
+      // For now, update the local curve-points store for immediate visual feedback.
     },
     [activeLayerId, setPoints],
   );

@@ -4,7 +4,7 @@ import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { PipelineManager } from '@/lib/pipeline-manager';
 import { LayerCompositor } from '@/lib/layer-compositor';
-import type { Adjustment } from '@/store/layer-slice';
+import type { Adjustment } from '@/types/adjustment';
 import { selectPipelineNodes } from '@/lib/select-pipeline-nodes';
 import { nodeToAdjustment } from '@/lib/node-to-adjustment';
 

@@ -1,50 +1,84 @@
-import { useCallback } from 'react';
-import { useEditorStore } from '@/store';
-import { editorDocument } from '@/core/document';
-import { ProcessingRegistry } from '@/lib/processing-registry';
+import { useCallback, useRef } from 'react';
+import { useBackendState } from '@/store/backend-state-slice';
+import { backendTools } from '@/lib/backend-tools';
+
+const DEBOUNCE_MS = 300;
 
 /**
  * Unified hook for reading/writing adjustment parameters.
  * Works in any context: inspector panel, graph node, graph properties panel.
  *
- * @param layerId - Target layer ID
- * @param adjustmentType - Adjustment type in the store (e.g., 'basic', 'curves')
- * @param adjustmentId - Optional specific adjustment ID. If omitted, finds by type (singleton).
+ * @param _layerId - Target layer ID (kept for API compatibility; routing via widget)
+ * @param _adjustmentType - Adjustment type (kept for API compatibility)
+ * @param adjustmentId - Widget ID from the backend snapshot, or undefined
  * @param paramName - Parameter key
  * @param defaultValue - Default value when param doesn't exist
  */
 export function useProcessingParam(
-  layerId: string,
-  adjustmentType: string,
+  _layerId: string,
+  _adjustmentType: string,
   adjustmentId: string | undefined,
   paramName: string,
   defaultValue: number,
 ): [number, (v: number) => void] {
-  const value = useEditorStore((s) => {
-    const layer = s.layers.find((l) => l.id === layerId);
-    if (!layer) return defaultValue;
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    let adj;
-    if (adjustmentId) {
-      adj = layer.adjustmentStack.adjustments.find((a) => a.id === adjustmentId);
-    } else {
-      adj = layer.adjustmentStack.adjustments.find((a) => a.type === adjustmentType);
+  // Read: resolve via backend snapshot. If we have a widgetId, look up the
+  // binding value from the widget; fall back to the operation_graph node param.
+  const value = useBackendState((s) => {
+    if (!adjustmentId) return defaultValue;
+
+    // 1. Check optimistic patches first for instant slider feedback.
+    const patch = s.optimistic.get(adjustmentId);
+    if (patch) {
+      const b = patch.bindings.find((p) => p.paramKey === paramName);
+      if (b !== undefined && typeof b.value === 'number') return b.value;
     }
-    return (adj?.params[paramName] as number) ?? defaultValue;
+
+    // 2. Check widget bindings in snapshot.
+    if (s.snapshot) {
+      const widget = s.snapshot.widgets.find((w) => w.id === adjustmentId);
+      if (widget) {
+        const binding = widget.bindings.find((b) => b.param_key === paramName);
+        if (binding !== undefined && typeof binding.value === 'number') return binding.value;
+      }
+
+      // 3. Fall back to operation_graph node params (node id === adjustmentId).
+      const node = s.snapshot.operation_graph.nodes.find((n) => n.id === adjustmentId);
+      if (node && typeof node.params[paramName] === 'number') {
+        return node.params[paramName] as number;
+      }
+    }
+
+    return defaultValue;
   });
 
   const setValue = useCallback(
     (v: number) => {
-      if (!layerId) return;
+      if (!adjustmentId) return;
 
-      const adjustmentName = ProcessingRegistry.getAdjustmentName(adjustmentType);
-      if (!editorDocument.hasActiveInteraction) {
-        editorDocument.beginInteraction(`Adjust ${adjustmentName}`);
-      }
-      editorDocument.tickInteraction();
-      useEditorStore.getState().setAdjustment(layerId, adjustmentType, { [paramName]: v });
+      const { sessionId, snapshot } = useBackendState.getState();
+      if (!sessionId || !snapshot) return;
+
+      const revision = snapshot.revision;
+
+      // Apply optimistic patch for immediate visual feedback.
+      useBackendState.getState().applyOptimistic(adjustmentId, {
+        bindings: [{ paramKey: paramName, value: v }],
+        baseRevision: revision,
+      });
+
+      // Debounced backend call.
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        void backendTools.set_widget_param(sessionId, {
+          widget_id: adjustmentId,
+          param_key: paramName,
+          value: v,
+        });
+      }, DEBOUNCE_MS);
     },
-    [layerId, adjustmentType, paramName],
+    [adjustmentId, paramName],
   );
 
   return [value, setValue];

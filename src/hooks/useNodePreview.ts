@@ -3,6 +3,8 @@ import { PipelineManager } from '@/lib/pipeline-manager';
 import { LayerCompositor } from '@/lib/layer-compositor';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { useEditorStore } from '@/store';
+import { selectPipelineNodes } from '@/lib/select-pipeline-nodes';
+import { nodeToAdjustment } from '@/lib/node-to-adjustment';
 
 /**
  * Render a node's output: the image after processing up to (and including)
@@ -31,12 +33,13 @@ function renderNodeOutput(
 
   if (!layer) return null;
 
-  // Adjustment node: render the chain up to and including this adjustment
+  // Adjustment node: render pipeline nodes up to and including this widget.
+  // adjustmentId is now a widgetId from the backend snapshot.
   if (adjustmentId) {
-    const allAdjs = layer.adjustmentStack.adjustments;
-    const adjIndex = allAdjs.findIndex((a) => a.id === adjustmentId);
+    const allNodes = selectPipelineNodes().filter((n) => n.layer_id === layerId);
+    const adjIndex = allNodes.findIndex((n) => n.id === adjustmentId);
     if (adjIndex >= 0) {
-      const upTo = allAdjs.slice(0, adjIndex + 1).filter((a) => a.enabled);
+      const upTo = allNodes.slice(0, adjIndex + 1).map(nodeToAdjustment).filter((a) => a.enabled);
       if (upTo.length > 0) {
         PipelineManager.setSource(layerId);
         return PipelineManager.renderSync(upTo);

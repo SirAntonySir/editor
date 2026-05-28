@@ -1,5 +1,6 @@
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useEditorStore } from '@/store';
 import type { Scope } from '@/types/widget';
 
 /** New propose-widget palette flow. The created widget appears in the
@@ -10,12 +11,17 @@ export async function proposeFromPalette(
   scope: Scope = { kind: 'global' },
 ): Promise<void> {
   const sid = useBackendState.getState().sessionId;
-  if (!sid) {
-    console.warn('[palette] no session yet, ignoring submit');
+  const layerId = useEditorStore.getState().activeLayerId;
+  if (!sid || !layerId) {
+    console.warn('[palette] no session or layer, ignoring submit');
     return;
   }
   const env = await backendTools.propose_widget(sid, {
-    intent: text, scope, prompt: text,
+    intent: text,
+    scope,
+    prompt: text,
+    layer_id: layerId,
+    origin: 'mcp_user_prompt',
   });
   if (!env.ok) {
     console.error('[palette] propose_widget failed:', env.error);

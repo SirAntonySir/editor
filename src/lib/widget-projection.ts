@@ -1,7 +1,5 @@
 import { useBackendState } from '@/store/backend-state-slice';
-import { useEditorStore } from '@/store';
 import type { Widget, Scope, ControlBinding, WidgetAnchor } from '@/types/widget';
-import type { Adjustment } from '@/store/layer-slice';
 
 export interface UnifiedWidget {
   id: string;
@@ -14,7 +12,6 @@ export interface UnifiedWidget {
   status: 'active' | 'pending';
   source: 'backend-state' | 'editor-store';
   _widget?: Widget;
-  _adjustment?: { layerId: string; adjustment: Adjustment };
 }
 
 function anchorForScope(scope: Scope): WidgetAnchor {
@@ -28,45 +25,25 @@ function anchorForScope(scope: Scope): WidgetAnchor {
 export function selectAllWidgets(): UnifiedWidget[] {
   const out: UnifiedWidget[] = [];
 
-  // AI widgets — from backend snapshot
+  // All widgets come from the backend snapshot. Tool-origin widgets are those
+  // with origin.kind === 'tool_invoked'; AI widgets are 'mcp_user_prompt' or
+  // 'mcp_autonomous'. The variant field is derived from the origin kind.
   const snap = useBackendState.getState().snapshot;
   if (snap) {
     for (const w of snap.widgets) {
       if (w.status !== 'active') continue;
+      const variant: 'ai' | 'tool' = w.origin.kind === 'tool_invoked' ? 'tool' : 'ai';
       out.push({
         id: w.id,
-        variant: 'ai',
+        variant,
         intent: w.intent,
         scope: w.scope,
         anchor: w.origin.anchor ?? anchorForScope(w.scope),
         bindings: w.bindings,
+        processingId: w.fused_tool_id,
         status: 'active',
         source: 'backend-state',
         _widget: w,
-      });
-    }
-  }
-
-  // Tool widgets — from scoped adjustments on visible layers
-  const layers = useEditorStore.getState().layers;
-  for (const layer of layers) {
-    if (!layer.visible) continue;
-    for (const adj of layer.adjustmentStack.adjustments) {
-      if (!adj.enabled) continue;
-      if (!adj.scope) continue; // only scoped adjustments become tool widgets
-      out.push({
-        id: adj.id,
-        variant: 'tool',
-        // Prefer the AI provenance label over the raw shader type when this
-        // adjustment was materialized from an accepted suggestion.
-        intent: adj.aiSource?.intent ?? adj.name,
-        scope: adj.scope,
-        anchor: anchorForScope(adj.scope),
-        bindings: [],
-        processingId: adj.type,
-        status: 'active',
-        source: 'editor-store',
-        _adjustment: { layerId: layer.id, adjustment: adj },
       });
     }
   }

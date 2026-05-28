@@ -24,6 +24,7 @@ import { CurvesTool } from '@/tools/curves-tool';
 import { LevelsTool } from '@/tools/levels-tool';
 import { FiltersTool } from '@/tools/filters-tool';
 import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
+import { useBackendState } from '@/store/backend-state-slice';
 import { SpawnPaletteWidget } from '@/components/widget/SpawnPaletteWidget';
 import { CursorBindGhost } from '@/components/widget/CursorBindGhost';
 import { useCursorBind } from '@/hooks/useCursorBind';
@@ -139,10 +140,13 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
   useCursorBind();
 
   // ⌘K opens the floating spawn palette (SpawnPaletteWidget).
+  // Disabled when the backend SSE connection is not open.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
+        const { sseStatus } = useBackendState.getState();
+        if (sseStatus !== 'open') return;
         window.dispatchEvent(new CustomEvent('spawn-palette:open'));
       }
     }

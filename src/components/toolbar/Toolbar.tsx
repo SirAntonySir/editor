@@ -4,6 +4,7 @@ import { useEditor } from '@/components/EditorProvider';
 import { useEditorStore } from '@/store';
 import { useAiSession } from '@/hooks/useImageContext';
 import { useCursorBindStore } from '@/store/cursor-bind-slice';
+import { useBackendState } from '@/store/backend-state-slice';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as Separator from '@radix-ui/react-separator';
@@ -18,6 +19,8 @@ export function Toolbar() {
   const setActiveTool = useEditorStore((s) => s.setActiveTool);
   const editorMode = useEditorStore((s) => s.editorMode);
   const hasAiContext = useAiSession((s) => s.context !== null);
+  const sseStatus = useBackendState((s) => s.sseStatus);
+  const backendOpen = sseStatus === 'open';
   const tools = registry.getForMode(editorMode);
 
   const grouped = useMemo(() => {
@@ -64,6 +67,7 @@ export function Toolbar() {
                   key={tool.name}
                   tool={tool}
                   isActive={activeTool === tool.name}
+                  disabled={!!tool.processingId && !backendOpen}
                 />
               ))}
             </div>
@@ -74,27 +78,31 @@ export function Toolbar() {
   );
 }
 
-function ToolButton({ tool, isActive }: { tool: ToolDefinition; isActive: boolean }) {
+function ToolButton({ tool, isActive, disabled }: { tool: ToolDefinition; isActive: boolean; disabled?: boolean }) {
   const Icon = tool.icon;
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
         <ToggleGroup.Item
           value={tool.name}
+          disabled={disabled}
           asChild
         >
           <motion.button
+            disabled={disabled}
             className={`
               relative flex items-center justify-center w-7 h-7
               transition-colors duration-150
-              ${isActive
-                ? 'text-white'
-                : 'text-text-secondary hover:text-text-primary'
+              ${disabled
+                ? 'text-text-secondary opacity-30 cursor-not-allowed'
+                : isActive
+                  ? 'text-white'
+                  : 'text-text-secondary hover:text-text-primary'
               }
             `}
             style={{ borderRadius: 'var(--radius-button)' }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={disabled ? {} : { scale: 1.05 }}
+            whileTap={disabled ? {} : { scale: 0.95 }}
           >
             {isActive && (
               <motion.div

@@ -6,8 +6,6 @@ import type {
   StateEvent,
   Widget,
 } from '@/types/widget';
-import { useEditorStore } from '@/store';
-import { materializeAdjustments } from '@/lib/materialize-adjustments';
 import { maskStore, type Mask } from '@/core/mask-store';
 import { maskPngBase64ToBytes } from '@/lib/sam/sam-client';
 
@@ -96,21 +94,11 @@ export const useBackendState = create<BackendState>()(
           case 'widget.accepted': {
             const id = payload.widget_id as string;
             s.acceptedSuggestions.add(id);
-            const widget = s.snapshot?.widgets.find((w) => w.id === id);
-            if (widget) {
-              const activeLayerId = useEditorStore.getState().activeLayerId;
-              if (!activeLayerId) {
-                console.warn(`[widget.accepted] no active layer when accepting widget ${id}; adjustments dropped`);
-              } else {
-                const adjustments = materializeAdjustments(widget);
-                for (const adj of adjustments) {
-                  useEditorStore.getState().addAdjustment(activeLayerId, adj);
-                }
-              }
-              // Remove widget from snapshot regardless — accept is a backend-confirmed terminal state.
-              if (s.snapshot) {
-                s.snapshot.widgets = s.snapshot.widgets.filter((w) => w.id !== id);
-              }
+            // Remove widget from snapshot — accept is a backend-confirmed terminal state.
+            // Adjustment materialization now happens server-side; the backend will emit
+            // updated operation_graph nodes that the pipeline picks up automatically.
+            if (s.snapshot) {
+              s.snapshot.widgets = s.snapshot.widgets.filter((w) => w.id !== id);
             }
             break;
           }

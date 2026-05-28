@@ -8,7 +8,7 @@ import { lutFragment } from './lut.glsl.ts';
 import { blendFragment } from './blend.glsl.ts';
 import { LutRegistry } from '@/lib/lut-registry';
 import { maskStore } from '@/core/mask-store';
-import type { Adjustment, BlendMode } from '@/store/layer-slice';
+import type { Adjustment, BlendMode } from '@/types/adjustment';
 
 interface FBO {
   framebuffer: WebGLFramebuffer;

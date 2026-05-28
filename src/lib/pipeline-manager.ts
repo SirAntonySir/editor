@@ -1,6 +1,6 @@
 import { WebGLPipeline } from '@/shaders/pipeline';
 import { CanvasRegistry } from './canvas-registry';
-import type { Adjustment } from '@/store/layer-slice';
+import type { Adjustment } from '@/types/adjustment';
 
 class PipelineManagerImpl {
   private pipeline: WebGLPipeline | null = null;

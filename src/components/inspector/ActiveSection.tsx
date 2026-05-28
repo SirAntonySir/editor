@@ -7,9 +7,8 @@ import { scopeEquals } from '@/types/scope';
 
 export function ActiveSection() {
   useBackendState((s) => s.snapshot?.revision ?? 0);
-  useEditorStore((s) =>
-    s.layers.map((l) => `${l.id}:${l.adjustmentStack.adjustments.length}`).join('|'),
-  );
+  // Subscribe to layer changes so projection recomputes when layers change.
+  useEditorStore((s) => s.layers.map((l) => l.id).join('|'));
   const activeScope = useEditorStore((s) => s.activeScope);
   const accepted = useBackendState((s) => s.acceptedSuggestions);
   const sessionId = useBackendState((s) => s.sessionId);
@@ -25,11 +24,7 @@ export function ActiveSection() {
 
   function onRemove(e: React.MouseEvent, uw: UnifiedWidget) {
     e.stopPropagation();
-    if (uw.variant === 'tool' && uw._adjustment) {
-      useEditorStore
-        .getState()
-        .removeAdjustment(uw._adjustment.layerId, uw._adjustment.adjustment.id);
-    } else if (sessionId) {
+    if (sessionId) {
       void backendTools.delete_widget(sessionId, { widget_id: uw.id, suppress_similar: false });
     }
   }

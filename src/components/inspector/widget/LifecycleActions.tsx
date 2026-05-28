@@ -35,7 +35,7 @@ export function LifecycleActions({ widget, isSuggestion, variant = 'ai', onClose
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onClose?.(); }}
-          className="text-[10px] px-2 py-1 rounded bg-surface-secondary text-text-secondary hover:text-text-primary"
+          className="text-[10px] px-2 py-0.5 rounded bg-surface-secondary text-text-secondary hover:text-text-primary"
         >
           Close
         </button>
@@ -70,7 +70,7 @@ export function LifecycleActions({ widget, isSuggestion, variant = 'ai', onClose
             }}
             onBlur={() => { if (!instruction.trim()) setRefining(false); }}
             placeholder="Refine…"
-            className="flex-1 text-[10px] px-1.5 py-1 rounded bg-surface-secondary border border-glass-border text-text-primary outline-none focus:border-accent"
+            className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-surface-secondary border border-glass-border text-text-primary outline-none focus:border-accent"
             disabled={busy}
           />
         </form>
@@ -86,7 +86,7 @@ export function LifecycleActions({ widget, isSuggestion, variant = 'ai', onClose
               void run(() => backendTools.accept_widget(sessionId!, { widget_id: widget.id }));
             }}
             disabled={busy}
-            className="flex-1 text-[10px] py-1 rounded bg-accent text-white font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 text-[10px] py-0.5 rounded bg-accent text-white font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             ✓ Accept
           </button>
@@ -98,7 +98,7 @@ export function LifecycleActions({ widget, isSuggestion, variant = 'ai', onClose
             }}
             disabled={busy}
             className={
-              'w-7 py-1 rounded text-[10px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed ' +
+              'w-6 py-0.5 rounded text-[10px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed ' +
               (refining ? 'bg-accent/20 text-accent' : 'bg-surface-secondary text-text-secondary hover:text-text-primary')
             }
             aria-label="Refine"
@@ -117,7 +117,7 @@ export function LifecycleActions({ widget, isSuggestion, variant = 'ai', onClose
             }}
             disabled={busy}
             className={
-              'w-7 py-1 rounded text-[10px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed ' +
+              'w-6 py-0.5 rounded text-[10px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed ' +
               (refining ? 'bg-accent/20 text-accent' : 'bg-surface-secondary text-text-secondary hover:text-text-primary')
             }
             aria-label="Refine"
@@ -133,7 +133,7 @@ export function LifecycleActions({ widget, isSuggestion, variant = 'ai', onClose
               void run(() => backendTools.repeat_widget(sessionId!, { widget_id: widget.id }));
             }}
             disabled={busy}
-            className="w-7 py-1 rounded text-[10px] flex items-center justify-center bg-surface-secondary text-text-secondary hover:text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-6 py-0.5 rounded text-[10px] flex items-center justify-center bg-surface-secondary text-text-secondary hover:text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Repeat"
             title="Repeat"
           >

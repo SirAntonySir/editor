@@ -44,12 +44,12 @@ export function WidgetCard({ widget, isSuggestion, variant = 'ai', mode = 'canva
         'rounded-lg bg-surface border flex flex-col overflow-hidden ' +
         (variant === 'ai' ? 'border-accent/60' : 'border-glass-border')
       }
-      style={{ minWidth: 200, maxWidth: 230 }}
+      style={{ minWidth: 180, maxWidth: 220 }}
     >
       {/* Header strip */}
       <div
         className={
-          'flex items-center gap-1.5 px-2.5 py-1.5 ' +
+          'flex items-center gap-1.5 px-2 py-1 ' +
           (variant === 'ai' ? 'bg-accent/10' : 'bg-surface-secondary/40')
         }
       >
@@ -57,13 +57,13 @@ export function WidgetCard({ widget, isSuggestion, variant = 'ai', mode = 'canva
           className={
             'flex items-center justify-center rounded-sm text-[8px] font-semibold leading-none ' +
             (variant === 'ai'
-              ? 'bg-accent text-white px-1.5 py-0.5'
-              : 'bg-surface-secondary text-text-secondary px-1.5 py-0.5')
+              ? 'bg-accent text-white px-1 py-px'
+              : 'bg-surface-secondary text-text-secondary px-1 py-px')
           }
         >
           {variant === 'ai' ? 'AI' : '·'}
         </span>
-        <span className="text-xs font-medium text-text-primary flex-1 truncate">{widget.intent}</span>
+        <span className="text-[11px] font-medium text-text-primary flex-1 truncate">{widget.intent}</span>
         <button
           type="button"
           onClick={closeHeader}
@@ -76,7 +76,7 @@ export function WidgetCard({ widget, isSuggestion, variant = 'ai', mode = 'canva
 
       {/* Bindings */}
       {widget.bindings.length > 0 && (
-        <div className="flex flex-col gap-1.5 px-2.5 py-2">
+        <div className="flex flex-col gap-1 px-2 py-1.5">
           {widget.bindings.map((b) => (
             <BindingRow
               key={b.param_key}
@@ -99,7 +99,7 @@ export function WidgetCard({ widget, isSuggestion, variant = 'ai', mode = 'canva
       )}
 
       {/* Lifecycle */}
-      <div className="px-2.5 pb-2">
+      <div className="px-2 pb-1.5">
         <LifecycleActions widget={widget} isSuggestion={isSuggestion} variant={variant} />
       </div>
     </div>

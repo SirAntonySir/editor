@@ -32,7 +32,7 @@ export function Toolbar() {
 
   return (
     <Tooltip.Provider delayDuration={300}>
-      <div className="flex-none w-11 flex flex-col items-center py-2 gap-1 bg-surface border-r border-separator">
+      <div className="flex-none w-10 flex flex-col items-center py-1.5 gap-0.5 bg-surface border-r border-separator">
         <ToggleGroup.Root
           type="single"
           value={activeTool}
@@ -40,14 +40,14 @@ export function Toolbar() {
             if (value) setActiveTool(value);
           }}
           orientation="vertical"
-          className="flex flex-col items-center gap-1"
+          className="flex flex-col items-center gap-0.5"
         >
           {grouped.map((group, gi) => (
-            <div key={group.category} className="flex flex-col items-center gap-1">
+            <div key={group.category} className="flex flex-col items-center gap-0.5">
               {gi > 0 && (
                 <Separator.Root
                   orientation="horizontal"
-                  className="w-4 h-px bg-separator my-1"
+                  className="w-3 h-px bg-separator my-0.5"
                 />
               )}
               {group.tools.map((tool) => (
@@ -76,7 +76,7 @@ function ToolButton({ tool, isActive }: { tool: ToolDefinition; isActive: boolea
         >
           <motion.button
             className={`
-              relative flex items-center justify-center w-8 h-8
+              relative flex items-center justify-center w-7 h-7
               transition-colors duration-150
               ${isActive
                 ? 'text-white'
@@ -94,7 +94,7 @@ function ToolButton({ tool, isActive }: { tool: ToolDefinition; isActive: boolea
                 transition={{ type: 'spring', stiffness: 500, damping: 35 }}
               />
             )}
-            <span className="relative z-10"><Icon size={16} /></span>
+            <span className="relative z-10"><Icon size={14} /></span>
           </motion.button>
         </ToggleGroup.Item>
       </Tooltip.Trigger>

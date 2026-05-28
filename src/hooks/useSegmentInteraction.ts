@@ -1,7 +1,15 @@
 import { useEffect, useRef } from 'react';
 import * as fabric from 'fabric';
 import { useSegmentSelection } from '@/store/segment-selection-slice';
+import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
+
+function syncActiveScopeFromSelection() {
+  const sel = useSegmentSelection.getState().selectedSegmentId;
+  useEditorStore.getState().setActiveScope(
+    sel ? { kind: 'mask', maskRef: sel } : { kind: 'global' },
+  );
+}
 
 /**
  * Pointer state machine wired to the active Fabric canvas. Hover updates
@@ -100,7 +108,12 @@ export function useSegmentInteraction(
 
     function onClick(e: PointerEvent) {
       const p = pointerToImagePx(e);
-      if (!p) return;
+      if (!p) {
+        // Off-image click — deselect to full image.
+        useSegmentSelection.getState().clear();
+        useEditorStore.getState().setActiveScope({ kind: 'global' });
+        return;
+      }
       const hits = massiveHitTest(p.x, p.y, p.imgWidth, p.imgHeight);
       if (e.shiftKey) {
         const maskId = useSegmentSelection.getState().shiftClickAt(p.x, p.y, hits);
@@ -110,10 +123,14 @@ export function useSegmentInteraction(
       } else {
         useSegmentSelection.getState().clickAt(p.x, p.y, hits);
       }
+      syncActiveScopeFromSelection();
     }
 
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') useSegmentSelection.getState().clear();
+      if (e.key === 'Escape') {
+        useSegmentSelection.getState().clear();
+        useEditorStore.getState().setActiveScope({ kind: 'global' });
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('spawn-palette:open'));

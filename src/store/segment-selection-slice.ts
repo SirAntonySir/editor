@@ -45,7 +45,8 @@ export const useSegmentSelection = create<SegmentSelectionState>((set, get) => (
 
   clickAt: (imageX, imageY, candidates) => {
     if (candidates.length === 0) {
-      get().clear();
+      // Off-image / empty hit → drop any cycle, snap to full-image (null).
+      set({ cycleStack: null, selectedSegmentId: null });
       return;
     }
     const prev = get().cycleStack;
@@ -53,9 +54,12 @@ export const useSegmentSelection = create<SegmentSelectionState>((set, get) => (
       && Math.abs(prev.originX - imageX) <= CYCLE_RADIUS_PX
       && Math.abs(prev.originY - imageY) <= CYCLE_RADIUS_PX;
     if (withinRadius && prev) {
-      const nextCursor = (prev.cursor + 1) % prev.candidates.length;
+      // Cycle length = candidates + 1 (the "full image" sentinel after the largest).
+      const len = prev.candidates.length + 1;
+      const nextCursor = (prev.cursor + 1) % len;
       const next: CycleStack = { ...prev, cursor: nextCursor };
-      set({ cycleStack: next, selectedSegmentId: next.candidates[nextCursor] });
+      const sel = nextCursor < prev.candidates.length ? prev.candidates[nextCursor] : null;
+      set({ cycleStack: next, selectedSegmentId: sel });
       return;
     }
     const sorted = sortByPixelCount(candidates);

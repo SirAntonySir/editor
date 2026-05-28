@@ -33,7 +33,7 @@ describe('segment-selection slice', () => {
     expect(useSegmentSelection.getState().selectedSegmentId).toBe(small);
   });
 
-  it('clickAt within ±8px advances the cycle', () => {
+  it('clickAt within ±8px cycles smallest → larger → full-image (null) → wrap', () => {
     const big = registerMask('big', 8);
     const small = registerMask('small', 2);
     useSegmentSelection.getState().clickAt(100, 100, [big, small]);
@@ -41,7 +41,9 @@ describe('segment-selection slice', () => {
     useSegmentSelection.getState().clickAt(104, 102, [big, small]);
     expect(useSegmentSelection.getState().selectedSegmentId).toBe(big);
     useSegmentSelection.getState().clickAt(103, 101, [big, small]);
-    expect(useSegmentSelection.getState().selectedSegmentId).toBe(small);
+    expect(useSegmentSelection.getState().selectedSegmentId).toBeNull(); // full image
+    useSegmentSelection.getState().clickAt(102, 102, [big, small]);
+    expect(useSegmentSelection.getState().selectedSegmentId).toBe(small); // wrap
   });
 
   it('clickAt outside ±8px rebuilds the cycle', () => {

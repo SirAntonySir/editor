@@ -4,6 +4,18 @@ import type { MaskRef, Scope } from '@/types/scope';
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'soft-light' | 'hard-light';
 export type LayerType = string;
 
+/**
+ * Provenance metadata for adjustments that were materialized from an
+ * accepted AI widget. The widget itself is gone post-accept; this tag
+ * lets the UI surface "AI" provenance and the user trace back.
+ */
+export interface AiSource {
+  widgetId: string;      // originating widget id (for log/trace)
+  intent: string;        // human label, e.g. "Warm skin"
+  reasoning?: string;    // optional Claude reasoning
+  acceptedAt: string;    // ISO 8601 timestamp
+}
+
 export interface Adjustment {
   id: string;
   type: string;
@@ -14,6 +26,8 @@ export interface Adjustment {
   params: Record<string, number | Float32Array>;
   /** Scope of this adjustment — defaults to global when absent. */
   scope?: Scope;
+  /** Provenance metadata if accepted from an AI widget. */
+  aiSource?: AiSource;
 }
 
 export interface AdjustmentStack {

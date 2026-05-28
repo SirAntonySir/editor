@@ -32,6 +32,7 @@ interface SerializableAdjustment {
   blendMode: Adjustment['blendMode'];
   opacity: number;
   params: SerializableParams;
+  aiSource?: Adjustment['aiSource'];
 }
 
 interface SerializableLayer {
@@ -111,6 +112,7 @@ function serializeLayer(layer: Layer): SerializableLayer {
         blendMode: adj.blendMode,
         opacity: adj.opacity,
         params: serializeParams(adj.params),
+        aiSource: adj.aiSource,
       })),
     },
     textMeta: layer.textMeta,
@@ -143,6 +145,7 @@ function deserializeLayer(sl: SerializableLayer): Layer {
         blendMode: adj.blendMode,
         opacity: adj.opacity,
         params: deserializeParams(adj.params),
+        aiSource: adj.aiSource,
       })),
     },
     textMeta: sl.textMeta,

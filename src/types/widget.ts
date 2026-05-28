@@ -88,12 +88,20 @@ export type WidgetOriginKind =
   | 'mcp_autonomous'
   | 'fused_expansion'
   | 'refine'
-  | 'repeat';
+  | 'repeat'
+  | 'tool_invoked';
+
+export type WidgetAnchor =
+  | { kind: 'region_label'; label: string }
+  | { kind: 'mask_id'; mask_id: string }
+  | { kind: 'image_point'; x: number; y: number }
+  | { kind: 'global' };
 
 export interface WidgetOrigin {
   kind: WidgetOriginKind;
   prompt?: string | null;
   parent_widget_id?: string | null;
+  anchor?: WidgetAnchor;
 }
 
 export interface WidgetPreview {

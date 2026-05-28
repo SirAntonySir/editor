@@ -35,12 +35,12 @@ function buildShortcuts(): ShortcutEntry[] {
     }
   }
 
-  // Mode toggle: Tab to cycle develop → compose → graph
+  // Mode toggle: Tab to cycle develop → compose
   shortcuts.push({
     key: 'tab',
     action: () => {
       const state = useEditorStore.getState();
-      const modes = ['develop', 'compose', 'graph'] as const;
+      const modes = ['develop', 'compose'] as const;
       const idx = modes.indexOf(state.editorMode as typeof modes[number]);
       state.setEditorMode(modes[(idx + 1) % modes.length]);
     },

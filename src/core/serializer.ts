@@ -2,7 +2,7 @@
  * Serializer — .edp file save/load using fflate ZIP.
  *
  * .edp format (ZIP):
- *   manifest.json     — DocumentMeta + layers + graphPositions + viewport
+ *   manifest.json     — DocumentMeta + layers + viewport
  *   pixels/{id}-source.png
  *   pixels/{id}-working.png  (only if differs from source)
  *   thumbnail.png     — 256px preview
@@ -10,7 +10,6 @@
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 import type { DocumentMeta, SerializableParams, SerializableState, HistoryTreeSnapshot } from './types';
 import type { Layer, Adjustment } from '@/store/layer-slice';
-import type { NodePosition } from '@/types/graph';
 import type { ImageContext } from '@/types/image-context';
 import { pixelStore } from './pixel-store';
 import { exportAllCurvePoints, importAllCurvePoints } from '@/lib/curve-points-store';
@@ -47,7 +46,6 @@ interface Manifest {
   meta: DocumentMeta;
   layers: SerializableLayer[];
   activeLayerId: string | null;
-  graphPositions: Record<string, NodePosition>;
   viewport: { zoom: number; panX: number; panY: number; fitMode: string };
   curvePoints?: Record<string, Record<string, number[]>>;
   history: HistoryTreeSnapshot;
@@ -166,7 +164,6 @@ export interface SaveOptions {
   meta: DocumentMeta;
   layers: Layer[];
   activeLayerId: string | null;
-  graphPositions: Record<string, NodePosition>;
   viewport: { zoom: number; panX: number; panY: number; fitMode: string };
   history: HistoryTreeSnapshot;
   /** key format: `${nodeId}:${pre|post}:${layerId}` */
@@ -175,7 +172,7 @@ export interface SaveOptions {
 }
 
 export async function save(options: SaveOptions): Promise<Blob> {
-  const { meta, layers, activeLayerId, graphPositions, viewport, history, pixelBlobs, imageContext } = options;
+  const { meta, layers, activeLayerId, viewport, history, pixelBlobs, imageContext } = options;
   const files: Record<string, Uint8Array> = {};
 
   // Layer pixel snapshots (unchanged from v1)
@@ -207,7 +204,6 @@ export async function save(options: SaveOptions): Promise<Blob> {
     meta,
     layers: serializableLayers,
     activeLayerId,
-    graphPositions,
     viewport,
     curvePoints: exportAllCurvePoints(),
     history,
@@ -227,7 +223,6 @@ export interface LoadResult {
   meta: DocumentMeta;
   layers: Layer[];
   activeLayerId: string | null;
-  graphPositions: Record<string, NodePosition>;
   viewport: { zoom: number; panX: number; panY: number; fitMode: string };
   history: HistoryTreeSnapshot;
   historyPixelBlobs: Map<string, Blob>;
@@ -251,7 +246,6 @@ export async function load(blob: Blob): Promise<LoadResult> {
       layers: layersFromV1,
       activeLayerId: raw.activeLayerId,
       pixelVersion: 0,
-      graphPositions: raw.graphPositions as Record<string, NodePosition>,
     };
     const migrated = migrateV1ToV2(raw, rootState);
     // The migrated manifest carries the v1 layers as `unknown[]`; coerce to SerializableLayer[]
@@ -261,7 +255,6 @@ export async function load(blob: Blob): Promise<LoadResult> {
       meta: migrated.meta,
       layers: migrated.layers as SerializableLayer[],
       activeLayerId: migrated.activeLayerId,
-      graphPositions: migrated.graphPositions as Record<string, NodePosition>,
       viewport: migrated.viewport,
       curvePoints: migrated.curvePoints,
       history: migrated.history,
@@ -304,7 +297,6 @@ export async function load(blob: Blob): Promise<LoadResult> {
     meta: manifest.meta,
     layers: manifest.layers.map(deserializeLayer),
     activeLayerId: manifest.activeLayerId,
-    graphPositions: manifest.graphPositions,
     viewport: manifest.viewport,
     history: manifest.history,
     historyPixelBlobs,

@@ -64,7 +64,7 @@ function syncStore(): void {
 function ensureInitialized(initialState?: SerializableState): tree.HistoryTree {
   if (state) return state;
   const seed = initialState ?? {
-    layers: [], activeLayerId: null, pixelVersion: 0, graphPositions: {},
+    layers: [], activeLayerId: null, pixelVersion: 0,
   };
   state = tree.createTree(seed);
   return state;

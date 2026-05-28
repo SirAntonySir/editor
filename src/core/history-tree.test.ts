@@ -18,7 +18,7 @@ import {
 } from './history-tree';
 
 function snap(activeLayerId: string | null = null): SerializableState {
-  return { layers: [], activeLayerId, pixelVersion: 0, graphPositions: {} };
+  return { layers: [], activeLayerId, pixelVersion: 0 };
 }
 
 describe('createTree', () => {

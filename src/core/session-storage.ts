@@ -16,7 +16,6 @@
 import type { DocumentMeta } from './types';
 import type { HistoryTreeSnapshot } from './types';
 import type { Layer, Adjustment } from '@/store/layer-slice';
-import type { NodePosition } from '@/types/graph';
 import type { ImageContext } from '@/types/image-context';
 import { exportAllCurvePoints, importAllCurvePoints } from '@/lib/curve-points-store';
 
@@ -51,7 +50,6 @@ interface SessionManifest {
   meta: DocumentMeta;
   layers: SerializableLayer[];
   activeLayerId: string | null;
-  graphPositions: Record<string, NodePosition>;
   viewport: { zoom: number; panX: number; panY: number; fitMode: string };
   editorMode: string;
   savedAt: number;
@@ -208,7 +206,6 @@ export interface SaveSessionOptions {
   meta: DocumentMeta;
   layers: Layer[];
   activeLayerId: string | null;
-  graphPositions: Record<string, NodePosition>;
   viewport: { zoom: number; panX: number; panY: number; fitMode: string };
   editorMode: string;
   history?: HistoryTreeSnapshot;
@@ -222,7 +219,7 @@ export interface SaveSessionOptions {
 
 /** Save current editor state + pixel data to IndexedDB. */
 export async function saveSession(options: SaveSessionOptions): Promise<void> {
-  const { meta, layers, activeLayerId, graphPositions, viewport, editorMode, history, historyPixelBlobs, imageContext, pixelStore } = options;
+  const { meta, layers, activeLayerId, viewport, editorMode, history, historyPixelBlobs, imageContext, pixelStore } = options;
 
   const db = await openDB();
 
@@ -232,7 +229,6 @@ export async function saveSession(options: SaveSessionOptions): Promise<void> {
       meta,
       layers: layers.map(serializeLayer),
       activeLayerId,
-      graphPositions,
       viewport,
       editorMode,
       savedAt: Date.now(),

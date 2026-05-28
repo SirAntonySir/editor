@@ -2,7 +2,6 @@ import * as Menubar from '@radix-ui/react-menubar';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { useSyncExternalStore } from 'react';
 import { Undo2, Redo2, RotateCcw } from 'lucide-react';
-import { useGraphStore } from '@/store/graph-store';
 import { Kbd } from '@/components/ui/kbd';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
@@ -347,13 +346,8 @@ function ViewMenu({
   zoomIn: () => void;
   zoomOut: () => void;
 }) {
-  // Mode switcher disabled — editorMode/setEditorMode no longer needed here.
-  // const editorMode = useEditorStore((s) => s.editorMode);
-  // const setEditorMode = useEditorStore((s) => s.setEditorMode);
   const showHistoryPanel = useEditorStore((s) => s.showHistoryPanel);
   const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel);
-  const showGraphPreview = useGraphStore((s) => s.showGraphPreview);
-  const toggleGraphPreview = useGraphStore((s) => s.toggleGraphPreview);
 
   return (
     <Menubar.Menu>
@@ -381,13 +375,6 @@ function ViewMenu({
             onCheckedChange={() => toggleHistoryPanel()}
           >
             History
-          </CheckItem>
-          <CheckItem
-            checked={showGraphPreview}
-            onCheckedChange={() => toggleGraphPreview()}
-            keys={['P']}
-          >
-            Preview
           </CheckItem>
           {/* Mode switcher disabled — only Develop remains; new workflow TBD.
           <Sep />

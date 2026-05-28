@@ -39,11 +39,6 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
   const lastPointer = useRef({ x: 0, y: 0 });
   const spaceHeld = useRef(false);
 
-  const editorMode = useEditorStore((s) => s.editorMode);
-  const editorModeRef = useRef(editorMode);
-  editorModeRef.current = editorMode;
-  const objectStateSnapshot = useRef<WeakMap<fabric.FabricObject, { selectable: boolean; evented: boolean }>>(new WeakMap());
-
   const { toolContext } = useEditor();
 
   // Connect WebGL adjustment pipeline
@@ -99,10 +94,6 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
       canvas.setDimensions({ width: w, height: h });
       useEditorStore.getState().setCanvasDimensions(w, h);
       canvas.renderAll();
-      // Auto-fit when in graph mode (preview pane)
-      if (editorModeRef.current === 'graph') {
-        fitCanvasToView(canvas);
-      }
     });
     resizeObserver.observe(container);
 
@@ -113,44 +104,6 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Disable interaction & refit when entering graph mode (preview)
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    if (editorMode === 'graph') {
-      canvas.selection = false;
-      canvas.discardActiveObject();
-      const snapshot = objectStateSnapshot.current;
-      canvas.forEachObject((obj) => {
-        snapshot.set(obj, { selectable: obj.selectable, evented: obj.evented });
-        obj.selectable = false;
-        obj.evented = false;
-      });
-      // Fit after container resize settles
-      const timer = setTimeout(() => fitCanvasToView(canvas), 60);
-      return () => clearTimeout(timer);
-    } else {
-      canvas.selection = true;
-      const snapshot = objectStateSnapshot.current;
-      canvas.forEachObject((obj) => {
-        const saved = snapshot.get(obj);
-        obj.selectable = saved?.selectable ?? true;
-        obj.evented = saved?.evented ?? true;
-      });
-      // Re-fit after leaving graph mode (container resizes from split pane to full)
-      const timer = setTimeout(() => {
-        fitCanvasToView(canvas);
-        const z = canvas.getZoom();
-        const vpt = canvas.viewportTransform;
-        useEditorStore.getState().setZoom(z);
-        useEditorStore.getState().setFitMode('fit');
-        useEditorStore.getState().setPan(vpt?.[4] ?? 0, vpt?.[5] ?? 0);
-      }, 60);
-      return () => clearTimeout(timer);
-    }
-  }, [editorMode, canvasRef]);
 
   // Zoom with scroll wheel
   useEffect(() => {

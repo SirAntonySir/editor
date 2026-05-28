@@ -13,8 +13,6 @@ import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { registerAllProcessing } from '@/processing';
 import { registerAllToolManifests } from '@/lib/tool-manifest';
-import { registerAllNodes } from '@/components/graph/registerNodes';
-import { initNodeTypes } from '@/components/graph/nodeTypes';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore, applyPreferences } from '@/store/preferences-store';
 import { editorDocument } from '@/core/document';
@@ -31,11 +29,6 @@ import { CursorBindGhost } from '@/components/widget/CursorBindGhost';
 import { useCursorBind } from '@/hooks/useCursorBind';
 import { Upload } from 'lucide-react';
 
-// Graph workspace disabled — kept for future reference.
-// Lazy-load GraphEditor so @xyflow/react CSS doesn't interfere with Fabric.js canvas
-// const GraphEditor = lazy(() =>
-//   import('@/components/graph/GraphEditor').then((m) => ({ default: m.GraphEditor })),
-// );
 import {
   Empty,
   EmptyHeader,
@@ -59,16 +52,9 @@ ToolRegistry.register(CurvesTool);
 ToolRegistry.register(LevelsTool);
 ToolRegistry.register(FiltersTool);
 
-// Register all node definitions (structural + processing) into NodeRegistry
-registerAllNodes();
-
-// Build graph node types from NodeRegistry (must happen after all nodes are registered)
-initNodeTypes();
-
-/** Main canvas area — switches between full canvas and full-screen graph */
+/** Main canvas area */
 function MainLayout({
   canvasRef,
-  editorMode,
   layers,
   toolDef,
   toolContext,
@@ -76,25 +62,19 @@ function MainLayout({
   handleFileOpen,
 }: {
   canvasRef: React.RefObject<fabric.Canvas | null>;
-  editorMode: string;
   layers: unknown[];
   toolDef: ReturnType<ReturnType<typeof useEditor>['getActiveTool']>;
   toolContext: ReturnType<typeof useEditor>['toolContext'];
   activeTool: string;
   handleFileOpen: () => void;
 }) {
-  const isGraph = editorMode === 'graph' && layers.length > 0;
-  const showHUD = !isGraph;
-
   return (
     <div className="relative flex-1 min-h-0 flex flex-row">
       <Toolbar />
 
       {/* Canvas column */}
       <div className="relative flex-1 min-w-0 min-h-0">
-        {/* Canvas pane — always mounted to avoid remounting Fabric.
-            In graph mode: hidden but kept in DOM so the pipeline stays active. */}
-        <div className={isGraph ? 'w-0 h-0 overflow-hidden absolute' : 'absolute inset-0'}>
+        <div className="absolute inset-0">
           <CanvasContextMenu>
             <div className="absolute inset-0">
               <EditorCanvas canvasRef={canvasRef} />
@@ -102,17 +82,8 @@ function MainLayout({
           </CanvasContextMenu>
         </div>
 
-        {/* Graph workspace disabled — kept for future reference. */}
-        {/* {isGraph && (
-          <Suspense fallback={<div className="absolute inset-0 bg-canvas-bg" />}>
-            <div className="absolute inset-0 bg-canvas-bg">
-              <GraphEditor />
-            </div>
-          </Suspense>
-        )} */}
-
-        {/* Tool canvas overlay — not in graph mode */}
-        {showHUD && toolDef?.CanvasOverlay && <toolDef.CanvasOverlay ctx={toolContext} />}
+        {/* Tool canvas overlay */}
+        {toolDef?.CanvasOverlay && <toolDef.CanvasOverlay ctx={toolContext} />}
 
         {/* Empty state */}
         <AnimatePresence>
@@ -142,19 +113,16 @@ function MainLayout({
         </AnimatePresence>
 
         {/* Status bar — bottom-right of canvas column */}
-        {showHUD && (
-          <div className="absolute bottom-0 right-0 z-20 flex items-center gap-2
-            px-2 py-0.5 text-xs text-text-secondary bg-surface/70 backdrop-blur-sm rounded-tl-sm">
-            <ScopeDisplay />
-            <span className="text-separator">|</span>
-            <span className="capitalize">{activeTool}</span>
-            <span className="text-separator">|</span>
-            <ZoomDisplay />
-          </div>
-        )}
+        <div className="absolute bottom-0 right-0 z-20 flex items-center gap-2
+          px-2 py-0.5 text-xs text-text-secondary bg-surface/70 backdrop-blur-sm rounded-tl-sm">
+          <ScopeDisplay />
+          <span className="text-separator">|</span>
+          <span className="capitalize">{activeTool}</span>
+          <span className="text-separator">|</span>
+          <ZoomDisplay />
+        </div>
       </div>
 
-      {/* Right sidebar — only when not in graph mode */}
       <RightSidebar />
     </div>
   );
@@ -163,7 +131,6 @@ function MainLayout({
 function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | null> }) {
   const { toolContext, getActiveTool } = useEditor();
   const activeTool = useEditorStore((s) => s.activeTool);
-  const editorMode = useEditorStore((s) => s.editorMode);
   const layers = useEditorStore((s) => s.layers);
   const showPreferences = usePreferencesStore((s) => s.showPreferences);
   const toolDef = getActiveTool();
@@ -205,13 +172,11 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
         <MenuBar canvasRef={canvasRef} />
       </div>
 
-      {/* Backend status strip — hidden in graph mode */}
-      {editorMode !== 'graph' && <BackendStatusBar />}
+      <BackendStatusBar />
 
       {/* Main canvas area */}
       <MainLayout
         canvasRef={canvasRef}
-        editorMode={editorMode}
         layers={layers}
         toolDef={toolDef}
         toolContext={toolContext}

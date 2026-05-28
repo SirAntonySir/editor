@@ -22,7 +22,6 @@ describe.each([
       layers: [],
       activeLayerId: v1.activeLayerId,
       pixelVersion: 0,
-      graphPositions: {},
     });
     expect(v2.version).toBe(2);
     expect(v2.history).toBeDefined();

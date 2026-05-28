@@ -12,7 +12,6 @@ import type {
   InteractionSession,
 } from './types';
 import type { EditorState } from '@/store';
-import { useGraphStore } from '@/store/graph-store';
 import { pixelStore } from './pixel-store';
 import * as history from './history';
 import * as historyTree from '@/core/history-tree';
@@ -28,7 +27,7 @@ const SESSION_SAVE_DEBOUNCE_MS = 3000;
 
 // ─── Narrow serialised string values (from JSON manifests) to enum types
 const FIT_MODES = ['fit', 'fill', 'actual'] as const satisfies readonly FitMode[];
-const EDITOR_MODES = ['develop', 'compose', 'graph'] as const satisfies readonly EditorMode[];
+const EDITOR_MODES = ['develop', 'compose'] as const satisfies readonly EditorMode[];
 
 function asFitMode(value: string): FitMode {
   return (FIT_MODES as readonly string[]).includes(value) ? (value as FitMode) : 'fit';
@@ -101,7 +100,6 @@ function captureState(): SerializableState | null {
     layers: structuredClone(s.layers),
     activeLayerId: s.activeLayerId,
     pixelVersion: s.pixelVersion,
-    graphPositions: structuredClone(useGraphStore.getState().graphPositions),
   };
 }
 
@@ -112,7 +110,6 @@ function restoreState(snapshot: SerializableState): void {
     activeLayerId: snapshot.activeLayerId,
     pixelVersion: snapshot.pixelVersion,
   });
-  useGraphStore.getState().setGraphPositions(snapshot.graphPositions);
 }
 
 function markDirty(): void {
@@ -151,7 +148,6 @@ function persistSession(): void {
     meta: s.documentMeta,
     layers: s.layers,
     activeLayerId: s.activeLayerId,
-    graphPositions: useGraphStore.getState().graphPositions,
     viewport: {
       zoom: s.zoom ?? 1,
       panX: s.panX ?? 0,
@@ -243,8 +239,6 @@ function newDocument(): void {
       editorMode: 'develop',
     });
   }
-  useGraphStore.getState().setGraphPositions({});
-
   const seed = captureState();
   if (seed) history.initWith(seed);
 }
@@ -293,8 +287,6 @@ async function openImage(file: File): Promise<void> {
       editorMode: 'develop',
     });
   }
-  useGraphStore.getState().setGraphPositions({});
-
   const seed = captureState();
   if (seed) history.initWith(seed);
 
@@ -323,8 +315,6 @@ async function openEdp(file: File): Promise<void> {
       editorMode: 'develop',
     });
   }
-  useGraphStore.getState().setGraphPositions(result.graphPositions);
-
   // Restore cached image context (if persisted). Note: sessionId stays null —
   // user must use "Re-analyze image" to bind a fresh backend session before
   // Cmd+K / refine become usable again.
@@ -356,7 +346,6 @@ async function save(): Promise<Blob | null> {
     meta: updatedMeta,
     layers: s.layers,
     activeLayerId: s.activeLayerId,
-    graphPositions: useGraphStore.getState().graphPositions,
     viewport: {
       zoom: s.zoom ?? 1,
       panX: s.panX ?? 0,
@@ -612,8 +601,6 @@ async function restoreSession(): Promise<boolean> {
     documentMeta: manifest.meta,
     isDirty: false,
   });
-  useGraphStore.getState().setGraphPositions(manifest.graphPositions);
-
   // For sessions without persisted history (pre-Task-9), seed history with
   // the loaded state so the first undo behaves correctly.
   if (!manifest.history) {

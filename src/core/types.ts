@@ -1,5 +1,4 @@
 import type { Layer } from '@/store/layer-slice';
-import type { NodePosition } from '@/types/graph';
 
 // ─── Document metadata ──────────────────────────────────────────────
 
@@ -19,7 +18,6 @@ export interface SerializableState {
   layers: Layer[];
   activeLayerId: string | null;
   pixelVersion: number;
-  graphPositions: Record<string, NodePosition>;
 }
 
 // ─── Serializable adjustment params (for .edp JSON) ─────────────────

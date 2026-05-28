@@ -7,10 +7,6 @@ import {
   Trash2,
   GripVertical,
   Sun,
-  Spline,
-  SlidersHorizontal,
-  Thermometer,
-  Image as ImageIcon,
   ChevronRight,
   ChevronDown,
   Image,
@@ -20,10 +16,13 @@ import {
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useEditorStore } from '@/store';
+import { useBackendState } from '@/store/backend-state-slice';
+import { useSegmentSelection } from '@/store/segment-selection-slice';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { duplicateLayer } from '@/store/segment-actions';
-import { LutRegistry } from '@/lib/lut-registry';
-import type { Layer, Adjustment, BlendMode } from '@/store/layer-slice';
+import { SegmentRow } from './SegmentRow';
+import type { Layer, BlendMode } from '@/store/layer-slice';
+import type { MaskSummary } from '@/types/widget';
 
 // LayerType is `string` (extensible) — Record key is therefore widened.
 // Unknown types fall back to Image at the access site.
@@ -31,25 +30,6 @@ const LAYER_TYPE_ICONS: Record<string, typeof Sun> = {
   image: Image,
   brush: Paintbrush,
   text: Type,
-};
-
-const ADJUSTMENT_ICONS: Record<Adjustment['type'], typeof Sun> = {
-  basic: Sun,
-  curves: Spline,
-  levels: SlidersHorizontal,
-  kelvin: Thermometer,
-  lut: ImageIcon,
-};
-
-const BLEND_MODE_LABELS: Record<BlendMode, string> = {
-  'normal': 'Normal',
-  'multiply': 'Multiply',
-  'screen': 'Screen',
-  'overlay': 'Overlay',
-  'darken': 'Darken',
-  'lighten': 'Lighten',
-  'soft-light': 'Soft Light',
-  'hard-light': 'Hard Light',
 };
 
 function OpacityInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -138,6 +118,8 @@ export function LayersPanelActions() {
   );
 }
 
+const EMPTY_MASKS: MaskSummary[] = [];
+
 export function LayersPanelBody() {
   const layers = useEditorStore((s) => s.layers);
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
@@ -145,6 +127,8 @@ export function LayersPanelBody() {
   const setActiveLayer = useEditorStore((s) => s.setActiveLayer);
   const updateLayer = useEditorStore((s) => s.updateLayer);
   const removeLayer = useEditorStore((s) => s.removeLayer);
+  // Backend snapshot owns the live mask index; segments nest under their image layer.
+  const masks = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
 
   const sortedLayers = [...layers].sort((a, b) => b.order - a.order);
 
@@ -196,8 +180,13 @@ export function LayersPanelBody() {
             <LayerRow
               key={layer.id}
               layer={layer}
+              masks={masks}
               isActive={layer.id === activeLayerId}
-              onSelect={() => setActiveLayer(layer.id)}
+              onSelect={() => {
+                setActiveLayer(layer.id);
+                useEditorStore.getState().setActiveScope({ kind: 'global' });
+                useSegmentSelection.setState({ selectedSegmentId: null });
+              }}
               onToggleVisibility={() =>
                 updateLayer(layer.id, { visible: !layer.visible })
               }
@@ -216,6 +205,7 @@ export function LayersPanelBody() {
 
 interface LayerRowProps {
   layer: Layer;
+  masks: MaskSummary[];
   isActive: boolean;
   onSelect: () => void;
   onToggleVisibility: () => void;
@@ -226,6 +216,7 @@ interface LayerRowProps {
 
 function LayerRow({
   layer,
+  masks,
   isActive,
   onSelect,
   onToggleVisibility,
@@ -234,7 +225,10 @@ function LayerRow({
   onDuplicate,
 }: LayerRowProps) {
   const [expanded, setExpanded] = useState(true);
-  const adjustments = layer.adjustmentStack.adjustments;
+  // Segments only nest under image layers. In the single-image flow today,
+  // all backend masks attach to the active image layer; once multi-image
+  // lands the projection can filter by mask.layerId.
+  const segmentsForLayer = layer.type === 'image' ? masks : [];
 
   const handleContextAction = useCallback(
     (action: string) => {
@@ -263,7 +257,7 @@ function LayerRow({
               ${isActive ? 'bg-accent/10' : 'hover:bg-surface-secondary'}`}
             onClick={onSelect}
           >
-            {adjustments.length > 0 ? (
+            {segmentsForLayer.length > 0 ? (
               <button
                 onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
                 className="p-0 text-text-secondary/40 flex-shrink-0"
@@ -304,11 +298,11 @@ function LayerRow({
             </button>
           </div>
 
-          {/* Adjustment layers (nested) */}
-          {isActive && expanded && adjustments.length > 0 && (
+          {/* Segments (nested under image layers) */}
+          {isActive && expanded && segmentsForLayer.length > 0 && (
             <div className="border-b border-separator">
-              {adjustments.map((adj) => (
-                <AdjustmentRow key={adj.id} layerId={layer.id} adjustment={adj} />
+              {segmentsForLayer.map((m) => (
+                <SegmentRow key={m.id} layerId={layer.id} mask={m} />
               ))}
             </div>
           )}
@@ -339,94 +333,6 @@ function LayerRow({
         </ContextMenu.Content>
       </ContextMenu.Portal>
     </ContextMenu.Root>
-  );
-}
-
-function AdjustmentRow({ layerId, adjustment }: { layerId: string; adjustment: Adjustment }) {
-  const updateMeta = useEditorStore((s) => s.updateAdjustmentMeta);
-  const removeAdj = useEditorStore((s) => s.removeAdjustment);
-
-  const Icon = ADJUSTMENT_ICONS[adjustment.type] ?? Sun;
-
-  const handleToggle = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    updateMeta(layerId, adjustment.id, { enabled: !adjustment.enabled });
-  };
-
-  const handleRemove = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (adjustment.type === 'lut') {
-      LutRegistry.remove(adjustment.id);
-    }
-    removeAdj(layerId, adjustment.id);
-  };
-
-  const handleBlendChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    e.stopPropagation();
-    updateMeta(layerId, adjustment.id, { blendMode: e.target.value as BlendMode });
-  };
-
-  const handleOpacityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.stopPropagation();
-    updateMeta(layerId, adjustment.id, { opacity: parseFloat(e.target.value) });
-  };
-
-  return (
-    <div className="group">
-      <div
-        className={`flex items-center gap-1 pl-5 pr-2 py-1 text-[11px] transition-colors
-          ${adjustment.enabled ? 'text-text-primary' : 'text-text-secondary/50'}
-          hover:bg-surface-secondary/40`}
-      >
-        <Icon size={11} className="flex-shrink-0 text-text-secondary" />
-
-        <span className="flex-1 truncate">{adjustment.name}</span>
-
-        {adjustment.opacity < 1 && (
-          <span className="text-[9px] text-text-secondary tabular-nums">
-            {Math.round(adjustment.opacity * 100)}%
-          </span>
-        )}
-
-        <button
-          onClick={handleToggle}
-          className="p-0.5 rounded hover:bg-surface-secondary text-text-secondary flex-shrink-0"
-        >
-          {adjustment.enabled ? <Eye size={10} /> : <EyeOff size={10} />}
-        </button>
-
-        <button
-          onClick={handleRemove}
-          className="p-0.5 rounded hover:bg-surface-secondary text-text-secondary flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <Trash2 size={10} />
-        </button>
-      </div>
-
-      {/* Inline blend mode + opacity controls (only for non-normal or when interacting) */}
-      {(adjustment.blendMode !== 'normal' || adjustment.opacity < 1) && (
-        <div className="flex items-center gap-1 pl-5 pr-2 pb-1 text-[10px]" onClick={(e) => e.stopPropagation()}>
-          <select
-            value={adjustment.blendMode}
-            onChange={handleBlendChange}
-            className="bg-transparent text-text-secondary text-[10px] outline-none cursor-pointer"
-          >
-            {Object.entries(BLEND_MODE_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={adjustment.opacity}
-            onChange={handleOpacityChange}
-            className="flex-1 h-1 accent-accent"
-          />
-        </div>
-      )}
-    </div>
   );
 }
 

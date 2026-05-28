@@ -313,6 +313,10 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
           opacity: matches ? 1 : 0.1,
           transition: 'opacity 0.18s ease-out',
           animation: isFocused ? 'widget-pulse 320ms ease-out' : undefined,
+          // Out-of-scope widgets are visually muted AND inert — clicks pass
+          // through to the canvas so the user can re-scope without fighting
+          // a phantom drag handle.
+          pointerEvents: matches ? 'auto' : 'none',
         };
         if (w.variant === 'ai' && w._widget) {
           return (

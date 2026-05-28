@@ -64,7 +64,9 @@ export function selectAllWidgets(): UnifiedWidget[] {
       out.push({
         id: adj.id,
         variant: 'tool',
-        intent: adj.name,
+        // Prefer the AI provenance label over the raw shader type when this
+        // adjustment was materialized from an accepted suggestion.
+        intent: adj.aiSource?.intent ?? adj.name,
         scope: widgetScope,
         anchor: anchorForScope(widgetScope),
         bindings: [],

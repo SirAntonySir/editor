@@ -36,7 +36,6 @@ export function AdjustmentSlider({
 
   const handleValueCommit = ([v]: number[]) => {
     onChange(v);
-    // End the interaction session when the slider thumb is released
     editorDocument.endInteraction();
   };
 
@@ -60,10 +59,13 @@ export function AdjustmentSlider({
     }
   }, [editing]);
 
+  // Fill width as percentage of track for the minimal style.
+  const fillPct = ((value - min) / (max - min || 1)) * 100;
+
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-text-secondary">{label}</span>
+    <div className="flex flex-col gap-0.5" data-no-drag>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] text-text-secondary truncate">{label}</span>
         {editing ? (
           <input
             ref={inputRef}
@@ -75,34 +77,41 @@ export function AdjustmentSlider({
               if (e.key === 'Enter') commitEdit();
               if (e.key === 'Escape') setEditing(false);
             }}
-            className="w-14 text-right text-xs tabular-nums bg-surface-secondary border border-separator rounded-sm px-1 py-0 text-text-primary outline-none focus:border-accent"
+            className="w-10 text-right text-[10px] tabular-nums bg-surface-secondary border border-separator rounded-sm px-1 py-0 text-text-primary outline-none focus:border-accent"
           />
         ) : (
           <span
-            className="text-xs text-text-secondary tabular-nums w-10 text-right cursor-text hover:text-text-primary transition-colors"
+            className="text-[9px] text-text-secondary tabular-nums w-8 text-right cursor-text hover:text-text-primary transition-colors"
             onClick={handleLabelClick}
-          >
-            {display}
-          </span>
+          >{display}</span>
         )}
       </div>
       <Slider.Root
-        className="relative flex items-center select-none touch-none h-4"
+        className="relative flex items-center select-none touch-none h-3 cursor-pointer"
         value={[value]}
         min={min}
         max={max}
         step={step}
         onValueChange={handleValueChange}
         onValueCommit={handleValueCommit}
+        onDoubleClick={() => onChange(resetValue)}
       >
-        <Slider.Track className="relative h-[3px] grow rounded-full bg-separator">
-          <Slider.Range className="absolute h-full rounded-full bg-accent" />
+        <Slider.Track className="relative h-1.5 grow rounded-sm bg-surface-secondary overflow-hidden">
+          <Slider.Range
+            className="absolute h-full rounded-sm"
+            style={{
+              background: `linear-gradient(90deg,
+                color-mix(in srgb, var(--color-accent) 55%, transparent),
+                var(--color-accent))`,
+              width: `${fillPct}%`,
+            }}
+          />
         </Slider.Track>
+        {/* Invisible thumb — Radix needs it for keyboard / aria, but we
+            hide it visually for the minimal pill look. */}
         <Slider.Thumb
-          className="block w-3.5 h-3.5 rounded-full bg-white shadow-button border border-separator
-            focus:outline-none focus-visible:ring-2 focus-visible:ring-accent
-            transition-transform hover:scale-110"
-          onDoubleClick={() => onChange(resetValue)}
+          className="block w-3 h-3 -ml-1.5 opacity-0 focus:opacity-0 focus-visible:opacity-0"
+          aria-label={label}
         />
       </Slider.Root>
     </div>

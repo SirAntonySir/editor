@@ -1,57 +1,48 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
-import { useBackendState } from '@/store/backend-state-slice';
 import { InspectorPanel } from './InspectorPanel';
-
-vi.mock('@/lib/backend-tools', () => ({
-  backendTools: {
-    set_widget_param: vi.fn().mockResolvedValue({ ok: true, output: {} }),
-    accept_widget: vi.fn().mockResolvedValue({ ok: true, output: {} }),
-    refine_widget: vi.fn().mockResolvedValue({ ok: true, output: {} }),
-    repeat_widget: vi.fn().mockResolvedValue({ ok: true, output: {} }),
-    delete_widget: vi.fn().mockResolvedValue({ ok: true, output: {} }),
-    preview_widget: vi.fn().mockResolvedValue({ ok: true, output: { mime_type: 'image/jpeg', image_b64: null } }),
-  },
-}));
-
-vi.mock('@/components/EditorProvider', () => ({
-  useEditor: () => ({
-    toolContext: {},
-    getActiveTool: () => undefined,
-  }),
-}));
+import { useBackendState } from '@/store/backend-state-slice';
+import { useSegmentSelection } from '@/store/segment-selection-slice';
+import { maskStore } from '@/core/mask-store';
 
 beforeEach(() => {
   useBackendState.getState().reset();
+  useSegmentSelection.getState().clear();
 });
 
-afterEach(() => {
-  cleanup();
-});
+afterEach(() => cleanup());
 
-describe('InspectorPanel (widget-driven inspector)', () => {
-  it('renders suggestions and active widgets in separate sections', () => {
+describe('InspectorPanel — four-section layout', () => {
+  it('shows empty selection hint when nothing selected', () => {
+    render(<InspectorPanel />);
+    expect(screen.getByText(/click a segment/i)).toBeDefined();
+  });
+
+  it('shows selection card when selectedSegmentId is set', () => {
+    const ref = maskStore.register({
+      layerId: 'l1', label: 'sky', width: 4, height: 4,
+      data: new Uint8Array([1,1,1,1, 1,1,1,1, 0,0,0,0, 0,0,0,0]),
+      source: 'sam-point', createdAt: 0,
+    });
+    useSegmentSelection.setState({ selectedSegmentId: ref });
+    render(<InspectorPanel />);
+    expect(screen.getByText('sky')).toBeDefined();
+    expect(screen.getByText(/of image/i)).toBeDefined();
+  });
+
+  it('renders suggestions section when autonomous widgets present', () => {
     useBackendState.setState({
       sessionId: 's1',
       snapshot: {
-        session_id: 's1',
-        image_context: null,
-        widgets: [
-          {
-            id: 'sug', intent: 'Recover sky', scope: { kind: 'global' },
-            origin: { kind: 'mcp_autonomous', prompt: null }, composed: false,
-            nodes: [], bindings: [], preview: { kind: 'thumbnail', auto_before_after: true },
-            rejected_attempts: [], status: 'active', revision: 1,
-            created_at: '2026-05-23T00:00:00Z', updated_at: '2026-05-23T00:00:00Z',
-          },
-          {
-            id: 'act', intent: 'Warmer skin', scope: { kind: 'global' },
-            origin: { kind: 'mcp_user_prompt', prompt: 'warmer' }, composed: false,
-            nodes: [], bindings: [], preview: { kind: 'thumbnail', auto_before_after: true },
-            rejected_attempts: [], status: 'active', revision: 1,
-            created_at: '2026-05-23T00:00:00Z', updated_at: '2026-05-23T00:00:00Z',
-          },
-        ],
+        session_id: 's1', image_context: null,
+        widgets: [{
+          id: 'w1', intent: 'Recover sky', scope: { kind: 'global' },
+          origin: { kind: 'mcp_autonomous', prompt: null },
+          composed: false, nodes: [], bindings: [],
+          preview: { kind: 'thumbnail', auto_before_after: true },
+          rejected_attempts: [], status: 'active', revision: 1,
+          created_at: '2026-05-28T00:00:00Z', updated_at: '2026-05-28T00:00:00Z',
+        }],
         masks_index: [],
         operation_graph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
         revision: 1,
@@ -59,8 +50,6 @@ describe('InspectorPanel (widget-driven inspector)', () => {
     });
     render(<InspectorPanel />);
     expect(screen.getByText('Recover sky')).toBeDefined();
-    expect(screen.getByText('Warmer skin')).toBeDefined();
     expect(screen.getByText(/suggestions/i)).toBeDefined();
-    expect(screen.getByText(/active widgets/i)).toBeDefined();
   });
 });

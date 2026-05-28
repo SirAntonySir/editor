@@ -1,77 +1,104 @@
-import { AnimatePresence, motion } from 'framer-motion';
-import { useEditor } from '@/components/EditorProvider';
-import { useEditorStore } from '@/store';
-import { ProcessingRegistry } from '@/lib/processing-registry';
 import { useBackendState } from '@/store/backend-state-slice';
-import { SuggestionsRail } from './SuggestionsRail';
-import { WidgetCard } from './widget/WidgetCard';
+import { useSegmentSelection } from '@/store/segment-selection-slice';
+import { useEditorStore } from '@/store';
+import { selectAllWidgets } from '@/lib/widget-projection';
+import { InspectorWidgetRow } from './InspectorWidgetRow';
+import { maskStore } from '@/core/mask-store';
+import type { MaskSummary } from '@/types/widget';
+
+const EMPTY_MASKS: MaskSummary[] = [];
 
 export function InspectorPanel() {
-  const { toolContext, getActiveTool } = useEditor();
-  const activeTool = useEditorStore((s) => s.activeTool);
-  const activeLayerId = useEditorStore((s) => s.activeLayerId);
-  const toolDef = getActiveTool();
-
-  const processingDef = toolDef?.processingId
-    ? ProcessingRegistry.get(toolDef.processingId)
-    : undefined;
-
-  const hasPanel = !!(processingDef?.Panel || toolDef?.OptionsPanel);
-
-  const snapshot = useBackendState((s) => s.snapshot);
+  const selectedSegmentId = useSegmentSelection((s) => s.selectedSegmentId);
   const accepted = useBackendState((s) => s.acceptedSuggestions);
+  // Use snapshot revision as a stable scalar to trigger re-renders when snapshot changes
+  useBackendState((s) => s.snapshot?.revision ?? 0);
+  const masksIndex = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
+  // Subscribe so projection recomputes when layers change; return length (scalar) to avoid referential instability
+  useEditorStore((s) => s.layers.length);
 
-  const widgets = snapshot?.widgets.filter((w) => w.status === 'active') ?? [];
-  const suggestions = widgets.filter(
-    (w) => w.origin.kind === 'mcp_autonomous' && !accepted.has(w.id),
+  const all = selectAllWidgets();
+  const suggestions = all.filter((w) =>
+    w.variant === 'ai' && w._widget?.origin.kind === 'mcp_autonomous' && !accepted.has(w.id),
   );
-  const actives = widgets.filter((w) => !suggestions.includes(w));
+  const actives = all.filter((w) => !suggestions.includes(w));
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
-      {hasPanel && (
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTool}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.15 }}
-          >
-            <div className="px-3 py-2 text-xs font-medium text-text-secondary border-b border-separator">
-              {processingDef?.label ?? toolDef?.label}
-            </div>
-            {processingDef?.Panel && activeLayerId ? (
-              <processingDef.Panel layerId={activeLayerId} />
-            ) : toolDef?.OptionsPanel ? (
-              <toolDef.OptionsPanel
-                config={toolDef.defaultConfig ?? {}}
-                onConfigChange={() => {}}
-                ctx={toolContext}
-              />
-            ) : null}
-          </motion.div>
-        </AnimatePresence>
-      )}
-      <div className="flex flex-col gap-4 p-3">
-        <SuggestionsRail suggestions={suggestions} />
-        {actives.length > 0 && (
-          <section className="flex flex-col gap-2">
-            <h3 className="text-xs font-medium text-text-secondary uppercase tracking-wide">
-              Active widgets
-            </h3>
-            <div className="flex flex-col gap-2">
-              {actives.map((w) => <WidgetCard key={w.id} widget={w} isSuggestion={false} />)}
-            </div>
-          </section>
+    <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-4">
+
+      {/* Selection */}
+      <section className="rounded-md bg-surface border-l-2 border-accent px-3 py-2">
+        <div className="text-[10px] uppercase tracking-wide text-text-secondary mb-1">Selection</div>
+        {selectedSegmentId ? (
+          <SelectionCard maskId={selectedSegmentId} />
+        ) : (
+          <div className="text-[11px] text-text-secondary">Click a segment on the canvas to scope tools and prompts.</div>
         )}
-        {!hasPanel && widgets.length === 0 && (
-          <div className="flex items-center justify-center px-6 py-8">
-            <p className="text-xs text-text-secondary text-center leading-relaxed">
-              Select a tool with options to see its controls here.
-            </p>
+      </section>
+
+      {/* Active widgets */}
+      {actives.length > 0 && (
+        <section className="flex flex-col gap-1">
+          <div className="text-[10px] uppercase tracking-wide text-text-secondary flex justify-between mb-1">
+            <span>Active widgets</span><span>{actives.length}</span>
           </div>
-        )}
+          {actives.map((w) => <InspectorWidgetRow key={w.id} uw={w} />)}
+        </section>
+      )}
+
+      {/* Suggestions */}
+      {suggestions.length > 0 && (
+        <section className="flex flex-col gap-1">
+          <div className="text-[10px] uppercase tracking-wide text-text-secondary flex justify-between mb-1">
+            <span>Suggestions</span><span>{suggestions.length}</span>
+          </div>
+          {suggestions.map((w) => <InspectorWidgetRow key={w.id} uw={w} />)}
+        </section>
+      )}
+
+      {/* Segments */}
+      {masksIndex.length > 0 && (
+        <section>
+          <div className="text-[10px] uppercase tracking-wide text-text-secondary flex justify-between mb-2">
+            <span>Segments</span><span>{masksIndex.length}</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {masksIndex.map((m) => {
+              const sel = selectedSegmentId === m.id;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => useSegmentSelection.setState({ selectedSegmentId: m.id })}
+                  className={
+                    'px-2 py-0.5 rounded-full text-[10px] ' +
+                    (sel ? 'bg-accent text-white' : 'bg-surface-secondary text-text-primary hover:bg-surface-secondary/80')
+                  }
+                >{m.label ?? m.id.slice(0, 6)}</button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+    </div>
+  );
+}
+
+// Re-export under the old name so any leftover importer of InspectorPanelBody still works.
+export const InspectorPanelBody = InspectorPanel;
+
+function SelectionCard({ maskId }: { maskId: string }) {
+  const mask = maskStore.get(maskId);
+  if (!mask) return <div className="text-[11px] text-text-secondary">Resolving segment…</div>;
+  let setPixels = 0;
+  for (let i = 0; i < mask.data.length; i++) if (mask.data[i]) setPixels++;
+  const totalPixels = mask.width * mask.height;
+  const pct = totalPixels > 0 ? (setPixels / totalPixels) * 100 : 0;
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="text-sm font-medium text-text-primary">{mask.label ?? 'segment'}</div>
+      <div className="text-[10px] text-text-secondary">
+        {pct.toFixed(0)}% of image · {setPixels.toLocaleString()} px
       </div>
     </div>
   );

@@ -142,17 +142,35 @@ export async function maskPngBase64ToBytes(
   return { data: out, width, height };
 }
 
-export const samClient = {
-  async ensureEmbedding(_layerId: string): Promise<void> {
-    const sessionId = await requireSession();
+// Per-session embed promise. Dedupes concurrent ensureEmbedding calls so
+// rapid tool-activate + click sequences don't fire parallel embed requests
+// or race the first decode against an in-flight embed. Invalidated on
+// failure or backend-side cache loss (see "not embedded" recovery in
+// segment()).
+const embedPromises = new Map<string, Promise<void>>();
+
+function embedOnce(sessionId: string): Promise<void> {
+  const cached = embedPromises.get(sessionId);
+  if (cached) return cached;
+  const p = (async () => {
     useEditorStore.getState().setEncoderState('encoding');
     try {
       await postJson('/api/segment/embed', { session_id: sessionId });
       useEditorStore.getState().setEncoderState('ready');
     } catch (err) {
       useEditorStore.getState().setEncoderState('error');
+      embedPromises.delete(sessionId);
       throw err;
     }
+  })();
+  embedPromises.set(sessionId, p);
+  return p;
+}
+
+export const samClient = {
+  async ensureEmbedding(_layerId: string): Promise<void> {
+    const sessionId = await requireSession();
+    return embedOnce(sessionId);
   },
 
   async segment(args: {
@@ -162,14 +180,18 @@ export const samClient = {
   }): Promise<MaskRef> {
     const sessionId = await requireSession();
 
+    // Wait for the embedding before issuing decode. If onActivate already
+    // kicked one off, we await the same promise; if not, this fires the
+    // embed lazily. Either way decode never runs before the embed lands,
+    // so the "click faster than embed" race is gone.
+    await embedOnce(sessionId);
+
     const scale = uploadScaleForLayer(args.layerId);
     const scaledPrompts = scalePromptsForUpload(args.prompts, scale);
 
-    // Auto-recover from "session not embedded" — happens when (a) the tool was
-    // activated and the user clicked before the async embed finished, or
-    // (b) the backend restarted (uvicorn --reload) and lost its in-memory
-    // SAM embeddings while the frontend's sessionId persisted. One embed +
-    // retry resolves both.
+    // Backend can still report "not embedded" if uvicorn --reload dropped
+    // its in-memory cache while our frontend kept the (now-stale) resolved
+    // embed promise. Invalidate + re-embed + retry once.
     let res: {
       mask_png_base64: string;
       width: number;
@@ -184,8 +206,9 @@ export const samClient = {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (!msg.includes('not embedded')) throw err;
-      console.warn('[samClient] session not embedded — embedding and retrying');
-      await this.ensureEmbedding(args.layerId);
+      console.warn('[samClient] backend lost embedding — re-embedding and retrying');
+      embedPromises.delete(sessionId);
+      await embedOnce(sessionId);
       res = await postJson('/api/segment/decode', {
         session_id: sessionId,
         prompts: scaledPrompts,

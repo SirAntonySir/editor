@@ -49,6 +49,18 @@ class SessionDocument(BaseModel):
         self.history.append(ev)
         return ev
 
+    def _emit_phase_started(self, phase: str, *, index: int, total: int) -> StateEvent:
+        """Convenience for the analyze pipeline's phase tracking."""
+        return self._emit("phase.started", {"phase": phase, "index": index, "total": total})
+
+    def _emit_phase_progress(self, phase: str, *, done: int, total: int) -> StateEvent:
+        """For phases with internal sub-counts (currently only mask_precompute)."""
+        return self._emit("phase.progress", {"phase": phase, "done": done, "total": total})
+
+    def _emit_phase_completed(self, phase: str, *, duration_ms: int) -> StateEvent:
+        """Convenience for the analyze pipeline's phase tracking."""
+        return self._emit("phase.completed", {"phase": phase, "duration_ms": duration_ms})
+
     # ---------------- widget mutations ----------------
 
     def add_widget(self, widget: Widget) -> list[StateEvent]:

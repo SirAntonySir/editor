@@ -333,6 +333,7 @@ StateEventKind = Literal[
     "mask.created", "selection.changed",
     "context.updated", "dismissal.added",
     "note.created",
+    "phase.started", "phase.progress", "phase.completed",
 ]
 
 

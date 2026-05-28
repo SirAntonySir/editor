@@ -110,6 +110,12 @@ function serializeLayer(layer: Layer, hasWorkingPixels: boolean): SerializableLa
   };
 }
 
+/**
+ * Deserialise a layer from a serialised format. Note: deserialisation
+ * explicitly enumerates known fields, so unknown keys from older .edp
+ * file formats (e.g. legacy aiSource, aiSteps, operationGraph from
+ * pre-MCP versions) are silently dropped for backwards compat.
+ */
 function deserializeLayer(sl: SerializableLayer): Layer {
   return {
     id: sl.id,

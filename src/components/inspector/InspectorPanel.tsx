@@ -76,9 +76,3 @@ export function InspectorPanel() {
     </div>
   );
 }
-
-/**
- * @deprecated — exported only for existing unit tests that render the
- * widget section directly. Use `InspectorPanel` instead.
- */
-export { InspectorPanel as InspectorPanelWidgets };

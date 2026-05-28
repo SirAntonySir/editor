@@ -6,7 +6,6 @@ import { PipelineManager } from '@/lib/pipeline-manager';
 import { LayerCompositor } from '@/lib/layer-compositor';
 import { applyCropForExport } from '@/lib/crop-display';
 import type { Adjustment, CropMeta } from '@/store/layer-slice';
-import { selectPipelineNodes } from '@/lib/select-pipeline-nodes';
 
 /**
  * Connects the Zustand store to the WebGL pipeline and layer compositor.
@@ -101,11 +100,9 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
     PipelineManager.setRenderCallback(updateFabricImage);
     LayerCompositor.setCompositeCallback(updateFabricImage);
 
-    // TODO: wire widget-projected pipeline nodes through PipelineManager.
-    // The widget Node shape differs from Adjustment (params allow non-number);
-    // needs a mapping layer. For v1 widget previews come from preview_widget.
-    const _widgetNodes = selectPipelineNodes;
-    void _widgetNodes;
+    // TODO: wire selectPipelineNodes() into the WebGL pipeline. Widget Node
+    // params accept non-number values; needs a Node→Adjustment mapper. Until
+    // then, widget previews come from preview_widget on the backend.
 
     const unsubscribe = useEditorStore.subscribe((state) => {
       const { activeLayerId, editorMode, layers, pixelVersion } = state;

@@ -53,14 +53,23 @@ export function ToolWidgetCard({ uw }: ToolWidgetCardProps) {
 }
 
 function scopeLabel(scope: Scope): string {
-  switch (scope.kind) {
+  // Note: scope is typed as widget Scope (mask:click) but at runtime can be the
+  // narrow Scope (mask) from @/types/scope.ts — the widget-projection cast
+  // doesn't transform the data. Cover both shapes here until the two Scope
+  // types are unified.
+  const kind = (scope as { kind: string }).kind;
+  switch (kind) {
     case 'global':
       return 'global';
     case 'named_region':
-      return scope.label;
+      return (scope as { label: string }).label;
     case 'mask:proposed':
-      return scope.label;
+      return (scope as { label: string }).label;
     case 'mask:click':
-      return scope.mask_id ? 'segment' : 'global';
+      return (scope as { mask_id?: string }).mask_id ? 'segment' : 'global';
+    case 'mask':
+      return (scope as { maskRef?: string }).maskRef ? 'segment' : 'global';
+    default:
+      return 'global';
   }
 }

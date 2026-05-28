@@ -49,7 +49,10 @@ export function WidgetCard({ widget, isSuggestion, variant = 'ai', mode = 'canva
             <span className="line-clamp-2 break-words">{widget.intent}</span>
           </button>
           {widget.reasoning && (
-            <p className="text-xs text-text-secondary mt-1 line-clamp-3 break-words">{widget.reasoning}</p>
+            <p className={
+              'text-xs text-text-secondary mt-1 break-words ' +
+              (expanded ? '' : 'line-clamp-3')
+            }>{widget.reasoning}</p>
           )}
         </div>
       </div>

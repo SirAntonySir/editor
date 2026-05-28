@@ -23,6 +23,7 @@ export function SliderControl({ label, value, schema, onChange }: SliderControlP
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full"
+        style={{ accentColor: 'var(--color-accent)' }}
       />
     </div>
   );

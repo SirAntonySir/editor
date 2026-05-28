@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type * as fabric from 'fabric';
 import { useEditorStore } from '@/store';
 import { useCropEditingStore } from '@/store/crop-editing-slice';
+import { useBackendState } from '@/store/backend-state-slice';
 import { PipelineManager } from '@/lib/pipeline-manager';
 import { LayerCompositor } from '@/lib/layer-compositor';
 import { applyCropForExport } from '@/lib/crop-display';
@@ -102,7 +103,12 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
     PipelineManager.setRenderCallback(updateFabricImage);
     LayerCompositor.setCompositeCallback(updateFabricImage);
 
-    const unsubscribe = useEditorStore.subscribe((state) => {
+    // Extracted recompute logic so both store subscriptions can share it.
+    // When either editor state or backend state (widgets, optimistic patches,
+    // operation_graph) changes, we re-derive the combined adjustment list and
+    // push it to the WebGL pipeline.
+    function recompute(): void {
+      const state = useEditorStore.getState();
       const { activeLayerId, editorMode, layers, pixelVersion } = state;
       const layer = layers.find((l) => l.id === activeLayerId);
       const cropMeta = layer?.cropMeta;
@@ -115,9 +121,11 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
           ...(baseAdjustments ?? []),
           ...widgetAdjustments,
         ];
-        // Cheap signature for change detection — base count + widget node ids
+        // Cheap signature: base count + widget node ids + optimistic size so
+        // any in-flight patch change triggers a re-render.
+        const optSize = useBackendState.getState().optimistic.size;
         const combinedSig =
-          `${baseAdjustments?.length ?? 0}|w:${widgetNodes.map((n) => n.id).join(',')}`;
+          `${baseAdjustments?.length ?? 0}|w:${widgetNodes.map((n) => n.id).join(',')}|opt:${optSize}`;
 
         if (
           prevRef.current.mode === editorMode &&
@@ -177,10 +185,14 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
 
         LayerCompositor.requestComposite();
       }
-    });
+    }
+
+    const unsubA = useEditorStore.subscribe(recompute);
+    const unsubB = useBackendState.subscribe(recompute);
 
     return () => {
-      unsubscribe();
+      unsubA();
+      unsubB();
     };
   }, [canvasRef]);
 }

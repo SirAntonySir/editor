@@ -13,18 +13,49 @@ export function toPipelineNode(node: Node): PipelineNode {
 }
 
 /**
- * v1 pass-through. Optimistic patches are applied at the binding-render
- * layer (the slider component holds its own value during drag), so the
- * graph projection doesn't need to merge them here. Future: if we move
- * the WebGL pipeline to read directly from the projected graph, this
- * function will need to rewrite node.params based on binding-target
- * mappings.
+ * Applies in-flight optimistic patches to the projected node list so the
+ * WebGL pipeline sees the correct param values during a slider drag — before
+ * the server round-trip completes (typically 200-500 ms).
+ *
+ * For each (widgetId, patch) entry in `optimistic`:
+ *   1. Locate the widget in the current snapshot.
+ *   2. For each binding patch, find the matching binding by param_key.
+ *   3. Use binding.target to identify the node + param to override.
+ *   4. Return a shallow-cloned node array with those params overwritten.
  */
 export function mergeOptimistic(
   nodes: Node[],
-  _optimistic: Map<string, OptimisticPatch>,
+  optimistic: Map<string, OptimisticPatch>,
 ): Node[] {
-  return nodes;
+  if (optimistic.size === 0) return nodes;
+  const snap = useBackendState.getState().snapshot;
+  if (!snap) return nodes;
+
+  // Build a lookup: node_id -> { param_key -> value }
+  const overrides = new Map<string, Record<string, number | string | boolean>>();
+  for (const [widgetId, patch] of optimistic) {
+    const widget = snap.widgets.find((w) => w.id === widgetId);
+    if (!widget) continue;
+    for (const bp of patch.bindings) {
+      const binding = widget.bindings.find((b) => b.param_key === bp.paramKey);
+      if (!binding) continue;
+      const nodeId = binding.target.node_id;
+      const paramKey = binding.target.param_key;
+      let entry = overrides.get(nodeId);
+      if (!entry) {
+        entry = {};
+        overrides.set(nodeId, entry);
+      }
+      entry[paramKey] = bp.value;
+    }
+  }
+
+  if (overrides.size === 0) return nodes;
+  return nodes.map((n) => {
+    const o = overrides.get(n.id);
+    if (!o) return n;
+    return { ...n, params: { ...n.params, ...o } };
+  });
 }
 
 /**

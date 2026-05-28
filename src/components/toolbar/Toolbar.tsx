@@ -8,9 +8,7 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 import * as Separator from '@radix-ui/react-separator';
 import type { ToolDefinition } from '@/types/tool';
 
-const CATEGORY_ORDER: ToolDefinition['category'][] = [
-  'select', 'adjust', 'filter', 'draw', 'transform', 'ai',
-];
+const CATEGORY_ORDER: ToolDefinition['category'][] = ['adjust', 'filter', 'draw', 'transform'];
 
 export function Toolbar() {
   const { registry } = useEditor();

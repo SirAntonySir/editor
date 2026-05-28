@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, lazy, Suspense } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import type * as fabric from 'fabric';
 import { AnimatePresence } from 'framer-motion';
 import { EditorProvider, useEditor } from '@/components/EditorProvider';
@@ -7,7 +7,6 @@ import { EditorCanvas, loadImageToCanvas } from '@/components/canvas/EditorCanva
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 import { Toolbar } from '@/components/toolbar/Toolbar';
 import { MenuBar } from '@/components/toolbar/MenuBar';
-import { LeftSidebar } from '@/components/panels/LeftSidebar';
 import { RightSidebar } from '@/components/panels/RightSidebar';
 import { PreferencesPage } from '@/components/PreferencesPage';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
@@ -20,9 +19,6 @@ import { useEditorStore } from '@/store';
 import { usePreferencesStore, applyPreferences } from '@/store/preferences-store';
 import { editorDocument } from '@/core/document';
 import { initLayerLifecycle } from '@/core/layer-lifecycle';
-import { SelectTool } from '@/tools/select-tool';
-import { MoveTool } from '@/tools/move-tool';
-import { TransformTool } from '@/tools/transform-tool';
 import { CropCanvasOverlay } from '@/components/canvas/CropOverlay';
 import { useCropEditingStore } from '@/store/crop-editing-slice';
 import { LightTool } from '@/tools/light-tool';
@@ -30,19 +26,18 @@ import { ColorTool } from '@/tools/color-tool';
 import { KelvinTool } from '@/tools/kelvin-tool';
 import { CurvesTool } from '@/tools/curves-tool';
 import { LevelsTool } from '@/tools/levels-tool';
-import { BrushTool } from '@/tools/brush-tool';
 import { TextTool } from '@/tools/text-tool';
 import { FiltersTool } from '@/tools/filters-tool';
 import { CropTool } from '@/tools/crop-tool';
-import { BrushMaskTool } from '@/tools/brush-mask-tool';
 import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
 import { SpawnPaletteWidget } from '@/components/widget/SpawnPaletteWidget';
 import { Upload } from 'lucide-react';
 
+// Graph workspace disabled — kept for future reference.
 // Lazy-load GraphEditor so @xyflow/react CSS doesn't interfere with Fabric.js canvas
-const GraphEditor = lazy(() =>
-  import('@/components/graph/GraphEditor').then((m) => ({ default: m.GraphEditor })),
-);
+// const GraphEditor = lazy(() =>
+//   import('@/components/graph/GraphEditor').then((m) => ({ default: m.GraphEditor })),
+// );
 import {
   Empty,
   EmptyHeader,
@@ -58,20 +53,15 @@ registerAllProcessing();
 // Register LLM-facing tool manifests (Plan 2)
 registerAllToolManifests();
 
-// Register tools
-ToolRegistry.register(SelectTool);
-ToolRegistry.register(MoveTool);
-ToolRegistry.register(TransformTool);
+// Register tools (lean canvas-centric set — adjustment widget tools + text + crop)
 ToolRegistry.register(LightTool);
 ToolRegistry.register(ColorTool);
 ToolRegistry.register(KelvinTool);
 ToolRegistry.register(CurvesTool);
 ToolRegistry.register(LevelsTool);
-ToolRegistry.register(BrushTool);
-ToolRegistry.register(TextTool);
 ToolRegistry.register(FiltersTool);
+ToolRegistry.register(TextTool);
 ToolRegistry.register(CropTool);
-ToolRegistry.register(BrushMaskTool);
 
 // Register all node definitions (structural + processing) into NodeRegistry
 registerAllNodes();
@@ -100,18 +90,10 @@ function MainLayout({
   const isGraph = editorMode === 'graph' && layers.length > 0;
   const isCropEditing = useCropEditingStore((s) => s.isCropEditing);
   const showHUD = !isGraph;
-  // Left sidebar (Layers + History) is only relevant in compose mode where
-  // the user juggles multiple layers. Hidden in develop (single-image edit)
-  // and graph (full-screen node view).
-  const showLeftSidebar = editorMode === 'compose';
 
   return (
     <div className="relative flex-1 min-h-0 flex flex-row">
-      {/* Vertical tool rail — hidden in graph mode where the rail is irrelevant */}
-      {editorMode !== 'graph' && <Toolbar />}
-
-      {/* Left sidebar — canvas modes only */}
-      {showLeftSidebar && <LeftSidebar />}
+      <Toolbar />
 
       {/* Canvas column */}
       <div className="relative flex-1 min-w-0 min-h-0">
@@ -125,14 +107,14 @@ function MainLayout({
           </CanvasContextMenu>
         </div>
 
-        {/* Graph pane — full screen in graph mode */}
-        {isGraph && (
+        {/* Graph workspace disabled — kept for future reference. */}
+        {/* {isGraph && (
           <Suspense fallback={<div className="absolute inset-0 bg-canvas-bg" />}>
             <div className="absolute inset-0 bg-canvas-bg">
               <GraphEditor />
             </div>
           </Suspense>
-        )}
+        )} */}
 
         {/* Crop canvas overlay — shown when crop editing is active (any mode) */}
         {isCropEditing && <CropCanvasOverlay canvasRef={canvasRef} />}

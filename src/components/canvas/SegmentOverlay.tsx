@@ -33,7 +33,7 @@ export function SegmentOverlay({ fabricCanvasRef }: SegmentOverlayProps) {
       ctx.clearRect(0, 0, c.width, c.height);
 
       const fabricImage = f.getObjects().find(
-        (o) => (o as { type?: string }).type === 'image',
+        (o) => o instanceof fabric.FabricImage,
       ) as fabric.FabricImage | undefined;
       if (!fabricImage) return;
 

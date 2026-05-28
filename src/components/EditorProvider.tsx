@@ -3,6 +3,7 @@ import type * as fabric from 'fabric';
 import { useEditorStore } from '@/store';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { useBackendSession } from '@/hooks/useBackendSession';
+import { useSegmentInteraction } from '@/hooks/useSegmentInteraction';
 import type { ToolContext, ToolDefinition } from '@/types/tool';
 
 interface EditorContextValue {
@@ -31,6 +32,7 @@ export function EditorProvider({ children, canvasRef }: EditorProviderProps) {
   // Dark-ship the backend state slice; rendering still uses legacy paths
   // until Task 11 mounts the new InspectorPanel.
   useBackendSession();
+  useSegmentInteraction(canvasRef);
 
   const dispatchCommand = useCallback(
     (toolName: string, commandName: string, payload?: unknown) => {

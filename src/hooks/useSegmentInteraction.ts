@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type * as fabric from 'fabric';
 import { useSegmentSelection } from '@/store/segment-selection-slice';
 import { maskStore } from '@/core/mask-store';
 
@@ -8,12 +9,19 @@ import { maskStore } from '@/core/mask-store';
  * shift+click selects the segment AND opens SpawnPaletteWidget so the user
  * types the prompt (scope auto-fills from the just-selected segment).
  * ⌘/Ctrl+K dispatches the same 'spawn-palette:open' event.
+ *
+ * Accepts a Fabric canvas ref and reads `upperCanvasEl` internally — the upper
+ * canvas is the DOM element where pointer events fire in Fabric.js v5+.
  */
-export function useSegmentInteraction(canvasRef: React.RefObject<HTMLCanvasElement | null>): void {
+export function useSegmentInteraction(
+  fabricCanvasRef: React.RefObject<fabric.Canvas | null>,
+): void {
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const el = canvasRef.current;
+    const fcanvas = fabricCanvasRef.current;
+    if (!fcanvas) return;
+    const el = (fcanvas as fabric.Canvas & { upperCanvasEl?: HTMLCanvasElement }).upperCanvasEl;
     if (!el) return;
 
     function massiveHitTest(imageX: number, imageY: number): string[] {
@@ -72,5 +80,5 @@ export function useSegmentInteraction(canvasRef: React.RefObject<HTMLCanvasEleme
       window.removeEventListener('keydown', onKey);
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     };
-  }, [canvasRef]);
+  }, [fabricCanvasRef]);
 }

@@ -6,6 +6,8 @@ import { PipelineManager } from '@/lib/pipeline-manager';
 import { LayerCompositor } from '@/lib/layer-compositor';
 import { applyCropForExport } from '@/lib/crop-display';
 import type { Adjustment, CropMeta } from '@/store/layer-slice';
+import { selectPipelineNodes } from '@/lib/select-pipeline-nodes';
+import { nodeToAdjustment } from '@/lib/node-to-adjustment';
 
 /**
  * Connects the Zustand store to the WebGL pipeline and layer compositor.
@@ -100,22 +102,27 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
     PipelineManager.setRenderCallback(updateFabricImage);
     LayerCompositor.setCompositeCallback(updateFabricImage);
 
-    // TODO: wire selectPipelineNodes() into the WebGL pipeline. Widget Node
-    // params accept non-number values; needs a Node→Adjustment mapper. Until
-    // then, widget previews come from preview_widget on the backend.
-
     const unsubscribe = useEditorStore.subscribe((state) => {
       const { activeLayerId, editorMode, layers, pixelVersion } = state;
       const layer = layers.find((l) => l.id === activeLayerId);
       const cropMeta = layer?.cropMeta;
 
       if (editorMode === 'develop') {
-        const adjustments = layer?.adjustmentStack.adjustments;
+        const widgetNodes = selectPipelineNodes();
+        const widgetAdjustments = widgetNodes.map(nodeToAdjustment);
+        const baseAdjustments = layer?.adjustmentStack.adjustments;
+        const combined: Adjustment[] = [
+          ...(baseAdjustments ?? []),
+          ...widgetAdjustments,
+        ];
+        // Cheap signature for change detection — base count + widget node ids
+        const combinedSig =
+          `${baseAdjustments?.length ?? 0}|w:${widgetNodes.map((n) => n.id).join(',')}`;
 
         if (
           prevRef.current.mode === editorMode &&
           prevRef.current.layerId === activeLayerId &&
-          prevRef.current.adjustments === adjustments &&
+          prevRef.current.layerHash === combinedSig &&
           prevRef.current.pixelVersion === pixelVersion &&
           prevRef.current.cropMeta === cropMeta
         ) {
@@ -124,8 +131,8 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
         prevRef.current = {
           mode: editorMode,
           layerId: activeLayerId,
-          adjustments,
-          layerHash: '',
+          adjustments: combined,
+          layerHash: combinedSig,
           pixelVersion,
           cropMeta,
         };
@@ -134,13 +141,13 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
 
         const multipleVisibleLayers = layers.filter((l) => l.visible).length > 1;
 
-        if (multipleVisibleLayers || !adjustments || adjustments.length === 0) {
+        if (multipleVisibleLayers || combined.length === 0) {
           LayerCompositor.requestComposite();
           return;
         }
 
         PipelineManager.setSource(activeLayerId);
-        PipelineManager.requestRender([...adjustments]);
+        PipelineManager.requestRender([...combined]);
       } else {
         // Compose / graph / crop modes
         const visibleLayers = layers.filter((l) => l.visible);

@@ -1,10 +1,7 @@
-import { useEffect } from 'react';
 import { SlidersHorizontal, Sparkles } from 'lucide-react';
 import { usePreferencesStore, type RightSidebarTab } from '@/store/preferences-store';
 import { useEditorStore } from '@/store';
 import { useAiSession } from '@/hooks/useImageContext';
-import { useAiChips } from '@/store/ai-chips-store';
-import { setPaletteOpenHandler } from '@/lib/palette-bus';
 import { SidebarShell } from './SidebarShell';
 import { InspectorPanel } from '@/components/inspector/InspectorPanel';
 import { GraphPropertiesPanelBody } from '@/components/graph/GraphPropertiesPanel';
@@ -25,43 +22,6 @@ export function RightSidebar() {
   const editorMode = useEditorStore((s) => s.editorMode);
   const sessionId = useAiSession((s) => s.sessionId);
   const hasContext = useAiSession((s) => s.context != null);
-
-  // External code may request the AI palette via openPaletteWith(target, intent).
-  // The palette already pushes its own target updates onto the palette-bus
-  // (commitTargetChange → setPaletteSeed); here we just uncollapse the sidebar,
-  // switch to the AI tab, and focus the input.
-  useEffect(() => {
-    setPaletteOpenHandler(() => {
-      usePreferencesStore.setState({
-        rightSidebarCollapsed: false,
-        rightSidebarTab: 'ai',
-      });
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const el = document.querySelector<HTMLTextAreaElement>('[data-palette-input="sidebar"]');
-          el?.focus();
-          el?.select();
-        });
-      });
-    });
-    return () => {
-      setPaletteOpenHandler(null);
-    };
-  }, []);
-
-  // Auto-open the right sidebar on the AI tab when a new chip is added.
-  useEffect(() => {
-    let prevLen = useAiChips.getState().chips.length;
-    return useAiChips.subscribe((state) => {
-      if (state.chips.length > prevLen) {
-        usePreferencesStore.setState({
-          rightSidebarCollapsed: false,
-          rightSidebarTab: 'ai',
-        });
-      }
-      prevLen = state.chips.length;
-    });
-  }, []);
 
   return (
     <SidebarShell

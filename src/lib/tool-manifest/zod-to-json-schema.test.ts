@@ -54,14 +54,13 @@ describe('serializeAllManifests', () => {
     ToolManifestRegistry.clear();
     registerAllToolManifests();
     const tools = serializeAllManifests();
-    expect(tools.length).toBe(10);
+    expect(tools.length).toBe(9);
     for (const t of tools) {
       expect(typeof t.name).toBe('string');
       expect(typeof t.description).toBe('string');
       expect(t.input_schema.type).toBe('object');
     }
     expect(tools.map((t) => t.name)).toContain('apply_adjustment');
-    expect(tools.map((t) => t.name)).toContain('propose_panel');
     expect(tools.map((t) => t.name)).toContain('select_named_region');
   });
 });

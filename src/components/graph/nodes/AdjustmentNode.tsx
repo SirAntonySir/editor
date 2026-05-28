@@ -1,7 +1,7 @@
 import { memo, useMemo, useRef, useState } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Sun, Eye, EyeOff, ChevronUp, ChevronDown, Plus } from 'lucide-react';
-import { openPaletteWith } from '@/lib/palette-bus';
+import { usePreferencesStore } from '@/store/preferences-store';
 import type { ProcessingNodeData } from '@/types/graph';
 import { useEditorStore } from '@/store';
 import { useGraphStore } from '@/store/graph-store';
@@ -135,10 +135,16 @@ function AdjustmentNodeInner({ id, data, type, selected }: NodeProps & { data: P
             title="Add AI step here"
             onClick={(e) => {
               e.stopPropagation();
-              openPaletteWith(
-                { kind: 'node', layerId: data.layerId!, adjustmentId: data.adjustmentId! },
-                'append',
-              );
+              // TODO: wire to proposeFromPalette with node context once
+              // the new palette flow supports scoped proposals.
+              usePreferencesStore.setState({
+                rightSidebarCollapsed: false,
+                rightSidebarTab: 'ai',
+              });
+              requestAnimationFrame(() => {
+                const el = document.querySelector<HTMLTextAreaElement>('[data-palette-input="sidebar"]');
+                el?.focus();
+              });
             }}
           >
             <Plus className="w-3 h-3" />

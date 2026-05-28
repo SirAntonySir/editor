@@ -9,7 +9,7 @@
  */
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 import type { DocumentMeta, SerializableParams, SerializableState, HistoryTreeSnapshot } from './types';
-import type { Layer, Adjustment, AiSource } from '@/store/layer-slice';
+import type { Layer, Adjustment } from '@/store/layer-slice';
 import type { NodePosition } from '@/types/graph';
 import type { ImageContext } from '@/types/image-context';
 import { pixelStore } from './pixel-store';
@@ -26,7 +26,6 @@ interface SerializableAdjustment {
   blendMode: Adjustment['blendMode'];
   opacity: number;
   params: SerializableParams;
-  aiSource?: AiSource;
 }
 
 interface SerializableLayer {
@@ -103,7 +102,6 @@ function serializeLayer(layer: Layer, hasWorkingPixels: boolean): SerializableLa
         blendMode: adj.blendMode,
         opacity: adj.opacity,
         params: serializeParams(adj.params),
-        aiSource: adj.aiSource,
       })),
     },
     textMeta: layer.textMeta,
@@ -131,7 +129,6 @@ function deserializeLayer(sl: SerializableLayer): Layer {
         blendMode: adj.blendMode,
         opacity: adj.opacity,
         params: deserializeParams(adj.params),
-        aiSource: adj.aiSource,
       })),
     },
     textMeta: sl.textMeta,

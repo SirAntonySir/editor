@@ -91,21 +91,6 @@ describe('insertAdjustment', () => {
   });
 });
 
-describe('aiSteps map', () => {
-  it('is undefined by default on new layers', () => {
-    useEditorStore.getState().addLayer({
-      id: 'L1',
-      type: 'image',
-      name: 'X',
-      visible: true,
-      opacity: 1,
-      blendMode: 'normal',
-      locked: false,
-    });
-    expect(useEditorStore.getState().layers[0].aiSteps).toBeUndefined();
-  });
-});
-
 describe('Layer.parentLayerId + Layer.layerMask', () => {
   it('accepts new optional fields on addLayer', () => {
     useEditorStore.getState().addLayer({

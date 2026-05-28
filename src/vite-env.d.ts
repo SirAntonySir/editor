@@ -2,7 +2,6 @@
 
 interface ImportMetaEnv {
   readonly VITE_AI_BACKEND_URL?: string;
-  readonly VITE_BACKEND_WIDGETS?: string;
 }
 
 interface ImportMeta {

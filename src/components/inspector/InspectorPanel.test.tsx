@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { useBackendState } from '@/store/backend-state-slice';
-import { InspectorPanelWidgets } from './InspectorPanel';
+import { InspectorPanel } from './InspectorPanel';
 
 vi.mock('@/lib/backend-tools', () => ({
   backendTools: {
@@ -14,6 +14,13 @@ vi.mock('@/lib/backend-tools', () => ({
   },
 }));
 
+vi.mock('@/components/EditorProvider', () => ({
+  useEditor: () => ({
+    toolContext: {},
+    getActiveTool: () => undefined,
+  }),
+}));
+
 beforeEach(() => {
   useBackendState.getState().reset();
 });
@@ -22,7 +29,7 @@ afterEach(() => {
   cleanup();
 });
 
-describe('InspectorPanel (backend widgets enabled)', () => {
+describe('InspectorPanel (widget-driven inspector)', () => {
   it('renders suggestions and active widgets in separate sections', () => {
     useBackendState.setState({
       sessionId: 's1',
@@ -50,7 +57,7 @@ describe('InspectorPanel (backend widgets enabled)', () => {
         revision: 1,
       },
     });
-    render(<InspectorPanelWidgets />);
+    render(<InspectorPanel />);
     expect(screen.getByText('Recover sky')).toBeDefined();
     expect(screen.getByText('Warmer skin')).toBeDefined();
     expect(screen.getByText(/suggestions/i)).toBeDefined();

@@ -162,7 +162,7 @@ class LayerCompositorImpl {
       if (hasPixels || isBranched) {
         rendered = this.renderLayer(layer);
       } else if (enabledAdjs.length > 0 && outputWidth > 0 && outputHeight > 0) {
-        // Adjustment-layer path: pixel-less layer (e.g. ai-panel) processes
+        // Adjustment-layer path: pixel-less layer (e.g. adjustment-only layer) processes
         // the accumulated composite below it through its adjustment stack.
         PipelineManager.setSourceCanvas(this.outputCanvas);
         rendered = PipelineManager.renderSync([...enabledAdjs]);

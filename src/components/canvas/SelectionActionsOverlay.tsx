@@ -1,9 +1,8 @@
 import { useEffect } from 'react';
-import { Layers, Sparkles, X } from 'lucide-react';
+import { Layers, X } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { extractLayerFromMask } from '@/store/segment-actions';
-import { createChipFromMask } from '@/lib/ai-chip-creation';
 
 /**
  * Floating overlay shown above the canvas whenever a mask is committed.
@@ -11,7 +10,6 @@ import { createChipFromMask } from '@/lib/ai-chip-creation';
  * effects.
  *
  *   • Create new layer  → extractLayerFromMask
- *   • Create AI anchor  → createChipFromMask (adds a chip to the AI panel)
  *   • ×                 → discardCommittedMask (Esc shortcut)
  *
  * Hidden when nothing is committed.
@@ -41,7 +39,6 @@ export function SelectionActionsOverlay() {
   return (
     <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 glass-panel px-2 py-1 text-[11px]">
       <span className="flex items-center gap-1 pr-2 mr-1 border-r border-separator text-text-secondary">
-        <Sparkles size={11} className="text-accent" />
         <span className="truncate max-w-[140px]">{label}</span>
       </span>
 
@@ -55,18 +52,6 @@ export function SelectionActionsOverlay() {
           text-text-primary hover:bg-surface-secondary transition-colors cursor-default"
       >
         <Layers size={11} className="text-text-secondary" /> Create layer
-      </button>
-
-      <button
-        type="button"
-        onClick={async () => {
-          await createChipFromMask({ maskRef: ref, sourceLayerId: activeLayerId });
-          discard();
-        }}
-        className="px-2 py-1 rounded inline-flex items-center gap-1
-          text-text-primary hover:bg-surface-secondary transition-colors cursor-default"
-      >
-        <Sparkles size={11} className="text-text-secondary" /> Create AI anchor
       </button>
 
       <span className="mx-1 h-3 w-px bg-separator" />

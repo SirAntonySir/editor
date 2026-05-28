@@ -16,7 +16,6 @@ import {
   Image,
   Paintbrush,
   Type,
-  Sparkles,
 } from 'lucide-react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
@@ -32,7 +31,6 @@ const LAYER_TYPE_ICONS: Record<string, typeof Sun> = {
   image: Image,
   brush: Paintbrush,
   text: Type,
-  'ai-panel': Sparkles,
 };
 
 const ADJUSTMENT_ICONS: Record<Adjustment['type'], typeof Sun> = {

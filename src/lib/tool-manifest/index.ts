@@ -5,7 +5,6 @@ import { getActiveSelectionTool } from './tools/get-active-selection';
 import { selectNamedRegionTool } from './tools/select-named-region';
 import { clearSelectionTool } from './tools/clear-selection';
 import { applyAdjustmentTool } from './tools/apply-adjustment';
-import { proposePanelTool } from './tools/propose-panel';
 import { listLayersTool } from './tools/list-layers';
 import { highlightRegionTool } from './tools/highlight-region';
 import { addNoteTool } from './tools/add-note';
@@ -28,9 +27,8 @@ export function registerAllToolManifests(): void {
   // Selection (2)
   ToolManifestRegistry.register(selectNamedRegionTool);
   ToolManifestRegistry.register(clearSelectionTool);
-  // Action (2)
+  // Action (1)
   ToolManifestRegistry.register(applyAdjustmentTool);
-  ToolManifestRegistry.register(proposePanelTool);
   // Annotation (2)
   ToolManifestRegistry.register(highlightRegionTool);
   ToolManifestRegistry.register(addNoteTool);

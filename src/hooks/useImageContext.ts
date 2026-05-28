@@ -14,8 +14,6 @@ interface AiSessionState {
   context: ImageContext | null;
   status: 'idle' | 'uploading' | 'analysing' | 'ready' | 'error';
   error: string | null;
-  /** Fingerprint of the base-image state when the current context was produced. */
-  lastAnalysedFingerprint: string | null;
   uploadAndAnalyse: (source: UploadSource) => Promise<void>;
   bindCachedSession: (source: UploadSource) => Promise<void>;
   restoreContext: (context: ImageContext) => void;
@@ -159,9 +157,7 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
   context: null,
   status: 'idle',
   error: null,
-  lastAnalysedFingerprint: null,
   async uploadAndAnalyse(source) {
-    const fingerprint = currentImageFingerprint();
     set({ status: 'uploading', error: null, context: null, sessionId: null });
     try {
       const blob = await downscaleForUpload(source);
@@ -175,7 +171,7 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
       if (activeLayerId) {
         await registerRegionPaths(context, activeLayerId);
       }
-      set({ context, status: 'ready', lastAnalysedFingerprint: fingerprint });
+      set({ context, status: 'ready' });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[ImageContext] uploadAndAnalyse failed:', msg, err);
@@ -217,7 +213,7 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
       // Predates the polygon-paths migration — drop it so the UI prompts a
       // fresh analyse instead of showing a context with no usable segments.
       console.warn('[ImageContext] discarding stale cached context (no paths) — re-analyse needed');
-      set({ sessionId: null, context: null, status: 'idle', error: null, lastAnalysedFingerprint: null });
+      set({ sessionId: null, context: null, status: 'idle', error: null });
       return;
     }
     console.log('[ImageContext] (restored from disk)', context);
@@ -225,7 +221,6 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
       context,
       status: 'ready',
       error: null,
-      lastAnalysedFingerprint: currentImageFingerprint(),
     });
     const activeLayerId = useEditorStore.getState().activeLayerId
       ?? useEditorStore.getState().layers.find((l) => l.type === 'image')?.id;
@@ -234,7 +229,7 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
     }
   },
   reset() {
-    set({ sessionId: null, context: null, status: 'idle', error: null, lastAnalysedFingerprint: null });
+    set({ sessionId: null, context: null, status: 'idle', error: null });
   },
 }));
 

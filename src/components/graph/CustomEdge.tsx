@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { type EdgeProps, BaseEdge, EdgeLabelRenderer, getBezierPath, useReactFlow } from '@xyflow/react';
+import { type EdgeProps, BaseEdge, EdgeLabelRenderer, getBezierPath } from '@xyflow/react';
 import { Plus } from 'lucide-react';
-import { openPaletteWith } from '@/lib/palette-bus';
-import type { TargetRef } from '@/types/ai-target';
+import { usePreferencesStore } from '@/store/preferences-store';
 
 export function CustomEdge({
   id,
@@ -16,7 +15,6 @@ export function CustomEdge({
   ...rest
 }: EdgeProps) {
   const [hover, setHover] = useState(false);
-  const { getNode } = useReactFlow();
 
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -29,21 +27,17 @@ export function CustomEdge({
 
   function handlePlusClick(e: React.MouseEvent) {
     e.stopPropagation();
-    const sourceNode = getNode(source);
-    const nodeData = sourceNode?.data as Record<string, unknown> | undefined;
-    const upstreamLayerId = nodeData?.layerId as string | undefined;
-    const upstreamAdjustmentId = nodeData?.adjustmentId as string | undefined;
-
-    if (!upstreamLayerId) {
-      console.warn('[Edge+] missing layerId on source node data', { edgeId: id, source });
-      return;
-    }
-
-    const ref: TargetRef = upstreamAdjustmentId
-      ? { kind: 'node', layerId: upstreamLayerId, adjustmentId: upstreamAdjustmentId }
-      : { kind: 'layer', layerId: upstreamLayerId };
-
-    openPaletteWith(ref, 'splice');
+    // TODO: wire to proposeFromPalette with node context once
+    // the new palette flow supports scoped proposals.
+    usePreferencesStore.setState({
+      rightSidebarCollapsed: false,
+      rightSidebarTab: 'ai',
+    });
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLTextAreaElement>('[data-palette-input="sidebar"]');
+      el?.focus();
+    });
+    void id; void source;
   }
 
   return (

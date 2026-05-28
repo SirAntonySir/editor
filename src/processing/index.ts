@@ -6,7 +6,6 @@ import { curvesProcessing } from './curves';
 import { levelsProcessing } from './levels';
 import { filtersProcessing } from './filters';
 import { cropProcessing } from './crop';
-import { aiPanelProcessing } from './ai-panel';
 
 export function registerAllProcessing(): void {
   ProcessingRegistry.register(lightProcessing);
@@ -16,7 +15,6 @@ export function registerAllProcessing(): void {
   ProcessingRegistry.register(levelsProcessing);
   ProcessingRegistry.register(filtersProcessing);
   ProcessingRegistry.register(cropProcessing);
-  ProcessingRegistry.register(aiPanelProcessing);
 }
 
 export {
@@ -27,5 +25,4 @@ export {
   levelsProcessing,
   filtersProcessing,
   cropProcessing,
-  aiPanelProcessing,
 };

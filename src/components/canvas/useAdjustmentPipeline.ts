@@ -8,8 +8,6 @@ import { applyCropForExport } from '@/lib/crop-display';
 import type { Adjustment, CropMeta } from '@/store/layer-slice';
 import { selectPipelineNodes } from '@/lib/select-pipeline-nodes';
 
-const BACKEND_WIDGETS = import.meta.env.VITE_BACKEND_WIDGETS === '1';
-
 /**
  * Connects the Zustand store to the WebGL pipeline and layer compositor.
  *
@@ -103,16 +101,13 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
     PipelineManager.setRenderCallback(updateFabricImage);
     LayerCompositor.setCompositeCallback(updateFabricImage);
 
-    const unsubscribe = useEditorStore.subscribe((state) => {
-      if (BACKEND_WIDGETS) {
-        // TODO(Task 11.6): wire widget-projected pipeline nodes through
-        // PipelineManager. The widget Node shape differs from Adjustment;
-        // needs a mapping layer. For v1 dark-ship, widget previews come
-        // from preview_widget on the backend.
-        const _widgetNodes = selectPipelineNodes();
-        void _widgetNodes;
-      }
+    // TODO: wire widget-projected pipeline nodes through PipelineManager.
+    // The widget Node shape differs from Adjustment (params allow non-number);
+    // needs a mapping layer. For v1 widget previews come from preview_widget.
+    const _widgetNodes = selectPipelineNodes;
+    void _widgetNodes;
 
+    const unsubscribe = useEditorStore.subscribe((state) => {
       const { activeLayerId, editorMode, layers, pixelVersion } = state;
       const layer = layers.find((l) => l.id === activeLayerId);
       const cropMeta = layer?.cropMeta;

@@ -12,45 +12,21 @@ import {
   BoxSelect,
   Crosshair,
   MousePointerClick,
-  Pencil,
-  X,
 } from 'lucide-react';
 import { useAiSession } from '@/hooks/useImageContext';
 import { useEditorStore } from '@/store';
 import { pixelStore } from '@/core/pixel-store';
-import { maskStore } from '@/core/mask-store';
-import { maskUnion } from '@/lib/mask-overlap';
-import {
-  useAiChips,
-  chipKey,
-  layerKey,
-  type TargetKey,
-} from '@/store/ai-chips-store';
-import { submitPaletteText } from '@/lib/ai-palette-submit';
 import { proposeFromPalette } from '@/lib/palette-actions';
 import type { Layer } from '@/store/layer-slice';
-import type { AiChip } from '@/store/ai-chips-store';
-import type { TargetRef } from '@/types/ai-target';
 
 interface AiCommandPaletteProps {
   disabled?: boolean;
 }
 
-type TargetItem =
-  | { kind: 'layer'; layer: Layer }
-  | { kind: 'chip'; chip: AiChip };
-
-const BACKEND_WIDGETS = import.meta.env.VITE_BACKEND_WIDGETS === '1';
+type TargetItem = { kind: 'layer'; layer: Layer };
 
 export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
-
-  const chips = useAiChips((s) => s.chips);
-  const selectedTargets = useAiChips((s) => s.selectedTargets);
-  const toggleTarget = useAiChips((s) => s.toggleTarget);
-  const selectTarget = useAiChips((s) => s.selectTarget);
-  const removeChip = useAiChips((s) => s.removeChip);
-  const renameChip = useAiChips((s) => s.renameChip);
 
   const layers = useEditorStore((s) => s.layers);
   const setActiveTool = useEditorStore((s) => s.setActiveTool);
@@ -62,14 +38,10 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
   const aiStatus = useAiSession((s) => s.status);
 
   const visibleLayers = layers
-    .filter((l) => l.type !== 'ai-panel')
     .sort((a, b) => b.order - a.order);
 
-  // Flat list of all @-mentionable names + their store key, in display order.
-  const allMentionable = [
-    ...visibleLayers.map((l) => ({ label: l.name, key: layerKey(l.id) })),
-    ...chips.map((c) => ({ label: c.label, key: chipKey(c.id) })),
-  ];
+  // Flat list of all @-mentionable layer names.
+  const allMentionable = visibleLayers.map((l) => ({ label: l.name, key: `layer:${l.id}` }));
 
   // Filtered options when a mention is active.
   const mentionOptions = mention
@@ -88,7 +60,7 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
     setMentionIdx(0);
   }
 
-  function insertMention(opt: { label: string; key: TargetKey }) {
+  function insertMention(opt: { label: string; key: string }) {
     if (!mention) return;
     const before = value.slice(0, mention.start);
     const after = value.slice(mention.start + 1 + mention.query.length);
@@ -97,7 +69,6 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
     const cursor = before.length + inserted.length;
     setValue(next);
     setMention(null);
-    selectTarget(opt.key);
     requestAnimationFrame(() => {
       const el = inputRef.current;
       if (!el) return;
@@ -106,11 +77,7 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
     });
   }
 
-  // No more "Whole image" entry — empty selection means composite at submit.
-  const items: TargetItem[] = [
-    ...visibleLayers.map((l) => ({ kind: 'layer' as const, layer: l })),
-    ...chips.map((c) => ({ kind: 'chip' as const, chip: c })),
-  ];
+  const items: TargetItem[] = visibleLayers.map((l) => ({ kind: 'layer', layer: l }));
 
   const canSubmit = value.trim().length > 0 && !disabled && !busy;
 
@@ -118,13 +85,8 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
     e.preventDefault();
     if (!canSubmit) return;
     setBusy(true);
-    const target = buildTargetRef(selectedTargets, chips, layers);
     try {
-      if (BACKEND_WIDGETS) {
-        await proposeFromPalette(value.trim());
-      } else {
-        await submitPaletteText(value.trim(), target ? { target, intent: 'append' } : null);
-      }
+      await proposeFromPalette(value.trim());
       setValue('');
     } finally {
       setBusy(false);
@@ -132,7 +94,7 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
   }
 
   const statusHint = (() => {
-    if (busy) return 'Generating panel…';
+    if (busy) return 'Sending…';
     if (aiStatus === 'uploading') return 'Uploading image…';
     if (aiStatus === 'analysing') return 'Analysing image…';
     return null;
@@ -163,8 +125,7 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
           />
         </div>
 
-        {/* Target list — multi-select via click toggle.
-            Empty selection = composite (implicit). */}
+        {/* Layer list — context reference for the user. */}
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
           {items.length === 0 ? (
             <div className="px-3 py-4 text-[11px] text-text-secondary/70 leading-snug">
@@ -174,8 +135,7 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
           ) : null}
           <AnimatePresence initial={false}>
             {items.map((item) => {
-              const key = keyFor(item);
-              const active = selectedTargets.has(keyForStore(item));
+              const key = `layer:${item.layer.id}`;
               return (
                 <motion.div
                   key={key}
@@ -184,17 +144,7 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
                   exit={{ opacity: 0, y: -4 }}
                   transition={{ duration: 0.12 }}
                 >
-                  <TargetRow
-                    item={item}
-                    active={active}
-                    onSelect={() => toggleTarget(keyForStore(item))}
-                    onRemove={item.kind === 'chip' ? () => removeChip(item.chip.id) : undefined}
-                    onRename={
-                      item.kind === 'chip'
-                        ? (label) => renameChip(item.chip.id, label)
-                        : undefined
-                    }
-                  />
+                  <LayerRow item={item} />
                 </motion.div>
               );
             })}
@@ -206,8 +156,7 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
           onSubmit={handleSubmit}
           className="relative flex-none min-h-[100px] flex flex-col px-3 pb-3 pt-2 border-t border-separator"
         >
-          {/* @-mention popup — floats above the textarea while a mention
-              query is active and there's at least one match. */}
+          {/* @-mention popup */}
           {mention && mentionOptions.length > 0 && (
             <div
               className="absolute left-3 right-3 bottom-full mb-1 glass-panel z-50
@@ -281,7 +230,7 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
                   handleSubmit(e as unknown as FormEvent);
                 }
               }}
-              placeholder="Describe your edit… (type @ to mention a target)"
+              placeholder="Describe your edit… (type @ to mention a layer)"
               disabled={disabled || busy}
               data-palette-input="sidebar"
               rows={2}
@@ -319,9 +268,6 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
 
 /**
  * Detect whether the textarea cursor is inside an active @-mention zone.
- * A mention is "active" when there's an unfinished `@token` ending at the
- * cursor: the `@` is at the start of the input or preceded by whitespace,
- * and only non-whitespace characters lie between the `@` and the cursor.
  */
 function findActiveMention(
   text: string,
@@ -338,95 +284,6 @@ function findActiveMention(
     if (/\s/.test(ch)) return null;
   }
   return null;
-}
-
-/** React key for the row's <motion.div>. */
-function keyFor(item: TargetItem): string {
-  return item.kind === 'layer' ? `layer:${item.layer.id}` : `chip:${item.chip.id}`;
-}
-
-/** Store-side TargetKey for the selection set. */
-function keyForStore(item: TargetItem): TargetKey {
-  return item.kind === 'layer' ? layerKey(item.layer.id) : chipKey(item.chip.id);
-}
-
-/**
- * Translate the multi-selection set into a single TargetRef for submit.
- *
- *  - empty                                  → composite
- *  - 1 layer (no chips)                     → layer
- *  - 1 chip  (no layers)                    → mask
- *  - many chips (any layers ignored here)   → register a fresh OR-merged
- *                                              mask in maskStore and return
- *                                              a mask TargetRef pointing at it
- *  - 1 chip + 1+ layers (mixed)             → mask of the chip (layer
- *                                              ignored — the mask is more
- *                                              specific)
- *  - many chips + 1+ layers                 → merged chip mask
- *  - only layers (multiple)                 → composite (no useful single
- *                                              layer to pick)
- */
-function buildTargetRef(
-  selected: Set<TargetKey>,
-  chips: AiChip[],
-  layers: Layer[],
-): TargetRef | null {
-  if (selected.size === 0) return { kind: 'composite' };
-
-  const selectedChips: AiChip[] = [];
-  const selectedLayers: Layer[] = [];
-  for (const k of selected) {
-    if (k.startsWith('chip:')) {
-      const id = k.slice(5);
-      const c = chips.find((x) => x.id === id);
-      if (c) selectedChips.push(c);
-    } else if (k.startsWith('layer:')) {
-      const id = k.slice(6);
-      const l = layers.find((x) => x.id === id);
-      if (l) selectedLayers.push(l);
-    }
-  }
-
-  if (selectedChips.length === 0) {
-    if (selectedLayers.length === 1) {
-      return { kind: 'layer', layerId: selectedLayers[0].id };
-    }
-    return { kind: 'composite' };
-  }
-
-  if (selectedChips.length === 1) {
-    const chip = selectedChips[0];
-    return { kind: 'mask', layerId: chip.sourceLayerId, maskRef: chip.maskRef };
-  }
-
-  // Multiple chips → union into a new mask.
-  let merged: { data: Uint8Array; width: number; height: number } | null = null;
-  for (const chip of selectedChips) {
-    const m = maskStore.get(chip.maskRef);
-    if (!m) continue;
-    if (merged === null) {
-      merged = { data: m.data.slice(), width: m.width, height: m.height };
-    } else {
-      // Reuse maskUnion: we need a `Mask` shape on both sides.
-      const result = maskUnion(
-        { id: '', layerId: '', width: merged.width, height: merged.height, data: merged.data, source: 'sam-points', createdAt: 0 },
-        m,
-      );
-      merged = result;
-    }
-  }
-  if (!merged) return { kind: 'composite' };
-  const firstChip = selectedChips[0];
-  const mergedRef = maskStore.register({
-    layerId: firstChip.sourceLayerId,
-    label: selectedChips.map((c) => c.label).join(' + '),
-    width: merged.width,
-    height: merged.height,
-    data: merged.data,
-    source: 'sam-points',
-    createdAt: Date.now(),
-  });
-  return { kind: 'mask', layerId: firstChip.sourceLayerId, maskRef: mergedRef };
 }
 
 // ─── SelectionButton ─────────────────────────────────────────────────
@@ -469,117 +326,27 @@ function SelectionButton({
   );
 }
 
-// ─── TargetRow ────────────────────────────────────────────────────────
+// ─── LayerRow ─────────────────────────────────────────────────────────
 
-function TargetRow({
-  item,
-  active,
-  onSelect,
-  onRemove,
-  onRename,
-}: {
-  item: TargetItem;
-  active: boolean;
-  onSelect: () => void;
-  onRemove?: () => void;
-  onRename?: (label: string) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-
-  const label = labelFor(item);
-
-  const beginRename = () => {
-    if (!onRename) return;
-    setDraft(label);
-    setEditing(true);
-  };
-
-  const commitRename = () => {
-    const next = draft.trim();
-    if (next && next !== label) onRename?.(next);
-    setEditing(false);
-  };
-
+function LayerRow({ item }: { item: TargetItem }) {
   return (
     <div
-      onClick={onSelect}
-      className={`group flex items-center gap-2 pl-2 pr-2 py-1 border-l-2
+      className="group flex items-center gap-2 pl-2 pr-2 py-1 border-l-2
         cursor-default transition-colors
-        ${active
-          ? 'border-l-accent bg-accent/10 text-text-primary'
-          : 'border-l-transparent hover:bg-surface-secondary text-text-primary'
-        }`}
+        border-l-transparent hover:bg-surface-secondary text-text-primary"
     >
-      <TargetThumbnail item={item} />
-      <div className="flex-1 min-w-0 flex items-center">
-        {editing ? (
-          <input
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commitRename}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                commitRename();
-              }
-              if (e.key === 'Escape') setEditing(false);
-              e.stopPropagation();
-            }}
-            onClick={(e) => e.stopPropagation()}
-            className="flex-1 min-w-0 bg-surface px-1 py-0.5 text-[11px] text-text-primary
-              border border-accent/60 rounded-sm outline-none"
-          />
-        ) : (
-          <span className="flex-1 truncate text-[11px]">{label}</span>
-        )}
-      </div>
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        {onRename && !editing && (
-          <button
-            type="button"
-            aria-label="Rename"
-            onClick={(e) => {
-              e.stopPropagation();
-              beginRename();
-            }}
-            className="p-0.5 rounded text-text-secondary hover:text-text-primary hover:bg-surface transition-colors"
-          >
-            <Pencil size={10} />
-          </button>
-        )}
-        {onRemove && (
-          <button
-            type="button"
-            aria-label="Remove"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove();
-            }}
-            className="p-0.5 rounded text-text-secondary hover:text-text-primary hover:bg-surface transition-colors"
-          >
-            <X size={10} />
-          </button>
-        )}
-      </div>
+      <LayerThumbnail layer={item.layer} />
+      <span className="flex-1 truncate text-[11px]">{item.layer.name}</span>
     </div>
   );
 }
 
-function labelFor(item: TargetItem): string {
-  if (item.kind === 'layer') return item.layer.name;
-  return item.chip.label;
-}
+// ─── LayerThumbnail ──────────────────────────────────────────────────
 
-// ─── Thumbnails ──────────────────────────────────────────────────────
-
-function TargetThumbnail({ item }: { item: TargetItem }) {
+function LayerThumbnail({ layer }: { layer: Layer }) {
   const pixelVersion = useEditorStore((s) => s.pixelVersion);
   const ref = useRef<HTMLCanvasElement | null>(null);
-  // Re-render whenever the underlying pixels change (composite recomputes,
-  // layer pixels update, or a mask is replaced).
-  useThumbnail(ref, item, pixelVersion);
+  useLayerThumbnail(ref, layer, pixelVersion);
   return (
     <canvas
       ref={ref}
@@ -590,16 +357,12 @@ function TargetThumbnail({ item }: { item: TargetItem }) {
   );
 }
 
-function useThumbnail(
+function useLayerThumbnail(
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
-  item: TargetItem,
+  layer: Layer,
   pixelVersion: number,
 ) {
-  // Extract item-specific scalars so the dep array is a flat list of primitives.
-  const itemKind = item.kind;
-  const itemLayerId = item.kind === 'layer' ? item.layer.id : '';
-  const itemChipId = item.kind === 'chip' ? item.chip.id : '';
-  const itemMaskRef = item.kind === 'chip' ? item.chip.maskRef : '';
+  const layerId = layer.id;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -610,28 +373,11 @@ function useThumbnail(
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    const source = sourceCanvasFor(item);
+    const source = pixelStore.get(layerId) ?? null;
     if (!source || source.width === 0 || source.height === 0) return;
-
-    if (item.kind === 'chip') {
-      // Cutout: show just the masked segment, cropped to its bbox.
-      // No surrounding image, no colored mask tint.
-      const mask = maskStore.get(item.chip.maskRef);
-      if (mask) drawMaskedCrop(ctx, source, mask, w, h);
-    } else {
-      drawContain(ctx, source, w, h);
-    }
-    // `item` is a fresh object every render; deps use the inner ids.
+    drawContain(ctx, source, w, h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasRef, itemKind, itemLayerId, itemChipId, itemMaskRef, pixelVersion]);
-}
-
-function sourceCanvasFor(item: TargetItem): HTMLCanvasElement | OffscreenCanvas | null {
-  if (item.kind === 'layer') {
-    return pixelStore.get(item.layer.id) ?? null;
-  }
-  // chip
-  return pixelStore.get(item.chip.sourceLayerId) ?? null;
+  }, [canvasRef, layerId, pixelVersion]);
 }
 
 function drawContain(
@@ -646,82 +392,6 @@ function drawContain(
   const dx = (destW - drawW) / 2;
   const dy = (destH - drawH) / 2;
   ctx.drawImage(src, dx, dy, drawW, drawH);
-}
-
-/**
- * Paint just the masked segment, cropped to its bbox, "contain"-fit into the
- * destination rect. No surrounding image; transparent outside the mask.
- */
-function drawMaskedCrop(
-  ctx: CanvasRenderingContext2D,
-  src: HTMLCanvasElement | OffscreenCanvas,
-  mask: { width: number; height: number; data: Uint8Array },
-  destW: number,
-  destH: number,
-) {
-  // Find mask bounding box in mask coordinates.
-  let minX = mask.width;
-  let minY = mask.height;
-  let maxX = -1;
-  let maxY = -1;
-  for (let y = 0; y < mask.height; y++) {
-    const row = y * mask.width;
-    for (let x = 0; x < mask.width; x++) {
-      if (mask.data[row + x] > 0) {
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-      }
-    }
-  }
-  if (maxX < 0) return;
-  const cropW = maxX - minX + 1;
-  const cropH = maxY - minY + 1;
-
-  // Map mask bbox into source pixel coords (mask & source may differ in size).
-  const sx = src.width / mask.width;
-  const sy = src.height / mask.height;
-  const srcX = Math.round(minX * sx);
-  const srcY = Math.round(minY * sy);
-  const srcW = Math.max(1, Math.round(cropW * sx));
-  const srcH = Math.max(1, Math.round(cropH * sy));
-
-  // Compose source crop into a tmp canvas, then clip by the mask.
-  const tmp = new OffscreenCanvas(srcW, srcH);
-  const tctx = tmp.getContext('2d');
-  if (!tctx) return;
-  tctx.drawImage(src, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH);
-
-  // Build the alpha-clip from the mask bbox.
-  const maskCrop = new OffscreenCanvas(cropW, cropH);
-  const mctx = maskCrop.getContext('2d');
-  if (!mctx) return;
-  const img = mctx.createImageData(cropW, cropH);
-  for (let y = 0; y < cropH; y++) {
-    const srcRow = (y + minY) * mask.width;
-    const dstRow = y * cropW;
-    for (let x = 0; x < cropW; x++) {
-      const i = (dstRow + x) * 4;
-      const v = mask.data[srcRow + (x + minX)];
-      img.data[i] = 255;
-      img.data[i + 1] = 255;
-      img.data[i + 2] = 255;
-      img.data[i + 3] = v > 0 ? v : 0;
-    }
-  }
-  mctx.putImageData(img, 0, 0);
-
-  tctx.globalCompositeOperation = 'destination-in';
-  tctx.drawImage(maskCrop, 0, 0, srcW, srcH);
-
-  // Contain-fit into the thumbnail rect.
-  const ratio = Math.min(destW / srcW, destH / srcH);
-  const drawW = srcW * ratio;
-  const drawH = srcH * ratio;
-  const dx = (destW - drawW) / 2;
-  const dy = (destH - drawH) / 2;
-  ctx.drawImage(tmp, dx, dy, drawW, drawH);
 }
 
 export type { AiCommandPaletteProps as _AiCommandPaletteProps };

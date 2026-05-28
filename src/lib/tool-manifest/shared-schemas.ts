@@ -19,24 +19,6 @@ export const scopeSchema = z.discriminatedUnion('kind', [
 ]);
 export type ScopeInput = z.infer<typeof scopeSchema>;
 
-/**
- * Control-binding shape for `propose_panel`. Mirrors the panel-binding
- * schema already in use by the AI panel system (`src/store/ai-panel-actions`).
- * Kept loose here so new control types added in Plan 4 don't require
- * editing the tool manifest.
- */
-export const panelBindingSchema = z.object({
-  paramKey: z.string().describe('Stable identifier for this control within the panel.'),
-  label: z.string().describe('Human-readable label shown next to the control.'),
-  control: z.enum(['slider', 'choice', 'toggle']).describe('Control type rendered in the UI.'),
-  min: z.number().optional(),
-  max: z.number().optional(),
-  step: z.number().optional(),
-  default: z.union([z.number(), z.string(), z.boolean()]).describe('Initial value the user sees.'),
-  reasoning: z.string().optional().describe('One sentence explaining why this control is offered.'),
-});
-export type PanelBindingInput = z.infer<typeof panelBindingSchema>;
-
 /** Common acknowledgement shape — many mutating tools just need ok/error. */
 export const ackSchema = z.object({
   ok: z.boolean(),

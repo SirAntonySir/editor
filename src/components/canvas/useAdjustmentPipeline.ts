@@ -79,87 +79,42 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
     PipelineManager.setRenderCallback(updateFabricImage);
     LayerCompositor.setCompositeCallback(updateFabricImage);
 
-    // Extracted recompute logic so both store subscriptions can share it.
-    // When either editor state or backend state (widgets, optimistic patches,
-    // operation_graph) changes, we re-derive the combined adjustment list and
-    // push it to the WebGL pipeline.
+    // Single source: backend operation_graph filtered by layer_id.
+    // No dual-mode branching — always treat as 'develop'.
     function recompute(): void {
       const state = useEditorStore.getState();
-      const { activeLayerId, editorMode, layers, pixelVersion } = state;
+      const { activeLayerId, layers, pixelVersion } = state;
       const layer = layers.find((l) => l.id === activeLayerId);
+      if (!layer) return;
 
-      if (editorMode === 'develop') {
-        const widgetNodes = selectPipelineNodes();
-        const widgetAdjustments = widgetNodes.map(nodeToAdjustment);
-        const baseAdjustments = layer?.adjustmentStack.adjustments;
-        const combined: Adjustment[] = [
-          ...(baseAdjustments ?? []),
-          ...widgetAdjustments,
-        ];
-        // Signature includes base count + per-widget params (not just ids) so
-        // that slider drags which change param values on the same nodes trip
-        // the dirty-check and the pipeline re-renders the optimistic preview.
-        // Also tracks optimistic map size for in-flight patch changes.
-        const optSize = useBackendState.getState().optimistic.size;
-        const widgetParamsSig = widgetNodes
-          .map((n) => `${n.id}:${Object.entries(n.params).map(([k, v]) => `${k}=${v}`).join(',')}`)
-          .join('|');
-        const combinedSig = `${baseAdjustments?.length ?? 0}|w:${widgetParamsSig}|opt:${optSize}`;
+      // Single source: backend op_graph filtered by layer_id.
+      const allNodes = selectPipelineNodes();
+      const nodes = allNodes.filter((n) => n.layer_id === layer.id);
+      const adjustments = nodes.map(nodeToAdjustment);
 
-        if (
-          prevRef.current.mode === editorMode &&
-          prevRef.current.layerId === activeLayerId &&
-          prevRef.current.layerHash === combinedSig &&
-          prevRef.current.pixelVersion === pixelVersion
-        ) {
-          return;
-        }
-        prevRef.current = {
-          mode: editorMode,
-          layerId: activeLayerId,
-          adjustments: combined,
-          layerHash: combinedSig,
-          pixelVersion,
-        };
+      const optSize = useBackendState.getState().optimistic.size;
+      const sig = nodes
+        .map((n) => `${n.id}:${Object.entries(n.params).map(([k, v]) => `${k}=${v}`).join(',')}`)
+        .join('|');
+      const combinedSig = `${activeLayerId}|n:${sig}|opt:${optSize}|pv:${pixelVersion}`;
 
-        if (!activeLayerId) return;
+      if (prevRef.current.layerHash === combinedSig) return;
+      prevRef.current = {
+        mode: 'develop',
+        layerId: activeLayerId,
+        adjustments,
+        layerHash: combinedSig,
+        pixelVersion,
+      };
 
-        const multipleVisibleLayers = layers.filter((l) => l.visible).length > 1;
-
-        if (multipleVisibleLayers || combined.length === 0) {
-          LayerCompositor.requestComposite();
-          return;
-        }
-
-        PipelineManager.setSource(activeLayerId);
-        PipelineManager.requestRender([...combined]);
-      } else {
-        // Compose / graph / crop modes
-        const visibleLayers = layers.filter((l) => l.visible);
-        const layerHash = visibleLayers
-          .map((l) => `${l.id}:${l.opacity}:${l.blendMode}:${l.order}:${l.adjustmentStack.adjustments.length}`)
-          .join('|');
-
-        const activeAdj = layer?.adjustmentStack.adjustments;
-
-        if (
-          prevRef.current.mode === editorMode &&
-          prevRef.current.layerHash === layerHash &&
-          prevRef.current.adjustments === activeAdj &&
-          prevRef.current.pixelVersion === pixelVersion
-        ) {
-          return;
-        }
-        prevRef.current = {
-          mode: editorMode,
-          layerId: activeLayerId,
-          adjustments: activeAdj,
-          layerHash,
-          pixelVersion,
-        };
-
+      const multipleVisible = layers.filter((l) => l.visible).length > 1;
+      if (multipleVisible || adjustments.length === 0) {
         LayerCompositor.requestComposite();
+        return;
       }
+
+      PipelineManager.setSource(layer.id);
+      PipelineManager.requestRender(adjustments);
     }
 
     const unsubA = useEditorStore.subscribe(recompute);

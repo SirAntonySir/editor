@@ -3,9 +3,8 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { useCursorBindStore } from '@/store/cursor-bind-slice';
 import { selectAllWidgets } from '@/lib/widget-projection';
 import { backendTools } from '@/lib/backend-tools';
-import { scopeMatches } from '@/lib/scope-match';
+import { scopeEquals, type Scope as StoreScope } from '@/types/scope';
 import { AskAiInput } from './AskAiInput';
-import type { Scope as StoreScope } from '@/types/scope';
 
 export function SuggestionsSection() {
   // Subscribe so projection recomputes when snapshot or layers change.
@@ -49,7 +48,7 @@ export function SuggestionsSection() {
       </div>
       <AskAiInput />
       {suggestions.map((w) => {
-        const matches = scopeMatches(activeScope, w.scope);
+        const matches = !activeScope || activeScope.kind === 'global' || scopeEquals(activeScope, w.scope);
         return (
           <button
             key={w.id}

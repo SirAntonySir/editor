@@ -3,7 +3,7 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { useFocusedWidget } from '@/store/focus-slice';
 import { selectAllWidgets, type UnifiedWidget } from '@/lib/widget-projection';
 import { backendTools } from '@/lib/backend-tools';
-import { scopeMatches } from '@/lib/scope-match';
+import { scopeEquals } from '@/types/scope';
 
 export function ActiveSection() {
   useBackendState((s) => s.snapshot?.revision ?? 0);
@@ -41,7 +41,7 @@ export function ActiveSection() {
         <span className="bg-surface-secondary px-1 rounded text-[8px]">{actives.length}</span>
       </div>
       {actives.map((w) => {
-        const matches = scopeMatches(activeScope, w.scope as never);
+        const matches = !activeScope || activeScope.kind === 'global' || scopeEquals(activeScope, w.scope);
         return (
           <button
             key={w.id}

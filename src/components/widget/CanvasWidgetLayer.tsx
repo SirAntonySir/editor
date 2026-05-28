@@ -10,7 +10,7 @@ import { useCursorBindStore } from '@/store/cursor-bind-slice';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { backendTools } from '@/lib/backend-tools';
-import { scopeMatches } from '@/lib/scope-match';
+import { scopeEquals } from '@/types/scope';
 import { useFocusedWidget } from '@/store/focus-slice';
 
 // Base position cache entry — stores the computed position plus the anchor
@@ -303,7 +303,7 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
         const off = dragOffsets.get(w.id) ?? { dx: 0, dy: 0 };
         const left = base.left + off.dx;
         const top = base.top + off.dy;
-        const matches = scopeMatches(activeScope, w.scope as never);
+        const matches = !activeScope || activeScope.kind === 'global' || scopeEquals(activeScope, w.scope);
         const isFocused = focusedId === w.id;
         const positionedStyle: React.CSSProperties = {
           left,

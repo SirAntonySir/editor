@@ -54,16 +54,14 @@ export function selectAllWidgets(): UnifiedWidget[] {
     for (const adj of layer.adjustmentStack.adjustments) {
       if (!adj.enabled) continue;
       if (!adj.scope) continue; // only scoped adjustments become tool widgets
-      // adj.scope is the narrow Scope from @/types/scope; cast to widget Scope for UnifiedWidget
-      const widgetScope = adj.scope as unknown as Scope;
       out.push({
         id: adj.id,
         variant: 'tool',
         // Prefer the AI provenance label over the raw shader type when this
         // adjustment was materialized from an accepted suggestion.
         intent: adj.aiSource?.intent ?? adj.name,
-        scope: widgetScope,
-        anchor: anchorForScope(widgetScope),
+        scope: adj.scope,
+        anchor: anchorForScope(adj.scope),
         bindings: [],
         processingId: adj.type,
         status: 'active',

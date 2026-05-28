@@ -5,6 +5,7 @@ import { selectAllWidgets, type UnifiedWidget } from '@/lib/widget-projection';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
+import { ToolWidgetCard } from './ToolWidgetCard';
 
 interface CanvasWidgetLayerProps {
   fabricCanvasRef: React.RefObject<fabric.Canvas | null>;
@@ -90,27 +91,32 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
       {widgets.map((w) => {
         const pos = anchorPx(w);
         if (!pos) return null;
-        // Tool widgets land in Task 9 — skip for now.
-        if (!w._widget) return null;
-        return (
-          <div
-            key={w.id}
-            className="absolute pointer-events-auto"
-            style={{
-              left: pos.left,
-              top: pos.top,
-              transform: 'translate(-8px, -8px)',
-              maxWidth: 240,
-            }}
-          >
-            <WidgetCard
-              widget={w._widget}
-              isSuggestion={w._widget.origin.kind === 'mcp_autonomous'}
-              variant={w.variant}
-              mode="canvas"
-            />
-          </div>
-        );
+        const positionedStyle: React.CSSProperties = {
+          left: pos.left,
+          top: pos.top,
+          transform: 'translate(-8px, -8px)',
+          maxWidth: 260,
+        };
+        if (w.variant === 'ai' && w._widget) {
+          return (
+            <div key={w.id} className="absolute pointer-events-auto" style={positionedStyle}>
+              <WidgetCard
+                widget={w._widget}
+                isSuggestion={w._widget.origin.kind === 'mcp_autonomous'}
+                variant={w.variant}
+                mode="canvas"
+              />
+            </div>
+          );
+        }
+        if (w.variant === 'tool') {
+          return (
+            <div key={w.id} className="absolute pointer-events-auto" style={positionedStyle}>
+              <ToolWidgetCard uw={w} />
+            </div>
+          );
+        }
+        return null;
       })}
     </div>
   );

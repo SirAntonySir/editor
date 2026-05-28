@@ -121,6 +121,8 @@ export interface LayerSlice {
   // Reorder adjustment layers
   reorderAdjustments: (layerId: string, fromIndex: number, toIndex: number) => void;
 
+  setActiveScope: (scope: Scope | null) => void;
+
   revertAll: () => void;
   bumpPixelVersion: () => void;
 }
@@ -276,6 +278,12 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
       const arr = layer.adjustmentStack.adjustments;
       const [moved] = arr.splice(fromIndex, 1);
       arr.splice(toIndex, 0, moved);
+    }),
+
+  setActiveScope: (scope) =>
+    set((state) => {
+      const s = state as LayerSlice & { activeScope: Scope | null };
+      s.activeScope = scope;
     }),
 
   revertAll: () =>

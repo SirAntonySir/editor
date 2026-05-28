@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import type { ToolDefinition } from '@/types/tool';
 import { useEditorStore } from '@/store';
+import { useSegmentSelection } from '@/store/segment-selection-slice';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { LutRegistry } from '@/lib/lut-registry';
 import {
@@ -124,4 +125,10 @@ export const FiltersTool: ToolDefinition = {
   icon: ImageIcon,
   category: 'filter',
   processingId: 'filter',
+  onActivate: () => {
+    const sid = useSegmentSelection.getState().selectedSegmentId;
+    useEditorStore.getState().setActiveScope(
+      sid ? { kind: 'mask', maskRef: sid } : null,
+    );
+  },
 };

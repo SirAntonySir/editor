@@ -1,5 +1,7 @@
 import { Sun } from 'lucide-react';
 import type { ToolDefinition } from '@/types/tool';
+import { useEditorStore } from '@/store';
+import { useSegmentSelection } from '@/store/segment-selection-slice';
 
 export const LightTool: ToolDefinition = {
   name: 'light',
@@ -8,4 +10,10 @@ export const LightTool: ToolDefinition = {
   category: 'adjust',
   shortcut: 'B',
   processingId: 'light',
+  onActivate: () => {
+    const sid = useSegmentSelection.getState().selectedSegmentId;
+    useEditorStore.getState().setActiveScope(
+      sid ? { kind: 'mask', maskRef: sid } : null,
+    );
+  },
 };

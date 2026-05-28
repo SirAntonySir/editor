@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { type EdgeProps, BaseEdge, EdgeLabelRenderer, getBezierPath } from '@xyflow/react';
 import { Plus } from 'lucide-react';
-import { usePreferencesStore } from '@/store/preferences-store';
 
 export function CustomEdge({
   id,
@@ -27,16 +26,9 @@ export function CustomEdge({
 
   function handlePlusClick(e: React.MouseEvent) {
     e.stopPropagation();
-    // TODO: wire to proposeFromPalette with node context once
-    // the new palette flow supports scoped proposals.
-    usePreferencesStore.setState({
-      rightSidebarCollapsed: false,
-      rightSidebarTab: 'ai',
-    });
-    requestAnimationFrame(() => {
-      const el = document.querySelector<HTMLTextAreaElement>('[data-palette-input="sidebar"]');
-      el?.focus();
-    });
+    // Route to the floating SpawnPaletteWidget. Node-scoped proposals
+    // will land here once the spawn palette supports custom anchors.
+    window.dispatchEvent(new CustomEvent('spawn-palette:open'));
     void id; void source;
   }
 

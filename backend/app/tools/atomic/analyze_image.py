@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import io
 import time
+import uuid
 
 import numpy as np
 from PIL import Image
@@ -11,8 +12,10 @@ from pydantic import BaseModel
 from app.api import deps
 from app.schemas.enriched_context import EnrichedImageContext, RegionStats
 from app.schemas.image_context import CandidateRegion
+from app.schemas.widget import MaskRecord
 from app.state.context_stats import compute_cheap_pass
 from app.state.document import SessionDocument
+from app.tools.atomic.select_by_point import _encode_mask_png_b64
 from app.tools.base import BackendTool, ToolPermissions
 
 
@@ -44,38 +47,30 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
 
         TOTAL_PHASES = 5
 
-        # Shared state for cross-phase data. Phases run concurrently so we use
-        # a dict rather than local rebinding (Python closures are read-only for
-        # simple names but dict mutation is fine).
-        _shared: dict = {}
+        # Load image ONCE upfront, in an executor so the event loop stays free.
+        # arr is used by mechanical (compute_cheap_pass) and sam_embed (sam.embed).
+        arr = await asyncio.get_running_loop().run_in_executor(
+            None,
+            lambda: np.array(Image.open(io.BytesIO(doc.image_bytes)).convert("RGB")),
+        )
+        h_img, w_img = arr.shape[:2]
 
         async def _phase_mechanical():
             doc._emit_phase_started("mechanical", index=1, total=TOTAL_PHASES)
             start = time.monotonic()
-            img = Image.open(io.BytesIO(doc.image_bytes)).convert("RGB")
-            arr = np.array(img)
-            cheap = compute_cheap_pass(arr)
-            _shared["arr"] = arr
+            cheap = await asyncio.get_running_loop().run_in_executor(
+                None, compute_cheap_pass, arr,
+            )
             doc._emit_phase_completed(
                 "mechanical", duration_ms=int((time.monotonic() - start) * 1000),
             )
-            return arr, cheap
+            return cheap
 
         async def _phase_sam_embed() -> bool:
             doc._emit_phase_started("sam_embed", index=2, total=TOTAL_PHASES)
             start = time.monotonic()
             try:
-                # Wait for the image array from the mechanical phase so we can
-                # pass it to embed(). We poll briefly — mechanical is cheap
-                # (pure-CPU image decode) so contention is minimal.
-                loop = asyncio.get_running_loop()
-                deadline = time.monotonic() + 30.0  # generous timeout
-                while "arr" not in _shared:
-                    if time.monotonic() > deadline:
-                        raise RuntimeError("timed out waiting for image array")
-                    await asyncio.sleep(0.01)
-                arr = _shared["arr"]
-                await loop.run_in_executor(
+                await asyncio.get_running_loop().run_in_executor(
                     None, sam.embed, doc.session_id, arr,
                 )
                 doc._emit_phase_completed(
@@ -92,8 +87,7 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
         async def _phase_ai_context():
             doc._emit_phase_started("ai_context", index=3, total=TOTAL_PHASES)
             start = time.monotonic()
-            loop = asyncio.get_running_loop()
-            base_ctx = await loop.run_in_executor(
+            base_ctx = await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: client.analyze_image(
                     image_bytes=doc.image_bytes,
@@ -106,7 +100,7 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
             )
             return base_ctx
 
-        (arr, cheap), sam_ok, base_ctx = await asyncio.gather(
+        cheap, sam_ok, base_ctx = await asyncio.gather(
             _phase_mechanical(), _phase_sam_embed(), _phase_ai_context(),
         )
 
@@ -149,7 +143,7 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
         doc._emit("context.updated", {"available": True})
 
         if sam_ok:
-            await _precompute_region_masks(doc, base_ctx.candidate_regions, sam)
+            await _precompute_region_masks(doc, base_ctx.candidate_regions, sam, w_img, h_img)
         else:
             doc._emit_phase_started("mask_precompute", index=4, total=TOTAL_PHASES)
             doc._emit_phase_completed("mask_precompute", duration_ms=0)
@@ -168,13 +162,12 @@ async def _precompute_region_masks(
     doc: SessionDocument,
     regions: list[CandidateRegion],
     sam,
+    w_img: int,
+    h_img: int,
 ) -> None:
-    """Decode a SAM mask for each candidate region concurrently.
-
-    Emits phase.started / phase.progress (per region) / phase.completed.
-    Individual region failures are logged and skipped — they do not abort the
-    pipeline.
-    """
+    """Decode SAM masks for each Anthropic-named candidate region. Stores
+    them in doc.masks (the document-level MaskRecord store) so downstream
+    tools can resolve `scope.named_region` -> mask. Soft-fails per region."""
     total = len(regions)
     doc._emit_phase_started("mask_precompute", index=4, total=5)
     start = time.monotonic()
@@ -188,20 +181,27 @@ async def _precompute_region_masks(
 
     async def _decode_one(region: CandidateRegion) -> None:
         try:
-            loop = asyncio.get_running_loop()
-            mask_array, mask_id = await loop.run_in_executor(
+            # Convert normalized [x, y, w, h] -> pixel [x1, y1, x2, y2]
+            x, y, w, h = region.bbox
+            pixel_bbox = np.array([
+                x * w_img, y * h_img,
+                (x + w) * w_img, (y + h) * h_img,
+            ], dtype=np.float32)
+            mask = await asyncio.get_running_loop().run_in_executor(
                 None,
-                lambda: sam.decode_box_for_region(
-                    doc.session_id, region.bbox, region.label,
-                ),
+                lambda: sam.decode_box(doc.session_id, pixel_bbox),
             )
-            doc._emit("mask.created", {
-                "mask_id": mask_id,
-                "label": region.label,
-                "source": "ai-proposed",
-                "width": int(mask_array.shape[1]),
-                "height": int(mask_array.shape[0]),
-            })
+            mask_id = str(uuid.uuid4())
+            png_b64 = _encode_mask_png_b64(mask)
+            record = MaskRecord(
+                id=mask_id,
+                width=int(mask.shape[1]),
+                height=int(mask.shape[0]),
+                png_b64=png_b64,
+                source="sam_box",
+                label=region.label,
+            )
+            doc.add_mask(record)
         except Exception as err:
             print(f"[mask_precompute] failed for region {region.label!r}: {err}")
         finally:

@@ -95,31 +95,6 @@ class SessionStore:
             record.document = _new_document(sid, record)
         return record.document
 
-    def register_mask(
-        self,
-        session_id: str,
-        mask_array: "np.ndarray",
-        *,
-        label: str,
-        source: str,
-    ) -> str:
-        """Store a mask bitmap on the session record and return its id."""
-        import uuid
-        import numpy as np  # noqa: F401 — only used for type narrowing
-        mask_id = str(uuid.uuid4())
-        rec = self.get(session_id)
-        if not hasattr(rec, "masks"):
-            rec.masks = {}  # type: ignore[attr-defined]
-        rec.masks[mask_id] = {  # type: ignore[attr-defined]
-            "id": mask_id,
-            "label": label,
-            "source": source,
-            "width": int(mask_array.shape[1]),
-            "height": int(mask_array.shape[0]),
-            "data": mask_array.astype("uint8").tobytes(),
-        }
-        return mask_id
-
     @contextmanager
     def with_document_lock(self, sid: str) -> Iterator["SessionDocument"]:
         record = self.get(sid)

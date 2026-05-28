@@ -63,9 +63,7 @@ async def test_phase_events_emitted_in_order():
         mock_sam = MagicMock()
         mock_sam.embed.return_value = None
         import numpy as np
-        mock_sam.decode_box_for_region.return_value = (
-            np.zeros((10, 10), dtype="uint8"), "m_1"
-        )
+        mock_sam.decode_box.return_value = np.zeros((10, 10), dtype="uint8")
         mock_deps.get_anthropic_client.return_value = mock_client
         mock_deps.get_sam_client.return_value = mock_sam
         mock_deps.get_session_store.return_value.set_context = MagicMock()

@@ -3,7 +3,6 @@ import { render, screen, cleanup } from '@testing-library/react';
 import { InspectorPanel } from './InspectorPanel';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useSegmentSelection } from '@/store/segment-selection-slice';
-import { maskStore } from '@/core/mask-store';
 
 beforeEach(() => {
   useBackendState.getState().reset();
@@ -12,25 +11,20 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
-describe('InspectorPanel — four-section layout', () => {
-  it('shows empty selection hint when nothing selected', () => {
+describe('InspectorPanel — Suggestions / Active / Layers', () => {
+  it('renders the three section headings', () => {
     render(<InspectorPanel />);
-    expect(screen.getByText(/click a segment/i)).toBeDefined();
+    expect(screen.getByText(/suggestions/i)).toBeDefined();
+    expect(screen.getByText(/active/i)).toBeDefined();
+    expect(screen.getByText(/layers/i)).toBeDefined();
   });
 
-  it('shows selection card when selectedSegmentId is set', () => {
-    const ref = maskStore.register({
-      layerId: 'l1', label: 'sky', width: 4, height: 4,
-      data: new Uint8Array([1,1,1,1, 1,1,1,1, 0,0,0,0, 0,0,0,0]),
-      source: 'sam-point', createdAt: 0,
-    });
-    useSegmentSelection.setState({ selectedSegmentId: ref });
+  it('renders the Ask AI input at the top of Suggestions', () => {
     render(<InspectorPanel />);
-    expect(screen.getByText('sky')).toBeDefined();
-    expect(screen.getByText(/\d+%/)).toBeDefined();
+    expect(screen.getByPlaceholderText(/ask ai/i)).toBeDefined();
   });
 
-  it('renders suggestions section when autonomous widgets present', () => {
+  it('renders an autonomous suggestion row', () => {
     useBackendState.setState({
       sessionId: 's1',
       snapshot: {
@@ -50,6 +44,5 @@ describe('InspectorPanel — four-section layout', () => {
     });
     render(<InspectorPanel />);
     expect(screen.getByText('Recover sky')).toBeDefined();
-    expect(screen.getByText(/suggestions/i)).toBeDefined();
   });
 });

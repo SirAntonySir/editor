@@ -1,7 +1,7 @@
 import * as Menubar from '@radix-ui/react-menubar';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { useSyncExternalStore } from 'react';
-import { Undo2, Redo2, SlidersHorizontal, Layers, Workflow, RotateCcw } from 'lucide-react';
+import { Undo2, Redo2, RotateCcw } from 'lucide-react';
 import { useGraphStore } from '@/store/graph-store';
 import { Kbd } from '@/components/ui/kbd';
 import { useEditorStore } from '@/store';
@@ -14,7 +14,8 @@ import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
 import { useCanvasZoom } from '@/hooks/useCanvasZoom';
 import { useImageTransform } from '@/hooks/useImageTransform';
 import type { HistoryStoreState } from '@/core/history';
-import type { EditorMode } from '@/store/tool-slice';
+// EditorMode type only used by disabled ModeBtn — kept for future reference.
+// import type { EditorMode } from '@/store/tool-slice';
 import type * as fabric from 'fabric';
 
 /* ------------------------------------------------------------------ */
@@ -151,8 +152,8 @@ export function MenuBar({ canvasRef }: { canvasRef: React.RefObject<fabric.Canva
         {/* Undo / Redo */}
         <UndoRedoButtons />
 
-        {/* Mode switcher */}
-        <ModeSwitcherButtons />
+        {/* Mode switcher disabled — only Develop remained, made redundant. */}
+        {/* <ModeSwitcherButtons /> */}
       </div>
     </>
   );
@@ -346,8 +347,9 @@ function ViewMenu({
   zoomIn: () => void;
   zoomOut: () => void;
 }) {
-  const editorMode = useEditorStore((s) => s.editorMode);
-  const setEditorMode = useEditorStore((s) => s.setEditorMode);
+  // Mode switcher disabled — editorMode/setEditorMode no longer needed here.
+  // const editorMode = useEditorStore((s) => s.editorMode);
+  // const setEditorMode = useEditorStore((s) => s.setEditorMode);
   const showHistoryPanel = useEditorStore((s) => s.showHistoryPanel);
   const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel);
   const showGraphPreview = useGraphStore((s) => s.showGraphPreview);
@@ -387,6 +389,7 @@ function ViewMenu({
           >
             Preview
           </CheckItem>
+          {/* Mode switcher disabled — only Develop remains; new workflow TBD.
           <Sep />
           <Menubar.Label className={labelClass}>Mode</Menubar.Label>
 
@@ -411,6 +414,7 @@ function ViewMenu({
           >
             Graph
           </CheckItem>
+          */}
         </Menubar.Content>
       </Menubar.Portal>
     </Menubar.Menu>
@@ -595,45 +599,47 @@ function UndoRedoButtons() {
 /*  Mode switcher                                                     */
 /* ------------------------------------------------------------------ */
 
-function ModeSwitcherButtons() {
-  const editorMode = useEditorStore((s) => s.editorMode);
-  const setEditorMode = useEditorStore((s) => s.setEditorMode);
+// Mode switcher disabled — component preserved for future reference.
+// function ModeSwitcherButtons() {
+//   const editorMode = useEditorStore((s) => s.editorMode);
+//   const setEditorMode = useEditorStore((s) => s.setEditorMode);
+//
+//   return (
+//     <Tooltip.Provider delayDuration={300}>
+//       <div className="flex items-center gap-px">
+//         <ModeBtn mode="develop" label="Develop" icon={<SlidersHorizontal size={11} />} isActive={editorMode === 'develop'} onClick={() => setEditorMode('develop')} />
+//         <ModeBtn mode="compose" label="Compose" icon={<Layers size={11} />} isActive={editorMode === 'compose'} onClick={() => setEditorMode('compose')} />
+//         <ModeBtn mode="graph" label="Graph" icon={<Workflow size={11} />} isActive={editorMode === 'graph'} onClick={() => setEditorMode('graph')} />
+//       </div>
+//     </Tooltip.Provider>
+//   );
+// }
 
-  return (
-    <Tooltip.Provider delayDuration={300}>
-      <div className="flex items-center gap-px">
-        <ModeBtn mode="develop" label="Develop" icon={<SlidersHorizontal size={11} />} isActive={editorMode === 'develop'} onClick={() => setEditorMode('develop')} />
-        <ModeBtn mode="compose" label="Compose" icon={<Layers size={11} />} isActive={editorMode === 'compose'} onClick={() => setEditorMode('compose')} />
-        <ModeBtn mode="graph" label="Graph" icon={<Workflow size={11} />} isActive={editorMode === 'graph'} onClick={() => setEditorMode('graph')} />
-      </div>
-    </Tooltip.Provider>
-  );
-}
-
-function ModeBtn({ label, icon, isActive, onClick }: {
-  mode: EditorMode;
-  label: string;
-  icon: React.ReactNode;
-  isActive: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <button
-          className={`flex items-center gap-1 px-1.5 py-px rounded-[3px] text-[11px] leading-tight font-medium transition-colors cursor-default
-            ${isActive ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary'}`}
-          onClick={onClick}
-        >
-          {icon}
-          {label}
-        </button>
-      </Tooltip.Trigger>
-      <Tooltip.Portal>
-        <Tooltip.Content className="glass-panel px-1.5 py-0.5 text-[10px] text-text-primary z-[60]" sideOffset={6}>
-          {label} <Kbd keys={['tab']} className="inline-flex ml-1" />
-        </Tooltip.Content>
-      </Tooltip.Portal>
-    </Tooltip.Root>
-  );
-}
+// ModeBtn disabled — preserved for future reference.
+// function ModeBtn({ label, icon, isActive, onClick }: {
+//   mode: EditorMode;
+//   label: string;
+//   icon: React.ReactNode;
+//   isActive: boolean;
+//   onClick: () => void;
+// }) {
+//   return (
+//     <Tooltip.Root>
+//       <Tooltip.Trigger asChild>
+//         <button
+//           className={`flex items-center gap-1 px-1.5 py-px rounded-[3px] text-[11px] leading-tight font-medium transition-colors cursor-default
+//             ${isActive ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary'}`}
+//           onClick={onClick}
+//         >
+//           {icon}
+//           {label}
+//         </button>
+//       </Tooltip.Trigger>
+//       <Tooltip.Portal>
+//         <Tooltip.Content className="glass-panel px-1.5 py-0.5 text-[10px] text-text-primary z-[60]" sideOffset={6}>
+//           {label} <Kbd keys={['tab']} className="inline-flex ml-1" />
+//         </Tooltip.Content>
+//       </Tooltip.Portal>
+//     </Tooltip.Root>
+//   );
+// }

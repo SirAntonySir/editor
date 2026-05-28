@@ -1,15 +1,12 @@
-import { SlidersHorizontal, Sparkles } from 'lucide-react';
+import { SlidersHorizontal } from 'lucide-react';
 import { usePreferencesStore, type RightSidebarTab } from '@/store/preferences-store';
 import { useEditorStore } from '@/store';
-import { useAiSession } from '@/hooks/useImageContext';
 import { SidebarShell } from './SidebarShell';
 import { InspectorPanel } from '@/components/inspector/InspectorPanel';
 import { GraphPropertiesPanelBody } from '@/components/graph/GraphPropertiesPanel';
-import { AiCommandPalette } from '@/components/AiCommandPalette';
 
 const TABS: { id: RightSidebarTab; label: string; Icon: typeof SlidersHorizontal }[] = [
   { id: 'inspector', label: 'Inspector', Icon: SlidersHorizontal },
-  { id: 'ai', label: 'AI', Icon: Sparkles },
 ];
 
 export function RightSidebar() {
@@ -20,8 +17,6 @@ export function RightSidebar() {
   const tab = usePreferencesStore((s) => s.rightSidebarTab);
   const setTab = usePreferencesStore((s) => s.setRightSidebarTab);
   const editorMode = useEditorStore((s) => s.editorMode);
-  const sessionId = useAiSession((s) => s.sessionId);
-  const hasContext = useAiSession((s) => s.context != null);
 
   return (
     <SidebarShell
@@ -37,11 +32,6 @@ export function RightSidebar() {
           editorMode === 'graph'
             ? <GraphPropertiesPanelBody />
             : <InspectorPanel />
-        )}
-        {tab === 'ai' && (
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-            <AiCommandPalette disabled={!sessionId && !hasContext} />
-          </div>
         )}
       </div>
     </SidebarShell>

@@ -39,6 +39,7 @@ import { SelectMultiPointTool } from '@/tools/select-multi-point-tool';
 import { SelectBoxTool } from '@/tools/select-box-tool';
 import { BrushMaskTool } from '@/tools/brush-mask-tool';
 import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
+import { SpawnPaletteWidget } from '@/components/widget/SpawnPaletteWidget';
 import { Upload } from 'lucide-react';
 
 // Lazy-load GraphEditor so @xyflow/react CSS doesn't interfere with Fabric.js canvas
@@ -194,22 +195,12 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
   const showPreferences = usePreferencesStore((s) => s.showPreferences);
   const toolDef = getActiveTool();
 
-  // ⌘K opens the AI tab of the right sidebar and focuses the palette input.
+  // ⌘K opens the floating spawn palette (SpawnPaletteWidget).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        usePreferencesStore.setState({
-          rightSidebarCollapsed: false,
-          rightSidebarTab: 'ai',
-        });
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            const el = document.querySelector<HTMLTextAreaElement>('[data-palette-input="sidebar"]');
-            el?.focus();
-            el?.select();
-          });
-        });
+        window.dispatchEvent(new CustomEvent('spawn-palette:open'));
       }
     }
     window.addEventListener('keydown', onKey);
@@ -261,6 +252,9 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
       <AnimatePresence>
         {showPreferences && <PreferencesPage />}
       </AnimatePresence>
+
+      {/* Floating spawn palette — opened via ⌘K */}
+      <SpawnPaletteWidget />
     </div>
   );
 }

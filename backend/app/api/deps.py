@@ -1,3 +1,5 @@
+import threading
+
 from app.config import get_settings
 from app.services.anthropic_client import AnthropicClient
 from app.services.sam_client import SamClient
@@ -10,6 +12,7 @@ _anthropic_client = AnthropicClient(
     model=_settings.anthropic_model,
 )
 _sam_client: SamClient | None = None
+_sam_client_lock = threading.Lock()
 
 
 def get_session_store() -> SessionStore:
@@ -22,8 +25,11 @@ def get_anthropic_client() -> AnthropicClient:
 
 def get_sam_client() -> SamClient:
     global _sam_client
-    if _sam_client is None:
-        _sam_client = SamClient(_settings)
+    if _sam_client is not None:
+        return _sam_client
+    with _sam_client_lock:
+        if _sam_client is None:  # double-checked locking
+            _sam_client = SamClient(_settings)
     return _sam_client
 
 
@@ -32,6 +38,7 @@ from app.tools.registry import BackendToolRegistry
 
 _event_bus = EventBus()
 _registry: BackendToolRegistry | None = None
+_registry_lock = threading.Lock()
 
 
 def get_event_bus() -> EventBus:
@@ -40,10 +47,13 @@ def get_event_bus() -> EventBus:
 
 def get_tool_registry() -> BackendToolRegistry:
     global _registry
-    if _registry is None:
-        from app.tools.atomic import register_all_atomic_tools
-        from app.tools.widgets import register_all_widget_tools
-        _registry = BackendToolRegistry(store=_session_store, event_bus=_event_bus)
-        register_all_atomic_tools(_registry)
-        register_all_widget_tools(_registry)
+    if _registry is not None:
+        return _registry
+    with _registry_lock:
+        if _registry is None:  # double-checked locking
+            from app.tools.atomic import register_all_atomic_tools
+            from app.tools.widgets import register_all_widget_tools
+            _registry = BackendToolRegistry(store=_session_store, event_bus=_event_bus)
+            register_all_atomic_tools(_registry)
+            register_all_widget_tools(_registry)
     return _registry

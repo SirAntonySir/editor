@@ -6,6 +6,10 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { ToolWidgetCard } from './ToolWidgetCard';
+import { useCursorBindStore } from '@/store/cursor-bind-slice';
+import { ToolRegistry } from '@/lib/tool-registry';
+import { ProcessingRegistry } from '@/lib/processing-registry';
+import { backendTools } from '@/lib/backend-tools';
 
 // Base position cache entry — stores the computed position plus the anchor
 // kind at the time of computation so we can detect anchor-type changes.
@@ -217,8 +221,44 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
   // whose global slot must be (re-)computed are stacked in stable order.
   const freshStack = { top: 60 };
 
+  // Cursor-bind drop: while a tool/suggestion is bound to the cursor, swallow
+  // a click on the canvas overlay to commit the widget.
+  const pending = useCursorBindStore((s) => s.pending);
+  const sessionId = useBackendState((s) => s.sessionId);
+
+  function onCanvasDrop(e: React.MouseEvent) {
+    if (!pending) return;
+    e.stopPropagation();
+    if (pending.kind === 'tool') {
+      const tool = ToolRegistry.get(pending.toolName);
+      const procId = tool?.processingId;
+      if (!procId) { useCursorBindStore.getState().cancel(); return; }
+      const proc = ProcessingRegistry.get(procId);
+      const activeLayerId = useEditorStore.getState().activeLayerId;
+      if (!activeLayerId) { useCursorBindStore.getState().cancel(); return; }
+      const adj = {
+        id: crypto.randomUUID(),
+        type: proc?.adjustmentType ?? procId,
+        name: proc?.label ?? procId,
+        enabled: true,
+        blendMode: 'normal' as const,
+        opacity: 1,
+        params: {},
+        ...(pending.scope ? { scope: pending.scope } : {}),
+      };
+      useEditorStore.getState().addAdjustment(activeLayerId, adj);
+    } else if (sessionId) {
+      void backendTools.accept_widget(sessionId, { widget_id: pending.widgetId });
+    }
+    useCursorBindStore.getState().cancel();
+  }
+
   return (
-    <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10 }}>
+    <div
+      className={pending ? 'absolute inset-0 cursor-crosshair' : 'absolute inset-0 pointer-events-none'}
+      style={{ zIndex: 10 }}
+      onClick={onCanvasDrop}
+    >
       {/* eslint-disable-next-line react-hooks/refs -- intentional: fabricCanvasRef.current is read inside getOrComputeBase to map pixel positions; setTick() re-triggers render on viewport changes so positions stay current */}
       {widgets.map((w) => {
         const base = getOrComputeBase(w, freshStack);

@@ -107,6 +107,9 @@ function MainLayout({
 
   return (
     <div className="relative flex-1 min-h-0 flex flex-row">
+      {/* Vertical tool rail — hidden in graph mode where the rail is irrelevant */}
+      {editorMode !== 'graph' && <Toolbar />}
+
       {/* Left sidebar — canvas modes only */}
       {showLeftSidebar && <LeftSidebar />}
 
@@ -223,13 +226,8 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
         <MenuBar canvasRef={canvasRef} />
       </div>
 
-      {/* Docked toolbar + backend status strip — hidden in graph mode */}
-      {editorMode !== 'graph' && (
-        <>
-          <Toolbar />
-          <BackendStatusBar />
-        </>
-      )}
+      {/* Backend status strip — hidden in graph mode */}
+      {editorMode !== 'graph' && <BackendStatusBar />}
 
       {/* Main canvas area */}
       <MainLayout

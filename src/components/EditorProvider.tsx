@@ -2,6 +2,7 @@ import { createContext, useContext, useRef, useCallback, useEffect, type ReactNo
 import type * as fabric from 'fabric';
 import { useEditorStore } from '@/store';
 import { ToolRegistry } from '@/lib/tool-registry';
+import { useBackendSession } from '@/hooks/useBackendSession';
 import type { ToolContext, ToolDefinition } from '@/types/tool';
 
 interface EditorContextValue {
@@ -26,6 +27,10 @@ interface EditorProviderProps {
 export function EditorProvider({ children, canvasRef }: EditorProviderProps) {
   const cleanupRef = useRef<(() => void) | null>(null);
   const previousToolRef = useRef<string | null>(null);
+
+  // Dark-ship the backend state slice; rendering still uses legacy paths
+  // until Task 11 mounts the new InspectorPanel.
+  useBackendSession();
 
   const dispatchCommand = useCallback(
     (toolName: string, commandName: string, payload?: unknown) => {

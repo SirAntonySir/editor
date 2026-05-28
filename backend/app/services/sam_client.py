@@ -93,6 +93,25 @@ class SamClient:
         best = int(np.argmax(scores))
         return masks[best].astype(bool)
 
+    def decode_box_for_region(
+        self,
+        session_id: str,
+        bbox: tuple[float, float, float, float] | list[float],
+        label: str,
+    ) -> tuple[np.ndarray, str]:
+        """Decode a SAM mask for a Claude-named region. Returns (mask_array, mask_id).
+
+        The mask is registered with the region label so the frontend can resolve
+        `scope.named_region` → mask. Re-raises any backend error so the caller
+        can decide whether to skip or fail the whole pipeline.
+        """
+        from app.api import deps as _deps
+        mask = self.decode_box(session_id, np.array(bbox, dtype=np.float32))
+        mask_id = _deps.get_session_store().register_mask(
+            session_id, mask, label=label, source="ai-proposed",
+        )
+        return mask, mask_id
+
     def decode_combined(
         self,
         session_id: str,

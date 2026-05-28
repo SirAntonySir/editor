@@ -31,6 +31,8 @@ import { FiltersTool } from '@/tools/filters-tool';
 import { CropTool } from '@/tools/crop-tool';
 import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
 import { SpawnPaletteWidget } from '@/components/widget/SpawnPaletteWidget';
+import { CursorBindGhost } from '@/components/widget/CursorBindGhost';
+import { useCursorBind } from '@/hooks/useCursorBind';
 import { Upload } from 'lucide-react';
 
 // Graph workspace disabled — kept for future reference.
@@ -176,6 +178,9 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
   const showPreferences = usePreferencesStore((s) => s.showPreferences);
   const toolDef = getActiveTool();
 
+  // Cursor-bind: track cursor + ESC handling while a tool/suggestion is bound.
+  useCursorBind();
+
   // ⌘K opens the floating spawn palette (SpawnPaletteWidget).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -231,6 +236,9 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
 
       {/* Floating spawn palette — opened via ⌘K */}
       <SpawnPaletteWidget />
+
+      {/* Cursor-bind ghost — follows the cursor while a tool/suggestion is bound */}
+      <CursorBindGhost />
     </div>
   );
 }

@@ -20,12 +20,23 @@ export interface OptimisticPatch {
 
 export type SseStatus = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed';
 
+export type PhaseName = 'mechanical' | 'sam_embed' | 'ai_context' | 'mask_precompute' | 'widget_mint';
+
+export interface PhaseState {
+  phase: PhaseName;
+  index: number;
+  total: number;
+  done: number;
+  phaseTotal?: number;
+}
+
 interface BackendState {
   sessionId: string | null;
   snapshot: SessionStateSnapshot | null;
   optimistic: Map<WidgetId, OptimisticPatch>;
   acceptedSuggestions: Set<string>;
   sseStatus: SseStatus;
+  currentPhase: PhaseState | null;
   applyEvent: (ev: StateEvent) => void;
   applyOptimistic: (widgetId: WidgetId, patch: OptimisticPatch) => void;
   clearOptimistic: (widgetId: WidgetId) => void;
@@ -42,6 +53,7 @@ export const useBackendState = create<BackendState>()(
     optimistic: new Map(),
     acceptedSuggestions: new Set(),
     sseStatus: 'idle',
+    currentPhase: null,
 
     applyEvent: (ev) =>
       set((s) => {
@@ -93,6 +105,25 @@ export const useBackendState = create<BackendState>()(
           case 'dismissal.added':
             // No snapshot change; subscribers (e.g. maskStore) handle these.
             break;
+          case 'phase.started': {
+            const { phase, index, total } = payload as { phase: PhaseName; index: number; total: number };
+            s.currentPhase = { phase, index, total, done: 0 };
+            break;
+          }
+          case 'phase.progress': {
+            if (!s.currentPhase) break;
+            const { done, total } = payload as { done: number; total: number };
+            s.currentPhase.done = done;
+            s.currentPhase.phaseTotal = total;
+            break;
+          }
+          case 'phase.completed': {
+            const { phase } = payload as { phase: PhaseName };
+            if (phase === 'widget_mint') {
+              s.currentPhase = null;
+            }
+            break;
+          }
         }
 
         s.snapshot.revision = ev.revision;
@@ -124,6 +155,7 @@ export const useBackendState = create<BackendState>()(
         s.optimistic = new Map();
         s.acceptedSuggestions = new Set();
         s.sseStatus = 'idle';
+        s.currentPhase = null;
       }),
   })),
 );

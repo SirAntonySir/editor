@@ -156,7 +156,10 @@ export type StateEventKind =
   | 'mask.created'
   | 'selection.changed'
   | 'context.updated'
-  | 'dismissal.added';
+  | 'dismissal.added'
+  | 'phase.started'
+  | 'phase.progress'
+  | 'phase.completed';
 
 export interface StateEvent {
   revision: number;

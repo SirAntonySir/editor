@@ -129,3 +129,47 @@ describe('BackendStateSlice', () => {
     expect(useBackendState.getState().snapshot!.widgets[0].status).toBe('active');
   });
 });
+
+describe('BackendStateSlice phase events', () => {
+  beforeEach(() => useBackendState.getState().reset());
+
+  it('phase.started sets currentPhase', () => {
+    useBackendState.setState({ snapshot: baseSnapshot() });
+    useBackendState.getState().applyEvent({
+      revision: 2, kind: 'phase.started',
+      payload: { phase: 'mechanical', index: 1, total: 5 },
+      emitted_at: '2026-05-28T00:00:00Z',
+    } as StateEvent);
+    expect(useBackendState.getState().currentPhase).toEqual({
+      phase: 'mechanical', index: 1, total: 5, done: 0,
+    });
+  });
+
+  it('phase.progress updates done counter', () => {
+    useBackendState.setState({
+      snapshot: baseSnapshot(),
+      currentPhase: { phase: 'mask_precompute', index: 4, total: 5, done: 0 },
+    });
+    useBackendState.getState().applyEvent({
+      revision: 2, kind: 'phase.progress',
+      payload: { phase: 'mask_precompute', done: 3, total: 8 },
+      emitted_at: '2026-05-28T00:00:01Z',
+    } as StateEvent);
+    const p = useBackendState.getState().currentPhase!;
+    expect(p.done).toBe(3);
+    expect(p.phaseTotal).toBe(8);
+  });
+
+  it('phase.completed for widget_mint clears currentPhase', () => {
+    useBackendState.setState({
+      snapshot: baseSnapshot(),
+      currentPhase: { phase: 'widget_mint', index: 5, total: 5, done: 0 },
+    });
+    useBackendState.getState().applyEvent({
+      revision: 3, kind: 'phase.completed',
+      payload: { phase: 'widget_mint', duration_ms: 100 },
+      emitted_at: '2026-05-28T00:00:02Z',
+    } as StateEvent);
+    expect(useBackendState.getState().currentPhase).toBeNull();
+  });
+});

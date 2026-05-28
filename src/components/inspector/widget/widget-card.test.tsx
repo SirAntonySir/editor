@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { WidgetCard } from './WidgetCard';
 import { useBackendState } from '@/store/backend-state-slice';
 import type { Widget } from '@/types/widget';
@@ -46,9 +47,10 @@ const active: Widget = {
   ],
 };
 
-beforeEach(() => {
+beforeEach(async () => {
   useBackendState.getState().reset();
   useBackendState.setState({ sessionId: 's1' });
+  vi.clearAllMocks();
 });
 
 afterEach(() => cleanup());
@@ -59,6 +61,14 @@ describe('WidgetCard suggestion mode', () => {
     expect(screen.getByText('Recover sky')).toBeDefined();
     expect(screen.getByRole('button', { name: /accept/i })).toBeDefined();
     expect(screen.getByRole('button', { name: /dismiss/i })).toBeDefined();
+  });
+
+  it('calls accept_widget when Accept is clicked', async () => {
+    const { backendTools } = await import('@/lib/backend-tools');
+    render(<WidgetCard widget={suggestion} isSuggestion />);
+    const accept = screen.getByRole('button', { name: /accept/i });
+    await userEvent.click(accept);
+    expect(backendTools.accept_widget).toHaveBeenCalledWith('s1', { widget_id: 'w_s' });
   });
 });
 

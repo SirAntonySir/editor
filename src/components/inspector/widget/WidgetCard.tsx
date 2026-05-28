@@ -18,14 +18,12 @@ const EMPTY_MASKS: MaskSummary[] = [];
 export function WidgetCard({ widget, isSuggestion }: WidgetCardProps) {
   const sessionId = useBackendState((s) => s.sessionId);
   const masks = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
+  const optimistic = useBackendState((s) => s.optimistic);
   const applyOptimistic = useBackendState((s) => s.applyOptimistic);
   const baseRevision = useBackendState((s) => s.snapshot?.revision ?? 0);
   const [expanded, setExpanded] = useState(!isSuggestion);
 
   function effectiveValue(paramKey: string, fallback: Widget['bindings'][number]['value']): Widget['bindings'][number]['value'] {
-    // Read via getState() to avoid subscribing to the Map reference directly,
-    // which would cause re-renders each time immer produces a new outer state object.
-    const optimistic = useBackendState.getState().optimistic;
     const patch = optimistic.get(widget.id);
     const hit = patch?.bindings.find((b) => b.paramKey === paramKey);
     return hit ? hit.value : fallback;

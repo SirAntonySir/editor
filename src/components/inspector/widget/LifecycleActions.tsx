@@ -24,14 +24,14 @@ export function LifecycleActions({ widget, isSuggestion }: LifecycleActionsProps
     return (
       <div className="flex gap-2">
         <button
-          onClick={() => run(() => backendTools.accept_widget(sessionId!, { widget_id: widget.id }))}
+          onClick={() => void run(() => backendTools.accept_widget(sessionId!, { widget_id: widget.id }))}
           disabled={busy}
-          className="text-xs px-2 py-1 rounded bg-accent text-white"
+          className="text-xs px-2 py-1 rounded bg-accent text-white disabled:opacity-50 disabled:cursor-not-allowed"
         >Accept</button>
         <button
-          onClick={() => run(() => backendTools.delete_widget(sessionId!, { widget_id: widget.id, suppress_similar: true }))}
+          onClick={() => void run(() => backendTools.delete_widget(sessionId!, { widget_id: widget.id, suppress_similar: true }))}
           disabled={busy}
-          className="text-xs px-2 py-1 rounded bg-surface-secondary"
+          className="text-xs px-2 py-1 rounded bg-surface-secondary disabled:opacity-50 disabled:cursor-not-allowed"
         >Dismiss</button>
       </div>
     );
@@ -43,17 +43,17 @@ export function LifecycleActions({ widget, isSuggestion }: LifecycleActionsProps
         <button
           onClick={() => setRefining((v) => !v)}
           disabled={busy}
-          className="text-xs px-2 py-1 rounded bg-surface-secondary"
+          className="text-xs px-2 py-1 rounded bg-surface-secondary disabled:opacity-50 disabled:cursor-not-allowed"
         >Refine</button>
         <button
-          onClick={() => run(() => backendTools.repeat_widget(sessionId!, { widget_id: widget.id }))}
+          onClick={() => void run(() => backendTools.repeat_widget(sessionId!, { widget_id: widget.id }))}
           disabled={busy}
-          className="text-xs px-2 py-1 rounded bg-surface-secondary"
+          className="text-xs px-2 py-1 rounded bg-surface-secondary disabled:opacity-50 disabled:cursor-not-allowed"
         >Repeat</button>
         <button
-          onClick={() => run(() => backendTools.delete_widget(sessionId!, { widget_id: widget.id, suppress_similar: false }))}
+          onClick={() => void run(() => backendTools.delete_widget(sessionId!, { widget_id: widget.id, suppress_similar: false }))}
           disabled={busy}
-          className="text-xs px-2 py-1 rounded bg-surface-secondary"
+          className="text-xs px-2 py-1 rounded bg-surface-secondary disabled:opacity-50 disabled:cursor-not-allowed"
         >Delete</button>
       </div>
       {refining && (
@@ -79,7 +79,7 @@ export function LifecycleActions({ widget, isSuggestion }: LifecycleActionsProps
             placeholder="Describe a refinement…"
             className="flex-1 text-xs px-2 py-1 rounded bg-surface border border-glass-border"
           />
-          <button type="submit" disabled={busy} className="text-xs px-2 py-1 rounded bg-accent text-white">
+          <button type="submit" disabled={busy} className="text-xs px-2 py-1 rounded bg-accent text-white disabled:opacity-50 disabled:cursor-not-allowed">
             Apply
           </button>
         </form>

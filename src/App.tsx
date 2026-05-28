@@ -223,10 +223,6 @@ export default function App() {
   useEffect(() => {
     editorDocument.init(useEditorStore);
     const unsubLayerLifecycle = initLayerLifecycle();
-    // Restore previous session if one exists. Cached imageContext is restored
-    // by editorDocument; analysis is NOT auto-triggered (user must invoke
-    // "Re-analyze image" to bind a fresh backend session).
-    editorDocument.restoreSession().catch(() => {});
     return () => {
       unsubLayerLifecycle();
       editorDocument.dispose();
@@ -240,7 +236,6 @@ export default function App() {
     const handler = () => {
       editorDocument.dispose();
       editorDocument.init(useEditorStore);
-      editorDocument.restoreSession().catch(() => {});
     };
     hot.on('vite:afterUpdate', handler);
     return () => { hot.off('vite:afterUpdate', handler); };

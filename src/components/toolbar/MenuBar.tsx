@@ -120,7 +120,7 @@ function TriggerButton({ children }: { children: React.ReactNode }) {
 /* ------------------------------------------------------------------ */
 
 export function MenuBar({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | null> }) {
-  const { fileInputRef, handleOpen, handleFileChange, handleSaveAs, handleClose, handleExport } = useFileIO(canvasRef);
+  const { fileInputRef, handleOpen, handleFileChange, handleClose, handleExport } = useFileIO(canvasRef);
   const { transformImage } = useImageTransform(canvasRef);
   const { applyZoom, fitOnScreen, zoomIn, zoomOut } = useCanvasZoom(canvasRef);
 
@@ -129,13 +129,13 @@ export function MenuBar({ canvasRef }: { canvasRef: React.RefObject<fabric.Canva
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*,.edp,application/octet-stream"
+        accept="image/*"
         className="hidden"
         onChange={handleFileChange}
       />
       <div className="flex items-center w-full">
         <Menubar.Root className="flex items-center gap-0 text-sm text-text-primary">
-          <FileMenu onOpen={handleOpen} onExport={handleExport} onSaveAs={handleSaveAs} onClose={handleClose} />
+          <FileMenu onOpen={handleOpen} onExport={handleExport} onClose={handleClose} />
           <EditMenu />
           <ImageMenu transformImage={transformImage} />
           <LayerMenu />
@@ -165,12 +165,10 @@ export function MenuBar({ canvasRef }: { canvasRef: React.RefObject<fabric.Canva
 function FileMenu({
   onOpen,
   onExport,
-  onSaveAs,
   onClose,
 }: {
   onOpen: () => void;
   onExport: (format: 'png' | 'jpeg' | 'webp') => void;
-  onSaveAs: () => void;
   onClose: () => void;
 }) {
   const hasLayers = useEditorStore((s) => s.layers.length > 0);
@@ -190,9 +188,6 @@ function FileMenu({
             <Item onSelect={() => onExport('jpeg')}>JPEG</Item>
             <Item onSelect={() => onExport('webp')}>WebP</Item>
           </Sub>
-          <Item keys={['mod', 'shift', 'S']} disabled={!hasLayers} onSelect={onSaveAs}>
-            Save As...
-          </Item>
           <Sep />
           <Item disabled={!hasLayers} onSelect={onClose} keys={['mod', 'W']}>Close</Item>
         </Menubar.Content>

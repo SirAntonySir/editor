@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import type * as fabric from 'fabric';
-import { loadImageToCanvas, hydrateCanvasFromStore } from '@/components/canvas/EditorCanvas';
+import { loadImageToCanvas } from '@/components/canvas/EditorCanvas';
 import { exportImage, saveAs } from '@/lib/export';
 import { editorDocument } from '@/core/document';
 import { useAiSession } from '@/hooks/useImageContext';
@@ -16,26 +16,15 @@ export function useFileIO(canvasRef: React.RefObject<fabric.Canvas | null>) {
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) {
-        if (file.name.endsWith('.edp')) {
-          await editorDocument.openEdp(file);
-          hydrateCanvasFromStore(canvasRef.current);
-          // .edp opens restore the cached imageContext via openEdp; no Claude
-          // call. Use "Re-analyze image" to bind a fresh backend session.
-        } else {
-          await loadImageToCanvas(file, canvasRef.current);
-          // Fire-and-forget AI analysis on new image open (not session-restore, which goes through the .edp branch).
-          createImageBitmap(file).then((bitmap) => useAiSession.getState().uploadAndAnalyse(bitmap));
-        }
+        await loadImageToCanvas(file, canvasRef.current);
+        // Fire-and-forget AI analysis on new image open.
+        createImageBitmap(file).then((bitmap) => useAiSession.getState().uploadAndAnalyse(bitmap));
       }
       // reset so same file can be re-selected
       e.target.value = '';
     },
     [canvasRef],
   );
-
-  const handleSaveAs = useCallback(() => {
-    editorDocument.saveAs();
-  }, []);
 
   const handleClose = useCallback(() => {
     editorDocument.newDocument();
@@ -56,5 +45,5 @@ export function useFileIO(canvasRef: React.RefObject<fabric.Canvas | null>) {
     [],
   );
 
-  return { fileInputRef, handleOpen, handleFileChange, handleSaveAs, handleClose, handleExport };
+  return { fileInputRef, handleOpen, handleFileChange, handleClose, handleExport };
 }

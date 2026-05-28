@@ -1,7 +1,7 @@
 /**
  * EditorDocument — the unified state machine / facade.
  *
- * Coordinates: Zustand store, PixelStore, HistoryManager, and Serializer.
+ * Coordinates: Zustand store, PixelStore, and HistoryManager.
  */
 import type { StoreApi } from 'zustand';
 import type {
@@ -12,31 +12,11 @@ import type {
 import type { EditorState } from '@/store';
 import { pixelStore } from './pixel-store';
 import * as history from './history';
-import { useAiSession } from '@/hooks/useImageContext';
-import * as session from './session-storage';
-import type { FitMode } from '@/store/viewport-slice';
-import type { EditorMode } from '@/store/tool-slice';
 
 const DEBOUNCE_MS = 2000;
-const SESSION_SAVE_DEBOUNCE_MS = 3000;
-
-// ─── Narrow serialised string values (from JSON manifests) to enum types
-const FIT_MODES = ['fit', 'fill', 'actual'] as const satisfies readonly FitMode[];
-const EDITOR_MODES = ['develop', 'compose'] as const satisfies readonly EditorMode[];
-
-function asFitMode(value: string): FitMode {
-  return (FIT_MODES as readonly string[]).includes(value) ? (value as FitMode) : 'fit';
-}
-
-function asEditorMode(value: string): EditorMode {
-  return (EDITOR_MODES as readonly string[]).includes(value) ? (value as EditorMode) : 'develop';
-}
 
 let store: StoreApi<EditorState> | null = null;
 let interaction: InteractionSession | null = null;
-let beforeUnloadHandler: ((e: BeforeUnloadEvent) => void) | null = null;
-let sessionSaveTimer: ReturnType<typeof setTimeout> | null = null;
-let aiSessionUnsubscribe: (() => void) | null = null;
 
 // ─── Deep equality (handles Float32Array) ───────────────────────────
 
@@ -99,86 +79,16 @@ function restoreState(snapshot: SerializableState): void {
 
 function markDirty(): void {
   if (store) store.setState({ isDirty: true });
-  scheduleSessionSave();
 }
 
-function markClean(): void {
-  if (store) store.setState({ isDirty: false });
-}
-
-// ─── Session auto-save ──────────────────────────────────────────────
-
-function scheduleSessionSave(): void {
-  if (sessionSaveTimer) clearTimeout(sessionSaveTimer);
-  sessionSaveTimer = setTimeout(() => {
-    sessionSaveTimer = null;
-    persistSession();
-  }, SESSION_SAVE_DEBOUNCE_MS);
-}
-
-function persistSession(): void {
-  if (!store) return;
-  const s = store.getState();
-  if (!s.documentMeta) return;
-
-  session.saveSession({
-    meta: s.documentMeta,
-    layers: s.layers,
-    activeLayerId: s.activeLayerId,
-    viewport: {
-      zoom: s.zoom ?? 1,
-      panX: s.panX ?? 0,
-      panY: s.panY ?? 0,
-      fitMode: s.fitMode ?? 'fit',
-    },
-    editorMode: s.editorMode ?? 'develop',
-    imageContext: useAiSession.getState().context ?? undefined,
-    pixelStore,
-  }).catch(() => {
-    // Session save is best-effort — silently ignore errors
-  });
-}
 
 // ─── Initialization ─────────────────────────────────────────────────
 
 function init(zustandStore: StoreApi<EditorState>): void {
   store = zustandStore;
-
-  // beforeunload guard
-  beforeUnloadHandler = (e: BeforeUnloadEvent) => {
-    if (store?.getState().isDirty) {
-      e.preventDefault();
-    }
-  };
-  window.addEventListener('beforeunload', beforeUnloadHandler);
-
-  // Persist sessions when the AI session's context changes (e.g. after
-  // analyse completes or "Re-analyze image"). Without this, contexts produced
-  // outside an editor mutation would never be persisted.
-  let lastContext = useAiSession.getState().context;
-  aiSessionUnsubscribe = useAiSession.subscribe((state) => {
-    if (state.context !== lastContext) {
-      lastContext = state.context;
-      scheduleSessionSave();
-    }
-  });
 }
 
 function dispose(): void {
-  if (beforeUnloadHandler) {
-    window.removeEventListener('beforeunload', beforeUnloadHandler);
-    beforeUnloadHandler = null;
-  }
-  if (sessionSaveTimer) {
-    clearTimeout(sessionSaveTimer);
-    sessionSaveTimer = null;
-  }
-  if (aiSessionUnsubscribe) {
-    aiSessionUnsubscribe();
-    aiSessionUnsubscribe = null;
-  }
-  // Flush pending session save synchronously before teardown
-  persistSession();
   store = null;
 }
 
@@ -187,7 +97,6 @@ function dispose(): void {
 function newDocument(): void {
   pixelStore.clear();
   history.clear();
-  session.clearSession().catch(() => {});
   const meta: DocumentMeta = {
     id: crypto.randomUUID(),
     name: 'Untitled',
@@ -259,23 +168,6 @@ async function openImage(file: File): Promise<void> {
   if (seed) history.initWith(seed);
 
   bitmap.close();
-  scheduleSessionSave();
-}
-
-async function openEdp(_file: File): Promise<void> {
-  // TODO(Task 6): implement .edp loading with new linear history
-  // Left as no-op pending serializer migration.
-}
-
-async function save(): Promise<Blob | null> {
-  // TODO(Task 6): implement .edp saving with new linear history
-  // Left as no-op pending serializer migration.
-  markClean();
-  return null;
-}
-
-async function saveAs(_name?: string): Promise<void> {
-  // TODO(Task 6): implement .edp save-as with new linear history
 }
 
 // ─── Interaction sessions (slider debouncing) ───────────────────────
@@ -353,60 +245,6 @@ function redoAction(): void {
   if (snap) restoreState(snap);
 }
 
-// ─── Session restore ─────────────────────────────────────────────────
-
-async function restoreSession(): Promise<boolean> {
-  if (!store) return false;
-
-  const data = await session.loadSession();
-  if (!data) return false;
-
-  const { manifest, pixels } = data;
-
-  // Restore pixel data
-  pixelStore.clear();
-  for (const [layerId, blob] of pixels) {
-    // Skip legacy '-original' entries from older sessions
-    if (layerId.endsWith('-original')) continue;
-    await pixelStore.importLayerFromPng(layerId, blob, 'source');
-  }
-
-  // Deserialize layers (Float32Array conversion)
-  const layers = session.deserializeSessionLayers(manifest);
-
-  history.clear();
-
-  // Restore Zustand state (single source of truth)
-  // Bump pixelVersion to signal that new pixel data is available,
-  // so preview hooks re-render after session restore.
-  store.setState({
-    layers,
-    activeLayerId: manifest.activeLayerId,
-    pixelVersion: (store.getState().pixelVersion ?? 0) + 1,
-    zoom: manifest.viewport.zoom,
-    panX: manifest.viewport.panX,
-    panY: manifest.viewport.panY,
-    fitMode: asFitMode(manifest.viewport.fitMode),
-    editorMode: asEditorMode(manifest.editorMode ?? 'develop'),
-    documentMeta: manifest.meta,
-    isDirty: false,
-  });
-
-  // Seed history with the loaded state so the first undo behaves correctly.
-  const seed = captureState();
-  if (seed) history.initWith(seed);
-
-  // Restore cached image context — no Claude call. SessionId stays null;
-  // "Re-analyze image" menu item kicks off a fresh upload when the user wants
-  // Cmd+K to work again.
-  if (manifest.imageContext) {
-    useAiSession.getState().restoreContext(manifest.imageContext);
-  } else {
-    useAiSession.getState().reset();
-  }
-  return true;
-}
-
 // ─── Public API ─────────────────────────────────────────────────────
 
 export const editorDocument = {
@@ -415,10 +253,6 @@ export const editorDocument = {
   dispose,
   newDocument,
   openImage,
-  openEdp,
-  save,
-  saveAs,
-  restoreSession,
 
   // Interactions (slider debouncing)
   beginInteraction,

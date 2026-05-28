@@ -20,9 +20,9 @@ export interface SerializableState {
   pixelVersion: number;
 }
 
-// ─── Serializable adjustment params (for .edp JSON) ─────────────────
+// ─── Serializable adjustment params ─────────────────────────────────
 
-/** Float32Array → number[] for JSON serialization in .edp files. */
+/** Float32Array → number[] for JSON serialization. */
 export type SerializableParams = Record<string, number | number[]>;
 
 // ─── History ────────────────────────────────────────────────────────
@@ -83,25 +83,4 @@ export interface HistoryNode {
   milestoneLabel?: string;
   /** Estimated memory usage in bytes (used by eviction). */
   estimatedSize: number;
-}
-
-/**
- * Persistable snapshot of the entire history tree. Used by serializer +
- * session-storage. Blobs survive IndexedDB round-trips natively; for `.edp`
- * the serializer converts them to PNG entries under `history/<nodeId>/<layerId>.png`.
- */
-export interface HistoryTreeSnapshot {
-  /** Map of node ID → node (children stored by ID for cheap JSON). */
-  nodes: Record<string, Omit<HistoryNode, 'prePixels' | 'postPixels'> & {
-    /** Layer IDs that have a stored PRE blob — actual Blob lives outside the JSON. */
-    prePixelLayerIds?: string[];
-    /** Layer IDs that have a stored POST blob — actual Blob lives outside the JSON. */
-    postPixelLayerIds?: string[];
-  }>;
-  rootId: string;
-  currentNodeId: string;
-  /** Name of the branch the user is currently extending. Defaults to 'main'. */
-  currentBranch: string;
-  /** Named branch heads. `main` always exists. */
-  branchHeads: Record<string, string>;
 }

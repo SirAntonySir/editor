@@ -304,16 +304,13 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
     };
   }, [canvasRef, toolContext]);
 
-  // Handle file drop for image or .edp loading
+  // Handle file drop for image loading
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
       e.preventDefault();
       const file = e.dataTransfer.files[0];
       if (!file) return;
-      if (file.name.endsWith('.edp')) {
-        await editorDocument.openEdp(file);
-        hydrateCanvasFromStore(canvasRef.current);
-      } else if (file.type.startsWith('image/')) {
+      if (file.type.startsWith('image/')) {
         await loadImageToCanvas(file, canvasRef.current);
       }
     },

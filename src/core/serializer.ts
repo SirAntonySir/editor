@@ -39,7 +39,6 @@ interface SerializableLayer {
   locked: boolean;
   order: number;
   adjustmentStack: { adjustments: SerializableAdjustment[] };
-  textMeta?: Layer['textMeta'];
   cropMeta?: Layer['cropMeta'];
   hasWorkingPixels: boolean;
 }
@@ -106,7 +105,6 @@ function serializeLayer(layer: Layer, hasWorkingPixels: boolean): SerializableLa
         aiSource: adj.aiSource,
       })),
     },
-    textMeta: layer.textMeta,
     cropMeta: layer.cropMeta,
     hasWorkingPixels,
   };
@@ -140,7 +138,6 @@ function deserializeLayer(sl: SerializableLayer): Layer {
         aiSource: adj.aiSource,
       })),
     },
-    textMeta: sl.textMeta,
     cropMeta: sl.cropMeta,
   };
 }

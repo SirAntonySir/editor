@@ -26,7 +26,6 @@ import { ColorTool } from '@/tools/color-tool';
 import { KelvinTool } from '@/tools/kelvin-tool';
 import { CurvesTool } from '@/tools/curves-tool';
 import { LevelsTool } from '@/tools/levels-tool';
-import { TextTool } from '@/tools/text-tool';
 import { FiltersTool } from '@/tools/filters-tool';
 import { CropTool } from '@/tools/crop-tool';
 import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
@@ -55,14 +54,13 @@ registerAllProcessing();
 // Register LLM-facing tool manifests (Plan 2)
 registerAllToolManifests();
 
-// Register tools (lean canvas-centric set — adjustment widget tools + text + crop)
+// Register tools (lean canvas-centric set — adjustment widget tools + crop)
 ToolRegistry.register(LightTool);
 ToolRegistry.register(ColorTool);
 ToolRegistry.register(KelvinTool);
 ToolRegistry.register(CurvesTool);
 ToolRegistry.register(LevelsTool);
 ToolRegistry.register(FiltersTool);
-ToolRegistry.register(TextTool);
 ToolRegistry.register(CropTool);
 
 // Register all node definitions (structural + processing) into NodeRegistry

@@ -108,7 +108,6 @@ export function duplicateLayer(layerId: string): string | null {
     blendMode: source.blendMode,
     locked: false,
     cropMeta: source.cropMeta ? { ...source.cropMeta } : undefined,
-    textMeta: source.textMeta ? { ...source.textMeta } : undefined,
   });
 
   // Copy the adjustment stack (deep clone with fresh adjustment IDs so

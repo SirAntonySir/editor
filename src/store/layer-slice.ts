@@ -34,17 +34,6 @@ export interface AdjustmentStack {
   adjustments: Adjustment[];
 }
 
-export interface TextMeta {
-  text: string;
-  fontSize: number;
-  fontFamily: string;
-  color: string;
-  fontWeight: string;
-  fontStyle: string;
-  x: number;
-  y: number;
-}
-
 /** Non-destructive crop parameters — stored per-layer so re-entering crop mode restores the selection. */
 export interface CropMeta {
   /** Crop rect as fraction of the full original image (0–1, rotation-independent). */
@@ -69,7 +58,6 @@ export interface Layer {
   locked: boolean;
   order: number;
   adjustmentStack: AdjustmentStack;
-  textMeta?: TextMeta;
   cropMeta?: CropMeta;
   /** Non-destructive branching — references the parent layer ID. */
   parentLayerId?: string;

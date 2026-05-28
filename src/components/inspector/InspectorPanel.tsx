@@ -14,8 +14,12 @@ export function InspectorPanel() {
   // Use snapshot revision as a stable scalar to trigger re-renders when snapshot changes
   useBackendState((s) => s.snapshot?.revision ?? 0);
   const masksIndex = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
-  // Subscribe so projection recomputes when layers change; return length (scalar) to avoid referential instability
-  useEditorStore((s) => s.layers.length);
+  // Subscribe so projection recomputes when any layer's adjustment stack changes.
+  // Returns a stable signature string (same input → same string → no re-render);
+  // length alone misses removeAdjustment when the layer count doesn't change.
+  useEditorStore((s) =>
+    s.layers.map((l) => `${l.id}:${l.adjustmentStack.adjustments.length}`).join('|'),
+  );
 
   const all = selectAllWidgets();
   const suggestions = all.filter((w) =>

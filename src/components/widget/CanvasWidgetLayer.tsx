@@ -10,6 +10,7 @@ import { useCursorBindStore } from '@/store/cursor-bind-slice';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { backendTools } from '@/lib/backend-tools';
+import { scopeMatches } from '@/lib/scope-match';
 
 // Base position cache entry — stores the computed position plus the anchor
 // kind at the time of computation so we can detect anchor-type changes.
@@ -31,6 +32,7 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
   // Subscribe to both stores so projection recomputes when either changes
   const widgetsSig = useBackendState((s) => s.snapshot?.widgets);
   const layersSig = useEditorStore((s) => s.layers);
+  const activeScope = useEditorStore((s) => s.activeScope);
   void widgetsSig; void layersSig;
   const widgets = selectAllWidgets();
 
@@ -265,11 +267,14 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
         const off = dragOffsets.get(w.id) ?? { dx: 0, dy: 0 };
         const left = base.left + off.dx;
         const top = base.top + off.dy;
+        const matches = scopeMatches(activeScope, w.scope as never);
         const positionedStyle: React.CSSProperties = {
           left,
           top,
           transform: 'translate(-8px, -8px)',
           cursor: dragStateRef.current?.widgetId === w.id ? 'grabbing' : 'grab',
+          opacity: matches ? 1 : 0.1,
+          transition: 'opacity 0.18s ease-out',
         };
         if (w.variant === 'ai' && w._widget) {
           return (

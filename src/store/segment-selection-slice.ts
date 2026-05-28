@@ -46,7 +46,8 @@ export const useSegmentSelection = create<SegmentSelectionState>((set, get) => (
   clickAt: (imageX, imageY, candidates) => {
     if (candidates.length === 0) {
       // Off-image / empty hit → drop any cycle, snap to full-image (null).
-      set({ cycleStack: null, selectedSegmentId: null });
+      // Also drop hover so a stale hover-outline from earlier doesn't persist.
+      set({ cycleStack: null, selectedSegmentId: null, hoveredSegmentId: null });
       return;
     }
     const prev = get().cycleStack;
@@ -59,12 +60,14 @@ export const useSegmentSelection = create<SegmentSelectionState>((set, get) => (
       const nextCursor = (prev.cursor + 1) % len;
       const next: CycleStack = { ...prev, cursor: nextCursor };
       const sel = nextCursor < prev.candidates.length ? prev.candidates[nextCursor] : null;
-      set({ cycleStack: next, selectedSegmentId: sel });
+      // Sync hover to the cycle-advanced selection so two outlines never
+      // co-exist when the cursor sits still on the same spot.
+      set({ cycleStack: next, selectedSegmentId: sel, hoveredSegmentId: sel });
       return;
     }
     const sorted = sortByPixelCount(candidates);
     const stack: CycleStack = { originX: imageX, originY: imageY, candidates: sorted, cursor: 0 };
-    set({ cycleStack: stack, selectedSegmentId: sorted[0] });
+    set({ cycleStack: stack, selectedSegmentId: sorted[0], hoveredSegmentId: sorted[0] });
   },
 
   shiftClickAt: (imageX, imageY, candidates) => {

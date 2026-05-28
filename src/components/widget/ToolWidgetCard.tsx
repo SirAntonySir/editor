@@ -19,10 +19,14 @@ export function ToolWidgetCard({ uw }: ToolWidgetCardProps) {
     useEditorStore.getState().removeAdjustment(adj!.layerId, adj!.adjustment.id);
   }
 
+  // Curves needs more horizontal room than slider-based panels; let the
+  // wrapper grow to fit when the processing asks for it. Other panels keep
+  // the compact 200–280px envelope.
+  const wide = adj.adjustment.type === 'curves';
   return (
     <div
       className="rounded-lg bg-surface border border-glass-border flex flex-col overflow-hidden"
-      style={{ minWidth: 200, maxWidth: 280 }}
+      style={wide ? { minWidth: 260, maxWidth: 320 } : { minWidth: 200, maxWidth: 280 }}
     >
       {/* Header strip */}
       <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-secondary/40">

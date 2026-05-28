@@ -145,7 +145,7 @@ export function CurvesPanel({ layerId: layerIdProp }: { layerId?: string } = {})
     .join(' ');
 
   return (
-    <div className="p-3 flex flex-col gap-2">
+    <div className="p-2 flex flex-col gap-1.5">
       <div className="flex gap-1">
         {(['rgb', 'red', 'green', 'blue'] as Channel[]).map((ch) => (
           <button

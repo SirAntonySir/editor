@@ -137,12 +137,20 @@ export function useSegmentInteraction(
       }
     }
 
+    function onPointerLeave() {
+      // Cursor left the canvas — drop any hover so the marching ants
+      // don't linger on a segment the user isn't pointing at anymore.
+      useSegmentSelection.getState().setHovered(null);
+    }
+
     el.addEventListener('pointermove', onPointerMove);
     el.addEventListener('pointerup', onClick);
+    el.addEventListener('pointerleave', onPointerLeave);
     window.addEventListener('keydown', onKey);
     return () => {
       el.removeEventListener('pointermove', onPointerMove);
       el.removeEventListener('pointerup', onClick);
+      el.removeEventListener('pointerleave', onPointerLeave);
       window.removeEventListener('keydown', onKey);
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     };

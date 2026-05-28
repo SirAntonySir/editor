@@ -34,8 +34,15 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
   const widgetsSig = useBackendState((s) => s.snapshot?.widgets);
   const layersSig = useEditorStore((s) => s.layers);
   const activeScope = useEditorStore((s) => s.activeScope);
+  const accepted = useBackendState((s) => s.acceptedSuggestions);
   void widgetsSig; void layersSig;
-  const widgets = selectAllWidgets();
+  const allWidgets = selectAllWidgets();
+  // Canvas only hosts tool-origin widgets + accepted AI widgets. Unaccepted
+  // mcp_autonomous suggestions live in the right-panel Suggestions list until
+  // the user cursor-bind-drops them.
+  const widgets = allWidgets.filter((w) =>
+    w.variant === 'tool' || w._widget?.origin.kind !== 'mcp_autonomous' || accepted.has(w.id),
+  );
 
   const phase = useBackendState((s) => s.currentPhase);
   const snapshotCtx = useBackendState((s) => s.snapshot?.image_context);
@@ -181,7 +188,10 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
   function onWidgetPointerDown(widgetId: string, e: React.PointerEvent) {
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
-    if (target.closest('button, input, textarea')) return;
+    // Skip drag if the press is on an interactive control: form elements,
+    // anything that opts out (data-no-drag), or any SVG (curves point picker,
+    // levels histogram scrubber, etc. own their own pointer state).
+    if (target.closest('button, input, textarea, select, svg, [data-no-drag]')) return;
     const existing = dragOffsets.get(widgetId) ?? { dx: 0, dy: 0 };
     dragStateRef.current = {
       widgetId,

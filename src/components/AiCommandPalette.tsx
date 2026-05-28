@@ -37,8 +37,7 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
   const [mentionIdx, setMentionIdx] = useState(0);
   const aiStatus = useAiSession((s) => s.status);
 
-  const visibleLayers = layers
-    .sort((a, b) => b.order - a.order);
+  const visibleLayers = [...layers].sort((a, b) => b.order - a.order);
 
   // Flat list of all @-mentionable layer names.
   const allMentionable = visibleLayers.map((l) => ({ label: l.name, key: `layer:${l.id}` }));

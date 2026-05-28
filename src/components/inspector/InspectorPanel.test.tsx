@@ -46,7 +46,7 @@ describe('InspectorPanel (backend widgets enabled)', () => {
           },
         ],
         masks_index: [],
-        operation_graph: { id: 'g', userGoal: '', reasoning: undefined, nodes: [], panelBindings: [], metadata: {} },
+        operation_graph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
         revision: 1,
       },
     });

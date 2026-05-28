@@ -13,7 +13,9 @@ export function SuggestionsRail({ suggestions }: SuggestionsRailProps) {
   return (
     <section className="flex flex-col gap-2">
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className="flex items-center gap-1 text-xs font-medium text-text-secondary uppercase tracking-wide"
       >
         {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}

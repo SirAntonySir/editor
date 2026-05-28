@@ -42,12 +42,17 @@ function baseSnapshot(): SessionStateSnapshot {
 beforeEach(() => useBackendState.getState().reset());
 
 describe('BackendStateSlice', () => {
-  it('reset clears snapshot and optimistic', () => {
-    useBackendState.setState({ snapshot: baseSnapshot(), sessionId: 's1' });
+  it('reset clears snapshot, optimistic, and acceptedSuggestions', () => {
+    useBackendState.setState({
+      snapshot: baseSnapshot(),
+      sessionId: 's1',
+      acceptedSuggestions: new Set(['w_x']),
+    });
     useBackendState.getState().reset();
     expect(useBackendState.getState().snapshot).toBeNull();
     expect(useBackendState.getState().sessionId).toBeNull();
     expect(useBackendState.getState().optimistic.size).toBe(0);
+    expect(useBackendState.getState().acceptedSuggestions.size).toBe(0);
   });
 
   it('applyEvent widget.created appends a widget and bumps revision', () => {

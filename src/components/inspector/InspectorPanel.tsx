@@ -85,20 +85,22 @@ export function InspectorPanelBody() {
 
 // ── Widget-driven inspector (VITE_BACKEND_WIDGETS=1) ──────────────────────────
 
+/**
+ * @internal — exported only to allow direct rendering in unit tests.
+ * `BACKEND_WIDGETS` is captured at module load (Vite resolves
+ * `import.meta.env.VITE_BACKEND_WIDGETS` at build time), so `vi.stubEnv`
+ * in `beforeEach` cannot flip the dispatcher branch after import.
+ * Production call sites should use `InspectorPanel` instead.
+ */
 export function InspectorPanelWidgets() {
   const snapshot = useBackendState((s) => s.snapshot);
   const accepted = useBackendState((s) => s.acceptedSuggestions);
-  const layers = useEditorStore((s) => s.layers);
 
   const widgets = snapshot?.widgets.filter((w) => w.status === 'active') ?? [];
   const suggestions = widgets.filter(
     (w) => w.origin.kind === 'mcp_autonomous' && !accepted.has(w.id),
   );
   const actives = widgets.filter((w) => !suggestions.includes(w));
-  // otherLayers intentionally omitted in v1: the new path is widget-only.
-  // When VITE_BACKEND_WIDGETS=0 (default), the legacy path runs the layer
-  // properties path via InspectorPanelBody.
-  void layers;
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4 p-3">

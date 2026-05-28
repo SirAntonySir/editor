@@ -139,6 +139,13 @@ html, body, #root {
   50% { opacity: 1; }
 }
 
+/* Widget pulse — fires once when an Active row is clicked. */
+@keyframes widget-pulse {
+  0%   { transform: translate(-8px, -8px) scale(1); }
+  50%  { transform: translate(-8px, -8px) scale(1.05); }
+  100% { transform: translate(-8px, -8px) scale(1); }
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

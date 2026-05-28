@@ -11,6 +11,7 @@ import { ToolRegistry } from '@/lib/tool-registry';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { backendTools } from '@/lib/backend-tools';
 import { scopeMatches } from '@/lib/scope-match';
+import { useFocusedWidget } from '@/store/focus-slice';
 
 // Base position cache entry — stores the computed position plus the anchor
 // kind at the time of computation so we can detect anchor-type changes.
@@ -228,6 +229,31 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
   const pending = useCursorBindStore((s) => s.pending);
   const sessionId = useBackendState((s) => s.sessionId);
 
+  // Focus pan: when a widget is focused (e.g. from Active row click), bring
+  // its cached anchor to the viewport center and let the pulse animation
+  // play, then clear focus after the animation.
+  const focusedId = useFocusedWidget((s) => s.focusedId);
+  useEffect(() => {
+    if (!focusedId) return;
+    const f = fabricCanvasRef.current;
+    if (!f) return;
+    const cached = basePositionsRef.current.get(focusedId);
+    if (!cached) return;
+    const vw = f.getWidth();
+    const vh = f.getHeight();
+    const vpt = f.viewportTransform ?? [1, 0, 0, 1, 0, 0];
+    const a = vpt[0] || 1;
+    const d = vpt[3] || 1;
+    const dx = vw / 2 - cached.left * a;
+    const dy = vh / 2 - cached.top * d;
+    f.setViewportTransform([a, vpt[1], vpt[2], d, dx, dy]);
+    f.requestRenderAll();
+    const t = window.setTimeout(() => {
+      useFocusedWidget.getState().setFocused(null);
+    }, 600);
+    return () => window.clearTimeout(t);
+  }, [focusedId, fabricCanvasRef]);
+
   function onCanvasDrop(e: React.MouseEvent) {
     if (!pending) return;
     e.stopPropagation();
@@ -268,6 +294,7 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
         const left = base.left + off.dx;
         const top = base.top + off.dy;
         const matches = scopeMatches(activeScope, w.scope as never);
+        const isFocused = focusedId === w.id;
         const positionedStyle: React.CSSProperties = {
           left,
           top,
@@ -275,6 +302,7 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
           cursor: dragStateRef.current?.widgetId === w.id ? 'grabbing' : 'grab',
           opacity: matches ? 1 : 0.1,
           transition: 'opacity 0.18s ease-out',
+          animation: isFocused ? 'widget-pulse 320ms ease-out' : undefined,
         };
         if (w.variant === 'ai' && w._widget) {
           return (

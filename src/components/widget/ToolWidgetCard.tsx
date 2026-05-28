@@ -4,7 +4,7 @@ import type { UnifiedWidget } from '@/lib/widget-projection';
 import type { Scope } from '@/types/widget';
 
 interface ToolWidgetCardProps {
-  uw: UnifiedWidget; // expected variant === 'tool', so _adjustment is set
+  uw: UnifiedWidget;
 }
 
 export function ToolWidgetCard({ uw }: ToolWidgetCardProps) {
@@ -14,62 +14,57 @@ export function ToolWidgetCard({ uw }: ToolWidgetCardProps) {
   const Panel = processing?.Panel;
   const Icon = processing?.icon;
 
-  function close() {
+  function close(e: React.MouseEvent) {
+    e.stopPropagation();
     useEditorStore.getState().removeAdjustment(adj!.layerId, adj!.adjustment.id);
   }
 
   return (
     <div
-      className="rounded-lg bg-surface border border-glass-border p-3 flex flex-col gap-3"
-      style={{ minWidth: 220 }}
+      className="rounded-lg bg-surface border border-glass-border flex flex-col overflow-hidden"
+      style={{ minWidth: 200, maxWidth: 280 }}
     >
-      <div className="flex items-center gap-2">
-        <div className="w-4 h-4 rounded-sm bg-surface-secondary flex items-center justify-center text-text-secondary text-[10px]">
-          {Icon ? <Icon size={10} /> : '·'}
-        </div>
-        <span className="text-xs font-medium text-text-primary">
+      {/* Header strip */}
+      <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-secondary/40">
+        <span className="flex items-center justify-center w-4 h-4 rounded-sm bg-surface-secondary text-text-secondary">
+          {Icon ? <Icon size={10} /> : <span className="text-[10px]">·</span>}
+        </span>
+        <span className="text-xs font-medium text-text-primary flex-1 truncate">
           {processing?.label ?? uw.intent}
         </span>
-        <div className="flex-1" />
-        <span className="text-[10px] text-text-secondary">scope · {scopeLabel(uw.scope)}</span>
-      </div>
-      {Panel ? (
-        <Panel layerId={adj.layerId} />
-      ) : (
-        <p className="text-xs text-text-secondary">
-          No panel registered for {adj.adjustment.type}
-        </p>
-      )}
-      <div className="flex justify-end">
+        <span className="text-[9px] text-text-secondary">{scopeLabel(uw.scope)}</span>
         <button
+          type="button"
           onClick={close}
-          className="text-xs px-2 py-1 rounded bg-surface-secondary text-text-secondary"
+          className="text-text-secondary hover:text-text-primary text-sm leading-none px-1"
+          aria-label="Close tool widget"
         >
-          Close
+          ×
         </button>
+      </div>
+      {/* Panel */}
+      <div className="px-2.5 py-2">
+        {Panel ? (
+          <Panel layerId={adj.layerId} />
+        ) : (
+          <p className="text-[10px] text-text-secondary">No panel registered for {adj.adjustment.type}</p>
+        )}
       </div>
     </div>
   );
 }
 
 function scopeLabel(scope: Scope): string {
-  // Note: scope is typed as widget Scope (mask:click) but at runtime can be the
-  // narrow Scope (mask) from @/types/scope.ts — the widget-projection cast
-  // doesn't transform the data. Cover both shapes here until the two Scope
-  // types are unified.
   const kind = (scope as { kind: string }).kind;
   switch (kind) {
-    case 'global':
-      return 'global';
+    case 'global': return 'global';
     case 'named_region':
-      return (scope as { label: string }).label;
     case 'mask:proposed':
       return (scope as { label: string }).label;
     case 'mask:click':
       return (scope as { mask_id?: string }).mask_id ? 'segment' : 'global';
     case 'mask':
       return (scope as { maskRef?: string }).maskRef ? 'segment' : 'global';
-    default:
-      return 'global';
+    default: return 'global';
   }
 }

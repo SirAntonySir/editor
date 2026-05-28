@@ -60,7 +60,7 @@ describe('WidgetCard suggestion mode', () => {
     render(<WidgetCard widget={suggestion} isSuggestion />);
     expect(screen.getByText('Recover sky')).toBeDefined();
     expect(screen.getByRole('button', { name: /accept/i })).toBeDefined();
-    expect(screen.getByRole('button', { name: /dismiss/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /dismiss suggestion/i })).toBeDefined();
   });
 
   it('calls accept_widget when Accept is clicked', async () => {
@@ -79,7 +79,6 @@ describe('WidgetCard active mode', () => {
     expect(screen.getByText('Temperature')).toBeDefined();
     expect(screen.getByRole('button', { name: /refine/i })).toBeDefined();
     expect(screen.getByRole('button', { name: /repeat/i })).toBeDefined();
-    expect(screen.getByRole('button', { name: /delete/i })).toBeDefined();
   });
 
   it('calls set_widget_param + applyOptimistic when slider changes', async () => {

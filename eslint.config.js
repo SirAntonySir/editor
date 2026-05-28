@@ -7,7 +7,7 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 import localPlugin from './tools/eslint-rules/index.js'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', '.worktrees/**']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

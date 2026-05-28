@@ -1,0 +1,82 @@
+import { useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { BindingRow } from './BindingRow';
+import { LifecycleActions } from './LifecycleActions';
+import { PreviewThumbnail } from './PreviewThumbnail';
+import { backendTools } from '@/lib/backend-tools';
+import { useBackendState } from '@/store/backend-state-slice';
+import type { MaskSummary, Widget } from '@/types/widget';
+
+interface WidgetCardProps {
+  widget: Widget;
+  isSuggestion: boolean;
+}
+
+// Stable empty array so the masks selector never returns a new reference.
+const EMPTY_MASKS: MaskSummary[] = [];
+
+export function WidgetCard({ widget, isSuggestion }: WidgetCardProps) {
+  const sessionId = useBackendState((s) => s.sessionId);
+  const masks = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
+  const applyOptimistic = useBackendState((s) => s.applyOptimistic);
+  const baseRevision = useBackendState((s) => s.snapshot?.revision ?? 0);
+  const [expanded, setExpanded] = useState(!isSuggestion);
+
+  function effectiveValue(paramKey: string, fallback: Widget['bindings'][number]['value']): Widget['bindings'][number]['value'] {
+    // Read via getState() to avoid subscribing to the Map reference directly,
+    // which would cause re-renders each time immer produces a new outer state object.
+    const optimistic = useBackendState.getState().optimistic;
+    const patch = optimistic.get(widget.id);
+    const hit = patch?.bindings.find((b) => b.paramKey === paramKey);
+    return hit ? hit.value : fallback;
+  }
+
+  return (
+    <div className="rounded-lg bg-surface border border-glass-border p-3 flex flex-col gap-3">
+      <div className="flex items-start gap-3">
+        {isSuggestion && <PreviewThumbnail widget={widget} maxDim={64} />}
+        <div className="flex-1 min-w-0">
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="flex items-center gap-1 text-sm font-medium text-text-primary"
+          >
+            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            {widget.intent}
+          </button>
+          {widget.reasoning && (
+            <p className="text-xs text-text-secondary mt-1">{widget.reasoning}</p>
+          )}
+        </div>
+      </div>
+
+      {expanded && widget.bindings.length > 0 && (
+        <div className="flex flex-col gap-2 pl-4">
+          {widget.bindings.map((b) => (
+            <BindingRow
+              key={b.param_key}
+              binding={b}
+              effectiveValue={effectiveValue(b.param_key, b.value)}
+              maskSummaries={masks}
+              onChange={(value) => {
+                if (!sessionId) return;
+                applyOptimistic(widget.id, {
+                  baseRevision,
+                  bindings: [{ paramKey: b.param_key, value }],
+                });
+                void backendTools.set_widget_param(sessionId, {
+                  widget_id: widget.id, param_key: b.param_key, value,
+                });
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {(expanded || isSuggestion) && (
+        <div className="pt-1 border-t border-glass-border">
+          <LifecycleActions widget={widget} isSuggestion={isSuggestion} />
+        </div>
+      )}
+    </div>
+  );
+}

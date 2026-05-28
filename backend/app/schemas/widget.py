@@ -214,10 +214,12 @@ class WidgetNode(BaseModel):
     scope: Scope
     inputs: list[str] = Field(default_factory=list)
     widget_id: str = Field(min_length=1)
+    layer_id: str = "legacy"
 
 
 WidgetOriginKind = Literal[
     "mcp_user_prompt", "mcp_autonomous", "user_palette", "fused_expansion",
+    "refine", "repeat", "tool_invoked",
 ]
 
 
@@ -226,6 +228,7 @@ class WidgetOrigin(BaseModel):
     kind: WidgetOriginKind
     prompt: str | None = None
     parent_widget_id: str | None = None
+    anchor: str | None = None
 
 
 class WidgetPreview(BaseModel):
@@ -258,7 +261,7 @@ class Widget(BaseModel):
         default_factory=lambda: WidgetPreview(kind="thumbnail", auto_before_after=True)
     )
     rejected_attempts: list[ResolvedNumbers] = Field(default_factory=list)
-    status: Literal["active", "dismissed"] = "active"
+    status: Literal["active", "dismissed", "accepted"] = "active"
     revision: int = 1
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

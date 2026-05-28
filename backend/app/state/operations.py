@@ -67,7 +67,7 @@ def project_to_graph(doc: SessionDocument) -> OperationGraph:
                     scope=_widget_scope_to_graph_scope(wn.scope),
                     params=wn.params,
                     inputs=wn.inputs,
-                    layer_id="legacy",  # TODO(SSoT): set from widget.layer_id once T17 lands
+                    layer_id=wn.layer_id,
                     widget_id=wn.widget_id,
                 )
             )

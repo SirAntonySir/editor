@@ -136,7 +136,10 @@ def test_control_type_matches_union_members() -> None:
 
 
 def test_widget_origin_kinds() -> None:
-    expected = {"mcp_user_prompt", "mcp_autonomous", "user_palette", "fused_expansion"}
+    expected = {
+        "mcp_user_prompt", "mcp_autonomous", "user_palette", "fused_expansion",
+        "refine", "repeat", "tool_invoked",
+    }
     assert set(WidgetOriginKind.__args__) == expected
 
 

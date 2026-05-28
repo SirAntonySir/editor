@@ -214,7 +214,10 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
       const layer = state.layers.find((l) => l.id === layerId);
       if (!layer) return;
       const s = state as LayerSlice & { activeScope: Scope | null };
-      const scoped = s.activeScope ? { ...adjustment, scope: s.activeScope } : adjustment;
+      // Respect the incoming scope. activeScope is a default for tool-initiated
+      // adjustments; explicit-scope adjustments (e.g. materialized AI widgets)
+      // keep what they were given.
+      const scoped = adjustment.scope ? adjustment : (s.activeScope ? { ...adjustment, scope: s.activeScope } : adjustment);
       layer.adjustmentStack.adjustments.push(scoped);
       s.activeScope = null;
     }),
@@ -224,7 +227,10 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
       const layer = state.layers.find((l) => l.id === layerId);
       if (!layer) return;
       const s = state as LayerSlice & { activeScope: Scope | null };
-      const scoped = s.activeScope ? { ...adjustment, scope: s.activeScope } : adjustment;
+      // Respect the incoming scope. activeScope is a default for tool-initiated
+      // adjustments; explicit-scope adjustments (e.g. materialized AI widgets)
+      // keep what they were given.
+      const scoped = adjustment.scope ? adjustment : (s.activeScope ? { ...adjustment, scope: s.activeScope } : adjustment);
       const arr = layer.adjustmentStack.adjustments;
       const clamped = Math.max(0, Math.min(atIndex, arr.length));
       arr.splice(clamped, 0, scoped);

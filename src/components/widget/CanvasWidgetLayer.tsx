@@ -44,7 +44,7 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
   );
 
   const skeletonRegions = showSkeletons
-    ? (snapshotCtx as { candidate_regions?: Array<{ label: string; bbox: number[]; representativePoint?: number[] }> } | null)
+    ? (snapshotCtx as { candidate_regions?: Array<{ label: string; bbox: number[]; representative_point?: number[] }> } | null)
       ?.candidate_regions?.filter((r) => !realWidgetLabels.has(r.label)) ?? []
     : [];
 
@@ -152,8 +152,8 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
         const scaleY = img.scaleY ?? 1;
         const imgLeft = (img.left ?? 0) - ((img.width ?? 0) * scaleX) / 2;
         const imgTop = (img.top ?? 0) - ((img.height ?? 0) * scaleY) / 2;
-        const px = r.representativePoint?.[0] ?? (r.bbox[0] + r.bbox[2] / 2);
-        const py = r.representativePoint?.[1] ?? (r.bbox[1] + r.bbox[3] / 2);
+        const px = r.representative_point?.[0] ?? (r.bbox[0] + r.bbox[2] / 2);
+        const py = r.representative_point?.[1] ?? (r.bbox[1] + r.bbox[3] / 2);
         const w = img.width ?? 0;
         const h = img.height ?? 0;
         return (

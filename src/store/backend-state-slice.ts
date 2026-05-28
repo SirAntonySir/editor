@@ -95,13 +95,15 @@ export const useBackendState = create<BackendState>()(
             const widget = s.snapshot?.widgets.find((w) => w.id === id);
             if (widget) {
               const activeLayerId = useEditorStore.getState().activeLayerId;
-              if (activeLayerId) {
+              if (!activeLayerId) {
+                console.warn(`[widget.accepted] no active layer when accepting widget ${id}; adjustments dropped`);
+              } else {
                 const adjustments = materializeAdjustments(widget);
                 for (const adj of adjustments) {
                   useEditorStore.getState().addAdjustment(activeLayerId, adj);
                 }
               }
-              // Remove widget from snapshot
+              // Remove widget from snapshot regardless — accept is a backend-confirmed terminal state.
               if (s.snapshot) {
                 s.snapshot.widgets = s.snapshot.widgets.filter((w) => w.id !== id);
               }

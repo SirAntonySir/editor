@@ -22,6 +22,11 @@ function anchorForScope(scope: Scope): WidgetAnchor {
   if (scope.kind === 'named_region') return { kind: 'region_label', label: scope.label };
   if (scope.kind === 'mask:proposed') return { kind: 'region_label', label: scope.label };
   if (scope.kind === 'mask:click' && scope.mask_id) return { kind: 'mask_id', mask_id: scope.mask_id };
+  // Narrow Scope from @/types/scope.ts uses { kind: 'mask', maskRef }. Cover it.
+  if ((scope as { kind: string }).kind === 'mask') {
+    const ref = (scope as { maskRef?: string }).maskRef;
+    if (ref) return { kind: 'mask_id', mask_id: ref };
+  }
   return { kind: 'global' };
 }
 

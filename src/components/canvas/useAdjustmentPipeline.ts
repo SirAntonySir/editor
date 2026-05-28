@@ -121,11 +121,15 @@ export function useAdjustmentPipeline(canvasRef: React.RefObject<fabric.Canvas |
           ...(baseAdjustments ?? []),
           ...widgetAdjustments,
         ];
-        // Cheap signature: base count + widget node ids + optimistic size so
-        // any in-flight patch change triggers a re-render.
+        // Signature includes base count + per-widget params (not just ids) so
+        // that slider drags which change param values on the same nodes trip
+        // the dirty-check and the pipeline re-renders the optimistic preview.
+        // Also tracks optimistic map size for in-flight patch changes.
         const optSize = useBackendState.getState().optimistic.size;
-        const combinedSig =
-          `${baseAdjustments?.length ?? 0}|w:${widgetNodes.map((n) => n.id).join(',')}|opt:${optSize}`;
+        const widgetParamsSig = widgetNodes
+          .map((n) => `${n.id}:${Object.entries(n.params).map(([k, v]) => `${k}=${v}`).join(',')}`)
+          .join('|');
+        const combinedSig = `${baseAdjustments?.length ?? 0}|w:${widgetParamsSig}|opt:${optSize}`;
 
         if (
           prevRef.current.mode === editorMode &&

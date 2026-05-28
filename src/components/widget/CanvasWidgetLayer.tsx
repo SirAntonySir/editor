@@ -7,6 +7,10 @@ import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { ToolWidgetCard } from './ToolWidgetCard';
 
+// Base position cache entry — stores the computed position plus the anchor
+// kind at the time of computation so we can detect anchor-type changes.
+interface CachedBase { left: number; top: number; kind: string }
+
 const PHASE_SKELETON_PHASES = new Set(['mask_precompute', 'widget_mint']);
 
 interface CanvasWidgetLayerProps {
@@ -61,52 +65,81 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
   const ESTIMATED_WIDGET_H = 160;
   const GLOBAL_STACK_GAP = 12;
 
-  function computePositions(ws: UnifiedWidget[]): Map<string, { left: number; top: number }> {
-    const out = new Map<string, { left: number; top: number }>();
+  // Stable per-widget base-position cache. Populated on first appearance;
+  // reused on subsequent renders so snapshot array reordering does not
+  // reassign positions. Entries are cleaned up when a widget disappears.
+  const basePositionsRef = useRef<Map<string, CachedBase>>(new Map());
+
+  // Clean up cache entries for widgets that have been removed so the Map
+  // does not grow unboundedly over a session.
+  useEffect(() => {
+    const liveIds = new Set(widgets.map((w) => w.id));
+    for (const id of basePositionsRef.current.keys()) {
+      if (!liveIds.has(id)) basePositionsRef.current.delete(id);
+    }
+  }, [widgets]);
+
+  /**
+   * Returns the base (pre-drag) position for a widget.
+   *
+   * First call for a widget id: computes and caches.
+   * Subsequent calls: returns cache unless the anchor.kind changed (e.g. a
+   * backend update changed a global widget to a region widget).
+   *
+   * freshStack is a mutable accumulator used only when we must compute a new
+   * global-stack slot; it is shared across one full render pass so that newly
+   * computed global widgets are stacked in widget-array order.
+   */
+  function getOrComputeBase(
+    w: UnifiedWidget,
+    freshStack: { top: number },
+  ): { left: number; top: number } {
     const f = fabricCanvasRef.current;
-    if (!f) return out;
+    if (!f) return { left: 16, top: 60 };
     const img = f.getObjects().find((o) => o instanceof fabric.FabricImage) as fabric.FabricImage | undefined;
+    if (!img) return { left: 16, top: 60 };
 
-    let globalStackTop = 60;
+    const anchorKind = w.anchor.kind;
+    const cached = basePositionsRef.current.get(w.id);
 
-    for (const w of ws) {
-      if (!img) {
-        out.set(w.id, { left: 16, top: globalStackTop });
-        globalStackTop += ESTIMATED_WIDGET_H + GLOBAL_STACK_GAP;
-        continue;
+    // Reuse cache if anchor type hasn't changed.
+    if (cached && cached.kind === anchorKind) {
+      // For global widgets the cached position is already stable; for
+      // image_point / mask anchors the position depends on image transform
+      // so we recompute those on every render (they are not affected by
+      // snapshot array-order changes, only by the image itself moving).
+      if (anchorKind === 'global') {
+        return { left: cached.left, top: cached.top };
       }
-      const scaleX = img.scaleX ?? 1;
-      const scaleY = img.scaleY ?? 1;
-      const imgLeft = (img.left ?? 0) - ((img.width ?? 0) * scaleX) / 2;
-      const imgTop = (img.top ?? 0) - ((img.height ?? 0) * scaleY) / 2;
-      const imgRight = imgLeft + (img.width ?? 0) * scaleX;
+    }
 
-      const anchor = w.anchor;
-      if (anchor.kind === 'global') {
-        out.set(w.id, {
-          left: imgRight - WIDGET_W - 16,
-          top: imgTop + globalStackTop - 60,
-        });
-        globalStackTop += ESTIMATED_WIDGET_H + GLOBAL_STACK_GAP;
-        continue;
-      }
-      if (anchor.kind === 'image_point') {
-        out.set(w.id, {
-          left: imgLeft + anchor.x * scaleX,
-          top: imgTop + anchor.y * scaleY,
-        });
-        continue;
-      }
-      if (anchor.kind === 'mask_id' || anchor.kind === 'region_label') {
-        const mask =
-          anchor.kind === 'mask_id'
-            ? maskStore.get(anchor.mask_id)
-            : maskStore.all().find((m) => m.label === anchor.label);
-        if (!mask) {
-          out.set(w.id, { left: imgRight - WIDGET_W - 16, top: imgTop + globalStackTop - 60 });
-          globalStackTop += ESTIMATED_WIDGET_H + GLOBAL_STACK_GAP;
-          continue;
-        }
+    const scaleX = img.scaleX ?? 1;
+    const scaleY = img.scaleY ?? 1;
+    const imgLeft = (img.left ?? 0) - ((img.width ?? 0) * scaleX) / 2;
+    const imgTop = (img.top ?? 0) - ((img.height ?? 0) * scaleY) / 2;
+    const imgRight = imgLeft + (img.width ?? 0) * scaleX;
+
+    let pos: { left: number; top: number };
+
+    if (anchorKind === 'global') {
+      pos = { left: imgRight - WIDGET_W - 16, top: imgTop + freshStack.top - 60 };
+      freshStack.top += ESTIMATED_WIDGET_H + GLOBAL_STACK_GAP;
+    } else if (anchorKind === 'image_point') {
+      const a = w.anchor as { x: number; y: number };
+      pos = {
+        left: imgLeft + a.x * scaleX,
+        top: imgTop + a.y * scaleY,
+      };
+    } else {
+      // mask_id or region_label
+      const a = w.anchor as { kind: string; mask_id?: string; label?: string };
+      const mask = a.mask_id
+        ? maskStore.get(a.mask_id)
+        : maskStore.all().find((m) => m.label === a.label);
+      if (!mask) {
+        pos = { left: imgRight - WIDGET_W - 16, top: imgTop + freshStack.top - 60 };
+        freshStack.top += ESTIMATED_WIDGET_H + GLOBAL_STACK_GAP;
+      } else {
         let sx = 0, sy = 0, n = 0;
         for (let y = 0; y < mask.height; y++) {
           for (let x = 0; x < mask.width; x++) {
@@ -114,16 +147,18 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
           }
         }
         if (n === 0) {
-          out.set(w.id, { left: imgRight - WIDGET_W - 16, top: imgTop + 60 });
-          continue;
+          pos = { left: imgRight - WIDGET_W - 16, top: imgTop + 60 };
+        } else {
+          pos = {
+            left: imgLeft + (sx / n) * scaleX,
+            top: imgTop + (sy / n) * scaleY,
+          };
         }
-        out.set(w.id, {
-          left: imgLeft + (sx / n) * scaleX,
-          top: imgTop + (sy / n) * scaleY,
-        });
       }
     }
-    return out;
+
+    basePositionsRef.current.set(w.id, { left: pos.left, top: pos.top, kind: anchorKind });
+    return pos;
   }
 
   // Drag state
@@ -169,14 +204,24 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
     dragStateRef.current = null;
   }
 
-  // eslint-disable-next-line react-hooks/refs -- intentional: fabricCanvasRef.current is read to compute pixel positions; setTick() re-triggers render on viewport changes so positions stay current
-  const positions = computePositions(widgets);
+  function onWidgetPointerCancel(e: React.PointerEvent) {
+    if (dragStateRef.current) {
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch { /* may already be released */ }
+      dragStateRef.current = null;
+    }
+  }
+
+  // freshStack accumulator is shared across the render pass so that widgets
+  // whose global slot must be (re-)computed are stacked in stable order.
+  const freshStack = { top: 60 };
 
   return (
     <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10 }}>
+      {/* eslint-disable-next-line react-hooks/refs -- intentional: fabricCanvasRef.current is read inside getOrComputeBase to map pixel positions; setTick() re-triggers render on viewport changes so positions stay current */}
       {widgets.map((w) => {
-        const base = positions.get(w.id);
-        if (!base) return null;
+        const base = getOrComputeBase(w, freshStack);
         const off = dragOffsets.get(w.id) ?? { dx: 0, dy: 0 };
         const left = base.left + off.dx;
         const top = base.top + off.dy;
@@ -195,6 +240,7 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
               onPointerDown={(e) => onWidgetPointerDown(w.id, e)}
               onPointerMove={onWidgetPointerMove}
               onPointerUp={onWidgetPointerUp}
+              onPointerCancel={onWidgetPointerCancel}
             >
               <WidgetCard
                 widget={w._widget}
@@ -214,6 +260,7 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
               onPointerDown={(e) => onWidgetPointerDown(w.id, e)}
               onPointerMove={onWidgetPointerMove}
               onPointerUp={onWidgetPointerUp}
+              onPointerCancel={onWidgetPointerCancel}
             >
               <ToolWidgetCard uw={w} />
             </div>

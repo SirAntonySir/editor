@@ -27,6 +27,7 @@ import {
   type TargetKey,
 } from '@/store/ai-chips-store';
 import { submitPaletteText } from '@/lib/ai-palette-submit';
+import { proposeFromPalette } from '@/lib/palette-actions';
 import type { Layer } from '@/store/layer-slice';
 import type { AiChip } from '@/store/ai-chips-store';
 import type { TargetRef } from '@/types/ai-target';
@@ -38,6 +39,8 @@ interface AiCommandPaletteProps {
 type TargetItem =
   | { kind: 'layer'; layer: Layer }
   | { kind: 'chip'; chip: AiChip };
+
+const BACKEND_WIDGETS = import.meta.env.VITE_BACKEND_WIDGETS === '1';
 
 export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -117,7 +120,11 @@ export function AiCommandPalette({ disabled }: AiCommandPaletteProps) {
     setBusy(true);
     const target = buildTargetRef(selectedTargets, chips, layers);
     try {
-      await submitPaletteText(value.trim(), target ? { target, intent: 'append' } : null);
+      if (BACKEND_WIDGETS) {
+        await proposeFromPalette(value.trim());
+      } else {
+        await submitPaletteText(value.trim(), target ? { target, intent: 'append' } : null);
+      }
       setValue('');
     } finally {
       setBusy(false);

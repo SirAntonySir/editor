@@ -32,21 +32,22 @@ export function Toolbar() {
 
   return (
     <Tooltip.Provider delayDuration={300}>
-      <div className="flex-none h-7 flex items-center justify-center px-2 bg-surface border-b border-separator">
+      <div className="flex-none w-11 flex flex-col items-center py-2 gap-1 bg-surface border-r border-separator">
         <ToggleGroup.Root
           type="single"
           value={activeTool}
           onValueChange={(value) => {
             if (value) setActiveTool(value);
           }}
-          className="flex items-center gap-0.5"
+          orientation="vertical"
+          className="flex flex-col items-center gap-1"
         >
           {grouped.map((group, gi) => (
-            <div key={group.category} className="flex items-center gap-0.5">
+            <div key={group.category} className="flex flex-col items-center gap-1">
               {gi > 0 && (
                 <Separator.Root
-                  orientation="vertical"
-                  className="w-px h-4 bg-separator mx-1"
+                  orientation="horizontal"
+                  className="w-4 h-px bg-separator my-1"
                 />
               )}
               {group.tools.map((tool) => (
@@ -75,7 +76,7 @@ function ToolButton({ tool, isActive }: { tool: ToolDefinition; isActive: boolea
         >
           <motion.button
             className={`
-              relative flex items-center justify-center w-6 h-6
+              relative flex items-center justify-center w-8 h-8
               transition-colors duration-150
               ${isActive
                 ? 'text-white'
@@ -93,13 +94,14 @@ function ToolButton({ tool, isActive }: { tool: ToolDefinition; isActive: boolea
                 transition={{ type: 'spring', stiffness: 500, damping: 35 }}
               />
             )}
-            <span className="relative z-10"><Icon size={14} /></span>
+            <span className="relative z-10"><Icon size={16} /></span>
           </motion.button>
         </ToggleGroup.Item>
       </Tooltip.Trigger>
       <Tooltip.Portal>
         <Tooltip.Content
           className="glass-panel px-2 py-1 text-xs text-text-primary z-[60]"
+          side="right"
           sideOffset={8}
         >
           {tool.label}

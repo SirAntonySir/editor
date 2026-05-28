@@ -153,6 +153,8 @@ function MainLayout({
         {showHUD && (
           <div className="absolute bottom-0 right-0 z-20 flex items-center gap-2
             px-2 py-0.5 text-xs text-text-secondary bg-surface/70 backdrop-blur-sm rounded-tl-sm">
+            <ScopeDisplay />
+            <span className="text-separator">|</span>
             <span className="capitalize">{isCropEditing ? 'crop' : activeTool}</span>
             <span className="text-separator">|</span>
             <ZoomDisplay />
@@ -236,6 +238,17 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
 function ZoomDisplay() {
   const zoom = useEditorStore((s) => s.zoom);
   return <span>{Math.round(zoom * 100)}%</span>;
+}
+
+function ScopeDisplay() {
+  const activeScope = useEditorStore((s) => s.activeScope);
+  if (!activeScope || activeScope.kind === 'global') {
+    return <span style={{ color: 'var(--color-accent)' }}>image</span>;
+  }
+  if (activeScope.kind === 'mask') {
+    return <span style={{ color: '#ff9f0a' }}>segment</span>;
+  }
+  return <span>—</span>;
 }
 
 // Apply persisted preferences on initial load

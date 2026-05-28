@@ -10,6 +10,7 @@ import { useAdjustmentPipeline } from './useAdjustmentPipeline';
 import { useFabricOverlays } from './useFabricOverlays';
 import { SelectionActionsOverlay } from './SelectionActionsOverlay';
 import { SegmentOverlay } from './SegmentOverlay';
+import { FullImageOutline } from './FullImageOutline';
 import { CanvasWidgetLayer } from '@/components/widget/CanvasWidgetLayer';
 
 interface EditorCanvasProps {
@@ -376,6 +377,7 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
     >
       <canvas ref={canvasElRef} />
       <SegmentOverlay fabricCanvasRef={canvasRef} />
+      <FullImageOutline fabricCanvasRef={canvasRef} />
       <CanvasWidgetLayer fabricCanvasRef={canvasRef} />
       <SelectionActionsOverlay />
     </div>

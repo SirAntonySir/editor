@@ -57,3 +57,51 @@ def test_candidate_region_paths_is_optional():
         representative_point=[0.5, 0.2],
     )
     assert region.paths is None
+
+
+# ---------------------------------------------------------------------------
+# Node SSoT routing keys (Task 16)
+# ---------------------------------------------------------------------------
+from app.schemas.operation_graph import Node
+
+
+def test_node_carries_layer_id():
+    node = Node(
+        id="n1",
+        type="curves",
+        scope={"kind": "global"},
+        params={"intensity": 0.5},
+        inputs=[],
+        layer_id="layer_a",
+        widget_id="w1",
+    )
+    assert node.layer_id == "layer_a"
+    assert node.widget_id == "w1"
+
+
+def test_node_layer_id_required():
+    import pytest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        Node(
+            id="n1",
+            type="curves",
+            scope={"kind": "global"},
+            params={},
+            inputs=[],
+            widget_id="w1",
+        )  # missing layer_id
+
+
+def test_node_widget_id_required():
+    import pytest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        Node(
+            id="n1",
+            type="curves",
+            scope={"kind": "global"},
+            params={},
+            inputs=[],
+            layer_id="layer_a",
+        )  # missing widget_id

@@ -23,6 +23,8 @@ class Node(BaseModel):
     scope: Scope = Field(default_factory=lambda: Scope(kind="global"))
     params: dict[str, float | int | str | bool] = Field(default_factory=dict)
     inputs: list[str] = Field(default_factory=list)  # node IDs
+    layer_id: str  # which frontend layer this node renders into
+    widget_id: str  # originating Widget id (for delete_widget cleanup)
 
 
 class PanelBinding(BaseModel):

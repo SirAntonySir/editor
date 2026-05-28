@@ -13,6 +13,8 @@ def sample_operation_graph() -> dict:
                 "type": "kelvin",
                 "scope": {"kind": "global"},
                 "params": {"temperature": 5800},
+                "layer_id": "layer_01",
+                "widget_id": "widget_01",
             }
         ],
         "panel_bindings": [

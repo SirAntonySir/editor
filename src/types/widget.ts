@@ -78,6 +78,7 @@ export interface WidgetNode {
   scope: Scope;
   inputs: string[];
   widget_id: string;
+  layer_id?: string;
 }
 
 export type WidgetOriginKind =
@@ -118,7 +119,7 @@ export interface Widget {
   bindings: ControlBinding[];
   preview: WidgetPreview;
   rejected_attempts: unknown[];
-  status: 'active' | 'dismissed';
+  status: 'active' | 'dismissed' | 'accepted';
   revision: number;
   created_at: string;
   updated_at: string;

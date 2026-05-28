@@ -7,6 +7,8 @@ export interface Node {
   scope: Scope;
   params: Record<string, number | string | boolean>;
   inputs: string[];
+  layer_id?: string;
+  widget_id?: string;
 }
 
 export interface PanelBinding {

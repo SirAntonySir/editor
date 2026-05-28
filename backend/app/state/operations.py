@@ -57,7 +57,7 @@ def project_to_graph(doc: SessionDocument) -> OperationGraph:
     user_goal_parts: list[str] = []
     for wid in doc.widget_order:
         w = doc.widgets.get(wid)
-        if w is None or w.status != "active":
+        if w is None or w.status not in {"active", "accepted"}:
             continue
         for wn in w.nodes:
             nodes.append(

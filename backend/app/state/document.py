@@ -101,6 +101,9 @@ class SessionDocument(BaseModel):
     def accept_widget(self, widget_id: str) -> list[StateEvent]:
         if widget_id not in self.widgets:
             raise KeyError(widget_id)
+        w = self.widgets[widget_id]
+        w.status = "accepted"
+        w.updated_at = datetime.now(timezone.utc)
         return [self._emit("widget.accepted", {"widget_id": widget_id})]
 
     # ---------------- mask mutations ----------------

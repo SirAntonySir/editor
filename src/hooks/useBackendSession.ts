@@ -31,17 +31,26 @@ export function useBackendSession(): void {
 
     (async () => {
       try {
+        // 1. Open the SSE subscription FIRST. The connection establishes in
+        //    <100ms locally; any events emitted by analyze after this point
+        //    will be delivered.
+        subscriptionRef.current = openSseSubscription(sessionId);
+
+        // 2. Trigger analyze. Phase events, mask.created, widget.created etc.
+        //    fire DURING this call and are received via the SSE stream.
         const envelope = await backendTools.analyze_image(sessionId);
         if (cancelled) return;
         if (!envelope.ok) {
           console.warn('[backend-session] analyze_image failed:', envelope.error);
         }
+
+        // 3. Rehydrate the snapshot from REST as a safety net in case any
+        //    early events arrived before the SSE connection fully opened.
         const snapshotResp = await fetch(`${BASE_URL}/api/state/${sessionId}`);
         if (cancelled) return;
         if (snapshotResp.ok) {
           setSnapshot(await snapshotResp.json());
         }
-        subscriptionRef.current = openSseSubscription(sessionId);
       } catch (err) {
         console.warn('[backend-session] boot failed:', err);
       }

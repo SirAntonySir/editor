@@ -24,6 +24,7 @@ interface BackendState {
   sessionId: string | null;
   snapshot: SessionStateSnapshot | null;
   optimistic: Map<WidgetId, OptimisticPatch>;
+  acceptedSuggestions: Set<string>;
   sseStatus: SseStatus;
   applyEvent: (ev: StateEvent) => void;
   applyOptimistic: (widgetId: WidgetId, patch: OptimisticPatch) => void;
@@ -39,6 +40,7 @@ export const useBackendState = create<BackendState>()(
     sessionId: null,
     snapshot: null,
     optimistic: new Map(),
+    acceptedSuggestions: new Set(),
     sseStatus: 'idle',
 
     applyEvent: (ev) =>
@@ -74,7 +76,8 @@ export const useBackendState = create<BackendState>()(
             break;
           }
           case 'widget.accepted': {
-            // Pure provenance event — no state mutation required.
+            const id = payload.widget_id as string;
+            s.acceptedSuggestions.add(id);
             break;
           }
           case 'mask.created': {
@@ -119,6 +122,7 @@ export const useBackendState = create<BackendState>()(
         s.sessionId = null;
         s.snapshot = null;
         s.optimistic = new Map();
+        s.acceptedSuggestions = new Set();
         s.sseStatus = 'idle';
       }),
   })),

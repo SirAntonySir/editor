@@ -6,7 +6,7 @@ import { useAiSession } from '@/hooks/useImageContext';
 import { useAiChips } from '@/store/ai-chips-store';
 import { setPaletteOpenHandler } from '@/lib/palette-bus';
 import { SidebarShell } from './SidebarShell';
-import { InspectorPanelBody } from '@/components/inspector/InspectorPanel';
+import { InspectorPanel } from '@/components/inspector/InspectorPanel';
 import { GraphPropertiesPanelBody } from '@/components/graph/GraphPropertiesPanel';
 import { AiCommandPalette } from '@/components/AiCommandPalette';
 
@@ -76,7 +76,7 @@ export function RightSidebar() {
         {tab === 'inspector' && (
           editorMode === 'graph'
             ? <GraphPropertiesPanelBody />
-            : <InspectorPanelBody />
+            : <InspectorPanel />
         )}
         {tab === 'ai' && (
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">

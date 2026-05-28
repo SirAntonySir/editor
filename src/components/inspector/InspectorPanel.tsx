@@ -4,6 +4,11 @@ import { useEditorStore } from '@/store';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { AiPanelSection } from './AiPanelSection';
 import { AiStepSection } from './AiStepSection';
+import { useBackendState } from '@/store/backend-state-slice';
+import { SuggestionsRail } from './SuggestionsRail';
+import { WidgetCard } from './widget/WidgetCard';
+
+const BACKEND_WIDGETS = import.meta.env.VITE_BACKEND_WIDGETS === '1';
 
 export function InspectorPanelBody() {
   const { toolContext, getActiveTool } = useEditor();
@@ -76,4 +81,47 @@ export function InspectorPanelBody() {
       )}
     </div>
   );
+}
+
+// ── Widget-driven inspector (VITE_BACKEND_WIDGETS=1) ──────────────────────────
+
+export function InspectorPanelWidgets() {
+  const snapshot = useBackendState((s) => s.snapshot);
+  const accepted = useBackendState((s) => s.acceptedSuggestions);
+  const layers = useEditorStore((s) => s.layers);
+
+  const widgets = snapshot?.widgets.filter((w) => w.status === 'active') ?? [];
+  const suggestions = widgets.filter(
+    (w) => w.origin.kind === 'mcp_autonomous' && !accepted.has(w.id),
+  );
+  const actives = widgets.filter((w) => !suggestions.includes(w));
+  // otherLayers intentionally omitted in v1: the new path is widget-only.
+  // When VITE_BACKEND_WIDGETS=0 (default), the legacy path runs the layer
+  // properties path via InspectorPanelBody.
+  void layers;
+
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4 p-3">
+      <SuggestionsRail suggestions={suggestions} />
+      {actives.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h3 className="text-xs font-medium text-text-secondary uppercase tracking-wide">
+            Active widgets
+          </h3>
+          <div className="flex flex-col gap-2">
+            {actives.map((w) => <WidgetCard key={w.id} widget={w} isSuggestion={false} />)}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Dispatch wrapper: renders the widget-driven UI when VITE_BACKEND_WIDGETS=1,
+ * otherwise delegates to the legacy InspectorPanelBody.
+ */
+export function InspectorPanel() {
+  if (!BACKEND_WIDGETS) return <InspectorPanelBody />;
+  return <InspectorPanelWidgets />;
 }

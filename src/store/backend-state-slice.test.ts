@@ -102,6 +102,16 @@ describe('BackendStateSlice', () => {
     expect(useBackendState.getState().optimistic.size).toBe(0);
   });
 
+  it('applyEvent widget.accepted adds to acceptedSuggestions set', () => {
+    useBackendState.setState({ snapshot: baseSnapshot() });
+    useBackendState.getState().applyEvent({
+      revision: 2, kind: 'widget.accepted',
+      payload: { widget_id: 'w_1' },
+      emitted_at: '2026-05-23T00:00:01Z',
+    });
+    expect(useBackendState.getState().acceptedSuggestions.has('w_1')).toBe(true);
+  });
+
   it('applyEvent drops same-or-lower revision events defensively', () => {
     const snap = baseSnapshot();
     snap.revision = 5;

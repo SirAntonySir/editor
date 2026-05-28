@@ -40,6 +40,8 @@ interface BackendState {
   acceptedSuggestions: Set<string>;
   sseStatus: SseStatus;
   currentPhase: PhaseState | null;
+  /** True once the widget_mint phase completes — the terminal MCP analyze phase. */
+  mcpAnalyzeComplete: boolean;
   applyEvent: (ev: StateEvent) => void;
   applyOptimistic: (widgetId: WidgetId, patch: OptimisticPatch) => void;
   clearOptimistic: (widgetId: WidgetId) => void;
@@ -57,6 +59,7 @@ export const useBackendState = create<BackendState>()(
     acceptedSuggestions: new Set(),
     sseStatus: 'idle',
     currentPhase: null,
+    mcpAnalyzeComplete: false,
 
     applyEvent: (ev) =>
       set((s) => {
@@ -164,6 +167,7 @@ export const useBackendState = create<BackendState>()(
             const { phase } = payload as { phase: PhaseName };
             if (phase === 'widget_mint') {
               s.currentPhase = null;
+              s.mcpAnalyzeComplete = true;
             }
             break;
           }
@@ -199,6 +203,7 @@ export const useBackendState = create<BackendState>()(
         s.acceptedSuggestions = new Set();
         s.sseStatus = 'idle';
         s.currentPhase = null;
+        s.mcpAnalyzeComplete = false;
       }),
   })),
 );

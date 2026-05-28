@@ -18,8 +18,10 @@ async function fetchSnapshot(sessionId: string): Promise<SessionStateSnapshot> {
   return (await response.json()) as SessionStateSnapshot;
 }
 
-interface SseHandle {
+export interface SseHandle {
   close: () => void;
+  /** Resolves when the EventSource fires its first onopen (or after 1.5s safety timeout). */
+  opened: Promise<void>;
 }
 
 export function openSseSubscription(sessionId: string): SseHandle {
@@ -27,6 +29,13 @@ export function openSseSubscription(sessionId: string): SseHandle {
   let attempt = 0;
   let closed = false;
   let source: EventSource | null = null;
+
+  // Resolve once — on first onopen or after 1.5s safety timeout.
+  let resolveOpened!: () => void;
+  const opened = new Promise<void>((resolve) => { resolveOpened = resolve; });
+  // Safety net: if onopen never fires (e.g. the server is slow), analyze still
+  // proceeds after 1.5s rather than hanging forever.
+  setTimeout(() => resolveOpened(), 1500);
 
   function backoffMs(): number {
     return Math.min(4000, 250 * 2 ** Math.min(attempt, 4));
@@ -49,6 +58,8 @@ export function openSseSubscription(sessionId: string): SseHandle {
     source.onopen = () => {
       attempt = 0;
       state.setSseStatus('open');
+      // Resolve the opened promise (safe to call multiple times — Promise deduplicates).
+      resolveOpened();
     };
 
     source.onmessage = (event) => {
@@ -71,6 +82,7 @@ export function openSseSubscription(sessionId: string): SseHandle {
   open();
 
   return {
+    opened,
     close: () => {
       closed = true;
       source?.close();

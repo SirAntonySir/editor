@@ -38,6 +38,7 @@ export function useBackendStatus(): BackendStatus | null {
   const aiStatus = useAiSession((s) => s.status);
   const aiError = useAiSession((s) => s.error);
   const phase = useBackendState((s) => s.currentPhase);
+  const mcpComplete = useBackendState((s) => s.mcpAnalyzeComplete);
 
   const [toastMsg, setToastMsg] = useState<ToastMessage | null>(null);
 
@@ -87,7 +88,9 @@ export function useBackendStatus(): BackendStatus | null {
     };
   }
 
-  if (aiStatus === 'ready' && !readyDismissed) {
+  // Only show "ready" once MCP is also done — the legacy /api/analyze returns
+  // ~2s before widget_mint completes, so we'd otherwise lie to the user.
+  if (aiStatus === 'ready' && mcpComplete && !readyDismissed) {
     return { kind: 'success', text: 'Image context ready', ephemeral: true };
   }
 

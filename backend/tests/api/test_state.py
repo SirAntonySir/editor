@@ -10,7 +10,7 @@ import uvicorn
 from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
-from app.schemas.widget import Scope, Widget, WidgetOrigin, WidgetPreview
+from app.schemas.widget import MaskRecord, Scope, Widget, WidgetOrigin, WidgetPreview
 
 
 @pytest.mark.asyncio
@@ -85,3 +85,52 @@ async def test_state_sse_delivers_widget_created() -> None:
     finally:
         server.should_exit = True
         thread.join(timeout=5.0)
+
+
+@pytest.mark.asyncio
+async def test_get_mask_bytes_returns_png_b64() -> None:
+    """GET /api/state/{sid}/masks/{mask_id} returns full mask record with png_b64."""
+    from app.main import app
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+        sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+
+        # Inject a mask directly into the document.
+        doc = deps.get_session_store().get_document(sid)
+        mask = MaskRecord(
+            id="m_test_1",
+            width=4,
+            height=4,
+            png_b64="aGVsbG8=",  # base64("hello") — just needs to be non-empty
+            source="sam_box",
+            label="sky",
+        )
+        doc.masks[mask.id] = mask
+
+        r = await ac.get(f"/api/state/{sid}/masks/{mask.id}")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["id"] == "m_test_1"
+        assert body["width"] == 4
+        assert body["height"] == 4
+        assert body["source"] == "sam_box"
+        assert body["label"] == "sky"
+        assert body["png_b64"] == "aGVsbG8="
+
+
+@pytest.mark.asyncio
+async def test_get_mask_bytes_404_unknown_session() -> None:
+    from app.main import app
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.get("/api/state/no_such_sid/masks/m_1")
+        assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_mask_bytes_404_unknown_mask() -> None:
+    from app.main import app
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+        sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+        r = await ac.get(f"/api/state/{sid}/masks/no_such_mask")
+        assert r.status_code == 404

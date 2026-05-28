@@ -31,6 +31,30 @@ async def state_snapshot(sid: str) -> SessionStateSnapshot:
     return compute_snapshot(doc)
 
 
+@router.get("/state/{sid}/masks/{mask_id}")
+async def get_mask_bytes(sid: str, mask_id: str) -> dict:
+    """Return the full MaskRecord for a single mask, including png_b64 bytes.
+
+    Used by the frontend to rehydrate mask pixel data for masks whose
+    mask.created SSE event was dropped during the connection handshake window.
+    """
+    try:
+        doc = _store().get_document(sid)
+    except SessionNotFound:
+        raise HTTPException(status_code=404, detail="session not found")
+    mask = doc.masks.get(mask_id)
+    if not mask:
+        raise HTTPException(status_code=404, detail="mask not found")
+    return {
+        "id": mask.id,
+        "label": mask.label,
+        "source": mask.source,
+        "width": mask.width,
+        "height": mask.height,
+        "png_b64": mask.png_b64,
+    }
+
+
 @router.get("/state/{sid}/events")
 async def state_events(sid: str):
     try:

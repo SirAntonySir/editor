@@ -5,10 +5,11 @@ import type {
   SessionStateSnapshot,
   StateEvent,
   Widget,
-  MaskSummary,
 } from '@/types/widget';
 import { useEditorStore } from '@/store';
 import { materializeAdjustments } from '@/lib/materialize-adjustments';
+import { maskStore, type Mask } from '@/core/mask-store';
+import { maskPngBase64ToBytes } from '@/lib/sam/sam-client';
 
 // Required so immer can produce drafts of Map<WidgetId, OptimisticPatch>.
 enableMapSet();
@@ -111,8 +112,32 @@ export const useBackendState = create<BackendState>()(
             break;
           }
           case 'mask.created': {
-            const summary = payload.mask as MaskSummary;
-            if (summary) s.snapshot.masks_index.push(summary);
+            // Backend emits a flat payload with mask metadata + PNG bytes.
+            const p = payload as {
+              mask_id: string;
+              source: string;
+              label?: string | null;
+              width: number;
+              height: number;
+              png_b64?: string;
+            };
+            // Push MaskSummary into snapshot.masks_index so the inspector chip
+            // cloud sees it.
+            if (s.snapshot) {
+              s.snapshot.masks_index.push({
+                id: p.mask_id,
+                width: p.width,
+                height: p.height,
+                source: p.source,
+                label: p.label ?? null,
+              });
+            }
+            // Decode PNG → Uint8Array → register in maskStore so hover
+            // hit-test works. Fire-and-forget; maskStore is independent of
+            // zustand immer state.
+            if (p.png_b64) {
+              void registerMaskFromPng(p.mask_id, p.png_b64, p.width, p.height, p.label ?? undefined, p.source);
+            }
             break;
           }
           case 'context.updated': {
@@ -177,3 +202,32 @@ export const useBackendState = create<BackendState>()(
       }),
   })),
 );
+
+async function registerMaskFromPng(
+  maskId: string,
+  pngB64: string,
+  _width: number,
+  _height: number,
+  label: string | undefined,
+  source: string,
+): Promise<void> {
+  try {
+    const { data, width, height } = await maskPngBase64ToBytes(pngB64);
+    // maskStore.register auto-generates a UUID id, but we want to use the
+    // backend's mask_id so the frontend lookup matches the SSE event id.
+    // Inject directly via injectWithId().
+    const mask: Mask = {
+      id: maskId,
+      layerId: 'ai-proposed', // synthetic; precomputed masks aren't tied to a user layer
+      label,
+      width,
+      height,
+      data,
+      source: (source === 'sam_box' ? 'ai-proposed' : (source as Mask['source'])),
+      createdAt: Date.now(),
+    };
+    maskStore.injectWithId(mask);
+  } catch (err) {
+    console.warn('[mask.created] decode failed for', maskId, err);
+  }
+}

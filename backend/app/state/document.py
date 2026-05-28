@@ -106,8 +106,16 @@ class SessionDocument(BaseModel):
     # ---------------- mask mutations ----------------
 
     def add_mask(self, mask: MaskRecord) -> list[StateEvent]:
+        """Append a mask and emit mask.created with full metadata + png bytes."""
         self.masks[mask.id] = mask
-        return [self._emit("mask.created", {"mask_id": mask.id, "source": mask.source})]
+        return [self._emit("mask.created", {
+            "mask_id": mask.id,
+            "source": mask.source,
+            "label": mask.label,
+            "width": mask.width,
+            "height": mask.height,
+            "png_b64": mask.png_b64,
+        })]
 
     def emit_selection_changed(self, mask_id: str | None, state: str, label: str | None) -> list[StateEvent]:
         return [self._emit("selection.changed", {"mask_id": mask_id, "state": state, "label": label})]

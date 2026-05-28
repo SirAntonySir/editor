@@ -33,6 +33,12 @@ class MaskStoreImpl {
     return id;
   }
 
+  /** Insert a mask with a pre-determined id (e.g. from a backend mask.created
+   *  event). Overwrites any existing mask with the same id. */
+  injectWithId(mask: Mask): void {
+    this.masks.set(mask.id, mask);
+  }
+
   get(ref: MaskRef): Mask | undefined {
     return this.masks.get(ref);
   }

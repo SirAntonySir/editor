@@ -1,23 +1,18 @@
 /**
  * EditorDocument — the unified state machine / facade.
  *
- * Coordinates: Zustand store, PixelStore, HistoryManager,
- * TransactionCoordinator, and Serializer.
+ * Coordinates: Zustand store, PixelStore, HistoryManager, and Serializer.
  */
 import type { StoreApi } from 'zustand';
 import type {
   DocumentMeta,
   SerializableState,
-  HistoryEntry,
   InteractionSession,
 } from './types';
 import type { EditorState } from '@/store';
 import { pixelStore } from './pixel-store';
 import * as history from './history';
-import * as historyTree from '@/core/history-tree';
 import { useAiSession } from '@/hooks/useImageContext';
-import * as transaction from './transaction';
-import * as serializer from './serializer';
 import * as session from './session-storage';
 import type { FitMode } from '@/store/viewport-slice';
 import type { EditorMode } from '@/store/tool-slice';
@@ -136,14 +131,6 @@ function persistSession(): void {
   const s = store.getState();
   if (!s.documentMeta) return;
 
-  const t = history.getTree();
-  let historySnapshot;
-  let historyPixelBlobs: Map<string, Blob> | undefined;
-  if (t) {
-    historySnapshot = historyTree.toSnapshot(t);
-    historyPixelBlobs = historyTree.collectPixelBlobs(t);
-  }
-
   session.saveSession({
     meta: s.documentMeta,
     layers: s.layers,
@@ -155,8 +142,6 @@ function persistSession(): void {
       fitMode: s.fitMode ?? 'fit',
     },
     editorMode: s.editorMode ?? 'develop',
-    history: historySnapshot,
-    historyPixelBlobs,
     imageContext: useAiSession.getState().context ?? undefined,
     pixelStore,
   }).catch(() => {
@@ -168,12 +153,6 @@ function persistSession(): void {
 
 function init(zustandStore: StoreApi<EditorState>): void {
   store = zustandStore;
-
-  // Wire up history restore callback
-  history.setRestoreCallback(restoreState);
-
-  // Wire up transaction callbacks
-  transaction.setTransactionCallbacks(captureState, restoreState);
 
   // beforeunload guard
   beforeUnloadHandler = (e: BeforeUnloadEvent) => {
@@ -294,108 +273,20 @@ async function openImage(file: File): Promise<void> {
   scheduleSessionSave();
 }
 
-async function openEdp(file: File): Promise<void> {
-  const result = await serializer.load(file);
-
-  const t = historyTree.fromSnapshot(result.history, result.historyPixelBlobs);
-  history.clear();
-  history.loadTree(t);
-
-  if (store) {
-    store.setState({
-      layers: result.layers,
-      activeLayerId: result.activeLayerId,
-      pixelVersion: 0,
-      zoom: result.viewport.zoom,
-      panX: result.viewport.panX,
-      panY: result.viewport.panY,
-      fitMode: asFitMode(result.viewport.fitMode),
-      documentMeta: result.meta,
-      isDirty: false,
-      editorMode: 'develop',
-    });
-  }
-  // Restore cached image context (if persisted). Note: sessionId stays null —
-  // user must use "Re-analyze image" to bind a fresh backend session before
-  // Cmd+K / refine become usable again.
-  if (result.imageContext) {
-    useAiSession.getState().restoreContext(result.imageContext);
-  } else {
-    useAiSession.getState().reset();
-  }
-
-  scheduleSessionSave();
+async function openEdp(_file: File): Promise<void> {
+  // TODO(Task 6): implement .edp loading with new linear history
+  // Left as no-op pending serializer migration.
 }
 
 async function save(): Promise<Blob | null> {
-  if (!store) return null;
-  const s = store.getState();
-  if (!s.documentMeta) return null;
-
-  const updatedMeta = { ...s.documentMeta, modifiedAt: Date.now() };
-  store.setState({ documentMeta: updatedMeta });
-
-  const t = history.getTree();
-  const historySnapshot = t
-    ? historyTree.toSnapshot(t)
-    : historyTree.toSnapshot(historyTree.createTree(captureState()!));
-
-  const pixelBlobs = t ? historyTree.collectPixelBlobs(t) : new Map<string, Blob>();
-
-  const blob = await serializer.save({
-    meta: updatedMeta,
-    layers: s.layers,
-    activeLayerId: s.activeLayerId,
-    viewport: {
-      zoom: s.zoom ?? 1,
-      panX: s.panX ?? 0,
-      panY: s.panY ?? 0,
-      fitMode: s.fitMode ?? 'fit',
-    },
-    history: historySnapshot,
-    pixelBlobs,
-    imageContext: useAiSession.getState().context ?? undefined,
-  });
-
+  // TODO(Task 6): implement .edp saving with new linear history
+  // Left as no-op pending serializer migration.
   markClean();
-  return blob;
+  return null;
 }
 
-async function saveAs(name?: string): Promise<void> {
-  const blob = await save();
-  if (!blob) return;
-
-  const fileName = name ?? `${store?.getState().documentMeta?.name ?? 'document'}.edp`;
-
-  // Use native file picker dialog when available (Chrome/Edge)
-  if ('showSaveFilePicker' in window) {
-    try {
-      const handle = await (window as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
-        suggestedName: fileName,
-        types: [
-          {
-            description: 'Editor Project',
-            accept: { 'application/x-edp': ['.edp'] },
-          },
-        ],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return;
-    } catch (e) {
-      // User cancelled the dialog — don't fall through
-      if (e instanceof DOMException && e.name === 'AbortError') return;
-    }
-  }
-
-  // Fallback: trigger download
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  a.click();
-  URL.revokeObjectURL(url);
+async function saveAs(_name?: string): Promise<void> {
+  // TODO(Task 6): implement .edp save-as with new linear history
 }
 
 // ─── Interaction sessions (slider debouncing) ───────────────────────
@@ -432,15 +323,7 @@ function endInteraction(): void {
   if (!post) { interaction = null; return; }
   const pre = interaction.preMetaSnapshot;
   if (statesChanged(pre, post)) {
-    const entry: HistoryEntry = {
-      id: crypto.randomUUID(),
-      label: interaction.label,
-      timestamp: Date.now(),
-      kind: 'metadata',
-      metaSnapshot: post,
-      estimatedSize: 0,
-    };
-    history.push(entry);
+    history.push(post);
     markDirty();
   }
   interaction = null;
@@ -458,15 +341,7 @@ function flushPendingAction(): void {
   const post = captureState();
   if (post) {
     if (statesChanged(pendingAction.preSnapshot, post)) {
-      const entry: HistoryEntry = {
-        id: crypto.randomUUID(),
-        label: pendingAction.label,
-        timestamp: Date.now(),
-        kind: 'metadata',
-        metaSnapshot: post,
-        estimatedSize: 0,
-      };
-      history.push(entry);
+      history.push(post);
       markDirty();
     }
   }
@@ -507,54 +382,20 @@ function recordAction(label: string, fn: () => void): void {
   fn();
 }
 
-// ─── Destructive transactions ───────────────────────────────────────
-
-async function beginTransaction(
-  label: string,
-  layerIds: string[],
-): Promise<void> {
-  await transaction.begin(label, layerIds);
-}
-
-async function commitTransaction(): Promise<void> {
-  const info = transaction.commit();
-  const postMeta = captureState();
-  if (!postMeta) return;
-  const postPixels = await pixelStore.captureSnapshots(info.affectedLayerIds);
-  const entry: HistoryEntry = {
-    id: crypto.randomUUID(),
-    label: info.label,
-    timestamp: Date.now(),
-    kind: 'destructive',
-    metaSnapshot: postMeta,
-    prePixels: info.prePixelSnapshots,
-    postPixels,
-    estimatedSize: 0,
-  };
-  history.push(entry);
-  markDirty();
-}
-
-async function rollbackTransaction(): Promise<void> {
-  await transaction.rollback();
-}
-
 // ─── Undo / redo ────────────────────────────────────────────────────
 
-async function undoAction(): Promise<void> {
-  if (transaction.isActive()) {
-    await transaction.rollback();
-    return;
-  }
+function undoAction(): void {
   if (interaction) endInteraction();
   flushPendingAction();
-  await history.undo();
+  const snap = history.undo<SerializableState>();
+  if (snap) restoreState(snap);
 }
 
-async function redoAction(): Promise<void> {
+function redoAction(): void {
   if (interaction) endInteraction();
   flushPendingAction();
-  await history.redo();
+  const snap = history.redo<SerializableState>();
+  if (snap) restoreState(snap);
 }
 
 // ─── Session restore ─────────────────────────────────────────────────
@@ -565,7 +406,7 @@ async function restoreSession(): Promise<boolean> {
   const data = await session.loadSession();
   if (!data) return false;
 
-  const { manifest, pixels, historyPixels } = data;
+  const { manifest, pixels } = data;
 
   // Restore pixel data
   pixelStore.clear();
@@ -578,13 +419,7 @@ async function restoreSession(): Promise<boolean> {
   // Deserialize layers (Float32Array conversion)
   const layers = session.deserializeSessionLayers(manifest);
 
-  if (manifest.history) {
-    const t = historyTree.fromSnapshot(manifest.history, historyPixels);
-    history.clear();
-    history.loadTree(t);
-  } else {
-    history.clear();
-  }
+  history.clear();
 
   // Restore Zustand state (single source of truth)
   // Bump pixelVersion to signal that new pixel data is available,
@@ -601,12 +436,10 @@ async function restoreSession(): Promise<boolean> {
     documentMeta: manifest.meta,
     isDirty: false,
   });
-  // For sessions without persisted history (pre-Task-9), seed history with
-  // the loaded state so the first undo behaves correctly.
-  if (!manifest.history) {
-    const seed = captureState();
-    if (seed) history.initWith(seed);
-  }
+
+  // Seed history with the loaded state so the first undo behaves correctly.
+  const seed = captureState();
+  if (seed) history.initWith(seed);
 
   // Restore cached image context — no Claude call. SessionId stays null;
   // "Re-analyze image" menu item kicks off a fresh upload when the user wants
@@ -642,11 +475,6 @@ export const editorDocument = {
 
   // Discrete actions
   recordAction,
-
-  // Destructive transactions
-  beginTransaction,
-  commitTransaction,
-  rollbackTransaction,
 
   // Undo / redo
   undo: undoAction,

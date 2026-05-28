@@ -34,6 +34,7 @@ _RESPONSE_SCHEMA = {
 
 class TealOrangeTemplate(FusedToolTemplate):
     id = "teal_orange"
+    label = "Teal & orange"
     description = "Teal-and-orange cinematic grade — curve approximation plus selective saturation boost."
     typical_use = "Use when the user wants a teal-orange colour grade or cinematic look."
 

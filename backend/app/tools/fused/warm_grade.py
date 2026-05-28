@@ -36,6 +36,7 @@ _RESPONSE_SCHEMA = {
 
 class WarmGradeTemplate(FusedToolTemplate):
     id = "warm_grade"
+    label = "Warm grade"
     description = "Subjective 'warmer' — coordinated kelvin shift, highlight warmth, slight saturation."
     typical_use = "Use when the user asks to warm up the image, the subject, or a region."
 

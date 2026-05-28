@@ -307,7 +307,7 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic) -> None:
         if _dismissed(fused_id, global_scope):
             continue
         origin = WidgetOrigin(kind="mcp_autonomous", prompt=None)
-        intent = templates[fused_id].typical_use[:60] if templates[fused_id].typical_use else fused_id
+        intent = templates[fused_id].label
         try:
             widget = await run_fused_tool(
                 templates[fused_id], intent=intent, scope=global_scope,

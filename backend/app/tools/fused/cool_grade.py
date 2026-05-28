@@ -36,6 +36,7 @@ _RESPONSE_SCHEMA = {
 
 class CoolGradeTemplate(FusedToolTemplate):
     id = "cool_grade"
+    label = "Cool grade"
     description = "Subjective 'cooler' — mirror of warm_grade for cooling down an image or region."
     typical_use = "Use when the user asks to cool down the image, the subject, or a region."
 

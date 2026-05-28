@@ -35,6 +35,7 @@ _RESPONSE_SCHEMA = {
 
 class PortraitGlowTemplate(FusedToolTemplate):
     id = "portrait_glow"
+    label = "Portrait glow"
     description = "Soft portrait glow — reduces clarity and adds a gentle warmth nudge for flattering skin."
     typical_use = "Use when the user wants a soft, glowing, or flattering portrait look."
 

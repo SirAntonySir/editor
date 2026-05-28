@@ -37,6 +37,7 @@ _RESPONSE_SCHEMA = {
 
 class ExposureBalanceTemplate(FusedToolTemplate):
     id = "exposure_balance"
+    label = "Balance exposure"
     description = "Balances tonal range — lift shadows, recover highlights, set white/black points."
     typical_use = "Use when the user wants to balance exposure, recover clipped areas, or improve tonal range."
 

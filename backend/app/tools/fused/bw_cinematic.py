@@ -32,6 +32,7 @@ _RESPONSE_SCHEMA = {
 
 class BwCinematicTemplate(FusedToolTemplate):
     id = "bw_cinematic"
+    label = "B&W cinematic"
     description = "Black-and-white cinematic look — applies a fixed B&W LUT with a tunable tonal curve."
     typical_use = "Use when the user wants a cinematic black-and-white conversion."
 

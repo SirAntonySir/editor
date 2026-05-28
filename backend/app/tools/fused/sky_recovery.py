@@ -36,6 +36,7 @@ _RESPONSE_SCHEMA = {
 
 class SkyRecoveryTemplate(FusedToolTemplate):
     id = "sky_recovery"
+    label = "Recover sky"
     description = "Recovers blown-out sky detail — pulls highlights/whites with a curve refinement."
     typical_use = "Use when the user wants to recover sky detail, reduce overexposed sky, or balance sky and foreground."
 

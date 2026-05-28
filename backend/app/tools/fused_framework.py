@@ -56,6 +56,7 @@ class BindingSkeleton(BaseModel):
 
 class FusedToolTemplate(ABC):
     id: str
+    label: str
     description: str
     typical_use: str
     node_skeleton: list[NodeSkeleton]

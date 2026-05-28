@@ -35,6 +35,7 @@ _RESPONSE_SCHEMA = {
 
 class SubjectPopTemplate(FusedToolTemplate):
     id = "subject_pop"
+    label = "Subject pop"
     description = "Makes a subject or region pop — local contrast and saturation boost."
     typical_use = "Use when the user wants to make a subject, person, or region stand out."
 

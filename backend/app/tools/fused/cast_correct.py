@@ -35,6 +35,7 @@ _RESPONSE_SCHEMA = {
 
 class CastCorrectTemplate(FusedToolTemplate):
     id = "cast_correct"
+    label = "Fix color cast"
     description = "Corrects colour cast — neutral white balance shift plus saturation channel blend."
     typical_use = "Use when the user wants to remove a colour cast or fix white balance."
 

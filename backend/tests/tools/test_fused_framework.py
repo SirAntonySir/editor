@@ -20,6 +20,7 @@ from app.tools.fused_framework import (
 
 class _AlwaysOutOfEnvelope(FusedToolTemplate):
     id = "out_of_env"
+    label = "Test"
     description = "always returns out-of-envelope"
     typical_use = "test"
     node_skeleton = [

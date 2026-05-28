@@ -22,7 +22,7 @@ export function AskAiInput() {
     try {
       const active = useEditorStore.getState().activeScope ?? { kind: 'global' as const };
       const sendScope: Scope = active.kind === 'mask'
-        ? { kind: 'mask:click', mask_id: active.maskRef }
+        ? { kind: 'mask', mask_id: active.mask_id }
         : { kind: 'global' };
       await proposeFromPalette(trimmed, sendScope);
       setText('');

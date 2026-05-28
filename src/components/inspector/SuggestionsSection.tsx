@@ -32,13 +32,12 @@ export function SuggestionsSection() {
     void backendTools.delete_widget(sessionId, { widget_id: widgetId, suppress_similar: true });
   }
 
-  // Convert the widget-projection scope into a store-side Scope (or null) for
-  // cursor-bind. Only mask:click and global have round-trip equivalents today;
-  // anything else falls back to global on the store side.
+  // Convert the widget-projection scope into a store-side Scope for cursor-bind.
   function toStoreScope(s: unknown): StoreScope | null {
-    const sc = s as { kind: string; mask_id?: string; maskRef?: string };
-    if (sc.kind === 'mask:click' && sc.mask_id) return { kind: 'mask', maskRef: sc.mask_id };
-    if (sc.kind === 'mask' && sc.maskRef) return { kind: 'mask', maskRef: sc.maskRef };
+    const sc = s as { kind: string; mask_id?: string };
+    if (sc.kind === 'mask' && sc.mask_id) return { kind: 'mask', mask_id: sc.mask_id };
+    if (sc.kind === 'named_region') return s as StoreScope;
+    if (sc.kind === 'mask:proposed') return s as StoreScope;
     return { kind: 'global' };
   }
 
@@ -50,7 +49,7 @@ export function SuggestionsSection() {
       </div>
       <AskAiInput />
       {suggestions.map((w) => {
-        const matches = scopeMatches(activeScope, w.scope as never);
+        const matches = scopeMatches(activeScope, w.scope);
         return (
           <button
             key={w.id}
@@ -63,7 +62,7 @@ export function SuggestionsSection() {
             <span className="w-3.5 h-3.5 rounded-sm bg-accent text-white flex items-center
               justify-center text-[7px] font-semibold">AI</span>
             <span className="truncate">{w.intent}</span>
-            <span className="text-text-secondary text-[9px]">{scopeLabel(w.scope as never)}</span>
+            <span className="text-text-secondary text-[9px]">{scopeLabel(w.scope)}</span>
             <span
               onClick={(e) => onDismiss(e, w.id)}
               className="text-text-secondary hover:text-text-primary text-[12px] leading-none"
@@ -78,6 +77,6 @@ export function SuggestionsSection() {
 function scopeLabel(s: { kind: string; label?: string }): string {
   if (s.kind === 'global') return 'image';
   if (s.kind === 'mask:proposed' || s.kind === 'named_region') return s.label ?? 'region';
-  if (s.kind === 'mask' || s.kind === 'mask:click') return 'segment';
+  if (s.kind === 'mask') return 'segment';
   return '—';
 }

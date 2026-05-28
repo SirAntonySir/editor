@@ -1,21 +1,20 @@
 // src/types/scope.ts
+/** String alias kept for backwards-compat with segment-actions / mask-store APIs. */
 export type MaskRef = string;
 
 export type Scope =
   | { kind: 'global' }
-  | { kind: 'mask'; maskRef: MaskRef }
-  | { kind: 'mask:proposed'; label: string; representativePoint: [number, number]; confidence?: number };
+  | { kind: 'mask'; mask_id: string }
+  | { kind: 'mask:proposed'; label: string }
+  | { kind: 'named_region'; label: string };
+
+export const GLOBAL_SCOPE: Scope = { kind: 'global' };
 
 export function scopeEquals(a: Scope, b: Scope): boolean {
   if (a.kind !== b.kind) return false;
   if (a.kind === 'global') return true;
-  if (a.kind === 'mask' && b.kind === 'mask') return a.maskRef === b.maskRef;
-  if (a.kind === 'mask:proposed' && b.kind === 'mask:proposed') {
-    return a.label === b.label
-      && a.representativePoint[0] === b.representativePoint[0]
-      && a.representativePoint[1] === b.representativePoint[1];
-  }
+  if (a.kind === 'mask' && b.kind === 'mask') return a.mask_id === b.mask_id;
+  if (a.kind === 'mask:proposed' && b.kind === 'mask:proposed') return a.label === b.label;
+  if (a.kind === 'named_region' && b.kind === 'named_region') return a.label === b.label;
   return false;
 }
-
-export const GLOBAL_SCOPE: Scope = { kind: 'global' };

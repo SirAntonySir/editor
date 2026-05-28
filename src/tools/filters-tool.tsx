@@ -128,7 +128,7 @@ export const FiltersTool: ToolDefinition = {
   onActivate: () => {
     const sid = useSegmentSelection.getState().selectedSegmentId;
     useEditorStore.getState().setActiveScope(
-      sid ? { kind: 'mask', maskRef: sid } : null,
+      sid ? { kind: 'mask', mask_id: sid } : null,
     );
   },
 };

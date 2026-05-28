@@ -18,7 +18,7 @@ describe('cursor-bind slice', () => {
   });
 
   it('startSuggestion sets pending with suggestion kind', () => {
-    useCursorBindStore.getState().startSuggestion('w_1', { kind: 'mask', maskRef: 'm1' });
+    useCursorBindStore.getState().startSuggestion('w_1', { kind: 'mask', mask_id: 'm1' });
     const p = useCursorBindStore.getState().pending;
     expect(p?.kind).toBe('suggestion');
     expect(p?.kind === 'suggestion' && p.widgetId).toBe('w_1');

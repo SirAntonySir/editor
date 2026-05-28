@@ -24,13 +24,13 @@ function resolveScope(scopeInput: ScopeInput): Scope | null {
     const s = useEditorStore.getState();
     const ref = s.activeMaskRef ?? s.committedMaskRef;
     if (!ref) return null;
-    return { kind: 'mask', maskRef: ref };
+    return { kind: 'mask', mask_id: ref };
   }
   // named_region
   const ctx = useAiSession.getState().context;
   const region = ctx?.candidateRegions?.find((r) => r.label === scopeInput.label);
   if (!region?.maskRef) return null;
-  return { kind: 'mask', maskRef: region.maskRef };
+  return { kind: 'mask', mask_id: region.maskRef };
 }
 
 export const applyAdjustmentTool: ToolManifest<typeof input, typeof ackSchema> = {

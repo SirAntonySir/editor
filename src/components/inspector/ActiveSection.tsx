@@ -77,6 +77,6 @@ export function ActiveSection() {
 function scopeLabel(s: { kind: string; label?: string }): string {
   if (s.kind === 'global') return 'image';
   if (s.kind === 'mask:proposed' || s.kind === 'named_region') return s.label ?? 'region';
-  if (s.kind === 'mask' || s.kind === 'mask:click') return 'segment';
+  if (s.kind === 'mask') return 'segment';
   return '—';
 }

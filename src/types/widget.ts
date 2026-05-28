@@ -1,10 +1,7 @@
 // Mirrors backend/app/schemas/widget.py + state/snapshot.py + state/events.
 
-export type Scope =
-  | { kind: 'global' }
-  | { kind: 'named_region'; label: string }
-  | { kind: 'mask:proposed'; label: string }
-  | { kind: 'mask:click'; mask_id?: string };
+import type { Scope } from './scope';
+export type { Scope } from './scope';
 
 export type ControlType =
   | 'slider'

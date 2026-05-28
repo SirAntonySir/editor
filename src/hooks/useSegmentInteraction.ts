@@ -7,7 +7,7 @@ import { maskStore } from '@/core/mask-store';
 function syncActiveScopeFromSelection() {
   const sel = useSegmentSelection.getState().selectedSegmentId;
   useEditorStore.getState().setActiveScope(
-    sel ? { kind: 'mask', maskRef: sel } : { kind: 'global' },
+    sel ? { kind: 'mask', mask_id: sel } : { kind: 'global' },
   );
 }
 

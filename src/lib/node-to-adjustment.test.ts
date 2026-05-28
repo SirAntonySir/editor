@@ -27,10 +27,10 @@ describe('nodeToAdjustment', () => {
 
   it('inherits scope from node', () => {
     const node = {
-      id: 'n3', type: 'basic', scope: { kind: 'mask:click', mask_id: 'm_1' },
+      id: 'n3', type: 'basic', scope: { kind: 'mask', mask_id: 'm_1' },
       params: { exposure: 0.5 }, inputs: [],
     } as unknown as Node;
     const adj = nodeToAdjustment(node);
-    expect(adj.scope).toEqual({ kind: 'mask:click', mask_id: 'm_1' });
+    expect(adj.scope).toEqual({ kind: 'mask', mask_id: 'm_1' });
   });
 });

@@ -56,13 +56,13 @@ describe('activeScope is consumed by addAdjustment', () => {
       id: 'L1', type: 'image', name: 'X',
       visible: true, opacity: 1, blendMode: 'normal', locked: false,
     });
-    useEditorStore.getState().setActiveScope({ kind: 'mask', maskRef: 'm1' });
+    useEditorStore.getState().setActiveScope({ kind: 'mask', mask_id: 'm1' });
     useEditorStore.getState().addAdjustment('L1', {
       id: 'A1', type: 'kelvin', name: 'k', enabled: true,
       blendMode: 'normal', opacity: 1, params: {},
     });
     const adj = useEditorStore.getState().layers[0].adjustmentStack.adjustments[0];
-    expect(adj.scope).toEqual({ kind: 'mask', maskRef: 'm1' });
+    expect(adj.scope).toEqual({ kind: 'mask', mask_id: 'm1' });
     expect(useEditorStore.getState().activeScope).toBeNull();
   });
 
@@ -71,13 +71,13 @@ describe('activeScope is consumed by addAdjustment', () => {
       id: 'L1', type: 'image', name: 'X',
       visible: true, opacity: 1, blendMode: 'normal', locked: false,
     });
-    useEditorStore.getState().setActiveScope({ kind: 'mask', maskRef: 'm2' });
+    useEditorStore.getState().setActiveScope({ kind: 'mask', mask_id: 'm2' });
     useEditorStore.getState().insertAdjustment('L1', {
       id: 'A2', type: 'curves', name: 'c', enabled: true,
       blendMode: 'normal', opacity: 1, params: {},
     }, 0);
     const adj = useEditorStore.getState().layers[0].adjustmentStack.adjustments[0];
-    expect(adj.scope).toEqual({ kind: 'mask', maskRef: 'm2' });
+    expect(adj.scope).toEqual({ kind: 'mask', mask_id: 'm2' });
     expect(useEditorStore.getState().activeScope).toBeNull();
   });
 });

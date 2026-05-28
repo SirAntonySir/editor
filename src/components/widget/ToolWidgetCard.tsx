@@ -74,16 +74,13 @@ export function ToolWidgetCard({ uw }: ToolWidgetCardProps) {
 }
 
 function scopeLabel(scope: Scope): string {
-  const kind = (scope as { kind: string }).kind;
-  switch (kind) {
+  switch (scope.kind) {
     case 'global': return 'image';
     case 'named_region':
     case 'mask:proposed':
-      return (scope as { label: string }).label;
-    case 'mask:click':
-      return (scope as { mask_id?: string }).mask_id ? 'segment' : 'image';
+      return scope.label;
     case 'mask':
-      return (scope as { maskRef?: string }).maskRef ? 'segment' : 'image';
+      return scope.mask_id ? 'segment' : 'image';
     default: return 'image';
   }
 }

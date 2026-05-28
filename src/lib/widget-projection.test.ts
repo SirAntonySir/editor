@@ -41,19 +41,18 @@ describe('selectAllWidgets', () => {
     expect(list[0].intent).toBe('Warm skin');
   });
 
-  it('projects tool widget with narrow-scope mask to mask_id anchor', () => {
-    // Set up a layer with a scoped adjustment using the narrow scope shape
+  it('projects tool widget with mask scope to mask_id anchor', () => {
+    // Set up a layer with a scoped adjustment using the unified scope shape
     const layers = useEditorStore.getState().layers;
     if (layers.length === 0) return;  // require a layer
     const layerId = layers[0].id;
     useEditorStore.getState().addAdjustment(layerId, {
-      id: 'a_narrow', type: 'kelvin', name: 'Kelvin',
+      id: 'a_masked', type: 'kelvin', name: 'Kelvin',
       enabled: true, blendMode: 'normal', opacity: 1, params: { temperature: 7000 },
-      // narrow scope shape — what setActiveScope produces today
-      scope: { kind: 'mask', maskRef: 'm_xyz' } as never,
+      scope: { kind: 'mask', mask_id: 'm_xyz' },
     });
     const list = selectAllWidgets();
-    const tool = list.find((w) => w.id === 'a_narrow');
+    const tool = list.find((w) => w.id === 'a_masked');
     expect(tool).toBeDefined();
     expect(tool!.anchor).toEqual({ kind: 'mask_id', mask_id: 'm_xyz' });
   });

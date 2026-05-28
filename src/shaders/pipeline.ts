@@ -347,7 +347,7 @@ export class WebGLPipeline {
       // Mask binding — upload R8 mask texture when scope.kind === 'mask'
       const scope = adj.scope ?? { kind: 'global' as const };
       if (scope.kind === 'mask' && this.maskTexture) {
-        const mask = maskStore.get(scope.maskRef);
+        const mask = maskStore.get(scope.mask_id);
         if (mask) {
           gl.activeTexture(gl.TEXTURE5);
           gl.bindTexture(gl.TEXTURE_2D, this.maskTexture);

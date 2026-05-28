@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { BindingRow } from './BindingRow';
 import { LifecycleActions } from './LifecycleActions';
-import { PreviewThumbnail } from './PreviewThumbnail';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import type { MaskSummary, Widget } from '@/types/widget';
@@ -38,10 +37,9 @@ export function WidgetCard({ widget, isSuggestion, variant = 'ai', mode = 'canva
         'rounded-lg bg-surface border p-3 flex flex-col gap-3 ' +
         (variant === 'ai' ? 'border-accent/60' : 'border-glass-border')
       }
-      style={{ width: 260 }}
+      style={{ minWidth: 200, maxWidth: 320 }}
     >
       <div className="flex items-start gap-3">
-        {isSuggestion && <PreviewThumbnail widget={widget} maxDim={64} />}
         <div className="flex-1 min-w-0">
           <button
             onClick={() => setExpanded((v) => !v)}

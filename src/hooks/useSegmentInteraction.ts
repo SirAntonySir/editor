@@ -29,7 +29,7 @@ export function useSegmentInteraction(
 
     /** Convert a pointer event into image-pixel coordinates by walking through
      *  canvas-pixel and scene space and undoing the FabricImage transform. */
-    function pointerToImagePx(e: PointerEvent): { x: number; y: number } | null {
+    function pointerToImagePx(e: PointerEvent): { x: number; y: number; imgWidth: number; imgHeight: number } | null {
       const f = fabricCanvasRef.current;
       if (!f || !el) return null;
       const img = f.getObjects().find((o) => o instanceof fabric.FabricImage) as fabric.FabricImage | undefined;
@@ -64,14 +64,19 @@ export function useSegmentInteraction(
       return {
         x: (sceneX - imgLeft) / scaleX,
         y: (sceneY - imgTop) / scaleY,
+        imgWidth: img.width ?? 0,
+        imgHeight: img.height ?? 0,
       };
     }
 
-    function massiveHitTest(imageX: number, imageY: number): string[] {
+    function massiveHitTest(imageX: number, imageY: number, imgWidth: number, imgHeight: number): string[] {
       const hits: string[] = [];
       for (const mask of maskStore.all()) {
-        if (imageX < 0 || imageY < 0 || imageX >= mask.width || imageY >= mask.height) continue;
-        if (mask.data[Math.floor(imageY) * mask.width + Math.floor(imageX)]) {
+        // Scale image-pixel coord into this mask's coord space.
+        const mx = Math.floor((imageX / imgWidth) * mask.width);
+        const my = Math.floor((imageY / imgHeight) * mask.height);
+        if (mx < 0 || my < 0 || mx >= mask.width || my >= mask.height) continue;
+        if (mask.data[my * mask.width + mx]) {
           hits.push(mask.id);
         }
       }
@@ -87,7 +92,7 @@ export function useSegmentInteraction(
           useSegmentSelection.getState().setHovered(null);
           return;
         }
-        const hits = massiveHitTest(p.x, p.y);
+        const hits = massiveHitTest(p.x, p.y, p.imgWidth, p.imgHeight);
         const smallest = hits[0] ?? null;
         useSegmentSelection.getState().setHovered(smallest);
       });
@@ -96,7 +101,7 @@ export function useSegmentInteraction(
     function onClick(e: PointerEvent) {
       const p = pointerToImagePx(e);
       if (!p) return;
-      const hits = massiveHitTest(p.x, p.y);
+      const hits = massiveHitTest(p.x, p.y, p.imgWidth, p.imgHeight);
       if (e.shiftKey) {
         const maskId = useSegmentSelection.getState().shiftClickAt(p.x, p.y, hits);
         if (maskId) {

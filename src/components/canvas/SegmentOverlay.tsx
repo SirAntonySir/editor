@@ -32,6 +32,12 @@ export function SegmentOverlay({ fabricCanvasRef }: SegmentOverlayProps) {
       c.height = f.getHeight();
       ctx.clearRect(0, 0, c.width, c.height);
 
+      // Apply Fabric's viewport transform so pan/zoom tracks the image.
+      const vpt = f.viewportTransform;
+      if (vpt) {
+        ctx.setTransform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5]);
+      }
+
       const fabricImage = f.getObjects().find(
         (o) => o instanceof fabric.FabricImage,
       ) as fabric.FabricImage | undefined;
@@ -39,8 +45,10 @@ export function SegmentOverlay({ fabricCanvasRef }: SegmentOverlayProps) {
 
       const scaleX = fabricImage.scaleX ?? 1;
       const scaleY = fabricImage.scaleY ?? 1;
-      const imgLeft = (fabricImage.left ?? 0) - ((fabricImage.width ?? 0) * scaleX) / 2;
-      const imgTop = (fabricImage.top ?? 0) - ((fabricImage.height ?? 0) * scaleY) / 2;
+      const imgNativeW = fabricImage.width ?? 0;
+      const imgNativeH = fabricImage.height ?? 0;
+      const imgLeft = (fabricImage.left ?? 0) - (imgNativeW * scaleX) / 2;
+      const imgTop = (fabricImage.top ?? 0) - (imgNativeH * scaleY) / 2;
 
       function drawOutline(maskId: string, style: 'hover' | 'selected') {
         const c2 = canvasRef.current;
@@ -55,8 +63,11 @@ export function SegmentOverlay({ fabricCanvasRef }: SegmentOverlayProps) {
           style === 'selected' ? 'rgba(10,132,255,1)' : 'rgba(10,132,255,0.55)';
         ctx2.fillStyle =
           style === 'selected' ? 'rgba(10,132,255,0.12)' : 'rgba(10,132,255,0.08)';
-        const cellW = scaleX;
-        const cellH = scaleY;
+        // One mask pixel covers (img.width / mask.width) image pixels in X,
+        // and each image pixel is `scaleX` canvas pixels. So a mask pixel
+        // spans (img.width / mask.width) * scaleX canvas pixels.
+        const cellW = ((imgNativeW || mask.width) * scaleX) / mask.width;
+        const cellH = ((imgNativeH || mask.height) * scaleY) / mask.height;
         // Fill pass — scan-line runs of set pixels
         for (let y = 0; y < mask.height; y++) {
           let runStart = -1;

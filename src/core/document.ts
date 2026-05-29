@@ -12,6 +12,8 @@ import type {
 import type { EditorState } from '@/store';
 import { pixelStore } from './pixel-store';
 import * as history from './history';
+import { putSource } from './pixel-source-store';
+import { useBackendState } from '@/store/backend-state-slice';
 
 const DEBOUNCE_MS = 2000;
 
@@ -132,6 +134,10 @@ async function openImage(file: File): Promise<void> {
 
   const layerId = crypto.randomUUID();
   pixelStore.register(layerId, offscreen);
+
+  // Best-effort: persist the source blob so Cmd+R can rehydrate this layer.
+  const sid = useBackendState.getState().sessionId;
+  if (sid) void putSource(sid, layerId, file);
 
   const meta: DocumentMeta = {
     id: crypto.randomUUID(),

@@ -16,10 +16,6 @@
   --color-accent-hover: #0077ed;
   --color-canvas-bg: #ededee;
 
-  /* Transitional — removed in the glass-cleanup task */
-  --color-glass-bg: rgba(255, 255, 255, 0.72);
-  --color-glass-border: rgba(0, 0, 0, 0.12);
-
   /* Corner radius — tightened */
   --radius-panel: 8px;
   --radius-button: 6px;
@@ -27,7 +23,6 @@
 
   /* Shadows */
   --shadow-overlay: 0 4px 14px rgba(0, 0, 0, 0.10);
-  --shadow-panel: 0 2px 8px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.05);
 
   /* Animation — restrained */
   --ease-apple: cubic-bezier(0.2, 0, 0, 1);
@@ -48,9 +43,6 @@
   --color-border-strong: rgba(255, 255, 255, 0.20);
   --color-canvas-bg: #000000;
   --shadow-overlay: 0 4px 14px rgba(0, 0, 0, 0.50);
-  /* Transitional — removed in the glass-cleanup task */
-  --color-glass-bg: rgba(30, 30, 30, 0.72);
-  --color-glass-border: rgba(255, 255, 255, 0.12);
 }
 
 /* Base styles */
@@ -75,16 +67,6 @@ html, body, #root {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Glass panel utility */
-.glass-panel {
-  background: var(--color-glass-bg);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 0.5px solid var(--color-glass-border);
-  box-shadow: var(--shadow-panel);
-  border-radius: var(--radius-panel);
-}
-
 /* Flat floating-overlay surface — replaces glass for menus, dropdowns,
  * context menus, tooltips, dialogs, and the selection-actions bar. */
 .overlay {
@@ -98,61 +80,6 @@ html, body, #root {
 .num {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-}
-
-/* Graph node gradient background — accent → glass-bg */
-.graph-node-gradient {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 12%, var(--color-glass-bg)) 0%, var(--color-glass-bg) 100%);
-}
-
-/* Graph editor gradient background — subtle accent → canvas-bg */
-.graph-editor-bg {
-  background: radial-gradient(ellipse at top left, color-mix(in srgb, var(--color-accent) 8%, var(--color-canvas-bg)) 0%, var(--color-canvas-bg) 60%);
-}
-
-/* React Flow overrides */
-.react-flow__node {
-  cursor: grab;
-  background: none !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  border-radius: 0 !important;
-  border: none !important;
-}
-.react-flow__node:active {
-  cursor: grabbing;
-}
-.react-flow__controls {
-  background: var(--color-glass-bg) !important;
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 0.5px solid var(--color-glass-border) !important;
-  box-shadow: var(--shadow-panel) !important;
-  border-radius: var(--radius-panel) !important;
-}
-.react-flow__controls-button {
-  background: transparent !important;
-  border-color: var(--color-separator) !important;
-  color: var(--color-text-secondary) !important;
-  fill: var(--color-text-secondary) !important;
-}
-.react-flow__controls-button:hover {
-  background: var(--color-surface-secondary) !important;
-  color: var(--color-text-primary) !important;
-  fill: var(--color-text-primary) !important;
-}
-
-/* Node focus animation — pulsing glow with accent color */
-@keyframes node-focus-glow {
-  0%, 100% {
-    box-shadow: 0 0 0 2px var(--color-accent), 0 0 8px color-mix(in srgb, var(--color-accent) 30%, transparent), var(--shadow-panel);
-  }
-  50% {
-    box-shadow: 0 0 0 2px var(--color-accent), 0 0 18px color-mix(in srgb, var(--color-accent) 50%, transparent), var(--shadow-panel);
-  }
-}
-.node-focused {
-  animation: node-focus-glow 2s ease-in-out infinite;
 }
 
 @keyframes pulse {

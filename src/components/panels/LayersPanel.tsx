@@ -66,7 +66,7 @@ function OpacityInput({ value, onChange }: { value: number; onChange: (v: number
 
   return (
     <span
-      className="text-[10px] text-text-secondary tabular-nums w-7 text-right cursor-text hover:text-text-primary transition-colors"
+      className="text-[10px] text-text-secondary tabular-nums num w-7 text-right cursor-text hover:text-text-primary transition-colors"
       onClick={() => { setText(String(Math.round(value * 100))); setEditing(true); }}
     >
       {Math.round(value * 100)}%

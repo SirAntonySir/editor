@@ -205,7 +205,7 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
 
 function ZoomDisplay() {
   const zoom = useEditorStore((s) => s.zoom);
-  return <span>{Math.round(zoom * 100)}%</span>;
+  return <span className="num">{Math.round(zoom * 100)}%</span>;
 }
 
 function ScopeDisplay() {

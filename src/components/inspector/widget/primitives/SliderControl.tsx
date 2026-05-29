@@ -13,7 +13,7 @@ export function SliderControl({ label, value, schema, onChange }: SliderControlP
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
         <span className="text-xs text-text-primary">{label}</span>
-        <span className="text-xs text-text-secondary">{value}{schema.unit ?? ''}</span>
+        <span className="text-xs text-text-secondary num">{value}{schema.unit ?? ''}</span>
       </div>
       <input
         type="range"

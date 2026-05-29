@@ -81,7 +81,7 @@ export function AdjustmentSlider({
           />
         ) : (
           <span
-            className="text-[9px] text-text-secondary tabular-nums w-8 text-right cursor-text hover:text-text-primary transition-colors"
+            className="text-[9px] text-text-secondary tabular-nums num w-8 text-right cursor-text hover:text-text-primary transition-colors"
             onClick={handleLabelClick}
           >{display}</span>
         )}

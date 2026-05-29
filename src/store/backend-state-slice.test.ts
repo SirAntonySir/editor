@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { useBackendState } from './backend-state-slice';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { useBackendState, getPersistedSessionId } from './backend-state-slice';
 import type { SessionStateSnapshot, StateEvent, Widget } from '@/types/widget';
 
 function makeWidget(id: string, overrides: Partial<Widget> = {}): Widget {
@@ -192,5 +192,43 @@ describe('BackendStateSlice phase events', () => {
       emitted_at: '2026-05-28T00:00:02Z',
     } as StateEvent);
     expect(useBackendState.getState().currentPhase).toBeNull();
+  });
+});
+
+describe('BackendStateSlice — session persistence', () => {
+  // Provide a minimal localStorage mock in the node test environment.
+  const store: Record<string, string> = {};
+  const localStorageMock = {
+    getItem: (key: string) => store[key] ?? null,
+    setItem: (key: string, val: string) => { store[key] = val; },
+    removeItem: (key: string) => { delete store[key]; },
+    clear: () => { for (const k of Object.keys(store)) delete store[k]; },
+  };
+
+  beforeEach(() => {
+    localStorageMock.clear();
+    vi.stubGlobal('localStorage', localStorageMock);
+    useBackendState.getState().reset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('setSessionId persists to localStorage', () => {
+    useBackendState.getState().setSessionId('sid_abc');
+    expect(getPersistedSessionId()).toBe('sid_abc');
+  });
+
+  it('setSessionId(null) clears localStorage', () => {
+    useBackendState.getState().setSessionId('sid_abc');
+    useBackendState.getState().setSessionId(null);
+    expect(getPersistedSessionId()).toBeNull();
+  });
+
+  it('reset() clears localStorage', () => {
+    useBackendState.getState().setSessionId('sid_abc');
+    useBackendState.getState().reset();
+    expect(getPersistedSessionId()).toBeNull();
   });
 });

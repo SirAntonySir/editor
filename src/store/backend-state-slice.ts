@@ -12,6 +12,17 @@ import { maskPngBase64ToBytes } from '@/lib/sam/sam-client';
 // Required so immer can produce drafts of Map<WidgetId, OptimisticPatch>.
 enableMapSet();
 
+const SESSION_STORAGE_KEY = 'editor.backend.sessionId';
+
+/** Read the persisted session id from localStorage, or null if absent / unavailable. */
+export function getPersistedSessionId(): string | null {
+  try {
+    return localStorage.getItem(SESSION_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
 type WidgetId = string;
 
 export interface OptimisticPatch {
@@ -181,7 +192,19 @@ export const useBackendState = create<BackendState>()(
 
     setSseStatus: (status) => set((s) => { s.sseStatus = status; }),
     setSnapshot: (snapshot) => set((s) => { s.snapshot = snapshot; }),
-    setSessionId: (sessionId) => set((s) => { s.sessionId = sessionId; }),
+    setSessionId: (sessionId) =>
+      set((s) => {
+        s.sessionId = sessionId;
+        try {
+          if (sessionId) {
+            localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+          } else {
+            localStorage.removeItem(SESSION_STORAGE_KEY);
+          }
+        } catch {
+          // localStorage may be disabled (private mode); ignore.
+        }
+      }),
 
     reset: () =>
       set((s) => {
@@ -192,6 +215,9 @@ export const useBackendState = create<BackendState>()(
         s.sseStatus = 'idle';
         s.currentPhase = null;
         s.mcpAnalyzeComplete = false;
+        try {
+          localStorage.removeItem(SESSION_STORAGE_KEY);
+        } catch { /* localStorage may be disabled (private mode); ignore. */ }
       }),
   })),
 );

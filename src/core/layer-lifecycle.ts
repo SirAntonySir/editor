@@ -7,6 +7,8 @@
  */
 import { useEditorStore } from '@/store';
 import { pixelStore } from './pixel-store';
+import { deleteOne } from './pixel-source-store';
+import { useBackendState } from '@/store/backend-state-slice';
 import type { Layer } from '@/store/layer-slice';
 
 let prevLayerIds = new Set<string>();
@@ -22,11 +24,13 @@ export function initLayerLifecycle(): () => void {
 
   return useEditorStore.subscribe((state) => {
     const currentIds = new Set(state.layers.map((l: Layer) => l.id));
+    const sid = useBackendState.getState().sessionId;
 
-    // Detect removed layers → clean up pixel data
+    // Detect removed layers → clean up pixel data + persisted source.
     for (const id of prevLayerIds) {
       if (!currentIds.has(id)) {
         pixelStore.remove(id);
+        if (sid) void deleteOne(sid, id);
       }
     }
 

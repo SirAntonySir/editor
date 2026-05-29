@@ -8,6 +8,7 @@ import type {
 } from '@/types/widget';
 import { maskStore, type Mask } from '@/core/mask-store';
 import { maskPngBase64ToBytes } from '@/lib/sam/sam-client';
+import { deletePrefix } from '@/core/pixel-source-store';
 
 // Required so immer can produce drafts of Map<WidgetId, OptimisticPatch>.
 enableMapSet();
@@ -208,6 +209,9 @@ export const useBackendState = create<BackendState>()(
 
     reset: () =>
       set((s) => {
+        // Fire-and-forget IDB wipe of the outgoing session's blobs before
+        // we clear the id from in-memory state.
+        if (s.sessionId) void deletePrefix(s.sessionId);
         s.sessionId = null;
         s.snapshot = null;
         s.optimistic = new Map();

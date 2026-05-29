@@ -32,6 +32,9 @@ function openDb(): Promise<IDBDatabase> {
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error ?? new Error('indexedDB open failed'));
     req.onblocked = () => reject(new Error('indexedDB open blocked'));
+  }).catch((err) => {
+    dbPromise = null;
+    throw err;
   });
   return dbPromise;
 }
@@ -88,10 +91,9 @@ export async function getSource(
   sessionId: string,
   layerId: string,
 ): Promise<Blob | null> {
-  const result = await run<Blob>('readonly', (store) =>
+  return run<Blob>('readonly', (store) =>
     store.get(key(sessionId, layerId)) as IDBRequest<Blob>,
   );
-  return result ?? null;
 }
 
 export async function deleteOne(

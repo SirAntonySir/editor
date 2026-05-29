@@ -22,7 +22,7 @@ import type * as fabric from 'fabric';
 /* ------------------------------------------------------------------ */
 
 const menuContentClass =
-  'z-50 min-w-[190px] rounded-[6px] bg-glass-bg/95 backdrop-blur-xl border border-glass-border shadow-panel p-[3px] text-[11px] text-text-primary';
+  'z-50 min-w-[190px] rounded-[var(--radius-panel)] bg-surface border border-separator shadow-overlay p-[3px] text-[11px] text-text-primary';
 
 const menuItemClass =
   'relative flex cursor-default select-none items-center gap-1.5 rounded-[3px] px-2 h-[22px] outline-none text-[11px] data-[highlighted]:bg-accent data-[highlighted]:text-white data-[disabled]:opacity-40 data-[disabled]:pointer-events-none';

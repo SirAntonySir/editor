@@ -34,7 +34,7 @@ export function AskAiInput() {
   return (
     <form
       onSubmit={submit}
-      className="flex items-center gap-1.5 bg-surface-secondary border border-glass-border
+      className="flex items-center gap-1.5 bg-surface-secondary border border-separator
         rounded px-2 py-1 mb-1.5"
     >
       <span className="text-[9px] text-text-secondary">⌘</span>

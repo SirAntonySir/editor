@@ -156,7 +156,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function PreviewCard() {
   return (
-    <div className="mt-2 glass-panel p-3 space-y-2">
+    <div className="mt-2 bg-surface-secondary border border-separator rounded-[var(--radius-panel)] p-3 space-y-2">
       <div className="text-[11px] font-medium text-text-primary">Preview</div>
       <div className="flex gap-2">
         <div className="h-6 flex-1 rounded-[var(--radius-button)] bg-accent" />

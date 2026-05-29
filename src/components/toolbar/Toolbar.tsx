@@ -123,7 +123,7 @@ function ToolButton({ tool, isActive, disabled }: { tool: ToolDefinition; isActi
           {tool.shortcut && (
             <kbd className="ml-1.5 text-text-secondary font-mono text-[10px]">{tool.shortcut}</kbd>
           )}
-          <Tooltip.Arrow className="fill-glass-bg" />
+          <Tooltip.Arrow className="fill-surface" />
         </Tooltip.Content>
       </Tooltip.Portal>
     </Tooltip.Root>

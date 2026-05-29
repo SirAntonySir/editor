@@ -42,7 +42,7 @@ export function WidgetCard({ widget, isSuggestion, variant = 'ai', mode = 'canva
     <div
       className={
         'rounded-lg bg-surface border flex flex-col overflow-hidden ' +
-        (variant === 'ai' ? 'border-accent/60' : 'border-glass-border')
+        (variant === 'ai' ? 'border-accent/60' : 'border-separator')
       }
       style={{ minWidth: 180, maxWidth: 220 }}
     >

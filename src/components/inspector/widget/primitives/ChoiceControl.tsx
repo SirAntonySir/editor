@@ -19,7 +19,7 @@ export function ChoiceControl({ label, value, schema, onChange }: ChoiceControlP
           {current?.label ?? value}
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
-          <DropdownMenu.Content className="bg-surface border border-glass-border rounded p-1">
+          <DropdownMenu.Content className="bg-surface border border-separator rounded p-1">
             {schema.options.map((opt) => (
               <DropdownMenu.Item
                 key={opt.value}

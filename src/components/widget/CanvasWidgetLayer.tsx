@@ -370,7 +370,7 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
         return (
           <div
             key={`sk_${r.label}_${i}`}
-            className="absolute pointer-events-none rounded-lg p-2 bg-surface/80 border border-dashed border-glass-border"
+            className="absolute pointer-events-none rounded-lg p-2 bg-surface border border-dashed border-separator"
             style={{
               left: imgLeft + px * w * scaleX,
               top: imgTop + py * h * scaleY,

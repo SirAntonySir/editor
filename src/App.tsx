@@ -104,7 +104,7 @@ function MainLayout({
                 <EmptyContent>
                   <button
                     onClick={handleFileOpen}
-                    className="glass-panel px-4 py-2 text-sm text-text-primary hover:bg-surface-secondary transition-colors cursor-pointer"
+                    className="bg-surface border border-separator rounded-[var(--radius-button)] px-4 py-2 text-sm text-text-primary hover:bg-surface-secondary transition-colors cursor-pointer"
                   >
                     Open Image
                   </button>
@@ -116,7 +116,7 @@ function MainLayout({
 
         {/* Status bar — bottom-right of canvas column */}
         <div className="absolute bottom-0 right-0 z-20 flex items-center gap-2
-          px-2 py-0.5 text-xs text-text-secondary bg-surface/70 backdrop-blur-sm rounded-tl-sm">
+          px-2 py-0.5 text-xs text-text-secondary bg-surface border-t border-l border-separator rounded-tl-sm">
           <ScopeDisplay />
           <span className="text-separator">|</span>
           <span className="capitalize">{activeTool}</span>

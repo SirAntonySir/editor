@@ -70,7 +70,7 @@ export function LifecycleActions({ widget, isSuggestion, variant = 'ai', onClose
             }}
             onBlur={() => { if (!instruction.trim()) setRefining(false); }}
             placeholder="Refine…"
-            className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-surface-secondary border border-glass-border text-text-primary outline-none focus:border-accent"
+            className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-surface-secondary border border-separator text-text-primary outline-none focus:border-accent"
             disabled={busy}
           />
         </form>

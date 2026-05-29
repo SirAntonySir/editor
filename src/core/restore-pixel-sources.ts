@@ -8,20 +8,27 @@ import { pixelStore } from './pixel-store';
 import { getSource } from './pixel-source-store';
 
 export async function restorePixelSources(sessionId: string): Promise<void> {
+  // Snapshot taken once; mutations during restore are ignored.
   const layers = useEditorStore.getState().layers;
   for (const layer of layers) {
     if (layer.type !== 'image') continue;
+    let bitmap: ImageBitmap | null = null;
     try {
       const blob = await getSource(sessionId, layer.id);
       if (!blob) continue;
-      const bitmap = await createImageBitmap(blob);
+      bitmap = await createImageBitmap(blob);
       const source = new OffscreenCanvas(bitmap.width, bitmap.height);
       const ctx = source.getContext('2d');
-      if (ctx) ctx.drawImage(bitmap, 0, 0);
+      if (!ctx) {
+        console.warn('[restore-pixel-sources] no 2d context for layer', layer.id);
+        continue;
+      }
+      ctx.drawImage(bitmap, 0, 0);
       pixelStore.register(layer.id, source);
-      bitmap.close();
     } catch (err) {
       console.warn('[restore-pixel-sources] failed for layer', layer.id, err);
+    } finally {
+      bitmap?.close();
     }
   }
 }

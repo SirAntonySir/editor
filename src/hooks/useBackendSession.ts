@@ -5,6 +5,8 @@ import { backendTools } from '@/lib/backend-tools';
 import { openSseSubscription, type SseHandle } from '@/lib/sse-subscriber';
 import { maskStore, type Mask } from '@/core/mask-store';
 import { maskPngBase64ToBytes } from '@/lib/sam/sam-client';
+import { deletePrefix } from '@/core/pixel-source-store';
+import { restorePixelSources } from '@/core/restore-pixel-sources';
 
 const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
@@ -151,6 +153,7 @@ export function useBackendSession(): void {
       if (!alive) {
         // Backend has restarted or session evicted — start fresh.
         console.info('[backend-session] persisted session', persisted, 'is gone; starting fresh');
+        await deletePrefix(persisted);
         reset();
         return;
       }
@@ -172,6 +175,8 @@ export function useBackendSession(): void {
           const snap = await snapshotResp.json();
           setSnapshot(snap);
           void rehydrateMaskBytes(persisted, snap.masks_index ?? []);
+          // Restore source bitmaps from IDB so the canvas isn't blank after reload.
+          void restorePixelSources(persisted);
         }
       } catch (err) {
         console.warn('[backend-session] reattach failed:', err);

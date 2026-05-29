@@ -39,7 +39,7 @@ All tokens live in `src/index.css` under `@theme`. **Never hardcode hex, px, ms,
 | `--color-canvas-bg` | #ededee | #000000 | Editor backdrop (outside the image) |
 
 **Separator vs border-strong rule:**
-- `--color-separator` — use for dividers between **docked** UI sections (toolbar bottom edge, inspector section headers, input field borders, dashed placeholder skeletons). It is intentionally faint and structural.
+- `--color-separator` — use for dividers between **docked** UI sections (toolbar bottom edge, inspector section headers, input field borders, dashed placeholder skeletons). It is intentionally faint and structural. Input/field borders always use `--color-separator`, even when the input sits inside a floating `.overlay` surface — only the outer perimeter of a floating surface uses `--color-border-strong`.
 - `--color-border-strong` — use for the visible perimeter edge of **floating / elevated** surfaces: the `.overlay` class, dropdown menus, context menus, tooltip bubbles, dialog edges, and widget cards that float over the canvas. It reads as a distinct boundary lift.
 
 Dark mode is applied via `data-theme="dark"` on the root. Components must use tokens — never branch on theme in JSX.
@@ -52,7 +52,7 @@ Dark mode is applied via `data-theme="dark"` on the root. Components must use to
 | `--radius-button` | 6px | Buttons, toolbar slots |
 | `--radius-sm` | 4px | Inline pills, badges, tags |
 
-> Radius values are user-tunable in Preferences (RADIUS_VALUES preset). The medium preset = 8 / 6 / 4.
+> Border radius is user-tunable via three Preferences presets (small/medium/large); the `medium` preset = 8 / 6 / 4. Always use the radius tokens so a preset change propagates — never hardcode px.
 
 ### Spacing
 
@@ -79,6 +79,7 @@ Framer Motion entrances use **opacity + ~4px translate tweens** at `--duration-n
 ```ts
 // canonical entrance tween
 { opacity: [0, 1], y: [4, 0], duration: 0.16, ease: [0.2, 0, 0, 1] }
+// ease mirrors --ease-apple (Framer Motion can't read CSS vars — this is the one allowed exception to "never hardcode cubic-beziers")
 ```
 
 Use `AnimatePresence mode="wait"` for content swaps inside a panel with a matching exit tween (`y: [0, -4]`). **Do not use `type: 'spring'`, `layoutId`, or scale-pop animations.** Motion must be restrained and instrumental — it communicates state change, not delight.
@@ -94,7 +95,7 @@ Use `AnimatePresence mode="wait"` for content swaps inside a panel with a matchi
 | Body | 13–14px | 400 | `text-text-primary` |
 | Hint / label | 10–11px | 400 | `text-text-secondary` |
 | Kbd chip | 10px (`text-[10px]`) | 400 | `text-text-secondary` over `bg-surface-secondary/60` |
-| Numeric readout | any | 400 | via `.num` class |
+| Numeric readout (`.num`) | context-dependent (matches surrounding body/hint size) | 400 | via `.num` class (Geist Mono + tabular-nums) |
 
 **Numeric readouts** (slider values, histogram counts, coordinates, percentages) use the `.num` utility class — this applies Geist Mono with `font-variant-numeric: tabular-nums` so digits are fixed-width and don't cause layout jitter as values update.
 
@@ -129,6 +130,7 @@ There is **no `backdrop-filter` anywhere in this codebase.** Do not introduce bl
 - **Layers** panel docks to the left or bottom rail depending on the layout variant.
 - **Dialogs** (Preferences, Export) use Radix Dialog over a dimmed backdrop, sized to content; the dialog surface uses `.overlay`.
 - **Widget cards** that float over the canvas use `.overlay` and `position: absolute` with explicit z-index.
+- **Status bar** — full-width (or bottom-right) docked chrome; `bg-surface` with a `border-separator` top/left edge, no shadow.
 
 Headers inside panels use `px-3 py-2 text-xs font-medium text-text-secondary border-b border-separator`.
 
@@ -147,7 +149,7 @@ Headers inside panels use `px-3 py-2 text-xs font-medium text-text-secondary bor
 - **Hover** — subtle background lift to `--color-surface-secondary`. No outline.
 - **Active / pressed** — slightly darker than hover; no scale change on buttons.
 - **Focus ring** — Radix default, recoloured to `--color-accent`.
-- **Tooltips** — Radix Tooltip, content uses `.overlay`, 150ms delay.
+- **Tooltips** — Radix Tooltip, content uses `.overlay`, 150ms delay. Tooltip bubbles may override `border-radius` to `--radius-sm` (4px), since `.overlay` defaults to `--radius-panel` (8px), which is too large for a small bubble.
 - **Drag handles** — `cursor: grab` → `cursor: grabbing` on active.
 
 ---

@@ -67,7 +67,7 @@ html, body, #root {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Flat floating-overlay surface — replaces glass for menus, dropdowns,
+/* Flat floating-overlay surface — used for menus, dropdowns,
  * context menus, tooltips, dialogs, and the selection-actions bar. */
 .overlay {
   background: var(--color-surface);

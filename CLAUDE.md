@@ -34,14 +34,14 @@ Full architecture plan: `docs/architecture-plan.md`
 - Named imports for Lucide icons (never star-import)
 - Zustand slice pattern for modular stores
 - 8-point spacing grid for all UI
-- Apple HIG design language (glass panels, spring animations, SF Pro font stack)
+- Flat Vercel/Radix register (hairline-bordered overlays, fast tween motion, Geist font stack)
 - `createImageBitmap()` for image loading (never `new Image()`)
 - `canvas.toBlob()` for export (never `toDataURL()`)
 
 ## Component Architecture (strict)
 The frontend follows a 3-tier hierarchy. **Reuse before invent.** Before writing JSX, search the existing tiers for a fit.
 
-1. **Primitives** — `src/components/ui/` (plus `panels/GlassPanel.tsx`). Atomic, presentational, no app state. Wrap Radix or expose CSS tokens. Examples: `GlassPanel`, `Kbd`, `Empty`.
+1. **Primitives** — `src/components/ui/`. Atomic, presentational, no app state. Wrap Radix or expose CSS tokens. Examples: `Kbd`, `Empty`, `Swatch`, `PercentBar`.
 2. **Level-2 (topic folders)** — `canvas/`, `inspector/`, `panels/`, `toolbar/`. Compose primitives + read stores. Each folder owns its domain. (`graph/` has been removed — no graph mode.)
 3. **Page scaffolds** — root of `src/components/` (`EditorDialog`, `PreferencesPage`, `EditorProvider`, `KeyboardShortcuts`, etc.). Wire level-2 pieces into surfaces.
 
@@ -50,7 +50,7 @@ The frontend follows a 3-tier hierarchy. **Reuse before invent.** Before writing
 - **Reuse before invent.** Search `ui/` and the relevant topic folder first. If you're tempted to copy-paste JSX, extract a primitive instead.
 - **Cross-domain primitives** (used by ≥2 topic folders) belong in `ui/`. Topic-local sub-components stay in their topic folder.
 - **Style only via design tokens** in `src/index.css` (color, radius, shadow, motion vars). No hardcoded hex or px for design values.
-- **Visual register**: see `design.md` at project root — it is authoritative for tokens, motion, and the glass-panel aesthetic.
+- **Visual register**: see `design.md` at project root — it is authoritative for tokens, motion, and the flat overlay aesthetic.
 - **Widget-driven panels**: `ProcessingDefinition.Panel` renders for each widget returned by the backend snapshot, not for static layer state. There is no "active tool drives panel" model.
 - **Toolrail is 6 buttons** (Light / Color / Kelvin / Curves / Levels / Filters). All disabled when `useBackendState.sseStatus !== 'open'`.
 

@@ -56,7 +56,7 @@ class LayerCompositorImpl {
 
   /**
    * Return the cached composite canvas without triggering a new composite.
-   * Use this from inside a listener (e.g. AiCommandPalette's paint) — calling
+   * Use this from inside a listener (e.g. a tool's paint callback) — calling
    * compositeSync there would fire executeComposite again and re-enter the
    * listeners, causing infinite recursion.
    */

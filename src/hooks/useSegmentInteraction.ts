@@ -6,7 +6,7 @@ import { maskStore } from '@/core/mask-store';
 /**
  * Pointer state machine wired to the active Fabric canvas. Hover updates
  * segment hover; click sets selection (with smallest-first / cycle-on-repeat);
- * shift+click selects the segment AND opens SpawnPaletteWidget so the user
+ * shift+click selects the segment AND opens the inline AskAiInput so the user
  * types the prompt (scope auto-fills from the just-selected segment).
  * ⌘/Ctrl+K dispatches the same 'spawn-palette:open' event.
  *

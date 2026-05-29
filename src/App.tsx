@@ -26,7 +26,6 @@ import { LevelsTool } from '@/tools/levels-tool';
 import { FiltersTool } from '@/tools/filters-tool';
 import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
 import { useBackendState } from '@/store/backend-state-slice';
-import { SpawnPaletteWidget } from '@/components/widget/SpawnPaletteWidget';
 import { CursorBindGhost } from '@/components/widget/CursorBindGhost';
 import { useCursorBind } from '@/hooks/useCursorBind';
 import { Upload } from 'lucide-react';
@@ -140,7 +139,7 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
   // Cursor-bind: track cursor + ESC handling while a tool/suggestion is bound.
   useCursorBind();
 
-  // ⌘K opens the floating spawn palette (SpawnPaletteWidget).
+  // ⌘K focuses the inline AskAiInput via the 'spawn-palette:open' event.
   // Disabled when the backend SSE connection is not open.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -193,9 +192,6 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
       <AnimatePresence>
         {showPreferences && <PreferencesPage />}
       </AnimatePresence>
-
-      {/* Floating spawn palette — opened via ⌘K */}
-      <SpawnPaletteWidget />
 
       {/* Cursor-bind ghost — follows the cursor while a tool/suggestion is bound */}
       <CursorBindGhost />

@@ -21,7 +21,7 @@ export function RegionPickerControl({ label, value, onChange, maskSummaries }: R
           {current?.label ?? 'Select region'}
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
-          <DropdownMenu.Content className="bg-surface border border-separator rounded p-1">
+          <DropdownMenu.Content className="bg-surface border border-border-strong rounded p-1">
             {named.map((m) => (
               <DropdownMenu.Item
                 key={m.id}

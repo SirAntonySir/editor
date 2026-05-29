@@ -30,7 +30,7 @@ export function CursorBindGhost() {
 
   return (
     <div
-      className="fixed pointer-events-none z-[100] rounded-md bg-surface border border-separator
+      className="fixed pointer-events-none z-[100] rounded-md bg-surface border border-border-strong
         px-2.5 py-1.5 text-[10px] text-text-primary shadow-overlay"
       style={{
         left: cursor.x + 12,

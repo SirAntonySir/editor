@@ -27,7 +27,7 @@ export function ToolWidgetCard({ uw }: ToolWidgetCardProps) {
   const wide = processing?.adjustmentType === 'curves';
   return (
     <div
-      className="rounded-md bg-surface border border-separator flex flex-col overflow-hidden shadow-overlay"
+      className="rounded-md bg-surface border border-border-strong flex flex-col overflow-hidden shadow-overlay"
       style={wide ? { minWidth: 260, maxWidth: 320 } : { minWidth: 200, maxWidth: 240 }}
     >
       {/* Header strip — minimal, matches mock */}

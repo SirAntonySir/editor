@@ -5,8 +5,10 @@ import { backendTools } from '@/lib/backend-tools';
 import { openSseSubscription, type SseHandle } from '@/lib/sse-subscriber';
 import { maskStore, type Mask } from '@/core/mask-store';
 import { maskPngBase64ToBytes } from '@/lib/sam/sam-client';
-import { deletePrefix } from '@/core/pixel-source-store';
+import { deletePrefix, getEditorState } from '@/core/pixel-source-store';
 import { restorePixelSources } from '@/core/restore-pixel-sources';
+import { useEditorStore } from '@/store';
+import type { PersistedEditorState } from '@/core/editor-state-persistence';
 
 const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
@@ -175,7 +177,18 @@ export function useBackendSession(): void {
           const snap = await snapshotResp.json();
           setSnapshot(snap);
           void rehydrateMaskBytes(persisted, snap.masks_index ?? []);
-          // Restore source bitmaps from IDB so the canvas isn't blank after reload.
+          // Restore frontend layer metadata BEFORE restoring bitmaps — the
+          // bitmap helper iterates `useEditorStore.layers`, which is empty
+          // on reload until we repopulate it from IDB.
+          const persistedState = await getEditorState<PersistedEditorState>(persisted);
+          if (persistedState) {
+            useEditorStore.setState({
+              layers: persistedState.layers,
+              activeLayerId: persistedState.activeLayerId,
+              pixelVersion: persistedState.pixelVersion,
+              documentMeta: persistedState.documentMeta,
+            });
+          }
           void restorePixelSources(persisted);
         }
       } catch (err) {

@@ -5,6 +5,8 @@ import {
   getSource,
   deleteOne,
   deletePrefix,
+  putEditorState,
+  getEditorState,
   __resetForTests,
 } from './pixel-source-store';
 
@@ -71,5 +73,26 @@ describe('pixel-source-store', () => {
     await putSource('s1', 'l1', makeBlob('a'));
     await deletePrefix('nope');
     expect(await readText(await getSource('s1', 'l1'))).toBe('a');
+  });
+
+  it('editor state round-trips through put then get', async () => {
+    const state = { layers: [{ id: 'a' }], activeLayerId: 'a' };
+    await putEditorState('s1', state);
+    const got = await getEditorState('s1');
+    expect(got).toEqual(state);
+  });
+
+  it('editor state returns null for missing sessions', async () => {
+    expect(await getEditorState('nope')).toBeNull();
+  });
+
+  it('deletePrefix wipes editor state alongside sources', async () => {
+    await putSource('s1', 'l1', makeBlob('a'));
+    await putEditorState('s1', { layers: [{ id: 'l1' }] });
+    await putEditorState('s2', { layers: [{ id: 'x' }] });
+    await deletePrefix('s1');
+    expect(await getSource('s1', 'l1')).toBeNull();
+    expect(await getEditorState('s1')).toBeNull();
+    expect(await getEditorState('s2')).toEqual({ layers: [{ id: 'x' }] });
   });
 });

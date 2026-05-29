@@ -1,15 +1,19 @@
 /**
- * pixel-source-store — IndexedDB-backed persistence for layer source bitmaps.
+ * pixel-source-store — IndexedDB-backed persistence.
  *
- * Keys are `${sessionId}:${layerId}` strings. Values are Blobs (the original
- * uploaded File, which already satisfies Blob). All operations are best-effort:
- * if IDB is unavailable (private mode, quota exceeded, etc.) every call logs
- * a warning and resolves with a safe fallback (null / undefined).
+ * Two object stores in one DB:
+ *  - `pixel-sources`: layer source bitmaps, keyed `${sessionId}:${layerId}` → Blob
+ *  - `editor-state`: frontend state (layers, activeLayerId, documentMeta, …),
+ *    keyed by sessionId → JSON-serializable object
+ *
+ * All operations are best-effort: if IDB is unavailable (private mode, quota
+ * exceeded, etc.) every call logs a warning and resolves with a safe fallback.
  */
 
 const DB_NAME = 'editor-pixel-sources';
-const DB_VERSION = 1;
-const STORE = 'pixel-sources';
+const DB_VERSION = 2;
+const SOURCES_STORE = 'pixel-sources';
+const STATE_STORE = 'editor-state';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -25,8 +29,11 @@ function openDb(): Promise<IDBDatabase> {
     }
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE);
+      if (!db.objectStoreNames.contains(SOURCES_STORE)) {
+        db.createObjectStore(SOURCES_STORE);
+      }
+      if (!db.objectStoreNames.contains(STATE_STORE)) {
+        db.createObjectStore(STATE_STORE);
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -44,6 +51,7 @@ function key(sessionId: string, layerId: string): string {
 }
 
 function run<T>(
+  storeName: string,
   mode: IDBTransactionMode,
   fn: (store: IDBObjectStore) => IDBRequest<T> | null,
 ): Promise<T | null> {
@@ -52,13 +60,13 @@ function run<T>(
       new Promise<T | null>((resolve) => {
         let tx: IDBTransaction;
         try {
-          tx = db.transaction(STORE, mode);
+          tx = db.transaction(storeName, mode);
         } catch (err) {
           console.warn('[pixel-source-store] tx open failed:', err);
           resolve(null);
           return;
         }
-        const req = fn(tx.objectStore(STORE));
+        const req = fn(tx.objectStore(storeName));
         if (!req) {
           tx.oncomplete = () => resolve(null);
           tx.onerror = () => {
@@ -79,19 +87,21 @@ function run<T>(
   });
 }
 
+// ─── Pixel sources ──────────────────────────────────────────────────
+
 export async function putSource(
   sessionId: string,
   layerId: string,
   blob: Blob,
 ): Promise<void> {
-  await run('readwrite', (store) => store.put(blob, key(sessionId, layerId)));
+  await run(SOURCES_STORE, 'readwrite', (store) => store.put(blob, key(sessionId, layerId)));
 }
 
 export async function getSource(
   sessionId: string,
   layerId: string,
 ): Promise<Blob | null> {
-  return run<Blob>('readonly', (store) =>
+  return run<Blob>(SOURCES_STORE, 'readonly', (store) =>
     store.get(key(sessionId, layerId)) as IDBRequest<Blob>,
   );
 }
@@ -100,9 +110,32 @@ export async function deleteOne(
   sessionId: string,
   layerId: string,
 ): Promise<void> {
-  await run('readwrite', (store) => store.delete(key(sessionId, layerId)));
+  await run(SOURCES_STORE, 'readwrite', (store) => store.delete(key(sessionId, layerId)));
 }
 
+// ─── Editor state ───────────────────────────────────────────────────
+
+export async function putEditorState(
+  sessionId: string,
+  state: unknown,
+): Promise<void> {
+  await run(STATE_STORE, 'readwrite', (store) => store.put(state, sessionId));
+}
+
+export async function getEditorState<T = unknown>(
+  sessionId: string,
+): Promise<T | null> {
+  return run<T>(STATE_STORE, 'readonly', (store) =>
+    store.get(sessionId) as IDBRequest<T>,
+  );
+}
+
+// ─── Whole-session cleanup ──────────────────────────────────────────
+
+/**
+ * Delete everything (sources + editor state) for the given sessionId.
+ * Used on backend reset, on 404 reattach, and on session change.
+ */
 export async function deletePrefix(sessionId: string): Promise<void> {
   const prefix = `${sessionId}:`;
   await openDb().then(
@@ -110,24 +143,27 @@ export async function deletePrefix(sessionId: string): Promise<void> {
       new Promise<void>((resolve) => {
         let tx: IDBTransaction;
         try {
-          tx = db.transaction(STORE, 'readwrite');
+          tx = db.transaction([SOURCES_STORE, STATE_STORE], 'readwrite');
         } catch (err) {
           console.warn('[pixel-source-store] deletePrefix tx open failed:', err);
           resolve();
           return;
         }
-        const store = tx.objectStore(STORE);
-        const req = store.openCursor();
-        req.onsuccess = () => {
-          const cursor = req.result;
+        // Sources: cursor-scan for matching prefix.
+        const sources = tx.objectStore(SOURCES_STORE);
+        const cursorReq = sources.openCursor();
+        cursorReq.onsuccess = () => {
+          const cursor = cursorReq.result;
           if (!cursor) return;
           const k = String(cursor.key);
           if (k.startsWith(prefix)) cursor.delete();
           cursor.continue();
         };
-        req.onerror = () => {
-          console.warn('[pixel-source-store] deletePrefix cursor failed:', req.error);
+        cursorReq.onerror = () => {
+          console.warn('[pixel-source-store] deletePrefix cursor failed:', cursorReq.error);
         };
+        // State: direct delete by sessionId key.
+        tx.objectStore(STATE_STORE).delete(sessionId);
         tx.oncomplete = () => resolve();
         tx.onerror = () => {
           console.warn('[pixel-source-store] deletePrefix tx failed:', tx.error);

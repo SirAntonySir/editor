@@ -17,6 +17,7 @@ import { useEditorStore } from '@/store';
 import { usePreferencesStore, applyPreferences } from '@/store/preferences-store';
 import { editorDocument } from '@/core/document';
 import { initLayerLifecycle } from '@/core/layer-lifecycle';
+import { initEditorStatePersistence } from '@/core/editor-state-persistence';
 import { LightTool } from '@/tools/light-tool';
 import { ColorTool } from '@/tools/color-tool';
 import { KelvinTool } from '@/tools/kelvin-tool';
@@ -227,7 +228,9 @@ export default function App() {
   useEffect(() => {
     editorDocument.init(useEditorStore);
     const unsubLayerLifecycle = initLayerLifecycle();
+    const unsubStatePersistence = initEditorStatePersistence();
     return () => {
+      unsubStatePersistence();
       unsubLayerLifecycle();
       editorDocument.dispose();
     };

@@ -6,12 +6,14 @@ import { type ViewportSlice, createViewportSlice } from './viewport-slice';
 import { type ToolSlice, createToolSlice } from './tool-slice';
 import { type DocumentSlice, createDocumentSlice } from './document-slice';
 import { type SegmentationSlice, createSegmentationSlice } from './segmentation-slice';
+import { type SelectionSlice, createSelectionSlice } from './selection-slice';
 
 export type EditorState = LayerSlice &
   ViewportSlice &
   ToolSlice &
   DocumentSlice &
-  SegmentationSlice;
+  SegmentationSlice &
+  SelectionSlice;
 
 export const useEditorStore = create<EditorState>()(
   devtools(
@@ -21,6 +23,7 @@ export const useEditorStore = create<EditorState>()(
       ...createToolSlice(set as never, get as never, store as never),
       ...createDocumentSlice(set as never, get as never, store as never),
       ...createSegmentationSlice(set as never, get as never, store as never),
+      ...createSelectionSlice(set as never, get as never, store as never),
     }))
   )
 );

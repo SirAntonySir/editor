@@ -6,7 +6,6 @@ beforeEach(() => {
     activeMaskRef: null,
     committedMaskRef: null,
     encoderState: 'idle',
-    activeScope: null,
   } as unknown as Parameters<typeof useEditorStore.setState>[0]);
 });
 
@@ -45,10 +44,4 @@ describe('segmentation slice', () => {
     expect(useEditorStore.getState().encoderState).toBe('ready');
   });
 
-  it('setActiveScope sets the active scope', () => {
-    useEditorStore.getState().setActiveScope({ kind: 'mask', mask_id: 'm1' });
-    expect(useEditorStore.getState().activeScope).toEqual({ kind: 'mask', mask_id: 'm1' });
-    useEditorStore.getState().setActiveScope(null);
-    expect(useEditorStore.getState().activeScope).toBeNull();
-  });
 });

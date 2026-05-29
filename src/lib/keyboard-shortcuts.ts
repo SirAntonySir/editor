@@ -81,12 +81,6 @@ function buildShortcuts(): ShortcutEntry[] {
   });
 
   shortcuts.push({
-    key: '[',
-    ctrl: true,
-    action: () => usePreferencesStore.getState().toggleLeftSidebar(),
-    label: 'Toggle Left Sidebar',
-  });
-  shortcuts.push({
     key: ']',
     ctrl: true,
     action: () => usePreferencesStore.getState().toggleRightSidebar(),

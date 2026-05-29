@@ -53,34 +53,6 @@ function Item({
   );
 }
 
-function CheckItem({
-  children,
-  checked,
-  onCheckedChange,
-  keys,
-}: {
-  children: React.ReactNode;
-  checked: boolean;
-  onCheckedChange: (v: boolean) => void;
-  keys?: string | string[];
-}) {
-  return (
-    <Menubar.CheckboxItem
-      className={menuItemClass}
-      checked={checked}
-      onCheckedChange={onCheckedChange}
-    >
-      <span className="flex items-center gap-2 flex-1">
-        <Menubar.ItemIndicator className="inline-flex w-4 justify-center">
-          <span className="text-xs">&#10003;</span>
-        </Menubar.ItemIndicator>
-        <span>{children}</span>
-      </span>
-      {keys && <Kbd keys={keys} />}
-    </Menubar.CheckboxItem>
-  );
-}
-
 function Sep() {
   return <Menubar.Separator className={separatorClass} />;
 }
@@ -341,9 +313,6 @@ function ViewMenu({
   zoomIn: () => void;
   zoomOut: () => void;
 }) {
-  const showHistoryPanel = useEditorStore((s) => s.showHistoryPanel);
-  const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel);
-
   return (
     <Menubar.Menu>
       <TriggerButton>View</TriggerButton>
@@ -364,13 +333,6 @@ function ViewMenu({
           </Item>
           <Item onSelect={() => applyZoom(2)}>200%</Item>
           <Item onSelect={() => applyZoom(0.5)}>50%</Item>
-          <Sep />
-          <CheckItem
-            checked={showHistoryPanel}
-            onCheckedChange={() => toggleHistoryPanel()}
-          >
-            History
-          </CheckItem>
           {/* Mode switcher disabled — only Develop remains; new workflow TBD.
           <Sep />
           <Menubar.Label className={labelClass}>Mode</Menubar.Label>

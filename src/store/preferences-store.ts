@@ -37,9 +37,7 @@ export interface PreferencesState {
   accentColor: string;
   radiusScale: RadiusScale;
   showPreferences: boolean;
-  leftSidebarCollapsed: boolean;
   rightSidebarCollapsed: boolean;
-  leftSidebarWidth: number;
   rightSidebarWidth: number;
   rightSidebarTab: RightSidebarTab;
 
@@ -47,9 +45,7 @@ export interface PreferencesState {
   setAccentColor: (color: string) => void;
   setRadiusScale: (scale: RadiusScale) => void;
   setShowPreferences: (show: boolean) => void;
-  toggleLeftSidebar: () => void;
   toggleRightSidebar: () => void;
-  setLeftSidebarWidth: (w: number) => void;
   setRightSidebarWidth: (w: number) => void;
   setRightSidebarTab: (tab: RightSidebarTab) => void;
 }
@@ -68,9 +64,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       accentColor: '#0071e3',
       radiusScale: 'medium',
       showPreferences: false,
-      leftSidebarCollapsed: false,
       rightSidebarCollapsed: false,
-      leftSidebarWidth: 248,
       rightSidebarWidth: 264,
       rightSidebarTab: 'inspector',
 
@@ -78,12 +72,8 @@ export const usePreferencesStore = create<PreferencesState>()(
       setAccentColor: (color) => set({ accentColor: color }),
       setRadiusScale: (scale) => set({ radiusScale: scale }),
       setShowPreferences: (show) => set({ showPreferences: show }),
-      toggleLeftSidebar: () =>
-        set((s) => ({ leftSidebarCollapsed: !s.leftSidebarCollapsed })),
       toggleRightSidebar: () =>
         set((s) => ({ rightSidebarCollapsed: !s.rightSidebarCollapsed })),
-      setLeftSidebarWidth: (w) =>
-        set({ leftSidebarWidth: clampSidebarWidth(w) }),
       setRightSidebarWidth: (w) =>
         set({ rightSidebarWidth: clampSidebarWidth(w) }),
       setRightSidebarTab: (tab) => set({ rightSidebarTab: tab }),
@@ -94,9 +84,7 @@ export const usePreferencesStore = create<PreferencesState>()(
         themeMode: state.themeMode,
         accentColor: state.accentColor,
         radiusScale: state.radiusScale,
-        leftSidebarCollapsed: state.leftSidebarCollapsed,
         rightSidebarCollapsed: state.rightSidebarCollapsed,
-        leftSidebarWidth: state.leftSidebarWidth,
         rightSidebarWidth: state.rightSidebarWidth,
         rightSidebarTab: state.rightSidebarTab,
       }),

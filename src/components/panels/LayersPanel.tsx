@@ -3,8 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Eye,
   EyeOff,
-  Plus,
-  Trash2,
   GripVertical,
   Sun,
   ChevronRight,
@@ -77,46 +75,6 @@ function OpacityInput({ value, onChange }: { value: number; onChange: (v: number
 const LAYER_BLEND_MODES: BlendMode[] = [
   'normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'soft-light', 'hard-light',
 ];
-
-export function LayersPanelActions() {
-  const layers = useEditorStore((s) => s.layers);
-  const activeLayerId = useEditorStore((s) => s.activeLayerId);
-  const removeLayer = useEditorStore((s) => s.removeLayer);
-
-  return (
-    <>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          const id = crypto.randomUUID();
-          useEditorStore.getState().addLayer({
-            id,
-            type: 'image',
-            name: `Layer ${layers.length + 1}`,
-            visible: true,
-            opacity: 1,
-            blendMode: 'normal',
-            locked: false,
-          });
-        }}
-        className="p-0.5 rounded hover:bg-surface-secondary text-text-secondary hover:text-text-primary transition-colors"
-      >
-        <Plus size={14} />
-      </button>
-      {activeLayerId && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            removeLayer(activeLayerId);
-          }}
-          className="p-0.5 rounded hover:bg-surface-secondary text-text-secondary hover:text-text-primary transition-colors"
-        >
-          <Trash2 size={14} />
-        </button>
-      )}
-    </>
-  );
-}
 
 const EMPTY_MASKS: MaskSummary[] = [];
 

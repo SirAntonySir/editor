@@ -1,51 +1,56 @@
 @import "tailwindcss";
 
-/* Apple HIG Font Stack */
+/* Design tokens */
 @theme {
   /* 8pt spacing grid */
   --spacing: 8px;
 
-  /* Color tokens - light mode defaults */
-  --color-glass-bg: rgba(255, 255, 255, 0.72);
-  --color-glass-border: rgba(0, 0, 0, 0.12);
+  /* Color tokens — light defaults (Vercel/Radix flat) */
   --color-surface: #ffffff;
-  --color-surface-secondary: #f5f5f7;
-  --color-text-primary: #1d1d1f;
-  --color-text-secondary: #6e6e73;
+  --color-surface-secondary: #f4f4f5;
+  --color-text-primary: #171717;
+  --color-text-secondary: #737373;
+  --color-separator: rgba(0, 0, 0, 0.08);
+  --color-border-strong: rgba(0, 0, 0, 0.15);
   --color-accent: #0071e3;
   --color-accent-hover: #0077ed;
-  --color-separator: rgba(0, 0, 0, 0.1);
-  --color-canvas-bg: #e8e8ed;
+  --color-canvas-bg: #ededee;
 
-  /* Corner radius tokens */
-  --radius-panel: 12px;
-  --radius-button: 8px;
-  --radius-sm: 6px;
+  /* Transitional — removed in the glass-cleanup task */
+  --color-glass-bg: rgba(255, 255, 255, 0.72);
+  --color-glass-border: rgba(0, 0, 0, 0.12);
 
-  /* Shadows - Apple-style multi-layer */
+  /* Corner radius — tightened */
+  --radius-panel: 8px;
+  --radius-button: 6px;
+  --radius-sm: 4px;
+
+  /* Shadows */
+  --shadow-overlay: 0 4px 14px rgba(0, 0, 0, 0.10);
   --shadow-panel: 0 2px 8px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.05);
-  --shadow-button: 0 1px 3px rgba(0, 0, 0, 0.08), 0 0 0 0.5px rgba(0, 0, 0, 0.05);
 
-  /* Animation tokens */
+  /* Animation — restrained */
   --ease-apple: cubic-bezier(0.2, 0, 0, 1);
-  --duration-fast: 150ms;
-  --duration-normal: 250ms;
+  --duration-fast: 120ms;
+  --duration-normal: 160ms;
 
-  /* Font family */
+  /* Fonts */
   --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', monospace;
 }
 
-/* Dark mode — applied via data-theme attribute (set by preferences store) */
 [data-theme="dark"] {
+  --color-surface: #0a0a0a;
+  --color-surface-secondary: #1a1a1a;
+  --color-text-primary: #ededed;
+  --color-text-secondary: #a1a1a1;
+  --color-separator: rgba(255, 255, 255, 0.10);
+  --color-border-strong: rgba(255, 255, 255, 0.20);
+  --color-canvas-bg: #000000;
+  --shadow-overlay: 0 4px 14px rgba(0, 0, 0, 0.50);
+  /* Transitional — removed in the glass-cleanup task */
   --color-glass-bg: rgba(30, 30, 30, 0.72);
   --color-glass-border: rgba(255, 255, 255, 0.12);
-  --color-surface: #1c1c1e;
-  --color-surface-secondary: #2c2c2e;
-  --color-text-primary: #f5f5f7;
-  --color-text-secondary: #98989d;
-  --color-separator: rgba(255, 255, 255, 0.1);
-  --color-canvas-bg: #1a1a1a;
 }
 
 /* Base styles */
@@ -78,6 +83,21 @@ html, body, #root {
   border: 0.5px solid var(--color-glass-border);
   box-shadow: var(--shadow-panel);
   border-radius: var(--radius-panel);
+}
+
+/* Flat floating-overlay surface — replaces glass for menus, dropdowns,
+ * context menus, tooltips, dialogs, and the selection-actions bar. */
+.overlay {
+  background: var(--color-surface);
+  border: 1px solid var(--color-separator);
+  box-shadow: var(--shadow-overlay);
+  border-radius: var(--radius-panel);
+}
+
+/* Tabular monospace numerals (Geist Mono) for numeric readouts. */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Graph node gradient background — accent → glass-bg */

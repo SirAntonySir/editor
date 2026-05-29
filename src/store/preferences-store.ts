@@ -25,7 +25,7 @@ export type RadiusScale = 'none' | 'small' | 'medium' | 'large' | 'full';
 const RADIUS_VALUES: Record<RadiusScale, { panel: string; button: string; sm: string }> = {
   none: { panel: '0px', button: '0px', sm: '0px' },
   small: { panel: '6px', button: '4px', sm: '3px' },
-  medium: { panel: '12px', button: '8px', sm: '6px' },
+  medium: { panel: '8px', button: '6px', sm: '4px' },
   large: { panel: '16px', button: '12px', sm: '8px' },
   full: { panel: '20px', button: '16px', sm: '10px' },
 };

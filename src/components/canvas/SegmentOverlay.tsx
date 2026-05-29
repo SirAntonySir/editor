@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as fabric from 'fabric';
-import { useSegmentSelection } from '@/store/segment-selection-slice';
+import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 
 interface SegmentOverlayProps {
@@ -14,8 +14,11 @@ interface SegmentOverlayProps {
  */
 export function SegmentOverlay({ fabricCanvasRef }: SegmentOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const hoveredId = useSegmentSelection((s) => s.hoveredSegmentId);
-  const selectedId = useSegmentSelection((s) => s.selectedSegmentId);
+  const activeScope = useEditorStore((s) => s.activeScope);
+  const hoveredScope = useEditorStore((s) => s.hoveredScope);
+
+  const hoveredId = hoveredScope?.kind === 'mask' ? hoveredScope.mask_id : null;
+  const selectedId = activeScope.kind === 'mask' ? activeScope.mask_id : null;
 
   useEffect(() => {
     const canvas = canvasRef.current;

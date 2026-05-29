@@ -1,15 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as fabric from 'fabric';
-import { useSegmentSelection } from '@/store/segment-selection-slice';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
-
-function syncActiveScopeFromSelection() {
-  const sel = useSegmentSelection.getState().selectedSegmentId;
-  useEditorStore.getState().setActiveScope(
-    sel ? { kind: 'mask', mask_id: sel } : { kind: 'global' },
-  );
-}
 
 /**
  * Pointer state machine wired to the active Fabric canvas. Hover updates
@@ -97,12 +89,14 @@ export function useSegmentInteraction(
         rafRef.current = null;
         const p = pointerToImagePx(e);
         if (!p) {
-          useSegmentSelection.getState().setHovered(null);
+          useEditorStore.getState().setHoveredScope(null);
           return;
         }
         const hits = massiveHitTest(p.x, p.y, p.imgWidth, p.imgHeight);
         const smallest = hits[0] ?? null;
-        useSegmentSelection.getState().setHovered(smallest);
+        useEditorStore.getState().setHoveredScope(
+          smallest ? { kind: 'mask', mask_id: smallest } : null,
+        );
       });
     }
 
@@ -110,26 +104,23 @@ export function useSegmentInteraction(
       const p = pointerToImagePx(e);
       if (!p) {
         // Off-image click — deselect to full image.
-        useSegmentSelection.getState().clear();
-        useEditorStore.getState().setActiveScope({ kind: 'global' });
+        useEditorStore.getState().clearSelection();
         return;
       }
       const hits = massiveHitTest(p.x, p.y, p.imgWidth, p.imgHeight);
       if (e.shiftKey) {
-        const maskId = useSegmentSelection.getState().shiftClickAt(p.x, p.y, hits);
+        const maskId = useEditorStore.getState().shiftClickAt(p.x, p.y, hits);
         if (maskId) {
           window.dispatchEvent(new CustomEvent('spawn-palette:open'));
         }
       } else {
-        useSegmentSelection.getState().clickAt(p.x, p.y, hits);
+        useEditorStore.getState().clickAt(p.x, p.y, hits);
       }
-      syncActiveScopeFromSelection();
     }
 
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        useSegmentSelection.getState().clear();
-        useEditorStore.getState().setActiveScope({ kind: 'global' });
+        useEditorStore.getState().clearSelection();
       }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
@@ -140,7 +131,7 @@ export function useSegmentInteraction(
     function onPointerLeave() {
       // Cursor left the canvas — drop any hover so the marching ants
       // don't linger on a segment the user isn't pointing at anymore.
-      useSegmentSelection.getState().setHovered(null);
+      useEditorStore.getState().setHoveredScope(null);
     }
 
     el.addEventListener('pointermove', onPointerMove);

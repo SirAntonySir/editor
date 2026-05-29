@@ -1,6 +1,5 @@
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
-import { useCursorBindStore } from '@/store/cursor-bind-slice';
 import { selectAllWidgets } from '@/lib/widget-projection';
 import { backendTools } from '@/lib/backend-tools';
 import { scopeEquals, type Scope as StoreScope } from '@/types/scope';
@@ -21,7 +20,9 @@ export function SuggestionsSection() {
   );
 
   function onRowClick(widgetId: string, widgetScope: StoreScope | null) {
-    useCursorBindStore.getState().startSuggestion(widgetId, widgetScope);
+    const store = useEditorStore.getState();
+    if (widgetScope) store.setActiveScope(widgetScope);
+    store.startSuggestionBind(widgetId);
   }
 
   function onDismiss(e: React.MouseEvent, widgetId: string) {

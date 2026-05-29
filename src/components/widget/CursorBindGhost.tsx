@@ -1,4 +1,4 @@
-import { useCursorBindStore } from '@/store/cursor-bind-slice';
+import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { ToolRegistry } from '@/lib/tool-registry';
@@ -12,8 +12,8 @@ const EMPTY_WIDGETS: Widget[] = [];
  * canvas transform.
  */
 export function CursorBindGhost() {
-  const pending = useCursorBindStore((s) => s.pending);
-  const cursor = useCursorBindStore((s) => s.cursor);
+  const pending = useEditorStore((s) => s.pendingBind);
+  const cursor = useEditorStore((s) => s.cursor);
   const widgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
 
   if (!pending || !cursor) return null;

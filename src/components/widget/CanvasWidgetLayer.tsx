@@ -6,11 +6,9 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { ToolWidgetCard } from './ToolWidgetCard';
-import { useCursorBindStore } from '@/store/cursor-bind-slice';
 import { ToolRegistry } from '@/lib/tool-registry';
 import { backendTools } from '@/lib/backend-tools';
 import { scopeEquals } from '@/types/scope';
-import { useFocusedWidget } from '@/store/focus-slice';
 
 // Base position cache entry — stores the computed position plus the anchor
 // kind at the time of computation so we can detect anchor-type changes.
@@ -235,13 +233,13 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
 
   // Cursor-bind drop: while a tool/suggestion is bound to the cursor, swallow
   // a click on the canvas overlay to commit the widget.
-  const pending = useCursorBindStore((s) => s.pending);
+  const pending = useEditorStore((s) => s.pendingBind);
   const sessionId = useBackendState((s) => s.sessionId);
 
   // Focus pan: when a widget is focused (e.g. from Active row click), bring
   // its cached anchor to the viewport center and let the pulse animation
   // play, then clear focus after the animation.
-  const focusedId = useFocusedWidget((s) => s.focusedId);
+  const focusedId = useEditorStore((s) => s.focusedWidgetId);
   useEffect(() => {
     if (!focusedId) return;
     const f = fabricCanvasRef.current;
@@ -258,7 +256,7 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
     f.setViewportTransform([a, vpt[1], vpt[2], d, dx, dy]);
     f.requestRenderAll();
     const t = window.setTimeout(() => {
-      useFocusedWidget.getState().setFocused(null);
+      useEditorStore.getState().focusWidget(null);
     }, 600);
     return () => window.clearTimeout(t);
   }, [focusedId, fabricCanvasRef]);
@@ -272,12 +270,12 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
       const layerId = useEditorStore.getState().activeLayerId;
       const sid = useBackendState.getState().sessionId;
       if (!procId || !layerId || !sid) {
-        useCursorBindStore.getState().cancel();
+        useEditorStore.getState().cancelBind();
         return;
       }
       void backendTools.propose_widget(sid, {
         intent: tool?.label ?? procId,
-        scope: pending.scope ?? { kind: 'global' },
+        scope: useEditorStore.getState().activeScope,
         fused_tool_id: procId,
         layer_id: layerId,
         origin: 'tool_invoked',
@@ -285,7 +283,7 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
     } else if (sessionId) {
       void backendTools.accept_widget(sessionId, { widget_id: pending.widgetId });
     }
-    useCursorBindStore.getState().cancel();
+    useEditorStore.getState().cancelBind();
   }
 
   return (

@@ -17,7 +17,6 @@ import * as ContextMenu from '@radix-ui/react-context-menu';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
-import { useSegmentSelection } from '@/store/segment-selection-slice';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { duplicateLayer } from '@/store/segment-actions';
 import { SegmentRow } from './SegmentRow';
@@ -186,7 +185,6 @@ export function LayersPanelBody() {
               onSelect={() => {
                 setActiveLayer(layer.id);
                 useEditorStore.getState().setActiveScope({ kind: 'global' });
-                useSegmentSelection.setState({ selectedSegmentId: null });
               }}
               onToggleVisibility={() =>
                 updateLayer(layer.id, { visible: !layer.visible })

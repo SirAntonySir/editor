@@ -2,10 +2,8 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { Spline, RotateCcw } from 'lucide-react';
 import type { ToolDefinition } from '@/types/tool';
 import { useEditorStore } from '@/store';
-import { useSegmentSelection } from '@/store/segment-selection-slice';
 import { evaluateCubicSpline, DEFAULT_CURVE_POINTS, type CurvePoint } from '@/lib/curves';
 import { useCurvePoints, type CurvePointsMap } from '@/lib/curve-points-store';
-import { GLOBAL_SCOPE } from '@/types/scope';
 
 type Channel = 'rgb' | 'red' | 'green' | 'blue';
 
@@ -213,9 +211,6 @@ export const CurvesTool: ToolDefinition = {
   category: 'adjust',
   processingId: 'curves',
   onActivate: () => {
-    const sid = useSegmentSelection.getState().selectedSegmentId;
-    useEditorStore.getState().setActiveScope(
-      sid ? { kind: 'mask', mask_id: sid } : GLOBAL_SCOPE,
-    );
+    // activeScope is already set by the canvas click/cycle; nothing extra needed.
   },
 };

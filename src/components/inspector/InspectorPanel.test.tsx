@@ -2,11 +2,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { InspectorPanel } from './InspectorPanel';
 import { useBackendState } from '@/store/backend-state-slice';
-import { useSegmentSelection } from '@/store/segment-selection-slice';
+import { useEditorStore } from '@/store';
 
 beforeEach(() => {
   useBackendState.getState().reset();
-  useSegmentSelection.getState().clear();
+  useEditorStore.getState().clearSelection();
 });
 
 afterEach(() => cleanup());

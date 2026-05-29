@@ -4,10 +4,8 @@ import type { ToolDefinition } from '@/types/tool';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
-import { useSegmentSelection } from '@/store/segment-selection-slice';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { LutRegistry } from '@/lib/lut-registry';
-import { GLOBAL_SCOPE } from '@/types/scope';
 import {
   PRESET_LUTS,
   type LUTData,
@@ -117,9 +115,6 @@ export const FiltersTool: ToolDefinition = {
   category: 'filter',
   processingId: 'filter',
   onActivate: () => {
-    const sid = useSegmentSelection.getState().selectedSegmentId;
-    useEditorStore.getState().setActiveScope(
-      sid ? { kind: 'mask', mask_id: sid } : GLOBAL_SCOPE,
-    );
+    // activeScope is already set by the canvas click/cycle; nothing extra needed.
   },
 };

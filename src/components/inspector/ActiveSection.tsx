@@ -1,6 +1,5 @@
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
-import { useFocusedWidget } from '@/store/focus-slice';
 import { selectAllWidgets, type UnifiedWidget } from '@/lib/widget-projection';
 import { backendTools } from '@/lib/backend-tools';
 import { scopeEquals } from '@/types/scope';
@@ -19,7 +18,7 @@ export function ActiveSection() {
   );
 
   function onRowClick(widgetId: string) {
-    useFocusedWidget.getState().setFocused(widgetId);
+    useEditorStore.getState().focusWidget(widgetId);
   }
 
   function onRemove(e: React.MouseEvent, uw: UnifiedWidget) {

@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type { Scope } from '@/types/scope';
+import type { Scope, MaskRef } from '@/types/scope';
 import { GLOBAL_SCOPE } from '@/types/scope';
 import { maskStore } from '@/core/mask-store';
 
@@ -21,16 +21,25 @@ export interface SelectionSlice {
   focusedWidgetId: string | null;
   pendingBind: PendingBind | null;
   cursor: { x: number; y: number } | null;
+  /** Draft mask being previewed before the user commits (SAM preview, highlight_region). */
+  activeMaskRef: MaskRef | null;
+  /** Mask that has been committed — persists until the user discards or creates a new layer. */
+  committedMaskRef: MaskRef | null;
 
   setActiveScope: (scope: Scope) => void;
   setHoveredScope: (scope: Scope | null) => void;
   clickAt: (imageX: number, imageY: number, candidates: string[]) => void;
+  /** Select smallest mask at a point without starting a cycle (shift-click). Returns the mask id or null. */
+  shiftClickAt: (imageX: number, imageY: number, candidates: string[]) => string | null;
   focusWidget: (id: string | null) => void;
   startToolBind: (toolName: string) => void;
   startSuggestionBind: (widgetId: string) => void;
   updateCursor: (x: number, y: number) => void;
   cancelBind: () => void;
   clearSelection: () => void;
+  setActiveMask: (ref: MaskRef | null) => void;
+  commitMask: () => void;
+  discardCommittedMask: () => void;
 }
 
 const CYCLE_RADIUS_PX = 8;
@@ -62,6 +71,8 @@ export const createSelectionSlice: StateCreator<
   focusedWidgetId: null,
   pendingBind: null,
   cursor: null,
+  activeMaskRef: null,
+  committedMaskRef: null,
 
   setActiveScope: (scope) => set((s) => { s.activeScope = scope; }),
   setHoveredScope: (scope) => set((s) => { s.hoveredScope = scope; }),
@@ -78,6 +89,24 @@ export const createSelectionSlice: StateCreator<
     s.pendingBind = null;
     s.cursor = null;
   }),
+  setActiveMask: (ref) => set((s) => { s.activeMaskRef = ref; }),
+  commitMask: () => set((s) => {
+    s.committedMaskRef = s.activeMaskRef;
+    s.activeMaskRef = null;
+  }),
+  discardCommittedMask: () => set((s) => { s.committedMaskRef = null; }),
+
+  shiftClickAt: (imageX, imageY, candidates) => {
+    if (candidates.length === 0) return null;
+    const sorted = sortByPixelCount(candidates);
+    const id = sorted[0];
+    set((s) => {
+      s.cycleStack = { originX: imageX, originY: imageY, candidates: sorted, cursor: 0 };
+      s.activeScope = { kind: 'mask', mask_id: id };
+      s.hoveredScope = { kind: 'mask', mask_id: id };
+    });
+    return id;
+  },
 
   clickAt: (imageX, imageY, candidates) => {
     if (candidates.length === 0) {

@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { useEditor } from '@/components/EditorProvider';
 import { useEditorStore } from '@/store';
 import { useAiSession } from '@/hooks/useImageContext';
-import { useCursorBindStore } from '@/store/cursor-bind-slice';
 import { useBackendState } from '@/store/backend-state-slice';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import * as Tooltip from '@radix-ui/react-tooltip';
@@ -15,7 +14,6 @@ const CATEGORY_ORDER: ToolDefinition['category'][] = ['adjust', 'filter', 'draw'
 export function Toolbar() {
   const { registry } = useEditor();
   const activeTool = useEditorStore((s) => s.activeTool);
-  const activeScope = useEditorStore((s) => s.activeScope);
   const setActiveTool = useEditorStore((s) => s.setActiveTool);
   const editorMode = useEditorStore((s) => s.editorMode);
   const hasAiContext = useAiSession((s) => s.context !== null);
@@ -46,7 +44,7 @@ export function Toolbar() {
             // canvas drop site commits an adjustment with the captured scope.
             // Mode tools (text, crop) → keep legacy setActiveTool behavior.
             if (tool?.processingId) {
-              useCursorBindStore.getState().startTool(value, activeScope);
+              useEditorStore.getState().startToolBind(value);
               return;
             }
             setActiveTool(value);

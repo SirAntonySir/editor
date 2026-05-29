@@ -1,4 +1,4 @@
-import { useFocusedWidget } from '@/store/focus-slice';
+import { useEditorStore } from '@/store';
 import type { UnifiedWidget } from '@/lib/widget-projection';
 
 interface InspectorWidgetRowProps {
@@ -6,11 +6,11 @@ interface InspectorWidgetRowProps {
 }
 
 export function InspectorWidgetRow({ uw }: InspectorWidgetRowProps) {
-  const focusedId = useFocusedWidget((s) => s.focusedId);
+  const focusedId = useEditorStore((s) => s.focusedWidgetId);
   const isFocused = focusedId === uw.id;
 
   function onRowClick() {
-    useFocusedWidget.getState().setFocused(isFocused ? null : uw.id);
+    useEditorStore.getState().focusWidget(isFocused ? null : uw.id);
   }
 
   const reasoning = uw._widget?.reasoning;
@@ -19,8 +19,6 @@ export function InspectorWidgetRow({ uw }: InspectorWidgetRowProps) {
     <>
       <div
         onClick={onRowClick}
-        onMouseEnter={() => useFocusedWidget.getState().setHovered(uw.id)}
-        onMouseLeave={() => useFocusedWidget.getState().setHovered(null)}
         className={
           'grid items-center cursor-pointer text-[10px] py-1 border-b border-separator ' +
           (isFocused ? 'text-text-primary' : 'hover:bg-surface-secondary text-text-primary')

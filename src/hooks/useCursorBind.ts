@@ -1,22 +1,22 @@
 import { useEffect } from 'react';
-import { useCursorBindStore } from '@/store/cursor-bind-slice';
+import { useEditorStore } from '@/store';
 
 /**
  * Mount once at the app shell. While a cursor-bind is pending, tracks the
  * cursor position (so the ghost can follow) and binds ESC to cancel.
  */
 export function useCursorBind(): void {
-  const pending = useCursorBindStore((s) => s.pending);
+  const pending = useEditorStore((s) => s.pendingBind);
 
   useEffect(() => {
     if (!pending) return;
     const onMove = (e: PointerEvent) => {
-      useCursorBindStore.getState().updateCursor(e.clientX, e.clientY);
+      useEditorStore.getState().updateCursor(e.clientX, e.clientY);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        useCursorBindStore.getState().cancel();
+        useEditorStore.getState().cancelBind();
       }
     };
     window.addEventListener('pointermove', onMove);

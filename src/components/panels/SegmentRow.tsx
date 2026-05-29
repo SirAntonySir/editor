@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { maskStore } from '@/core/mask-store';
 import { useEditorStore } from '@/store';
-import { useSegmentSelection } from '@/store/segment-selection-slice';
 import type { MaskSummary } from '@/types/widget';
 
 interface Props {
@@ -44,7 +43,6 @@ export function SegmentRow({ layerId, mask }: Props) {
   }, [mask.id]);
 
   function onSelect() {
-    useSegmentSelection.setState({ selectedSegmentId: mask.id });
     useEditorStore.getState().setActiveScope({ kind: 'mask', mask_id: mask.id });
     useEditorStore.getState().setActiveLayer(layerId);
   }

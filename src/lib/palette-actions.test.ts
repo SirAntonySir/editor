@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import 'fake-indexeddb/auto';
 import { proposeFromPalette } from './palette-actions';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';

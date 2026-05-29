@@ -115,7 +115,7 @@ Use `AnimatePresence mode="wait"` for content swaps inside a panel with a matchi
 }
 ```
 
-Use `.overlay` for: dropdown menus, context menus, the CommandPalette, tooltip bubbles, floating dialogs, and on-canvas widget cards.
+Use `.overlay` for: dropdown menus, context menus, tooltip bubbles, floating dialogs, the selection-actions bar, and on-canvas widget cards.
 
 **Docked chrome** (sidebar, toolbar, inspector rail, status bar) uses `background: var(--color-surface)` with `border-color: var(--color-separator)` on its exposed edge(s). No shadow, no blur, no `backdrop-filter`.
 

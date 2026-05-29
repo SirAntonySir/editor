@@ -1,4 +1,4 @@
-import { ToolManifestRegistry } from './registry';
+import { LlmToolRegistry } from './llm-tool-registry';
 import { getImageContextTool } from './tools/get-image-context';
 import { listNamedRegionsTool } from './tools/list-named-regions';
 import { getActiveSelectionTool } from './tools/get-active-selection';
@@ -9,7 +9,7 @@ import { listLayersTool } from './tools/list-layers';
 import { highlightRegionTool } from './tools/highlight-region';
 import { addNoteTool } from './tools/add-note';
 
-export { ToolManifestRegistry } from './registry';
+export { LlmToolRegistry } from './llm-tool-registry';
 export type { ToolManifest, ToolKind } from './types';
 export { serializeManifest, serializeAllManifests, type AnthropicToolDescription } from './serialize';
 export { zodToJsonSchema, type JsonSchema } from './zod-to-json-schema';
@@ -20,16 +20,16 @@ export { zodToJsonSchema, type JsonSchema } from './zod-to-json-schema';
  */
 export function registerAllToolManifests(): void {
   // Query (4)
-  ToolManifestRegistry.register(getImageContextTool);
-  ToolManifestRegistry.register(listNamedRegionsTool);
-  ToolManifestRegistry.register(getActiveSelectionTool);
-  ToolManifestRegistry.register(listLayersTool);
+  LlmToolRegistry.register(getImageContextTool);
+  LlmToolRegistry.register(listNamedRegionsTool);
+  LlmToolRegistry.register(getActiveSelectionTool);
+  LlmToolRegistry.register(listLayersTool);
   // Selection (2)
-  ToolManifestRegistry.register(selectNamedRegionTool);
-  ToolManifestRegistry.register(clearSelectionTool);
+  LlmToolRegistry.register(selectNamedRegionTool);
+  LlmToolRegistry.register(clearSelectionTool);
   // Action (1)
-  ToolManifestRegistry.register(applyAdjustmentTool);
+  LlmToolRegistry.register(applyAdjustmentTool);
   // Annotation (2)
-  ToolManifestRegistry.register(highlightRegionTool);
-  ToolManifestRegistry.register(addNoteTool);
+  LlmToolRegistry.register(highlightRegionTool);
+  LlmToolRegistry.register(addNoteTool);
 }

@@ -5,7 +5,7 @@ import { Undo2, Redo2, RotateCcw } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
-import { ToolRegistry } from '@/lib/tool-registry';
+import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { revertToOriginal } from '@/lib/revert';
 import { editorDocument } from '@/core/document';
 import { useFileIO } from '@/hooks/useFileIO';
@@ -289,7 +289,7 @@ function ImageMenu({ transformImage }: { transformImage: (mode: 'rotateCW' | 'ro
 
 function AdjustmentItems() {
   const setActiveTool = useEditorStore((s) => s.setActiveTool);
-  const adjustTools = ToolRegistry.getAll().filter((t) => t.category === 'adjust');
+  const adjustTools = CanvasToolRegistry.getAll().filter((t) => t.category === 'adjust');
 
   return (
     <>
@@ -409,7 +409,7 @@ function ViewMenu({
 
 function FilterMenu() {
   const setActiveTool = useEditorStore((s) => s.setActiveTool);
-  const filterTools = ToolRegistry.getAll().filter((t) => t.category === 'filter');
+  const filterTools = CanvasToolRegistry.getAll().filter((t) => t.category === 'filter');
 
   return (
     <Menubar.Menu>
@@ -485,7 +485,7 @@ function AiMenu() {
 /* ------------------------------------------------------------------ */
 
 function HelpMenu() {
-  const tools = ToolRegistry.getAll();
+  const tools = CanvasToolRegistry.getAll();
 
   return (
     <Menubar.Menu>

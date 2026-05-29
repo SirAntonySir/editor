@@ -1,13 +1,13 @@
 import { createContext, useContext, useRef, useCallback, useEffect, type ReactNode } from 'react';
 import type * as fabric from 'fabric';
 import { useEditorStore } from '@/store';
-import { ToolRegistry } from '@/lib/tool-registry';
+import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { useBackendSession } from '@/hooks/useBackendSession';
 import { useSegmentInteraction } from '@/hooks/useSegmentInteraction';
 import type { ToolContext, ToolDefinition } from '@/types/tool';
 
 interface EditorContextValue {
-  registry: typeof ToolRegistry;
+  registry: typeof CanvasToolRegistry;
   toolContext: ToolContext;
   getActiveTool: () => ToolDefinition | undefined;
 }
@@ -36,7 +36,7 @@ export function EditorProvider({ children, canvasRef }: EditorProviderProps) {
 
   const dispatchCommand = useCallback(
     (toolName: string, commandName: string, payload?: unknown) => {
-      const tool = ToolRegistry.get(toolName);
+      const tool = CanvasToolRegistry.get(toolName);
       const command = tool?.commands?.[commandName];
       if (!command) return;
 
@@ -56,7 +56,7 @@ export function EditorProvider({ children, canvasRef }: EditorProviderProps) {
 
   const getActiveTool = useCallback(() => {
     const { activeTool } = useEditorStore.getState();
-    return ToolRegistry.get(activeTool);
+    return CanvasToolRegistry.get(activeTool);
   }, []);
 
   // Handle tool lifecycle (activate/deactivate)
@@ -64,13 +64,13 @@ export function EditorProvider({ children, canvasRef }: EditorProviderProps) {
 
   useEffect(() => {
     if (previousToolRef.current && previousToolRef.current !== activeTool) {
-      const prevTool = ToolRegistry.get(previousToolRef.current);
+      const prevTool = CanvasToolRegistry.get(previousToolRef.current);
       cleanupRef.current?.();
       cleanupRef.current = null;
       prevTool?.onDeactivate?.(toolContext);
     }
 
-    const currentTool = ToolRegistry.get(activeTool);
+    const currentTool = CanvasToolRegistry.get(activeTool);
     const cleanup = currentTool?.onActivate?.(toolContext);
     if (typeof cleanup === 'function') {
       cleanupRef.current = cleanup;
@@ -86,7 +86,7 @@ export function EditorProvider({ children, canvasRef }: EditorProviderProps) {
   }, [activeTool]);
 
   return (
-    <EditorContext.Provider value={{ registry: ToolRegistry, toolContext, getActiveTool }}>
+    <EditorContext.Provider value={{ registry: CanvasToolRegistry, toolContext, getActiveTool }}>
       {children}
     </EditorContext.Provider>
   );

@@ -1,6 +1,6 @@
 import type { ToolDefinition, EditorMode } from '@/types/tool';
 
-class ToolRegistryImpl {
+class CanvasToolRegistryImpl {
   private tools = new Map<string, ToolDefinition>();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -33,4 +33,4 @@ class ToolRegistryImpl {
   }
 }
 
-export const ToolRegistry = new ToolRegistryImpl();
+export const CanvasToolRegistry = new CanvasToolRegistryImpl();

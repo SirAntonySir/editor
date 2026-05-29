@@ -1,7 +1,7 @@
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { ProcessingRegistry } from '@/lib/processing-registry';
-import { ToolRegistry } from '@/lib/tool-registry';
+import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import type { Widget } from '@/types/widget';
 
 const EMPTY_WIDGETS: Widget[] = [];
@@ -20,7 +20,7 @@ export function CursorBindGhost() {
 
   let label = '';
   if (pending.kind === 'tool') {
-    const tool = ToolRegistry.get(pending.toolName);
+    const tool = CanvasToolRegistry.get(pending.toolName);
     const proc = tool?.processingId ? ProcessingRegistry.get(tool.processingId) : null;
     label = proc?.label ?? tool?.label ?? pending.toolName;
   } else {

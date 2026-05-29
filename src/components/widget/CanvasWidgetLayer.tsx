@@ -6,7 +6,7 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { ToolWidgetCard } from './ToolWidgetCard';
-import { ToolRegistry } from '@/lib/tool-registry';
+import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { backendTools } from '@/lib/backend-tools';
 import { scopeEquals } from '@/types/scope';
 
@@ -265,7 +265,7 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
     if (!pending) return;
     e.stopPropagation();
     if (pending.kind === 'tool') {
-      const tool = ToolRegistry.get(pending.toolName);
+      const tool = CanvasToolRegistry.get(pending.toolName);
       const procId = tool?.processingId;
       const layerId = useEditorStore.getState().activeLayerId;
       const sid = useBackendState.getState().sessionId;

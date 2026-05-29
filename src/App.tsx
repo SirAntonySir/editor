@@ -10,7 +10,7 @@ import { MenuBar } from '@/components/toolbar/MenuBar';
 import { RightSidebar } from '@/components/panels/RightSidebar';
 import { PreferencesPage } from '@/components/PreferencesPage';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
-import { ToolRegistry } from '@/lib/tool-registry';
+import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { registerAllProcessing } from '@/processing';
 import { registerAllToolManifests } from '@/lib/tool-manifest';
 import { useEditorStore } from '@/store';
@@ -46,12 +46,12 @@ registerAllProcessing();
 registerAllToolManifests();
 
 // Register tools (lean canvas-centric set — adjustment widget tools)
-ToolRegistry.register(LightTool);
-ToolRegistry.register(ColorTool);
-ToolRegistry.register(KelvinTool);
-ToolRegistry.register(CurvesTool);
-ToolRegistry.register(LevelsTool);
-ToolRegistry.register(FiltersTool);
+CanvasToolRegistry.register(LightTool);
+CanvasToolRegistry.register(ColorTool);
+CanvasToolRegistry.register(KelvinTool);
+CanvasToolRegistry.register(CurvesTool);
+CanvasToolRegistry.register(LevelsTool);
+CanvasToolRegistry.register(FiltersTool);
 
 /** Main canvas area */
 function MainLayout({

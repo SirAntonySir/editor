@@ -1,4 +1,4 @@
-import { ToolManifestRegistry } from './registry';
+import { LlmToolRegistry } from './llm-tool-registry';
 import { zodToJsonSchema } from './zod-to-json-schema';
 import type { ToolManifest } from './types';
 
@@ -34,5 +34,5 @@ export function serializeManifest(manifest: ToolManifest): AnthropicToolDescript
  * Anthropic's cache breaks on any byte change to the tool block.
  */
 export function serializeAllManifests(): AnthropicToolDescription[] {
-  return ToolManifestRegistry.getAll().map(serializeManifest);
+  return LlmToolRegistry.getAll().map(serializeManifest);
 }

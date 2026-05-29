@@ -1,4 +1,4 @@
-import { ToolRegistry } from './tool-registry';
+import { CanvasToolRegistry } from './canvas-tool-registry';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { useAiSession } from '@/hooks/useImageContext';
@@ -19,7 +19,7 @@ function buildShortcuts(): ShortcutEntry[] {
   const shortcuts: ShortcutEntry[] = [];
 
   // Tool shortcuts from registry (only for tools available in current mode)
-  for (const tool of ToolRegistry.getAll()) {
+  for (const tool of CanvasToolRegistry.getAll()) {
     if (tool.shortcut) {
       shortcuts.push({
         key: tool.shortcut.toLowerCase(),

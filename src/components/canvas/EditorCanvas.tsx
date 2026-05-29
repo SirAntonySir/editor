@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import * as fabric from 'fabric';
 import { useEditorStore } from '@/store';
 import { useEditor } from '@/components/EditorProvider';
-import { ToolRegistry } from '@/lib/tool-registry';
+import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { editorDocument } from '@/core/document';
 import { useAdjustmentPipeline } from './useAdjustmentPipeline';
@@ -276,7 +276,7 @@ export function EditorCanvas({ canvasRef }: EditorCanvasProps) {
     const forwardEvent = (type: 'down' | 'move' | 'up') => (opt: fabric.TPointerEventInfo) => {
       if (isPanning.current) return;
       const { activeTool } = useEditorStore.getState();
-      const toolDef = ToolRegistry.get(activeTool);
+      const toolDef = CanvasToolRegistry.get(activeTool);
       if (!toolDef) return;
 
       const e = opt.e as PointerEvent;

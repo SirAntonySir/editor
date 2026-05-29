@@ -2,7 +2,7 @@ import type { z } from 'zod';
 import type { ToolManifest, ToolKind } from './types';
 
 /**
- * In-memory registry of tool manifests. Same pattern as `ToolRegistry` and
+ * In-memory registry of tool manifests. Same pattern as `CanvasToolRegistry` and
  * `ProcessingRegistry` — registered once at app startup, queried by name
  * at agent-loop time.
  *
@@ -10,14 +10,14 @@ import type { ToolManifest, ToolKind } from './types';
  * directly so input validation is uniform: malformed LLM tool_use blocks
  * are rejected at the registry boundary instead of leaking into handlers.
  */
-class ToolManifestRegistryImpl {
+class LlmToolRegistryImpl {
   private manifests = new Map<string, ToolManifest>();
 
   register<TIn extends z.ZodTypeAny, TOut extends z.ZodTypeAny>(
     manifest: ToolManifest<TIn, TOut>,
   ): void {
     if (this.manifests.has(manifest.name)) {
-      throw new Error(`ToolManifestRegistry: duplicate registration for "${manifest.name}"`);
+      throw new Error(`LlmToolRegistry: duplicate registration for "${manifest.name}"`);
     }
     this.manifests.set(manifest.name, manifest as unknown as ToolManifest);
   }
@@ -41,10 +41,10 @@ class ToolManifestRegistryImpl {
    */
   async invoke(name: string, rawInput: unknown): Promise<unknown> {
     const manifest = this.manifests.get(name);
-    if (!manifest) throw new Error(`ToolManifestRegistry: unknown tool "${name}"`);
+    if (!manifest) throw new Error(`LlmToolRegistry: unknown tool "${name}"`);
     const parsed = manifest.inputSchema.safeParse(rawInput);
     if (!parsed.success) {
-      throw new Error(`ToolManifestRegistry: input validation failed for "${name}": ${parsed.error.message}`);
+      throw new Error(`LlmToolRegistry: input validation failed for "${name}": ${parsed.error.message}`);
     }
     return manifest.handler(parsed.data);
   }
@@ -54,4 +54,4 @@ class ToolManifestRegistryImpl {
   }
 }
 
-export const ToolManifestRegistry = new ToolManifestRegistryImpl();
+export const LlmToolRegistry = new LlmToolRegistryImpl();

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { zodToJsonSchema } from './zod-to-json-schema';
 import { serializeAllManifests } from './serialize';
-import { registerAllToolManifests, ToolManifestRegistry } from './index';
+import { registerAllToolManifests, LlmToolRegistry } from './index';
 
 describe('zodToJsonSchema', () => {
   it('handles primitives', () => {
@@ -51,7 +51,7 @@ describe('zodToJsonSchema', () => {
 
 describe('serializeAllManifests', () => {
   it('produces an Anthropic-shaped tool block for every registered manifest', () => {
-    ToolManifestRegistry.clear();
+    LlmToolRegistry.clear();
     registerAllToolManifests();
     const tools = serializeAllManifests();
     expect(tools.length).toBe(9);

@@ -1,30 +1,28 @@
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
-import { selectAllWidgets, type UnifiedWidget } from '@/lib/widget-projection';
 import { backendTools } from '@/lib/backend-tools';
 import { scopeEquals } from '@/types/scope';
+import type { Widget } from '@/types/widget';
 
 export function ActiveSection() {
-  useBackendState((s) => s.snapshot?.revision ?? 0);
-  // Subscribe to layer changes so projection recomputes when layers change.
-  useEditorStore((s) => s.layers.map((l) => l.id).join('|'));
+  const snapshot = useBackendState((s) => s.snapshot);
   const activeScope = useEditorStore((s) => s.activeScope);
   const accepted = useBackendState((s) => s.acceptedSuggestions);
   const sessionId = useBackendState((s) => s.sessionId);
 
-  const all = selectAllWidgets();
-  const actives = all.filter((w) =>
-    w.variant === 'tool' || w._widget?.origin.kind !== 'mcp_autonomous' || accepted.has(w.id),
+  const actives = (snapshot?.widgets ?? []).filter((w) =>
+    w.status === 'active' &&
+    (w.origin.kind === 'tool_invoked' || w.origin.kind !== 'mcp_autonomous' || accepted.has(w.id)),
   );
 
   function onRowClick(widgetId: string) {
     useEditorStore.getState().focusWidget(widgetId);
   }
 
-  function onRemove(e: React.MouseEvent, uw: UnifiedWidget) {
+  function onRemove(e: React.MouseEvent, w: Widget) {
     e.stopPropagation();
     if (sessionId) {
-      void backendTools.delete_widget(sessionId, { widget_id: uw.id, suppress_similar: false });
+      void backendTools.delete_widget(sessionId, { widget_id: w.id, suppress_similar: false });
     }
   }
 
@@ -35,6 +33,7 @@ export function ActiveSection() {
         <span className="bg-surface-secondary px-1 rounded text-[8px]">{actives.length}</span>
       </div>
       {actives.map((w) => {
+        const variant = w.origin.kind === 'tool_invoked' ? 'tool' : 'ai';
         const matches = !activeScope || activeScope.kind === 'global' || scopeEquals(activeScope, w.scope);
         return (
           <button
@@ -48,12 +47,12 @@ export function ActiveSection() {
             <span
               className={
                 'w-3.5 h-3.5 rounded-sm flex items-center justify-center text-[7px] font-semibold ' +
-                (w.variant === 'ai'
+                (variant === 'ai'
                   ? 'bg-accent text-white'
                   : 'bg-surface-secondary text-text-secondary')
               }
             >
-              {w.variant === 'ai' ? 'AI' : '·'}
+              {variant === 'ai' ? 'AI' : '·'}
             </span>
             <span className="truncate">{w.intent}</span>
             <span className="text-text-secondary text-[9px]">{scopeLabel(w.scope as never)}</span>

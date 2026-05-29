@@ -1,22 +1,19 @@
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
-import { selectAllWidgets } from '@/lib/widget-projection';
 import { backendTools } from '@/lib/backend-tools';
 import { scopeEquals, type Scope as StoreScope } from '@/types/scope';
 import { AskAiInput } from './AskAiInput';
 
 export function SuggestionsSection() {
-  // Subscribe so projection recomputes when snapshot or layers change.
-  useBackendState((s) => s.snapshot?.revision ?? 0);
-  // Subscribe to layer changes so projection recomputes when layers change.
-  useEditorStore((s) => s.layers.map((l) => l.id).join('|'));
+  const snapshot = useBackendState((s) => s.snapshot);
   const activeScope = useEditorStore((s) => s.activeScope);
   const accepted = useBackendState((s) => s.acceptedSuggestions);
   const sessionId = useBackendState((s) => s.sessionId);
 
-  const all = selectAllWidgets();
-  const suggestions = all.filter((w) =>
-    w.variant === 'ai' && w._widget?.origin.kind === 'mcp_autonomous' && !accepted.has(w.id),
+  const suggestions = (snapshot?.widgets ?? []).filter((w) =>
+    w.status === 'active' &&
+    w.origin.kind === 'mcp_autonomous' &&
+    !accepted.has(w.id),
   );
 
   function onRowClick(widgetId: string, widgetScope: StoreScope | null) {

@@ -1,15 +1,14 @@
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 import { ProcessingRegistry } from '@/lib/processing-registry';
-import type { UnifiedWidget } from '@/lib/widget-projection';
-import type { Scope } from '@/types/widget';
+import type { Widget, Scope } from '@/types/widget';
 
 interface ToolWidgetCardProps {
-  uw: UnifiedWidget;
+  uw: Widget;
 }
 
 export function ToolWidgetCard({ uw }: ToolWidgetCardProps) {
-  const processing = uw.processingId ? ProcessingRegistry.get(uw.processingId) : undefined;
+  const processing = uw.fused_tool_id ? ProcessingRegistry.get(uw.fused_tool_id) : undefined;
   const Panel = processing?.Panel;
   const Icon = processing?.icon;
   const sessionId = useBackendState((s) => s.sessionId);
@@ -22,7 +21,7 @@ export function ToolWidgetCard({ uw }: ToolWidgetCardProps) {
 
   // Find the active layer ID from the widget's first node (if any) — used by
   // panel components that need a layerId prop. If not available, pass empty string.
-  const layerId = uw._widget?.nodes[0]?.layer_id ?? '';
+  const layerId = uw.nodes[0]?.layer_id ?? '';
   const widgetId = uw.id;
 
   const wide = processing?.adjustmentType === 'curves';

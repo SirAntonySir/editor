@@ -1,8 +1,8 @@
 import { useEditorStore } from '@/store';
-import type { UnifiedWidget } from '@/lib/widget-projection';
+import type { Widget } from '@/types/widget';
 
 interface InspectorWidgetRowProps {
-  uw: UnifiedWidget;
+  uw: Widget;
 }
 
 export function InspectorWidgetRow({ uw }: InspectorWidgetRowProps) {
@@ -13,7 +13,8 @@ export function InspectorWidgetRow({ uw }: InspectorWidgetRowProps) {
     useEditorStore.getState().focusWidget(isFocused ? null : uw.id);
   }
 
-  const reasoning = uw._widget?.reasoning;
+  const variant = uw.origin.kind === 'tool_invoked' ? 'tool' : 'ai';
+  const reasoning = uw.reasoning;
 
   return (
     <>
@@ -27,9 +28,9 @@ export function InspectorWidgetRow({ uw }: InspectorWidgetRowProps) {
       >
         <span className={
           'w-3.5 h-3.5 rounded-sm flex items-center justify-center text-[7px] font-semibold leading-none ' +
-          (uw.variant === 'ai' ? 'bg-accent text-white' : 'bg-surface-secondary text-text-secondary')
+          (variant === 'ai' ? 'bg-accent text-white' : 'bg-surface-secondary text-text-secondary')
         }>
-          {uw.variant === 'ai' ? 'AI' : '·'}
+          {variant === 'ai' ? 'AI' : '·'}
         </span>
         <span className="truncate">{uw.intent}</span>
         <span className="text-text-secondary text-[9px] text-right truncate">
@@ -48,7 +49,7 @@ export function InspectorWidgetRow({ uw }: InspectorWidgetRowProps) {
   );
 }
 
-function scopeLabel(scope: UnifiedWidget['scope']): string {
+function scopeLabel(scope: Widget['scope']): string {
   switch (scope.kind) {
     case 'global': return 'global';
     case 'named_region':

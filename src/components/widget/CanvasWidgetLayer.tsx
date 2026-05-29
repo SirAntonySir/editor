@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 import { WidgetCard } from '@/components/inspector/widget/WidgetCard';
-import { selectAllWidgets, type UnifiedWidget } from '@/lib/widget-projection';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
@@ -9,6 +8,8 @@ import { ToolWidgetCard } from './ToolWidgetCard';
 import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { backendTools } from '@/lib/backend-tools';
 import { scopeEquals } from '@/types/scope';
+import { anchorForScope } from '@/lib/widget-anchor';
+import type { Widget, WidgetAnchor } from '@/types/widget';
 
 // Base position cache entry — stores the computed position plus the anchor
 // kind at the time of computation so we can detect anchor-type changes.
@@ -21,24 +22,22 @@ interface CanvasWidgetLayerProps {
 }
 
 /**
- * Absolute-positioned host for canvas widgets. Reads selectAllWidgets()
- * and positions each at its anchor (region centroid / mask centroid /
+ * Absolute-positioned host for canvas widgets. Reads widgets from the backend
+ * snapshot and positions each at its anchor (region centroid / mask centroid /
  * image_point / fixed corner for global). Repositions on Fabric viewport
  * changes.
  */
 export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
-  // Subscribe to both stores so projection recomputes when either changes
-  const widgetsSig = useBackendState((s) => s.snapshot?.widgets);
-  const layersSig = useEditorStore((s) => s.layers);
+  const snapshot = useBackendState((s) => s.snapshot);
   const activeScope = useEditorStore((s) => s.activeScope);
   const accepted = useBackendState((s) => s.acceptedSuggestions);
-  void widgetsSig; void layersSig;
-  const allWidgets = selectAllWidgets();
+
   // Canvas only hosts tool-origin widgets + accepted AI widgets. Unaccepted
   // mcp_autonomous suggestions live in the right-panel Suggestions list until
   // the user cursor-bind-drops them.
-  const widgets = allWidgets.filter((w) =>
-    w.variant === 'tool' || w._widget?.origin.kind !== 'mcp_autonomous' || accepted.has(w.id),
+  const widgets = (snapshot?.widgets ?? []).filter((w) =>
+    w.status === 'active' &&
+    (w.origin.kind === 'tool_invoked' || w.origin.kind !== 'mcp_autonomous' || accepted.has(w.id)),
   );
 
   const phase = useBackendState((s) => s.currentPhase);
@@ -48,7 +47,7 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
 
   const realWidgetLabels = new Set(
     widgets
-      .filter((w) => w.variant === 'ai')
+      .filter((w) => w.origin.kind !== 'tool_invoked')
       .map((w) => {
         const sc = w.scope;
         if (sc.kind === 'named_region') return sc.label;
@@ -102,7 +101,8 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
    * computed global widgets are stacked in widget-array order.
    */
   function getOrComputeBase(
-    w: UnifiedWidget,
+    w: Widget,
+    anchor: WidgetAnchor,
     freshStack: { top: number },
   ): { left: number; top: number } {
     const f = fabricCanvasRef.current;
@@ -110,7 +110,7 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
     const img = f.getObjects().find((o) => o instanceof fabric.FabricImage) as fabric.FabricImage | undefined;
     if (!img) return { left: 16, top: 60 };
 
-    const anchorKind = w.anchor.kind;
+    const anchorKind = anchor.kind;
     const cached = basePositionsRef.current.get(w.id);
 
     // Reuse cache if anchor type hasn't changed.
@@ -136,14 +136,14 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
       pos = { left: imgRight - WIDGET_W - 16, top: imgTop + freshStack.top - 60 };
       freshStack.top += ESTIMATED_WIDGET_H + GLOBAL_STACK_GAP;
     } else if (anchorKind === 'image_point') {
-      const a = w.anchor as { x: number; y: number };
+      const a = anchor as { kind: 'image_point'; x: number; y: number };
       pos = {
         left: imgLeft + a.x * scaleX,
         top: imgTop + a.y * scaleY,
       };
     } else {
       // mask_id or region_label
-      const a = w.anchor as { kind: string; mask_id?: string; label?: string };
+      const a = anchor as { kind: string; mask_id?: string; label?: string };
       const mask = a.mask_id
         ? maskStore.get(a.mask_id)
         : maskStore.all().find((m) => m.label === a.label);
@@ -294,12 +294,14 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
     >
       {/* eslint-disable-next-line react-hooks/refs -- intentional: fabricCanvasRef.current is read inside getOrComputeBase to map pixel positions; setTick() re-triggers render on viewport changes so positions stay current */}
       {widgets.map((w) => {
-        const base = getOrComputeBase(w, freshStack);
+        const anchor = w.origin.anchor ?? anchorForScope(w.scope);
+        const base = getOrComputeBase(w, anchor, freshStack);
         const off = dragOffsets.get(w.id) ?? { dx: 0, dy: 0 };
         const left = base.left + off.dx;
         const top = base.top + off.dy;
         const matches = !activeScope || activeScope.kind === 'global' || scopeEquals(activeScope, w.scope);
         const isFocused = focusedId === w.id;
+        const variant = w.origin.kind === 'tool_invoked' ? 'tool' : 'ai';
         const positionedStyle: React.CSSProperties = {
           left,
           top,
@@ -313,7 +315,7 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
           // a phantom drag handle.
           pointerEvents: matches ? 'auto' : 'none',
         };
-        if (w.variant === 'ai' && w._widget) {
+        if (variant === 'ai') {
           return (
             <div
               key={w.id}
@@ -325,15 +327,15 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
               onPointerCancel={onWidgetPointerCancel}
             >
               <WidgetCard
-                widget={w._widget}
-                isSuggestion={w._widget.origin.kind === 'mcp_autonomous'}
-                variant={w.variant}
+                widget={w}
+                isSuggestion={w.origin.kind === 'mcp_autonomous'}
+                variant={variant}
                 mode="canvas"
               />
             </div>
           );
         }
-        if (w.variant === 'tool') {
+        if (variant === 'tool') {
           return (
             <div
               key={w.id}

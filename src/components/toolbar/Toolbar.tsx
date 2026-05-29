@@ -115,7 +115,7 @@ function ToolButton({ tool, isActive, disabled }: { tool: ToolDefinition; isActi
       </Tooltip.Trigger>
       <Tooltip.Portal>
         <Tooltip.Content
-          className="glass-panel px-2 py-1 text-xs text-text-primary z-[60]"
+          className="overlay px-2 py-1 text-xs text-text-primary z-[60]"
           side="right"
           sideOffset={8}
         >

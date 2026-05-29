@@ -61,7 +61,7 @@ export function PreferencesPage() {
       transition={{ duration: 0.2 }}
     >
       <motion.div
-        className="glass-panel w-[480px] max-h-[80vh] overflow-y-auto"
+        className="overlay w-[480px] max-h-[80vh] overflow-y-auto"
         initial={{ opacity: 0, scale: 0.96, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 8 }}

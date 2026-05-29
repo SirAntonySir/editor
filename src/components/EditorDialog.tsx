@@ -27,7 +27,7 @@ export function EditorDialog({ open, onOpenChange, title, children }: EditorDial
             </Dialog.Overlay>
             <Dialog.Content asChild>
               <motion.div
-                className="fixed top-1/2 left-1/2 z-50 glass-panel w-[400px] max-h-[80vh] overflow-y-auto p-0"
+                className="fixed top-1/2 left-1/2 z-50 overlay w-[400px] max-h-[80vh] overflow-y-auto p-0"
                 initial={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }}
                 animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
                 exit={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }}

@@ -26,7 +26,7 @@ export function ReasoningBadge({ reasoning, modelName, modelVersion, timestamp }
           <Tooltip.Content
             side="top"
             sideOffset={4}
-            className="glass-panel max-w-[240px] px-2 py-1 text-[11px] text-text-primary"
+            className="overlay max-w-[240px] px-2 py-1 text-[11px] text-text-primary"
           >
             <p>{reasoning}</p>
             {meta && <p className="mt-1 text-[10px] text-text-secondary">{meta}</p>}

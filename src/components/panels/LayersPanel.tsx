@@ -148,7 +148,7 @@ export function LayersPanelBody() {
                 </button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
-                <DropdownMenu.Content className="glass-panel p-1 min-w-[120px] z-50" sideOffset={4}>
+                <DropdownMenu.Content className="overlay p-1 min-w-[120px] z-50" sideOffset={4}>
                   {LAYER_BLEND_MODES.map((mode) => (
                     <DropdownMenu.Item
                       key={mode}
@@ -309,7 +309,7 @@ function LayerRow({
       </ContextMenu.Trigger>
 
       <ContextMenu.Portal>
-        <ContextMenu.Content className="glass-panel p-1 min-w-[140px] z-50">
+        <ContextMenu.Content className="overlay p-1 min-w-[140px] z-50">
           <ContextMenu.Item
             className="px-2 py-1 text-xs text-text-primary hover:bg-surface-secondary rounded-sm outline-none cursor-pointer"
             onSelect={() => handleContextAction('duplicate')}

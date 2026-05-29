@@ -17,7 +17,7 @@ export function CanvasContextMenu({ children }: CanvasContextMenuProps) {
         {children}
       </ContextMenu.Trigger>
       <ContextMenu.Portal>
-        <ContextMenu.Content className="glass-panel p-1 min-w-[160px] z-50">
+        <ContextMenu.Content className="overlay p-1 min-w-[160px] z-50">
           <ContextMenu.Item
             className="px-2 py-1 text-xs text-text-primary hover:bg-surface-secondary rounded-sm outline-none cursor-pointer flex justify-between"
             onSelect={undo}

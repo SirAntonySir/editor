@@ -37,7 +37,7 @@ export function SelectionActionsOverlay() {
   const label = mask.label ?? 'Selection';
 
   return (
-    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 glass-panel px-2 py-1 text-[11px]">
+    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 overlay px-2 py-1 text-[11px]">
       <span className="flex items-center gap-1 pr-2 mr-1 border-r border-separator text-text-secondary">
         <span className="truncate max-w-[140px]">{label}</span>
       </span>

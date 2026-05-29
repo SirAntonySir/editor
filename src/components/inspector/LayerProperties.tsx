@@ -53,7 +53,7 @@ export function LayerProperties() {
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
               <DropdownMenu.Content
-                className="glass-panel p-1 min-w-[140px] z-50"
+                className="overlay p-1 min-w-[140px] z-50"
                 sideOffset={4}
               >
                 {BLEND_MODES.map((mode) => (

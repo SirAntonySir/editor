@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import 'fake-indexeddb/auto';
 import { useBackendState, getPersistedSessionId } from './backend-state-slice';
 import type { SessionStateSnapshot, StateEvent, Widget } from '@/types/widget';
 

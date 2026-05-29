@@ -45,8 +45,13 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
         client = deps.get_anthropic_client()
         sam = deps.get_sam_client()
 
-        TOTAL_PHASES = 5
+        TOTAL_PHASES = 6
 
+        # Phase 1 — "update": load + decode the source image. Bracketed in its
+        # own phase so the stepper shows a first active step while the
+        # executor-bound decode runs.
+        doc._emit_phase_started("update", index=1, total=TOTAL_PHASES)
+        _update_start = time.monotonic()
         # Load image ONCE upfront, in an executor so the event loop stays free.
         # arr is used by mechanical (compute_cheap_pass) and sam_embed (sam.embed).
         arr = await asyncio.get_running_loop().run_in_executor(
@@ -54,9 +59,12 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
             lambda: np.array(Image.open(io.BytesIO(doc.image_bytes)).convert("RGB")),
         )
         h_img, w_img = arr.shape[:2]
+        doc._emit_phase_completed(
+            "update", duration_ms=int((time.monotonic() - _update_start) * 1000),
+        )
 
         async def _phase_mechanical():
-            doc._emit_phase_started("mechanical", index=1, total=TOTAL_PHASES)
+            doc._emit_phase_started("mechanical", index=2, total=TOTAL_PHASES)
             start = time.monotonic()
             cheap = await asyncio.get_running_loop().run_in_executor(
                 None, compute_cheap_pass, arr,
@@ -67,7 +75,7 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
             return cheap
 
         async def _phase_sam_embed() -> bool:
-            doc._emit_phase_started("sam_embed", index=2, total=TOTAL_PHASES)
+            doc._emit_phase_started("sam_embed", index=3, total=TOTAL_PHASES)
             start = time.monotonic()
             try:
                 await asyncio.get_running_loop().run_in_executor(
@@ -85,7 +93,7 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
                 return False
 
         async def _phase_ai_context():
-            doc._emit_phase_started("ai_context", index=3, total=TOTAL_PHASES)
+            doc._emit_phase_started("ai_context", index=4, total=TOTAL_PHASES)
             start = time.monotonic()
             base_ctx = await asyncio.get_running_loop().run_in_executor(
                 None,
@@ -145,10 +153,10 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
         if sam_ok:
             await _precompute_region_masks(doc, base_ctx.candidate_regions, sam, w_img, h_img)
         else:
-            doc._emit_phase_started("mask_precompute", index=4, total=TOTAL_PHASES)
+            doc._emit_phase_started("mask_precompute", index=5, total=TOTAL_PHASES)
             doc._emit_phase_completed("mask_precompute", duration_ms=0)
 
-        doc._emit_phase_started("widget_mint", index=5, total=TOTAL_PHASES)
+        doc._emit_phase_started("widget_mint", index=6, total=TOTAL_PHASES)
         start = time.monotonic()
         await _mint_autonomous_suggestions(doc, ctx, client)
         doc._emit_phase_completed(
@@ -169,7 +177,7 @@ async def _precompute_region_masks(
     them in doc.masks (the document-level MaskRecord store) so downstream
     tools can resolve `scope.named_region` -> mask. Soft-fails per region."""
     total = len(regions)
-    doc._emit_phase_started("mask_precompute", index=4, total=5)
+    doc._emit_phase_started("mask_precompute", index=5, total=6)
     start = time.monotonic()
     if total == 0:
         doc._emit_phase_completed(

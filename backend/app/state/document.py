@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
@@ -39,6 +39,11 @@ class SessionDocument(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     _published_idx: int = PrivateAttr(default=0)
+    # Optional live publish hook, set by the tool registry for the duration of a
+    # tool invocation. When present, each emitted event is published immediately
+    # (rather than flushed in one burst after the handler returns), so
+    # long-running handlers like analyze_image stream phase events live.
+    _event_sink: "Callable[[StateEvent], None] | None" = PrivateAttr(default=None)
 
     # ---------------- helpers ----------------
 
@@ -47,6 +52,10 @@ class SessionDocument(BaseModel):
         self.updated_at = datetime.now(timezone.utc)
         ev = StateEvent(revision=self.revision, kind=kind, payload=payload)  # type: ignore[arg-type]
         self.history.append(ev)
+        sink = self._event_sink
+        if sink is not None:
+            sink(ev)
+            self._published_idx = len(self.history)
         return ev
 
     def _emit_phase_started(self, phase: str, *, index: int, total: int) -> StateEvent:

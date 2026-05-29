@@ -13,7 +13,13 @@ import {
   type BackendStatus,
   type BackendStatusKind,
 } from '@/hooks/useBackendStatus';
-import { useBackendState, type PhaseName, type PhaseState } from '@/store/backend-state-slice';
+import {
+  useBackendState,
+  representativePhase,
+  type PhaseName,
+  type PhaseMap,
+  type PhaseInfo,
+} from '@/store/backend-state-slice';
 import { useAiSession } from '@/hooks/useImageContext';
 
 const COLORS: Record<BackendStatusKind, string> = {
@@ -31,6 +37,7 @@ const STRIP_BG: Record<BackendStatusKind, string> = {
 };
 
 const PHASES: { key: PhaseName; label: string }[] = [
+  { key: 'update', label: 'Update' },
   { key: 'mechanical', label: 'Mechanical' },
   { key: 'sam_embed', label: 'SAM embed' },
   { key: 'ai_context', label: 'AI context' },
@@ -77,27 +84,24 @@ function Connector({ state }: { state: NodeState }) {
 }
 
 function PhaseStepper({
-  phase,
+  phases,
   prePhaseText,
 }: {
-  phase: PhaseState | null;
+  phases: PhaseMap | null;
   prePhaseText: string | null;
 }) {
-  // When no phase has started yet, activeIdx is -1 so every node renders as pending.
-  const activeIdx = phase ? PHASES.findIndex((p) => p.key === phase.phase) : -1;
-  const sub =
-    phase && phase.phase === 'mask_precompute' && phase.phaseTotal
-      ? `${phase.done}/${phase.phaseTotal}`
-      : null;
-
   return (
     <div className="flex flex-col items-center gap-1 px-4 py-2">
       <div className="flex items-center justify-center gap-1.5">
         {PHASES.map((p, i) => {
-          const nodeState: NodeState =
-            i < activeIdx ? 'done' : i === activeIdx ? 'active' : 'pending';
-          const connectorState: NodeState =
-            i < activeIdx ? 'done' : i === activeIdx ? 'active' : 'pending';
+          // Each node reflects its own backend status. Phases 2–4 run
+          // concurrently, so several may be 'active' (spinning) at once.
+          const info: PhaseInfo | undefined = phases?.[p.key];
+          const nodeState: NodeState = info?.status ?? 'pending';
+          const sub =
+            p.key === 'mask_precompute' && info?.total
+              ? `${info.done ?? 0}/${info.total}`
+              : null;
           return (
             <Fragment key={p.key}>
               <div className="flex flex-col items-center gap-0.5">
@@ -108,7 +112,8 @@ function PhaseStepper({
                   </span>
                 )}
               </div>
-              {i < PHASES.length - 1 && <Connector state={connectorState} />}
+              {/* Connector inherits the left node's state. */}
+              {i < PHASES.length - 1 && <Connector state={nodeState} />}
             </Fragment>
           );
         })}
@@ -197,19 +202,22 @@ function ReadyActions({
  * - Otherwise: thin single-line strip (toast / error).
  */
 export function BackendStatusBar() {
-  const phase = useBackendState((s) => s.currentPhase);
+  const phases = useBackendState((s) => s.phases);
+  const mcpComplete = useBackendState((s) => s.mcpAnalyzeComplete);
   const aiStatus = useAiSession((s) => s.status);
   const status = useBackendStatus();
 
-  const inAnalyze = phase || aiStatus === 'uploading' || aiStatus === 'analysing';
+  const preAnalyze = aiStatus === 'uploading' || aiStatus === 'analysing';
+  // Live analyze: the pre-phase upload window, or phases streaming before
+  // widget_mint completes. Once mcpAnalyzeComplete the live stepper gives way
+  // to the persistent "ready" bar.
+  const inAnalyze = preAnalyze || (phases !== null && !mcpComplete);
 
-  // Persistent "ready" bar: shown once aiStatus === 'ready', hidden when the
-  // user dismisses it. We trigger on aiStatus (HTTP /api/analyze returned)
-  // rather than mcpAnalyzeComplete (SSE widget_mint completion) because the
-  // legacy /api/analyze response is the reliable "done" signal — SSE phase
-  // events may never arrive if the backend isn't emitting them, and we don't
-  // want the bar to silently vanish in that case. Re-armed by subscribing to
-  // the AI session and resetting dismissal on every transition to 'ready'.
+  // Persistent "ready" bar. Triggered on the REAL completion signal
+  // (mcpAnalyzeComplete = widget_mint done), with an aiStatus === 'ready'
+  // fallback for the cached-context path where analyze_image early-returns and
+  // emits no phases. Re-armed by resetting dismissal on every transition to
+  // 'ready'.
   const [readyDismissed, setReadyDismissed] = useState(false);
   useEffect(() => {
     let prev = useAiSession.getState().status;
@@ -219,9 +227,16 @@ export function BackendStatusBar() {
     });
   }, []);
 
-  const showReady = aiStatus === 'ready' && !inAnalyze && !readyDismissed;
+  const showReady =
+    !inAnalyze && !readyDismissed && (mcpComplete || aiStatus === 'ready');
 
-  const prePhaseText = phase
+  // While mcpComplete is true the map holds a finished run's all-done state. A
+  // re-upload re-enters the pre-phase window before its first event arrives, so
+  // suppress the stale map until the new run's phase.started(update) resets it.
+  const livePhases = mcpComplete ? null : phases;
+
+  const repName = representativePhase(livePhases);
+  const prePhaseText = livePhases
     ? null
     : aiStatus === 'uploading'
     ? 'Uploading image…'
@@ -229,8 +244,8 @@ export function BackendStatusBar() {
     ? 'Connecting to backend…'
     : null;
 
-  const ariaLabel = phase
-    ? `Analyzing image: ${PHASES.find((p) => p.key === phase.phase)?.label}`
+  const ariaLabel = repName
+    ? `Analyzing image: ${PHASES.find((p) => p.key === repName)?.label}`
     : prePhaseText ?? 'Analyzing image';
 
   // The auto-dismissing "Image context ready" success from useBackendStatus is
@@ -258,7 +273,7 @@ export function BackendStatusBar() {
           aria-live="polite"
           aria-label={ariaLabel}
         >
-          <PhaseStepper phase={phase} prePhaseText={prePhaseText} />
+          <PhaseStepper phases={livePhases} prePhaseText={prePhaseText} />
         </motion.div>
       ) : showReady ? (
         <motion.div

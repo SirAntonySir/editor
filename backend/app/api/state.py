@@ -68,7 +68,12 @@ async def state_events(sid: str):
         try:
             while True:
                 ev = await queue.get()
-                yield {"event": ev.kind, "data": json.dumps({
+                # Deliberately unnamed (no "event" field): a browser EventSource
+                # routes named events only to addEventListener("<name>"), but the
+                # frontend consumes everything via onmessage and reads the
+                # discriminator from payload.kind. Emitting event:<kind> here
+                # silently drops every live event on the client.
+                yield {"data": json.dumps({
                     "revision": ev.revision,
                     "kind": ev.kind,
                     "payload": ev.payload,

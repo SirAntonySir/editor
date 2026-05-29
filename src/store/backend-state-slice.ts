@@ -33,14 +33,58 @@ export interface OptimisticPatch {
 
 export type SseStatus = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed';
 
-export type PhaseName = 'mechanical' | 'sam_embed' | 'ai_context' | 'mask_precompute' | 'widget_mint';
+export type PhaseName =
+  | 'update'
+  | 'mechanical'
+  | 'sam_embed'
+  | 'ai_context'
+  | 'mask_precompute'
+  | 'widget_mint';
 
-export interface PhaseState {
-  phase: PhaseName;
-  index: number;
-  total: number;
-  done: number;
-  phaseTotal?: number;
+export type PhaseStatus = 'pending' | 'active' | 'done';
+
+export interface PhaseInfo {
+  status: PhaseStatus;
+  /** Sub-progress counters — currently only mask_precompute reports these. */
+  done?: number;
+  total?: number;
+}
+
+export type PhaseMap = Record<PhaseName, PhaseInfo>;
+
+/** Canonical analyze phase order — mirrors the backend's emission sequence. */
+export const PHASE_ORDER: PhaseName[] = [
+  'update',
+  'mechanical',
+  'sam_embed',
+  'ai_context',
+  'mask_precompute',
+  'widget_mint',
+];
+
+function makePendingPhases(): PhaseMap {
+  return {
+    update: { status: 'pending' },
+    mechanical: { status: 'pending' },
+    sam_embed: { status: 'pending' },
+    ai_context: { status: 'pending' },
+    mask_precompute: { status: 'pending' },
+    widget_mint: { status: 'pending' },
+  };
+}
+
+/**
+ * The phase to surface in single-line UIs: the furthest-along phase that is
+ * currently active (phases 2–4 run concurrently in the backend, so several may
+ * be active at once). Returns null when no phase is active.
+ */
+export function representativePhase(phases: PhaseMap | null): PhaseName | null {
+  if (!phases) return null;
+  let found: PhaseName | null = null;
+  for (const name of PHASE_ORDER) {
+    if (phases[name].status === 'active') found = name;
+  }
+  return found;
 }
 
 interface BackendState {
@@ -49,7 +93,8 @@ interface BackendState {
   optimistic: Map<WidgetId, OptimisticPatch>;
   acceptedSuggestions: Set<string>;
   sseStatus: SseStatus;
-  currentPhase: PhaseState | null;
+  /** Per-phase status of the in-flight (or just-completed) analyze run; null before any analyze. */
+  phases: PhaseMap | null;
   /** True once the widget_mint phase completes — the terminal MCP analyze phase. */
   mcpAnalyzeComplete: boolean;
   applyEvent: (ev: StateEvent) => void;
@@ -68,16 +113,51 @@ export const useBackendState = create<BackendState>()(
     optimistic: new Map(),
     acceptedSuggestions: new Set(),
     sseStatus: 'idle',
-    currentPhase: null,
+    phases: null,
     mcpAnalyzeComplete: false,
 
     applyEvent: (ev) =>
       set((s) => {
+        const payload = ev.payload as Record<string, unknown>;
+
+        // ── Analyze phase lifecycle ──────────────────────────────────────
+        // Handled before the snapshot guard: during the initial analyze the
+        // snapshot is still null (it's fetched only after analyze returns), so
+        // gating these on a snapshot would silently drop every phase event.
+        // They drive the progress stepper, not snapshot contents.
+        switch (ev.kind) {
+          case 'phase.started': {
+            const { phase, index } = payload as { phase: PhaseName; index: number };
+            // index === 1 (the "update" phase) marks the start of a fresh run —
+            // reset the map and completion flag so a re-analyze doesn't inherit
+            // stale "done" state.
+            if (index === 1 || !s.phases) {
+              s.phases = makePendingPhases();
+              s.mcpAnalyzeComplete = false;
+            }
+            if (s.phases[phase]) s.phases[phase].status = 'active';
+            return;
+          }
+          case 'phase.progress': {
+            const { phase, done, total } = payload as { phase: PhaseName; done: number; total: number };
+            if (s.phases?.[phase]) {
+              s.phases[phase].done = done;
+              s.phases[phase].total = total;
+            }
+            return;
+          }
+          case 'phase.completed': {
+            const { phase } = payload as { phase: PhaseName };
+            if (!s.phases) s.phases = makePendingPhases();
+            if (s.phases[phase]) s.phases[phase].status = 'done';
+            if (phase === 'widget_mint') s.mcpAnalyzeComplete = true;
+            return;
+          }
+        }
+
         if (!s.snapshot) return;
         // Defensive: drop stale events.
         if (ev.revision <= s.snapshot.revision) return;
-
-        const payload = ev.payload as Record<string, unknown>;
 
         switch (ev.kind) {
           case 'widget.created': {
@@ -151,26 +231,6 @@ export const useBackendState = create<BackendState>()(
           case 'dismissal.added':
             // No snapshot change; subscribers (e.g. maskStore) handle these.
             break;
-          case 'phase.started': {
-            const { phase, index, total } = payload as { phase: PhaseName; index: number; total: number };
-            s.currentPhase = { phase, index, total, done: 0 };
-            break;
-          }
-          case 'phase.progress': {
-            if (!s.currentPhase) break;
-            const { done, total } = payload as { done: number; total: number };
-            s.currentPhase.done = done;
-            s.currentPhase.phaseTotal = total;
-            break;
-          }
-          case 'phase.completed': {
-            const { phase } = payload as { phase: PhaseName };
-            if (phase === 'widget_mint') {
-              s.currentPhase = null;
-              s.mcpAnalyzeComplete = true;
-            }
-            break;
-          }
         }
 
         s.snapshot.revision = ev.revision;
@@ -217,7 +277,7 @@ export const useBackendState = create<BackendState>()(
         s.optimistic = new Map();
         s.acceptedSuggestions = new Set();
         s.sseStatus = 'idle';
-        s.currentPhase = null;
+        s.phases = null;
         s.mcpAnalyzeComplete = false;
         try {
           localStorage.removeItem(SESSION_STORAGE_KEY);

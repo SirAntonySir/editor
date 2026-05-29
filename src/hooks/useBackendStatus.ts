@@ -1,6 +1,11 @@
 import { startTransition, useEffect, useState } from 'react';
 import { useAiSession } from '@/hooks/useImageContext';
-import { useBackendState, type PhaseName } from '@/store/backend-state-slice';
+import {
+  useBackendState,
+  representativePhase,
+  PHASE_ORDER,
+  type PhaseName,
+} from '@/store/backend-state-slice';
 import { onToast, type ToastMessage } from '@/components/ui/Toast';
 
 export type BackendStatusKind = 'progress' | 'success' | 'info' | 'error';
@@ -16,6 +21,7 @@ const READY_DISMISS_MS = 3000;
 const TOAST_DISMISS_MS = 4000;
 
 const PHASE_LABELS: Record<PhaseName, string> = {
+  update: 'Loading image…',
   mechanical: 'Reading histograms…',
   sam_embed: 'Indexing image regions…',
   ai_context: 'Asking Claude…',
@@ -37,7 +43,7 @@ const PHASE_LABELS: Record<PhaseName, string> = {
 export function useBackendStatus(): BackendStatus | null {
   const aiStatus = useAiSession((s) => s.status);
   const aiError = useAiSession((s) => s.error);
-  const phase = useBackendState((s) => s.currentPhase);
+  const phases = useBackendState((s) => s.phases);
   const mcpComplete = useBackendState((s) => s.mcpAnalyzeComplete);
 
   const [toastMsg, setToastMsg] = useState<ToastMessage | null>(null);
@@ -69,13 +75,16 @@ export function useBackendStatus(): BackendStatus | null {
     return () => clearTimeout(h);
   }, [aiStatus]);
 
-  if (phase) {
-    const detail = phase.phase === 'mask_precompute' && phase.phaseTotal
-      ? ` (${phase.done}/${phase.phaseTotal})`
+  const rep = representativePhase(phases);
+  if (rep && !mcpComplete) {
+    const info = phases![rep];
+    const detail = rep === 'mask_precompute' && info.total
+      ? ` (${info.done ?? 0}/${info.total})`
       : '';
+    const idx = PHASE_ORDER.indexOf(rep) + 1;
     return {
       kind: 'progress',
-      text: `${PHASE_LABELS[phase.phase]}${detail} · ${phase.index}/${phase.total}`,
+      text: `${PHASE_LABELS[rep]}${detail} · ${idx}/${PHASE_ORDER.length}`,
       ephemeral: false,
     };
   }

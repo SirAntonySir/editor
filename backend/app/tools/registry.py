@@ -111,6 +111,11 @@ class BackendToolRegistry:
         # Acquire write lock for mutate/emit; query tools take no lock.
         if tool.kind in {"mutate", "emit"}:
             with self._store.with_document_lock(session_id) as doc:
+                # Stream events live as the handler emits them, rather than
+                # flushing in one burst once it returns. Critical for
+                # long-running handlers (analyze_image) whose progress stepper
+                # would otherwise jump straight to done.
+                doc._event_sink = lambda ev: self._bus.publish(session_id, ev)
                 try:
                     output = await tool.handler(doc, parsed)
                 except Exception as exc:
@@ -118,6 +123,8 @@ class BackendToolRegistry:
                     if classified is not None:
                         return classified
                     return _err("internal_error", repr(exc), retryable=False)
+                finally:
+                    doc._event_sink = None
                 self._flush_history_to_bus(doc, session_id)
         else:
             doc = self._store.get_document(session_id)

@@ -58,9 +58,18 @@ async def test_state_sse_delivers_widget_created() -> None:
             files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
             sid = (await ac.post("/api/session", files=files)).json()["session_id"]
 
+            seen_event_lines: list[str] = []
+
             async def consume() -> dict | None:
                 async with ac.stream("GET", f"/api/state/{sid}/events") as r:
                     async for raw in r.aiter_lines():
+                        # The frontend consumes the stream via EventSource.onmessage,
+                        # which only fires for UNNAMED events. A named "event:" line
+                        # would route to addEventListener("<name>") instead and
+                        # silently drop every live event. Guard against regressing
+                        # back to named events.
+                        if raw.startswith("event:"):
+                            seen_event_lines.append(raw)
                         if not raw or not raw.startswith("data: "):
                             continue
                         payload = json.loads(raw[6:])
@@ -82,6 +91,10 @@ async def test_state_sse_delivers_widget_created() -> None:
             out = await asyncio.wait_for(task, timeout=3.0)
             assert out is not None
             assert out["kind"] == "widget.created"
+            # Stream must be unnamed so EventSource.onmessage fires on the client.
+            assert seen_event_lines == [], (
+                f"SSE stream emitted named event lines (breaks onmessage): {seen_event_lines}"
+            )
     finally:
         server.should_exit = True
         thread.join(timeout=5.0)

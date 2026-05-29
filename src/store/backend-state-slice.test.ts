@@ -155,44 +155,72 @@ describe('BackendStateSlice', () => {
 describe('BackendStateSlice phase events', () => {
   beforeEach(() => useBackendState.getState().reset());
 
-  it('phase.started sets currentPhase', () => {
-    useBackendState.setState({ snapshot: baseSnapshot() });
-    useBackendState.getState().applyEvent({
-      revision: 2, kind: 'phase.started',
-      payload: { phase: 'mechanical', index: 1, total: 5 },
-      emitted_at: '2026-05-28T00:00:00Z',
-    } as StateEvent);
-    expect(useBackendState.getState().currentPhase).toEqual({
-      phase: 'mechanical', index: 1, total: 5, done: 0,
-    });
+  const started = (phase: string, index: number, revision: number): StateEvent =>
+    ({ revision, kind: 'phase.started', payload: { phase, index, total: 6 }, emitted_at: 'x' } as StateEvent);
+  const completed = (phase: string, revision: number): StateEvent =>
+    ({ revision, kind: 'phase.completed', payload: { phase, duration_ms: 1 }, emitted_at: 'x' } as StateEvent);
+
+  it('phase.started(update, index=1) initializes the map with update active', () => {
+    useBackendState.getState().applyEvent(started('update', 1, 1));
+    const phases = useBackendState.getState().phases!;
+    expect(phases.update.status).toBe('active');
+    expect(phases.mechanical.status).toBe('pending');
+    expect(useBackendState.getState().mcpAnalyzeComplete).toBe(false);
   });
 
-  it('phase.progress updates done counter', () => {
-    useBackendState.setState({
-      snapshot: baseSnapshot(),
-      currentPhase: { phase: 'mask_precompute', index: 4, total: 5, done: 0 },
-    });
+  it('applies phase events with no snapshot present (regression: events were dropped)', () => {
+    expect(useBackendState.getState().snapshot).toBeNull();
+    useBackendState.getState().applyEvent(started('update', 1, 1));
+    expect(useBackendState.getState().phases!.update.status).toBe('active');
+  });
+
+  it('concurrent phases each stay active until individually completed', () => {
+    useBackendState.getState().applyEvent(started('update', 1, 1));
+    useBackendState.getState().applyEvent(completed('update', 2));
+    // mechanical, sam_embed, ai_context all start before any completes
+    useBackendState.getState().applyEvent(started('mechanical', 2, 3));
+    useBackendState.getState().applyEvent(started('sam_embed', 3, 4));
+    useBackendState.getState().applyEvent(started('ai_context', 4, 5));
+    let p = useBackendState.getState().phases!;
+    expect(p.update.status).toBe('done');
+    expect(p.mechanical.status).toBe('active');
+    expect(p.sam_embed.status).toBe('active');
+    expect(p.ai_context.status).toBe('active');
+    // ai_context finishes first — only it flips to done
+    useBackendState.getState().applyEvent(completed('ai_context', 6));
+    p = useBackendState.getState().phases!;
+    expect(p.ai_context.status).toBe('done');
+    expect(p.mechanical.status).toBe('active');
+    expect(p.sam_embed.status).toBe('active');
+  });
+
+  it('phase.progress records the mask_precompute sub-count', () => {
+    useBackendState.getState().applyEvent(started('update', 1, 1));
+    useBackendState.getState().applyEvent(started('mask_precompute', 5, 5));
     useBackendState.getState().applyEvent({
-      revision: 2, kind: 'phase.progress',
-      payload: { phase: 'mask_precompute', done: 3, total: 8 },
-      emitted_at: '2026-05-28T00:00:01Z',
+      revision: 6, kind: 'phase.progress',
+      payload: { phase: 'mask_precompute', done: 3, total: 8 }, emitted_at: 'x',
     } as StateEvent);
-    const p = useBackendState.getState().currentPhase!;
+    const p = useBackendState.getState().phases!.mask_precompute;
     expect(p.done).toBe(3);
-    expect(p.phaseTotal).toBe(8);
+    expect(p.total).toBe(8);
   });
 
-  it('phase.completed for widget_mint clears currentPhase', () => {
-    useBackendState.setState({
-      snapshot: baseSnapshot(),
-      currentPhase: { phase: 'widget_mint', index: 5, total: 5, done: 0 },
-    });
-    useBackendState.getState().applyEvent({
-      revision: 3, kind: 'phase.completed',
-      payload: { phase: 'widget_mint', duration_ms: 100 },
-      emitted_at: '2026-05-28T00:00:02Z',
-    } as StateEvent);
-    expect(useBackendState.getState().currentPhase).toBeNull();
+  it('phase.completed(widget_mint) marks it done and sets mcpAnalyzeComplete', () => {
+    useBackendState.getState().applyEvent(started('update', 1, 1));
+    useBackendState.getState().applyEvent(completed('widget_mint', 12));
+    expect(useBackendState.getState().phases!.widget_mint.status).toBe('done');
+    expect(useBackendState.getState().mcpAnalyzeComplete).toBe(true);
+  });
+
+  it('a new run (phase.started index=1) clears stale completion state', () => {
+    useBackendState.getState().applyEvent(started('update', 1, 1));
+    useBackendState.getState().applyEvent(completed('widget_mint', 6));
+    expect(useBackendState.getState().mcpAnalyzeComplete).toBe(true);
+    // second analyze begins
+    useBackendState.getState().applyEvent(started('update', 1, 7));
+    expect(useBackendState.getState().mcpAnalyzeComplete).toBe(false);
+    expect(useBackendState.getState().phases!.widget_mint.status).toBe('pending');
   });
 });
 

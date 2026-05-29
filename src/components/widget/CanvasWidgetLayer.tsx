@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 import { WidgetCard } from '@/components/inspector/widget/WidgetCard';
-import { useBackendState } from '@/store/backend-state-slice';
+import { useBackendState, type PhaseName } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { ToolWidgetCard } from './ToolWidgetCard';
@@ -15,7 +15,7 @@ import type { Widget, WidgetAnchor } from '@/types/widget';
 // kind at the time of computation so we can detect anchor-type changes.
 interface CachedBase { left: number; top: number; kind: string }
 
-const PHASE_SKELETON_PHASES = new Set(['mask_precompute', 'widget_mint']);
+const PHASE_SKELETON_PHASES: PhaseName[] = ['mask_precompute', 'widget_mint'];
 
 interface CanvasWidgetLayerProps {
   fabricCanvasRef: React.RefObject<fabric.Canvas | null>;
@@ -40,10 +40,11 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
     (w.origin.kind === 'tool_invoked' || w.origin.kind !== 'mcp_autonomous' || accepted.has(w.id)),
   );
 
-  const phase = useBackendState((s) => s.currentPhase);
+  const phases = useBackendState((s) => s.phases);
   const snapshotCtx = useBackendState((s) => s.snapshot?.image_context);
 
-  const showSkeletons = phase && PHASE_SKELETON_PHASES.has(phase.phase);
+  const showSkeletons =
+    !!phases && PHASE_SKELETON_PHASES.some((k) => phases[k].status === 'active');
 
   const realWidgetLabels = new Set(
     widgets

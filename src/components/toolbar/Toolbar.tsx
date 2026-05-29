@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { motion } from 'framer-motion';
 import { useEditor } from '@/components/EditorProvider';
 import { useEditorStore } from '@/store';
 import { useAiSession } from '@/hooks/useImageContext';
@@ -86,7 +85,7 @@ function ToolButton({ tool, isActive, disabled }: { tool: ToolDefinition; isActi
           disabled={disabled}
           asChild
         >
-          <motion.button
+          <button
             disabled={disabled}
             className={`
               relative flex items-center justify-center w-7 h-7
@@ -99,18 +98,12 @@ function ToolButton({ tool, isActive, disabled }: { tool: ToolDefinition; isActi
               }
             `}
             style={{ borderRadius: 'var(--radius-button)' }}
-            whileHover={disabled ? {} : { scale: 1.05 }}
-            whileTap={disabled ? {} : { scale: 0.95 }}
           >
             {isActive && (
-              <motion.div
-                className="absolute inset-0 bg-accent rounded-[var(--radius-button)]"
-                layoutId="toolbar-active"
-                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-              />
+              <div className="absolute inset-0 bg-accent rounded-[var(--radius-button)]" />
             )}
             <span className="relative z-10"><Icon size={14} /></span>
-          </motion.button>
+          </button>
         </ToggleGroup.Item>
       </Tooltip.Trigger>
       <Tooltip.Portal>

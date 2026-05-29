@@ -62,10 +62,10 @@ export function PreferencesPage() {
     >
       <motion.div
         className="overlay w-[480px] max-h-[80vh] overflow-y-auto"
-        initial={{ opacity: 0, scale: 0.96, y: 8 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 8 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 4 }}
+        transition={{ duration: 0.16, ease: [0.2, 0, 0, 1] }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-separator">

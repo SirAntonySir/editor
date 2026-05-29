@@ -18,7 +18,7 @@ export function EditorDialog({ open, onOpenChange, title, children }: EditorDial
           <Dialog.Portal forceMount>
             <Dialog.Overlay asChild>
               <motion.div
-                className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
+                className="fixed inset-0 bg-black/40 z-40"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -28,10 +28,10 @@ export function EditorDialog({ open, onOpenChange, title, children }: EditorDial
             <Dialog.Content asChild>
               <motion.div
                 className="fixed top-1/2 left-1/2 z-50 overlay w-[400px] max-h-[80vh] overflow-y-auto p-0"
-                initial={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }}
-                animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
-                exit={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }}
-                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                initial={{ opacity: 0, x: '-50%', y: 'calc(-50% + 4px)' }}
+                animate={{ opacity: 1, x: '-50%', y: '-50%' }}
+                exit={{ opacity: 0, x: '-50%', y: 'calc(-50% + 4px)' }}
+                transition={{ duration: 0.16, ease: [0.2, 0, 0, 1] }}
               >
                 <div className="flex items-center justify-between px-4 py-3 border-b border-separator">
                   <Dialog.Title className="text-sm font-medium text-text-primary">

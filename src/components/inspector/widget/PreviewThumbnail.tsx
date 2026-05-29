@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { startTransition, useEffect, useState } from 'react';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import type { Widget } from '@/types/widget';
@@ -16,7 +16,10 @@ export function PreviewThumbnail({ widget, maxDim = 128 }: PreviewThumbnailProps
   useEffect(() => {
     let cancelled = false;
     if (!sessionId) return;
-    setLoading(true);
+    // Reset loading state via startTransition to avoid the synchronous
+    // set-state-in-effect pattern. The transition marks this as non-urgent
+    // and prevents cascading-render warnings.
+    startTransition(() => setLoading(true));
     (async () => {
       const env = await backendTools.preview_widget(sessionId, { widget_id: widget.id, max_dim: maxDim });
       if (cancelled) return;

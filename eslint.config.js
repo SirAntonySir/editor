@@ -34,7 +34,10 @@ export default defineConfig([
   {
     files: ['src/**/*.{ts,tsx}'],
     rules: {
-      'react-refresh/only-export-components': 'warn',
+      // Off: shipping MVP; we accept reduced Fast Refresh granularity in
+      // mixed-export files. Splitting every mixed file adds churn with no
+      // runtime correctness benefit. Re-evaluate after MVP stabilises.
+      'react-refresh/only-export-components': 'off',
       'react-hooks/immutability': 'warn',
       'react-hooks/refs': 'warn',
       'react-hooks/set-state-in-effect': 'warn',

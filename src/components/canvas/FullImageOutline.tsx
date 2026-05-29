@@ -1,3 +1,10 @@
+/* eslint-disable react-hooks/refs --
+ * Intentional imperative bridge: Fabric.js has no React integration.
+ * We subscribe to `after:render` and call setTick() to trigger a re-render,
+ * then read fabricCanvasRef.current during render to snapshot the current
+ * Fabric viewport transform and image bounds. This is the only way to overlay
+ * a DOM element that tracks Fabric's coordinate space in real time.
+ */
 import { useEffect, useState } from 'react';
 import * as fabric from 'fabric';
 import { useEditorStore } from '@/store';

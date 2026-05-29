@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { startTransition, useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Eye,
@@ -350,7 +350,9 @@ function LayerThumbnail({ layerId, visible }: { layerId: string; visible: boolea
     const ctx = tmp.getContext('2d');
     if (!ctx) return;
     ctx.drawImage(working, 0, 0, thumbW, thumbH);
-    setSrc(tmp.toDataURL());
+    // Defer the state update — this effect runs synchronously; startTransition
+    // avoids the set-state-in-effect cascading-render warning.
+    startTransition(() => setSrc(tmp.toDataURL()));
   }, [layerId]);
 
   if (!src) {

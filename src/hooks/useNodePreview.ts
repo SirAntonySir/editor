@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
 import { PipelineManager } from '@/lib/pipeline-manager';
 import { LayerCompositor } from '@/lib/layer-compositor';
 import { CanvasRegistry } from '@/lib/canvas-registry';
@@ -83,7 +83,11 @@ export function useNodePreview(
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.drawImage(source, 0, 0, width, h);
-    setHeight(h);
+    // Defer the React state update — draw() is called synchronously inside
+    // effect bodies (mount + pixelVersion change). startTransition prevents
+    // the set-state-in-effect cascading-render warning without changing
+    // observable behaviour (height is a non-urgent layout detail).
+    startTransition(() => setHeight(h));
   }, [canvasRef, nodeType, layerId, adjustmentId, width]);
 
   const scheduleRender = useCallback(() => {

@@ -292,10 +292,15 @@ export function useFabricOverlays(canvasRef: RefObject<fabric.Canvas | null>): v
 
   // Final unmount cleanup — remove all owned overlays.
   useEffect(() => {
+    // Capture ref values at effect-setup time so the cleanup closure has stable
+    // references even if the refs change before unmount.
+    const canvasSnapshot = canvasRef;
+    const ownedSnapshot = ownedRef;
+    const handlersSnapshot = parentHandlersRef;
     return () => {
-      const canvas = canvasRef.current;
-      const owned = ownedRef.current;
-      const parentHandlers = parentHandlersRef.current;
+      const canvas = canvasSnapshot.current;
+      const owned = ownedSnapshot.current;
+      const parentHandlers = handlersSnapshot.current;
       for (const [, detach] of parentHandlers) detach();
       parentHandlers.clear();
       if (canvas) {

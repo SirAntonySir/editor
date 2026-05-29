@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { startTransition, useEffect, useState } from 'react';
 import { useAiSession } from '@/hooks/useImageContext';
 import { useBackendState, type PhaseName } from '@/store/backend-state-slice';
 import { onToast, type ToastMessage } from '@/components/ui/Toast';
@@ -55,13 +55,17 @@ export function useBackendStatus(): BackendStatus | null {
   }, [toastMsg]);
 
   // Auto-dismiss "ready" after a short window.
-  const [readyDismissed, setReadyDismissed] = useState(false);
+  // We track the epoch (how many times status reached 'ready') so we can reset
+  // dismissal without calling setState synchronously in an effect body.
+  const [readyEpoch, setReadyEpoch] = useState(0);
+  const [dismissedEpoch, setDismissedEpoch] = useState(0);
+  const readyDismissed = dismissedEpoch >= readyEpoch && readyEpoch > 0;
+
   useEffect(() => {
-    if (aiStatus !== 'ready') {
-      setReadyDismissed(false);
-      return;
-    }
-    const h = setTimeout(() => setReadyDismissed(true), READY_DISMISS_MS);
+    if (aiStatus !== 'ready') return;
+    // Bump the epoch so any previous dismissal is invalidated.
+    startTransition(() => setReadyEpoch((n) => n + 1));
+    const h = setTimeout(() => setDismissedEpoch((n) => n + 1), READY_DISMISS_MS);
     return () => clearTimeout(h);
   }, [aiStatus]);
 

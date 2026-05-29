@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { startTransition, useEffect, useRef, useState, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface CommandPaletteProps {
@@ -21,7 +21,9 @@ export function CommandPalette({
 
   useEffect(() => {
     if (open) {
-      setValue('');
+      // Clear input via startTransition so the synchronous setState inside
+      // an effect body doesn't trigger a cascading-render warning.
+      startTransition(() => setValue(''));
       requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [open]);

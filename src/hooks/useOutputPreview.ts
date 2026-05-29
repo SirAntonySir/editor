@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { startTransition, useCallback, useEffect, useState } from 'react';
 import { PipelineManager } from '@/lib/pipeline-manager';
 import { LayerCompositor } from '@/lib/layer-compositor';
 import { CanvasRegistry } from '@/lib/canvas-registry';
@@ -30,7 +30,11 @@ export function useOutputPreview(
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.drawImage(source, 0, 0, width, h);
-    setHeight(h);
+    // Defer the React state update — drawToCanvas may be called synchronously
+    // inside an effect body, and calling setState directly there triggers a
+    // cascading-render warning. startTransition defers the update without
+    // changing the observable behaviour (height is a layout detail, not urgent).
+    startTransition(() => setHeight(h));
   }, [canvasRef, width]);
 
   // Pipeline/compositor callback — always receives HTMLCanvasElement

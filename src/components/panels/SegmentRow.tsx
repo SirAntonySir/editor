@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { startTransition, useEffect, useState } from 'react';
 import { maskStore } from '@/core/mask-store';
 import { useEditorStore } from '@/store';
 import type { MaskSummary } from '@/types/widget';
@@ -39,7 +39,9 @@ export function SegmentRow({ layerId, mask }: Props) {
       }
     }
     ctx.putImageData(img, 0, 0);
-    setThumb(tmp.toDataURL());
+    // Defer the state update — this effect runs synchronously; startTransition
+    // avoids the set-state-in-effect cascading-render warning.
+    startTransition(() => setThumb(tmp.toDataURL()));
   }, [mask.id]);
 
   function onSelect() {

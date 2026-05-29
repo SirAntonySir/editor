@@ -1,3 +1,10 @@
+/* eslint-disable react-hooks/refs --
+ * Intentional render-time ref pattern: useMemoObject is a well-known
+ * stable-reference helper (cf. chaiNNer, react-use). Reading and writing
+ * ref.current during render is the only way to implement "useMemo with shallow
+ * equality" — useMemo itself doesn't guarantee reference stability across
+ * re-renders. There is no effect or state involved; the ref is a mutable cache.
+ */
 import { useRef } from 'react';
 
 /**

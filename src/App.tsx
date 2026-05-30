@@ -1,5 +1,4 @@
-import { useRef, useCallback, useEffect } from 'react';
-import type * as fabric from 'fabric';
+import { useCallback, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { EditorProvider, useEditor } from '@/components/EditorProvider';
 import { CanvasWorkspace } from '@/components/workspace/CanvasWorkspace';
@@ -127,7 +126,7 @@ function MainLayout({
   );
 }
 
-function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | null> }) {
+function EditorContent() {
   const { toolContext, getActiveTool } = useEditor();
   const activeTool = useEditorStore((s) => s.activeTool);
   const layers = useEditorStore((s) => s.layers);
@@ -171,7 +170,7 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
 
       {/* Menu bar — fixed at top */}
       <div className="relative z-30 flex-none h-[24px] flex items-center px-1 bg-surface border-b border-separator">
-        <MenuBar canvasRef={canvasRef} />
+        <MenuBar />
       </div>
 
       <BackendStatusBar />
@@ -216,8 +215,6 @@ function ScopeDisplay() {
 applyPreferences(usePreferencesStore.getState());
 
 export default function App() {
-  const canvasRef = useRef<fabric.Canvas | null>(null);
-
   useEffect(() => {
     editorDocument.init(useEditorStore);
     const unsubLayerLifecycle = initLayerLifecycle();
@@ -242,8 +239,8 @@ export default function App() {
   }, []);
 
   return (
-    <EditorProvider canvasRef={canvasRef}>
-      <EditorContent canvasRef={canvasRef} />
+    <EditorProvider>
+      <EditorContent />
     </EditorProvider>
   );
 }

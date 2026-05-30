@@ -27,7 +27,7 @@ const edgeTypes = { tether: TetherEdge };
  * returns *this* flow's instance.
  */
 function WorkspaceKeyHandler() {
-  const { getNodes, getEdges } = useReactFlow();
+  const { getNodes, getEdges, getZoom, zoomTo, zoomIn, zoomOut, fitView } = useReactFlow();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -60,6 +60,32 @@ function WorkspaceKeyHandler() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [getNodes, getEdges]);
+
+  // Viewport controls dispatched from MenuBar via `useCanvasZoom`.
+  useEffect(() => {
+    const onZoom = (e: Event) => {
+      const detail = (e as CustomEvent<{ zoom: number }>).detail;
+      if (detail) zoomTo(detail.zoom);
+    };
+    const onFit = () => fitView();
+    const onIn = () => zoomIn();
+    const onOut = () => zoomOut();
+    // Keep the editor-store zoom roughly in sync for the status bar.
+    const onPaneScroll = () => useEditorStore.getState().setZoom(getZoom());
+
+    window.addEventListener('workspace:zoom', onZoom);
+    window.addEventListener('workspace:fit-view', onFit);
+    window.addEventListener('workspace:zoom-in', onIn);
+    window.addEventListener('workspace:zoom-out', onOut);
+    window.addEventListener('wheel', onPaneScroll, { passive: true });
+    return () => {
+      window.removeEventListener('workspace:zoom', onZoom);
+      window.removeEventListener('workspace:fit-view', onFit);
+      window.removeEventListener('workspace:zoom-in', onIn);
+      window.removeEventListener('workspace:zoom-out', onOut);
+      window.removeEventListener('wheel', onPaneScroll);
+    };
+  }, [getZoom, zoomTo, zoomIn, zoomOut, fitView]);
 
   return null;
 }

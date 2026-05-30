@@ -15,7 +15,6 @@ import { useImageTransform } from '@/hooks/useImageTransform';
 import type { HistoryStoreState } from '@/core/history';
 // EditorMode type only used by disabled ModeBtn — kept for future reference.
 // import type { EditorMode } from '@/store/tool-slice';
-import type * as fabric from 'fabric';
 
 /* ------------------------------------------------------------------ */
 /*  Shared primitives                                                 */
@@ -91,10 +90,10 @@ function TriggerButton({ children }: { children: React.ReactNode }) {
 /*  Menu Bar                                                          */
 /* ------------------------------------------------------------------ */
 
-export function MenuBar({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas | null> }) {
-  const { fileInputRef, handleOpen, handleFileChange, handleClose, handleExport } = useFileIO(canvasRef);
-  const { transformImage } = useImageTransform(canvasRef);
-  const { applyZoom, fitOnScreen, zoomIn, zoomOut } = useCanvasZoom(canvasRef);
+export function MenuBar() {
+  const { fileInputRef, handleOpen, handleFileChange, handleClose, handleExport } = useFileIO();
+  const { transformImage } = useImageTransform();
+  const { applyZoom, fitOnScreen, zoomIn, zoomOut } = useCanvasZoom();
 
   return (
     <>

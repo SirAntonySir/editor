@@ -1,9 +1,7 @@
 import { createContext, useContext, useRef, useCallback, useEffect, type ReactNode } from 'react';
-import type * as fabric from 'fabric';
 import { useEditorStore } from '@/store';
 import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { useBackendSession } from '@/hooks/useBackendSession';
-import { useSegmentInteraction } from '@/hooks/useSegmentInteraction';
 import type { ToolContext, ToolDefinition } from '@/types/tool';
 
 interface EditorContextValue {
@@ -22,17 +20,14 @@ export function useEditor(): EditorContextValue {
 
 interface EditorProviderProps {
   children: ReactNode;
-  canvasRef: React.RefObject<fabric.Canvas | null>;
 }
 
-export function EditorProvider({ children, canvasRef }: EditorProviderProps) {
+export function EditorProvider({ children }: EditorProviderProps) {
   const cleanupRef = useRef<(() => void) | null>(null);
   const previousToolRef = useRef<string | null>(null);
 
-  // Dark-ship the backend state slice; rendering still uses legacy paths
-  // until Task 11 mounts the new InspectorPanel.
+  // Backend SSE session — keeps snapshot in sync.
   useBackendSession();
-  useSegmentInteraction(canvasRef);
 
   const dispatchCommand = useCallback(
     (toolName: string, commandName: string, payload?: unknown) => {
@@ -48,7 +43,6 @@ export function EditorProvider({ children, canvasRef }: EditorProviderProps) {
   );
 
   const toolContext: ToolContext = {
-    canvasRef,
     getState: useEditorStore.getState,
     setState: useEditorStore.setState,
     dispatchCommand,

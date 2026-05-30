@@ -1,5 +1,4 @@
-import type { ComponentType, RefObject } from 'react';
-import type * as fabric from 'fabric';
+import type { ComponentType } from 'react';
 import type { EditorState } from '@/store';
 import type { EditorMode } from '@/store/tool-slice';
 
@@ -9,11 +8,9 @@ export interface CanvasPointerEvent {
   x: number;
   y: number;
   rawEvent: PointerEvent;
-  fabricEvent?: fabric.TPointerEventInfo;
 }
 
 export interface ToolContext {
-  canvasRef: RefObject<fabric.Canvas | null>;
   getState: () => EditorState;
   setState: (partial: Partial<EditorState> | ((state: EditorState) => void)) => void;
   dispatchCommand: (toolName: string, commandName: string, payload?: unknown) => void;

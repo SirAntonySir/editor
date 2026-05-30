@@ -20,10 +20,22 @@ describe('workspace-slice', () => {
     const s = useEditorStore.getState();
     const a = s.addImageNode(['L1', 'L2']);
     const newId = s.splitImageNode(a, 'L1');
+    expect(newId).not.toBeNull();
     const after = useEditorStore.getState();
     expect(after.imageNodes[a].layerIds).toEqual(['L2']);
-    expect(after.imageNodes[newId].layerIds).toEqual(['L1']);
+    expect(after.imageNodes[newId!].layerIds).toEqual(['L1']);
     expect(newId).not.toBe(a);
+  });
+
+  it('splitImageNode returns null when the source does not exist', () => {
+    const s = useEditorStore.getState();
+    expect(s.splitImageNode('does-not-exist', 'L1')).toBeNull();
+  });
+
+  it('splitImageNode returns null when the layer is not on the source', () => {
+    const s = useEditorStore.getState();
+    const a = s.addImageNode(['L1']);
+    expect(s.splitImageNode(a, 'L-other')).toBeNull();
   });
 
   it('splitImageNode migrates layer-scoped edges to the new node', () => {
@@ -48,12 +60,13 @@ describe('workspace-slice', () => {
       scope: { kind: 'node' },
     });
     const newId = s.splitImageNode(a, 'L1');
+    expect(newId).not.toBeNull();
     const after = useEditorStore.getState();
     expect(after.tetherEdges['te-test-1'].targetImageNodeId).toBe(newId);
     expect(after.tetherEdges['te-test-2'].targetImageNodeId).toBe(a);
     expect(after.tetherEdges['te-test-3'].targetImageNodeId).toBe(a);
     expect(after.imageNodes[a].layerIds).toEqual(['L2']);
-    expect(after.imageNodes[newId].layerIds).toEqual(['L1']);
+    expect(after.imageNodes[newId!].layerIds).toEqual(['L1']);
   });
 
   it('mergeImageNodes appends source layers to target, removes source, target keeps id', () => {
@@ -93,7 +106,7 @@ describe('workspace-slice', () => {
     expect(after.tetherEdges['te-b'].scope).toEqual({ kind: 'layer', layerId: 'L2' });
   });
 
-  it('setEdge inserts and replaces by caller-supplied id; unbindEdge removes it', () => {
+  it('setEdge inserts an edge by caller-supplied id', () => {
     const s = useEditorStore.getState();
     const img = s.addImageNode(['l-1']);
     s.setEdge({
@@ -102,18 +115,40 @@ describe('workspace-slice', () => {
       targetImageNodeId: img,
       scope: { kind: 'layer', layerId: 'l-1' },
     });
-    let after = useEditorStore.getState();
+    const after = useEditorStore.getState();
     expect(after.tetherEdges['te-keep'].widgetNodeId).toBe('w-1');
-    // Replace under the same id.
+    expect(after.tetherEdges['te-keep'].scope).toEqual({ kind: 'layer', layerId: 'l-1' });
+  });
+
+  it('setEdge replaces an existing edge by id', () => {
+    const s = useEditorStore.getState();
+    const img = s.addImageNode(['l-1']);
+    s.setEdge({
+      id: 'te-keep',
+      widgetNodeId: 'w-1',
+      targetImageNodeId: img,
+      scope: { kind: 'layer', layerId: 'l-1' },
+    });
     s.setEdge({
       id: 'te-keep',
       widgetNodeId: 'w-2',
       targetImageNodeId: img,
       scope: { kind: 'node' },
     });
-    after = useEditorStore.getState();
+    const after = useEditorStore.getState();
     expect(after.tetherEdges['te-keep'].widgetNodeId).toBe('w-2');
     expect(after.tetherEdges['te-keep'].scope).toEqual({ kind: 'node' });
+  });
+
+  it('unbindEdge removes an edge by id', () => {
+    const s = useEditorStore.getState();
+    const img = s.addImageNode(['l-1']);
+    s.setEdge({
+      id: 'te-keep',
+      widgetNodeId: 'w-1',
+      targetImageNodeId: img,
+      scope: { kind: 'node' },
+    });
     s.unbindEdge('te-keep');
     expect(useEditorStore.getState().tetherEdges['te-keep']).toBeUndefined();
   });
@@ -121,10 +156,10 @@ describe('workspace-slice', () => {
   it('setWidgetPosition stores a WidgetNodeState keyed by id', () => {
     const s = useEditorStore.getState();
     s.setWidgetPosition('w-1', { x: 10, y: 20 });
-    const node = useEditorStore.getState().widgetNodes.get('w-1');
+    const node = useEditorStore.getState().widgetNodes['w-1'];
     expect(node).toEqual({ id: 'w-1', position: { x: 10, y: 20 } });
     s.setWidgetPosition('w-1', { x: 30, y: 40 });
-    expect(useEditorStore.getState().widgetNodes.get('w-1')?.position).toEqual({ x: 30, y: 40 });
+    expect(useEditorStore.getState().widgetNodes['w-1']?.position).toEqual({ x: 30, y: 40 });
   });
 
   it('toggleWorkspaceExpanded toggles widget expansion id', () => {
@@ -135,12 +170,12 @@ describe('workspace-slice', () => {
     expect(useEditorStore.getState().workspaceExpandedWidgetIds.has('w-1')).toBe(false);
   });
 
-  it('setSelection mirrors the active image node id', () => {
+  it('setActiveImageNode mirrors the active image node id', () => {
     const s = useEditorStore.getState();
     const img = s.addImageNode(['l-1']);
-    s.setSelection(img);
+    s.setActiveImageNode(img);
     expect(useEditorStore.getState().activeImageNodeId).toBe(img);
-    s.setSelection(null);
+    s.setActiveImageNode(null);
     expect(useEditorStore.getState().activeImageNodeId).toBeNull();
   });
 });

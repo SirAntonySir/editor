@@ -1,15 +1,16 @@
-export type NodeScopeKind = 'layer' | 'node' | 'unbound';
+export type Point = { x: number; y: number };
+export type Size = { w: number; h: number };
 
 export interface ImageNodeState {
   id: string;
   layerIds: string[];
-  position: { x: number; y: number };
-  size: { w: number; h: number };
+  position: Point;
+  size: Size;
 }
 
 export interface WidgetNodeState {
   id: string;
-  position: { x: number; y: number };
+  position: Point;
 }
 
 export interface TetherEdgeState {
@@ -23,5 +24,5 @@ export interface TetherEdgeState {
 
 export interface WorkspaceViewport {
   zoom: number;
-  pan: { x: number; y: number };
+  pan: Point;
 }

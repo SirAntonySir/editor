@@ -106,6 +106,17 @@ class ProposeWidgetTool(BackendTool[_Input, _Output]):
         for node in widget.nodes:
             node.layer_id = input.layer_id
 
+        # When the widget targets an ImageNode, also stamp layer_ids so the
+        # projected operation_graph carries the node-scope membership. If the
+        # ImageNode owns specific layers, prefer the first one as the legacy
+        # single-layer attribution.
+        if scope.root.kind == "image_node":
+            layer_ids_value = list(scope.root.layer_ids)
+            for node in widget.nodes:
+                node.layer_ids = layer_ids_value
+                if layer_ids_value:
+                    node.layer_id = layer_ids_value[0]
+
         doc.add_widget(widget)
         return _Output(widget=widget.model_dump(mode="json"))
 
@@ -126,6 +137,17 @@ class ProposeWidgetTool(BackendTool[_Input, _Output]):
         defaults = TOOL_DEFAULTS[tool_id]
         widget_id = f"w_{uuid.uuid4().hex[:8]}"
 
+        # For image_node scope, propagate the scope's layer_ids to every node
+        # and prefer the first layer as the legacy single-layer attribution.
+        image_node_layer_ids: list[str] | None = None
+        if scope.root.kind == "image_node":
+            image_node_layer_ids = list(scope.root.layer_ids)
+            layer_id_for_nodes = (
+                image_node_layer_ids[0] if image_node_layer_ids else input.layer_id
+            )
+        else:
+            layer_id_for_nodes = input.layer_id
+
         nodes: list[WidgetNode] = []
         for nd in defaults["nodes"]:
             nid = f"n_{uuid.uuid4().hex[:6]}"
@@ -136,7 +158,8 @@ class ProposeWidgetTool(BackendTool[_Input, _Output]):
                 scope=scope,
                 inputs=[],
                 widget_id=widget_id,
-                layer_id=input.layer_id,
+                layer_id=layer_id_for_nodes,
+                layer_ids=image_node_layer_ids,
             ))
 
         bindings: list[ControlBinding] = []

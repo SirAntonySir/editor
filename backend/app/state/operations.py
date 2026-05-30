@@ -15,6 +15,11 @@ def _widget_scope_to_graph_scope(s: WidgetScope) -> GraphScope:
         return GraphScope(kind="global")
     if root.kind == "named_region":
         return GraphScope(kind="mask:proposed", label=root.label)
+    if root.kind == "image_node":
+        # ImageNode scope is membership-based and carried via Node.layer_ids;
+        # the GraphScope itself stays "global" so the pipeline doesn't
+        # mis-interpret it as a click mask.
+        return GraphScope(kind="global")
     return GraphScope(kind="mask:click")  # mask_id is a backend-only handle
 
 
@@ -68,6 +73,7 @@ def project_to_graph(doc: SessionDocument) -> OperationGraph:
                     params=wn.params,
                     inputs=wn.inputs,
                     layer_id=wn.layer_id,
+                    layer_ids=wn.layer_ids,
                     widget_id=wn.widget_id,
                 )
             )

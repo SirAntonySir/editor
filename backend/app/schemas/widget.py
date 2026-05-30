@@ -222,6 +222,7 @@ class WidgetNode(BaseModel):
     inputs: list[str] = Field(default_factory=list)
     widget_id: str = Field(min_length=1)
     layer_id: str = "legacy"
+    layer_ids: list[str] | None = None  # populated for image_node-scope widgets
 
 
 WidgetOriginKind = Literal[

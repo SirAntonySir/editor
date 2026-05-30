@@ -1,4 +1,4 @@
-import { Image, Split, MoreHorizontal } from 'lucide-react';
+import { Image, Split } from 'lucide-react';
 import { Handle, Position } from '@xyflow/react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { ImageNodeBody } from './ImageNodeBody';
@@ -45,14 +45,6 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
             <span className="text-[8px] font-semibold bg-surface-secondary border border-separator rounded-full px-1.5 py-px text-text-secondary uppercase">
               {data.layerIds.length} LAYER{data.layerIds.length === 1 ? '' : 'S'}
             </span>
-            <button
-              type="button"
-              aria-label="Node menu"
-              onClick={() => { /* TODO(T15): node menu */ }}
-              className="text-text-tertiary"
-            >
-              <MoreHorizontal size={11} aria-hidden />
-            </button>
           </div>
         </ImageNodeSelectionPopover>
         <ImageNodeBody imageNodeId={id} layerIds={data.layerIds} width={data.size.w} height={data.size.h} />

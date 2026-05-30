@@ -72,10 +72,11 @@ export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}
     const adjustmentId = crypto.randomUUID();
     LutRegistry.register(adjustmentId, lut.size, lut.data);
 
-    // Propose a filter widget through the backend
+    // Propose a filter widget — default scope to active selection, fallback Global.
+    const scope = useEditorStore.getState().activeScope ?? { kind: 'global' as const };
     void backendTools.propose_widget(sid, {
       intent: `Apply ${lut.title} filter`,
-      scope: { kind: 'global' },
+      scope,
       fused_tool_id: 'filter',
       layer_id: activeLayerId,
       origin: 'tool_invoked',

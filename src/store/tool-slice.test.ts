@@ -6,7 +6,6 @@ describe('tool-slice · widget shell state', () => {
     const s = useEditorStore.getState();
     s.collapseAllWidgets();
     s.setHoveredWidget(null);
-    s.clearDragOverrides();
   });
 
   it('toggleWidgetExpanded toggles a widget id in expandedWidgetIds', () => {
@@ -41,16 +40,5 @@ describe('tool-slice · widget shell state', () => {
     expect(useEditorStore.getState().hoveredWidgetId).toBe('w-1');
     s.setHoveredWidget(null);
     expect(useEditorStore.getState().hoveredWidgetId).toBeNull();
-  });
-
-  it('setDragOverride stores per-widget position; clearDragOverrides resets', () => {
-    const s = useEditorStore.getState();
-    s.setDragOverride('w-1', { x: 600, y: 120 });
-    expect(useEditorStore.getState().sessionDragOverrides.get('w-1')).toEqual({ x: 600, y: 120 });
-    s.clearDragOverride('w-1');
-    expect(useEditorStore.getState().sessionDragOverrides.has('w-1')).toBe(false);
-    s.setDragOverride('w-2', { x: 0, y: 0 });
-    s.clearDragOverrides();
-    expect(useEditorStore.getState().sessionDragOverrides.size).toBe(0);
   });
 });

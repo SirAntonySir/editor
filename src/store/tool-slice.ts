@@ -8,7 +8,6 @@ export interface ToolSlice {
   toolConfigs: Record<string, unknown>;
   expandedWidgetIds: Set<string>;
   hoveredWidgetId: string | null;
-  sessionDragOverrides: Map<string, { x: number; y: number }>;
 
   setActiveTool: (name: string) => void;
   setEditorMode: (mode: EditorMode) => void;
@@ -17,9 +16,6 @@ export interface ToolSlice {
   toggleWidgetExpanded: (widgetId: string) => void;
   collapseAllWidgets: () => void;
   setHoveredWidget: (widgetId: string | null) => void;
-  setDragOverride: (widgetId: string, pos: { x: number; y: number }) => void;
-  clearDragOverride: (widgetId: string) => void;
-  clearDragOverrides: () => void;
 }
 
 export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]], []> = (set, get) => ({
@@ -28,7 +24,6 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   toolConfigs: {},
   expandedWidgetIds: new Set<string>(),
   hoveredWidgetId: null,
-  sessionDragOverrides: new Map<string, { x: number; y: number }>(),
 
   setActiveTool: (name) =>
     set((state) => {
@@ -67,20 +62,5 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   setHoveredWidget: (widgetId) =>
     set((state) => {
       state.hoveredWidgetId = widgetId;
-    }),
-
-  setDragOverride: (widgetId, pos) =>
-    set((state) => {
-      state.sessionDragOverrides.set(widgetId, pos);
-    }),
-
-  clearDragOverride: (widgetId) =>
-    set((state) => {
-      state.sessionDragOverrides.delete(widgetId);
-    }),
-
-  clearDragOverrides: () =>
-    set((state) => {
-      state.sessionDragOverrides.clear();
     }),
 });

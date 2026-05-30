@@ -5,6 +5,7 @@ import { useEditorStore } from '@/store';
 
 beforeEach(() => {
   useEditorStore.getState().resetWorkspace();
+  useEditorStore.getState().collapseAllWidgets();
 });
 
 describe('useWorkspaceSelection', () => {
@@ -18,12 +19,12 @@ describe('useWorkspaceSelection', () => {
     expect(result.current.activeImageNodeId).not.toBeNull();
   });
 
-  it('exposes workspaceExpandedWidgetIds and toggleWorkspaceExpanded', () => {
+  it('exposes expandedWidgetIds and toggleWidgetExpanded', () => {
     const { result } = renderHook(() => useWorkspaceSelection());
-    expect(result.current.workspaceExpandedWidgetIds.size).toBe(0);
+    expect(result.current.expandedWidgetIds.size).toBe(0);
     act(() => {
-      result.current.toggleWorkspaceExpanded('w-1');
+      result.current.toggleWidgetExpanded('w-1');
     });
-    expect(result.current.workspaceExpandedWidgetIds.has('w-1')).toBe(true);
+    expect(result.current.expandedWidgetIds.has('w-1')).toBe(true);
   });
 });

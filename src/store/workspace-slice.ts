@@ -16,7 +16,6 @@ export interface WorkspaceSlice {
   widgetNodes: Record<string, WidgetNodeState>;
   tetherEdges: Record<string, TetherEdgeState>;
   workspaceViewport: WorkspaceViewport;
-  workspaceExpandedWidgetIds: Set<string>;
   activeImageNodeId: string | null;
 
   /** Private id sequences. Reset by `resetWorkspace`. */
@@ -56,7 +55,6 @@ export interface WorkspaceSlice {
    */
   setActiveImageNode: (activeImageNodeId: string | null) => void;
   setWorkspaceViewport: (v: WorkspaceViewport) => void;
-  toggleWorkspaceExpanded: (widgetId: string) => void;
   resetWorkspace: () => void;
 }
 
@@ -65,7 +63,6 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
   widgetNodes: {},
   tetherEdges: {},
   workspaceViewport: { zoom: 1, pan: { x: 0, y: 0 } },
-  workspaceExpandedWidgetIds: new Set<string>(),
   activeImageNodeId: null,
   _nextNodeSeq: 1,
   _nextEdgeSeq: 1,
@@ -173,19 +170,12 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       state.workspaceViewport = v;
     }),
 
-  toggleWorkspaceExpanded: (widgetId) =>
-    set((state) => {
-      if (state.workspaceExpandedWidgetIds.has(widgetId)) state.workspaceExpandedWidgetIds.delete(widgetId);
-      else state.workspaceExpandedWidgetIds.add(widgetId);
-    }),
-
   resetWorkspace: () =>
     set((state) => {
       state.imageNodes = {};
       state.widgetNodes = {};
       state.tetherEdges = {};
       state.workspaceViewport = { zoom: 1, pan: { x: 0, y: 0 } };
-      state.workspaceExpandedWidgetIds.clear();
       state.activeImageNodeId = null;
       state._nextNodeSeq = 1;
       state._nextEdgeSeq = 1;

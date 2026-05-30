@@ -21,8 +21,8 @@ export interface DocumentMeta {
 /**
  * The subset of Zustand state captured for undo/redo snapshots.
  *
- * Note: `workspaceExpandedWidgetIds` is intentionally excluded — it's a
- * UI-only collapsed/expanded toggle that shouldn't produce undo entries.
+ * Note: `expandedWidgetIds` is intentionally excluded — it's a UI-only
+ * collapsed/expanded toggle that shouldn't produce undo entries.
  */
 export interface SerializableState {
   layers: Layer[];

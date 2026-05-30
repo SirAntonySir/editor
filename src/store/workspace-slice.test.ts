@@ -210,14 +210,6 @@ describe('workspace-slice', () => {
     expect(useEditorStore.getState().widgetNodes['w-1']?.position).toEqual({ x: 30, y: 40 });
   });
 
-  it('toggleWorkspaceExpanded toggles widget expansion id', () => {
-    const s = useEditorStore.getState();
-    s.toggleWorkspaceExpanded('w-1');
-    expect(useEditorStore.getState().workspaceExpandedWidgetIds.has('w-1')).toBe(true);
-    s.toggleWorkspaceExpanded('w-1');
-    expect(useEditorStore.getState().workspaceExpandedWidgetIds.has('w-1')).toBe(false);
-  });
-
   it('setActiveImageNode mirrors the active image node id', () => {
     const s = useEditorStore.getState();
     const img = s.addImageNode(['l-1']);

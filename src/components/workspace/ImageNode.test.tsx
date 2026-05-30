@@ -32,4 +32,12 @@ describe('ImageNode', () => {
     rerender(<ReactFlowProvider><ImageNode id="in-1" data={{ ...baseData, name: 'Sky' }} selected={true} /></ReactFlowProvider>);
     expect(screen.getByLabelText('Split or merge')).toBeInTheDocument();
   });
+
+  it('renders the split affordance outside the overflow-hidden card', () => {
+    renderInFlow(<ImageNode id="in-1" data={{ ...baseData, name: 'Sky' }} selected />);
+    const btn = screen.getByLabelText('Split or merge');
+    // Walk up to find the nearest .overlay ancestor and assert the button is NOT inside it.
+    const overlay = btn.closest('.overlay');
+    expect(overlay).toBeNull();
+  });
 });

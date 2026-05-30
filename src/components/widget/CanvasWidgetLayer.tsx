@@ -18,6 +18,10 @@ const PHASE_SKELETON_PHASES: PhaseName[] = ['mask_precompute', 'widget_mint'];
 const COLLAPSED_HEIGHT = 30;
 const EXPANDED_HEIGHT_ESTIMATE = 200;
 
+// Stable empty fallbacks — Zustand selectors compare by Object.is.
+// Returning a fresh `[]`/`{}` from a selector triggers an infinite re-render loop.
+const EMPTY_WIDGETS: Widget[] = [];
+
 interface CanvasWidgetLayerProps {
   fabricCanvasRef: React.RefObject<fabric.Canvas | null>;
 }
@@ -28,7 +32,7 @@ interface CanvasWidgetLayerProps {
  * marks and region highlight overlays for hovered widgets.
  */
 export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
-  const snapshotWidgets = useBackendState((s) => s.snapshot?.widgets ?? []);
+  const snapshotWidgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
   const accepted = useBackendState((s) => s.acceptedSuggestions);
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
   const expandedIds = useEditorStore((s) => s.expandedWidgetIds);

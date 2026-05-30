@@ -3,6 +3,7 @@ import { useEditor } from '@/components/EditorProvider';
 import { useEditorStore } from '@/store';
 import { useAiSession } from '@/hooks/useImageContext';
 import { useBackendState } from '@/store/backend-state-slice';
+import { spawnToolWidget } from '@/lib/toolrail-spawn';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as Separator from '@radix-ui/react-separator';
@@ -39,12 +40,12 @@ export function Toolbar() {
           onValueChange={(value) => {
             if (!value) return;
             const tool = registry.get(value);
-            // Widget tools (have a processingId) → start cursor-bind, the
-            // canvas drop site commits an adjustment with the captured scope.
+            // Widget tools (have a processingId) → spawn via the toolrail
+            // helper, which picks the cursor-bind flow on the Fabric branch
+            // and a direct propose_widget call on the workspace branch.
             // Mode tools (text, crop) → keep legacy setActiveTool behavior.
             if (tool?.processingId) {
-              useEditorStore.getState().startToolBind(value);
-              return;
+              if (spawnToolWidget(value)) return;
             }
             setActiveTool(value);
           }}

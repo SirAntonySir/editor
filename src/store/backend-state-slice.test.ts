@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import 'fake-indexeddb/auto';
 import { useBackendState, getPersistedSessionId } from './backend-state-slice';
+import { useEditorStore } from '@/store';
+import { usePreferencesStore } from '@/store/preferences-store';
 import type { SessionStateSnapshot, StateEvent, Widget } from '@/types/widget';
 
 function makeWidget(id: string, overrides: Partial<Widget> = {}): Widget {
@@ -149,6 +151,111 @@ describe('BackendStateSlice', () => {
     expect(useBackendState.getState().snapshot!.widgets.find(w => w.id === 'w_x')).toBeUndefined();
     // Widget ID is in acceptedSuggestions.
     expect(useBackendState.getState().acceptedSuggestions.has('w_x')).toBe(true);
+  });
+});
+
+describe('BackendStateSlice — workspace tether on widget.created', () => {
+  beforeEach(() => {
+    useBackendState.getState().reset();
+    useEditorStore.getState().resetWorkspace();
+    usePreferencesStore.setState({ useWorkspaceCanvas: false });
+  });
+
+  function fireCreated(widget: Widget, revision = 2): void {
+    useBackendState.setState({ snapshot: baseSnapshot() });
+    useBackendState.getState().applyEvent({
+      revision,
+      kind: 'widget.created',
+      payload: { widget },
+      emitted_at: '2026-05-30T00:00:01Z',
+    });
+  }
+
+  it('Fabric branch: no workspace state is touched', () => {
+    usePreferencesStore.setState({ useWorkspaceCanvas: false });
+    const w = makeWidget('w_tool', {
+      origin: { kind: 'tool_invoked' },
+      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w_tool', layer_id: 'layer-a' }],
+    });
+    fireCreated(w);
+    const editor = useEditorStore.getState();
+    expect(editor.widgetNodes[w.id]).toBeUndefined();
+    expect(Object.values(editor.tetherEdges)).toEqual([]);
+  });
+
+  it('Workspace branch: tool_invoked widget gets positioned + tethered to the layer\'s ImageNode', () => {
+    usePreferencesStore.setState({ useWorkspaceCanvas: true });
+    const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 100, y: 50 });
+    useEditorStore.getState().setActiveImageNode(nodeId);
+
+    const w = makeWidget('w_tool', {
+      origin: { kind: 'tool_invoked' },
+      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w_tool', layer_id: 'layer-a' }],
+    });
+    fireCreated(w);
+
+    const editor = useEditorStore.getState();
+    // Widget got a position
+    expect(editor.widgetNodes[w.id]?.position).toBeDefined();
+    // A tether edge exists with the expected scope + target
+    const edges = Object.values(editor.tetherEdges);
+    expect(edges).toHaveLength(1);
+    expect(edges[0]).toMatchObject({
+      id: `te-${w.id}`,
+      widgetNodeId: w.id,
+      targetImageNodeId: nodeId,
+      scope: { kind: 'layer', layerId: 'layer-a' },
+    });
+  });
+
+  it('Workspace branch: AI-origin widgets are not auto-tethered', () => {
+    usePreferencesStore.setState({ useWorkspaceCanvas: true });
+    const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 0, y: 0 });
+    useEditorStore.getState().setActiveImageNode(nodeId);
+
+    const w = makeWidget('w_ai', {
+      origin: { kind: 'mcp_autonomous' },
+      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w_ai', layer_id: 'layer-a' }],
+    });
+    fireCreated(w);
+
+    const editor = useEditorStore.getState();
+    expect(editor.widgetNodes[w.id]).toBeUndefined();
+    expect(Object.values(editor.tetherEdges)).toEqual([]);
+  });
+
+  it('Workspace branch: falls back to activeImageNodeId when widget has no node layer_id', () => {
+    usePreferencesStore.setState({ useWorkspaceCanvas: true });
+    const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 0, y: 0 });
+    useEditorStore.getState().setActiveImageNode(nodeId);
+
+    const w = makeWidget('w_tool', {
+      origin: { kind: 'tool_invoked' },
+      nodes: [],
+    });
+    fireCreated(w);
+
+    const editor = useEditorStore.getState();
+    const edges = Object.values(editor.tetherEdges);
+    expect(edges).toHaveLength(1);
+    expect(edges[0]).toMatchObject({
+      widgetNodeId: w.id,
+      targetImageNodeId: nodeId,
+      scope: { kind: 'node' },
+    });
+  });
+
+  it('Workspace branch: skips when no active image node is selectable', () => {
+    usePreferencesStore.setState({ useWorkspaceCanvas: true });
+    // No image nodes, no activeImageNodeId.
+    const w = makeWidget('w_tool', {
+      origin: { kind: 'tool_invoked' },
+      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w_tool', layer_id: 'layer-x' }],
+    });
+    fireCreated(w);
+    const editor = useEditorStore.getState();
+    expect(editor.widgetNodes[w.id]).toBeUndefined();
+    expect(Object.values(editor.tetherEdges)).toEqual([]);
   });
 });
 

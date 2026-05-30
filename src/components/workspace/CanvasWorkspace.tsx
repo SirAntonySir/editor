@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 import {
   ReactFlow,
   Background,
@@ -28,10 +28,23 @@ export function CanvasWorkspace() {
   const imageNodes = useEditorStore((s) => s.imageNodes);
   const widgetNodes = useEditorStore((s) => s.widgetNodes);
   const tetherEdges = useEditorStore((s) => s.tetherEdges);
+  const layers = useEditorStore((s) => s.layers);
   const snapshotWidgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
   const setNodePosition = useEditorStore((s) => s.setNodePosition);
   const setWidgetPosition = useEditorStore((s) => s.setWidgetPosition);
   const setActiveImageNode = useEditorStore((s) => s.setActiveImageNode);
+  const addImageNode = useEditorStore((s) => s.addImageNode);
+
+  // Auto-create an ImageNode for the current document's layers on first mount
+  // when no nodes exist yet. Ensures the workspace shows the open image immediately.
+  useEffect(() => {
+    if (Object.keys(imageNodes).length === 0 && layers.length > 0) {
+      addImageNode(
+        layers.map((l) => l.id),
+        { x: 100, y: 100 },
+      );
+    }
+  }, [imageNodes, layers, addImageNode]);
 
   const nodes = useMemo<WorkspaceNode[]>(() => {
     const imgs: ImageNodeType[] = Object.values(imageNodes).map((n) => ({

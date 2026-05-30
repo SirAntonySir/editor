@@ -33,6 +33,14 @@ export function useImageNodeRender({
   // Re-render when adjustment params or raw pixels change.
   const optimisticSize = useBackendState((s) => s.optimistic.size);
   const pixelVersion = useEditorStore((s) => s.pixelVersion);
+  // Re-render when selection / mask overlays change. `maskStore` is not
+  // reactive — these store fields are the SSoT the painters branch on, so
+  // changes here are what trigger overlay repaint.
+  const activeScope = useEditorStore((s) => s.activeScope);
+  const hoveredScope = useEditorStore((s) => s.hoveredScope);
+  const activeMaskRef = useEditorStore((s) => s.activeMaskRef);
+  const committedMaskRef = useEditorStore((s) => s.committedMaskRef);
+  const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -46,7 +54,21 @@ export function useImageNodeRender({
       opGraph,
       widgets,
     });
-  }, [imageNodeId, layerIds, width, height, opGraph, widgets, optimisticSize, pixelVersion]);
+  }, [
+    imageNodeId,
+    layerIds,
+    width,
+    height,
+    opGraph,
+    widgets,
+    optimisticSize,
+    pixelVersion,
+    activeScope,
+    hoveredScope,
+    activeMaskRef,
+    committedMaskRef,
+    activeImageNodeId,
+  ]);
 
   return { canvasRef };
 }

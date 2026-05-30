@@ -15,7 +15,14 @@
 import { CanvasRegistry } from './canvas-registry';
 import { PipelineManager } from './pipeline-manager';
 import { useEditorStore } from '@/store';
+import { maskStore } from '@/core/mask-store';
 import { nodeToAdjustment } from './node-to-adjustment';
+import {
+  paintFullImageOutline,
+  paintMaskFill,
+  paintMaskOutline,
+  paintSegmentationOverlay,
+} from './overlay-painters';
 import type { Adjustment, BlendMode } from '@/types/adjustment';
 import type { OperationGraph } from '@/types/operation-graph';
 import type { Widget } from '@/types/widget';
@@ -92,4 +99,69 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
 
   // TODO(T17–T19): apply node-scope widgets to the composite.
   void widgets;
+
+  // ---- Overlay pass --------------------------------------------------------
+  // Painted on top of the composite so chrome is always visible. State read
+  // here matches the Fabric overlay path (same maskStore / selection slice
+  // SSoT) — the workspace branch just renders it without Fabric.
+  paintOverlays({ ctx, canvas, imageNodeId: args.imageNodeId, layerIds });
+}
+
+interface PaintOverlaysArgs {
+  ctx: CanvasRenderingContext2D;
+  canvas: HTMLCanvasElement;
+  imageNodeId: string;
+  layerIds: string[];
+}
+
+function paintOverlays({ ctx, canvas, imageNodeId, layerIds }: PaintOverlaysArgs): void {
+  const state = useEditorStore.getState();
+  const layerSet = new Set(layerIds);
+  const isActiveNode = state.activeImageNodeId === imageNodeId;
+  const painterCtx = { ctx, canvasWidth: canvas.width, canvasHeight: canvas.height };
+
+  // Full-image outline: only on the active image node when the active scope
+  // is global. Mirrors `FullImageOutline.tsx` from the Fabric branch.
+  if (isActiveNode && state.activeScope.kind === 'global') {
+    paintFullImageOutline(ctx, canvas.width, canvas.height);
+  }
+
+  // Active draft mask (SAM preview / highlight_region) — only when its
+  // owning layer belongs to this image node. Drawn before the committed
+  // overlay so committed marks land on top.
+  if (state.activeMaskRef) {
+    const mask = maskStore.get(state.activeMaskRef);
+    if (mask && layerSet.has(mask.layerId)) {
+      paintMaskFill(painterCtx, mask, { fillHsl: [310, 90, 60], alpha: 0.45 });
+      paintMaskOutline(painterCtx, mask);
+    }
+  }
+
+  // Committed mask — same gating. Slightly cooler tint to read as "settled".
+  if (state.committedMaskRef && state.committedMaskRef !== state.activeMaskRef) {
+    const mask = maskStore.get(state.committedMaskRef);
+    if (mask && layerSet.has(mask.layerId)) {
+      paintMaskFill(painterCtx, mask, { fillHsl: [200, 90, 55], alpha: 0.45 });
+      paintMaskOutline(painterCtx, mask);
+    }
+  }
+
+  // Segmentation hover / selected outlines — `activeScope.kind === 'mask'`
+  // indicates a segment chosen by the user; `hoveredScope` mirrors the
+  // hover preview. Both stay gated to layers in this node.
+  if (isActiveNode) {
+    if (state.hoveredScope?.kind === 'mask') {
+      const m = maskStore.get(state.hoveredScope.mask_id);
+      const selectedId = state.activeScope.kind === 'mask' ? state.activeScope.mask_id : null;
+      if (m && layerSet.has(m.layerId) && m.id !== selectedId) {
+        paintSegmentationOverlay(painterCtx, m, 'hover');
+      }
+    }
+    if (state.activeScope.kind === 'mask') {
+      const m = maskStore.get(state.activeScope.mask_id);
+      if (m && layerSet.has(m.layerId)) {
+        paintSegmentationOverlay(painterCtx, m, 'selected');
+      }
+    }
+  }
 }

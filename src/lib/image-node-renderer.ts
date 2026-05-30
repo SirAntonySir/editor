@@ -8,8 +8,9 @@
  * routing the result through Fabric.js.
  *
  * Sits alongside `useAdjustmentPipeline` (Fabric path); both consume the same
- * backend snapshot. T17–T19 will extend `widgets` handling for node-scope
- * adjustments; for now node-scope widgets are passed through but no-op.
+ * backend snapshot. After per-layer adjustments are composited, node-scope
+ * adjustments (operation_graph nodes whose `layer_ids` cover layers in this
+ * image node) are applied to the composite via composite-then-apply.
  */
 
 import { CanvasRegistry } from './canvas-registry';
@@ -49,8 +50,8 @@ export interface RenderImageNodeCompositeArgs {
   /** Backend operation graph; per-layer adjustments are filtered by layer_id. */
   opGraph: OperationGraph | undefined;
   /**
-   * Widgets in the current snapshot. Walked here so future node-scope widgets
-   * (T17–T19) can be applied to the composite; for now every widget is skipped.
+   * Widgets in the current snapshot. Threaded for future hooks; the actual
+   * shader work is driven by `opGraph.nodes` (per-layer + node-scope).
    */
   widgets: Widget[];
 }
@@ -98,8 +99,32 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
     ctx.restore();
   }
 
-  // TODO(T17–T19): apply node-scope widgets to the composite.
-  void widgets;
+  // ---- Composite-then-apply pass: node-scope adjustments ------------------
+  // Backend stamps `node.layer_ids: string[]` for adjustments that target the
+  // composite of multiple layers rather than a single layer. Filter to nodes
+  // whose layer_ids are a subset of this image node's layers, then run their
+  // shader pass against the composite. We pipe the 2D composite canvas into
+  // the WebGL pipeline, render, and blit the result back over the canvas.
+  const layerSetForComposite = new Set(layerIds);
+  const nodeScopeNodes = nodes.filter((n) => {
+    const ids = n.layer_ids;
+    return Array.isArray(ids) && ids.length > 0 && ids.every((lid) => layerSetForComposite.has(lid));
+  });
+
+  if (nodeScopeNodes.length > 0) {
+    const nodeAdjustments: Adjustment[] = nodeScopeNodes
+      .map(nodeToAdjustment)
+      .filter((a) => a.enabled);
+
+    if (nodeAdjustments.length > 0) {
+      PipelineManager.setSourceCanvas(canvas);
+      const final = PipelineManager.renderSync(nodeAdjustments);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(final, 0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  void widgets; // widgets still passed through for future use
 
   // ---- Overlay pass --------------------------------------------------------
   // Painted on top of the composite so chrome is always visible. State read

@@ -8,6 +8,7 @@ export interface Node {
   params: Record<string, number | string | boolean>;
   inputs: string[];
   layer_id?: string;
+  layer_ids?: string[];  // node-scope: applied to composite of these layers
   widget_id?: string;
 }
 

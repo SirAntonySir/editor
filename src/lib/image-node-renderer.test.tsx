@@ -156,6 +156,141 @@ describe('renderImageNodeComposite', () => {
     expect(drawSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('applies a node-scope adjustment to the composite when layer_ids fit', () => {
+    setLayers([
+      { id: 'L1', visible: true, opacity: 1, blendMode: 'normal', order: 0 },
+      { id: 'L2', visible: true, opacity: 1, blendMode: 'normal', order: 1 },
+    ]);
+    const canvas = makeCanvas();
+
+    renderImageNodeComposite({
+      canvas,
+      imageNodeId: 'in-1',
+      layerIds: ['L1', 'L2'],
+      opGraph: {
+        id: 'g',
+        userGoal: '',
+        nodes: [
+          {
+            id: 'n-composite',
+            type: 'basic',
+            params: { exposure: 0.25 },
+            scope: { kind: 'global' },
+            inputs: [],
+            layer_ids: ['L1', 'L2'],
+          },
+        ],
+        panelBindings: [],
+        metadata: {},
+      },
+      widgets: [],
+    });
+
+    // No per-layer adjustments, so setSourceCanvas only fires for the
+    // composite pass and gets the target canvas itself.
+    expect(pipelineSetSourceCanvas).toHaveBeenCalledTimes(1);
+    expect(pipelineSetSourceCanvas).toHaveBeenCalledWith(canvas);
+    expect(pipelineRenderSync).toHaveBeenCalledTimes(1);
+    const adjustments = pipelineRenderSync.mock.calls[0][0] as unknown as {
+      id: string;
+      type: string;
+    }[];
+    expect(adjustments).toHaveLength(1);
+    expect(adjustments[0].id).toBe('n-composite');
+    expect(adjustments[0].type).toBe('basic');
+  });
+
+  it('skips node-scope adjustments whose layer_ids do not fit this image node', () => {
+    setLayers([{ id: 'L1', visible: true, opacity: 1, blendMode: 'normal', order: 0 }]);
+    const canvas = makeCanvas();
+
+    renderImageNodeComposite({
+      canvas,
+      imageNodeId: 'in-1',
+      layerIds: ['L1'],
+      opGraph: {
+        id: 'g',
+        userGoal: '',
+        nodes: [
+          {
+            id: 'n-stray',
+            type: 'basic',
+            params: { exposure: 0.5 },
+            scope: { kind: 'global' },
+            inputs: [],
+            layer_ids: ['L1', 'L-other-node'],
+          },
+        ],
+        panelBindings: [],
+        metadata: {},
+      },
+      widgets: [],
+    });
+
+    // No per-layer node, no fitting node-scope node → no WebGL pass at all.
+    expect(pipelineSetSourceCanvas).not.toHaveBeenCalled();
+    expect(pipelineRenderSync).not.toHaveBeenCalled();
+  });
+
+  it('runs per-layer adjustments first, then the node-scope composite pass', () => {
+    setLayers([
+      { id: 'L1', visible: true, opacity: 1, blendMode: 'normal', order: 0 },
+      { id: 'L2', visible: true, opacity: 1, blendMode: 'normal', order: 1 },
+    ]);
+    const canvas = makeCanvas();
+
+    renderImageNodeComposite({
+      canvas,
+      imageNodeId: 'in-1',
+      layerIds: ['L1', 'L2'],
+      opGraph: {
+        id: 'g',
+        userGoal: '',
+        nodes: [
+          {
+            id: 'n-per-layer',
+            type: 'basic',
+            params: { exposure: 0.1 },
+            scope: { kind: 'global' },
+            inputs: [],
+            layer_id: 'L1',
+          },
+          {
+            id: 'n-composite',
+            type: 'basic',
+            params: { contrast: 0.2 },
+            scope: { kind: 'global' },
+            inputs: [],
+            layer_ids: ['L1', 'L2'],
+          },
+        ],
+        panelBindings: [],
+        metadata: {},
+      },
+      widgets: [],
+    });
+
+    // Two pipeline invocations: per-layer L1, then composite.
+    expect(pipelineSetSourceCanvas).toHaveBeenCalledTimes(2);
+    expect(pipelineRenderSync).toHaveBeenCalledTimes(2);
+
+    // Per-layer call comes first with the layer's working canvas.
+    expect(pipelineSetSourceCanvas.mock.calls[0][0]).toBe(fakeWorking);
+    const perLayerAdjustments = pipelineRenderSync.mock.calls[0][0] as unknown as {
+      id: string;
+    }[];
+    expect(perLayerAdjustments).toHaveLength(1);
+    expect(perLayerAdjustments[0].id).toBe('n-per-layer');
+
+    // Composite call comes second with the target canvas as source.
+    expect(pipelineSetSourceCanvas.mock.calls[1][0]).toBe(canvas);
+    const compositeAdjustments = pipelineRenderSync.mock.calls[1][0] as unknown as {
+      id: string;
+    }[];
+    expect(compositeAdjustments).toHaveLength(1);
+    expect(compositeAdjustments[0].id).toBe('n-composite');
+  });
+
   it('is a no-op when no layer ids are provided', () => {
     setLayers([]);
     const canvas = makeCanvas();

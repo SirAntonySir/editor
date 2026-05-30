@@ -59,8 +59,9 @@ export function mergeOptimistic(
 }
 
 /**
- * Selector used by useAdjustmentPipeline. Returns the projected
- * OperationGraph nodes as PipelineNodes.
+ * Returns the projected OperationGraph nodes as PipelineNodes (with optimistic
+ * overrides merged in). Consumed by layer-compositor, use-adjustment, and
+ * useNodePreview.
  */
 export function selectPipelineNodes(): PipelineNode[] {
   const snap = useBackendState.getState().snapshot;

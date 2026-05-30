@@ -3,7 +3,7 @@ import { Handle, Position } from '@xyflow/react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { ImageNodeBody } from './ImageNodeBody';
 import { ImageNodeSelectionPopover } from './ImageNodeSelectionPopover';
-import { useEditorStore } from '@/store';
+import { editorDocument } from '@/core/document';
 
 export interface ImageNodeData extends Record<string, unknown> {
   name?: string;
@@ -26,11 +26,11 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   function handleSplit() {
     if (!canSplit) return;
     const lastLayerId = data.layerIds[data.layerIds.length - 1];
-    useEditorStore.getState().splitImageNode(id, lastLayerId);
+    editorDocument.workspace.splitImageNode(id, lastLayerId);
   }
 
   function handleDelete() {
-    useEditorStore.getState().removeImageNode(id);
+    editorDocument.workspace.removeImageNode(id);
   }
 
   return (

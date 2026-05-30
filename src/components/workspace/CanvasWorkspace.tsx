@@ -12,6 +12,7 @@ import '@xyflow/react/dist/style.css';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
+import { editorDocument } from '@/core/document';
 import { ImageNode, type ImageNodeData } from './ImageNode';
 import { WidgetNode, type WidgetNodeData } from './WidgetNode';
 import { TetherEdge, type TetherEdgeType } from './TetherEdge';
@@ -40,19 +41,20 @@ function WorkspaceKeyHandler() {
       if (selectedNodes.length === 0 && selectedEdges.length === 0) return;
 
       const sessionId = useBackendState.getState().sessionId;
-      const { removeImageNode, unbindEdge } = useEditorStore.getState();
 
       for (const node of selectedNodes) {
         if (node.type === 'image') {
-          removeImageNode(node.id);
+          editorDocument.workspace.removeImageNode(node.id);
         } else if (node.type === 'widget') {
           if (sessionId) {
+            // Backend will SSE the deletion back to us. Undoing a backend
+            // widget deletion needs backend cooperation and is deferred.
             void backendTools.delete_widget(sessionId, { widget_id: node.id, suppress_similar: false });
           }
         }
       }
       for (const edge of selectedEdges) {
-        unbindEdge(edge.id);
+        editorDocument.workspace.unbindEdge(edge.id);
       }
     }
     window.addEventListener('keydown', onKey);
@@ -74,8 +76,6 @@ export function CanvasWorkspace() {
   const tetherEdges = useEditorStore((s) => s.tetherEdges);
   const layers = useEditorStore((s) => s.layers);
   const snapshotWidgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
-  const setNodePosition = useEditorStore((s) => s.setNodePosition);
-  const setWidgetPosition = useEditorStore((s) => s.setWidgetPosition);
   const setActiveImageNode = useEditorStore((s) => s.setActiveImageNode);
   const addImageNode = useEditorStore((s) => s.addImageNode);
 
@@ -126,10 +126,12 @@ export function CanvasWorkspace() {
 
   const onNodeDragStop = useCallback(
     (_: unknown, node: Node) => {
-      if (node.type === 'image') setNodePosition(node.id, node.position);
-      else if (node.type === 'widget') setWidgetPosition(node.id, node.position);
+      // Drag-stop fires once per drag (not per frame), so a single history
+      // entry per drag is what we want.
+      if (node.type === 'image') editorDocument.workspace.setNodePosition(node.id, node.position);
+      else if (node.type === 'widget') editorDocument.workspace.setWidgetPosition(node.id, node.position);
     },
-    [setNodePosition, setWidgetPosition],
+    [],
   );
 
   // Workspace tracks "the currently active image node" derived from React Flow's

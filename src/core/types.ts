@@ -1,4 +1,9 @@
 import type { Layer } from '@/store/layer-slice';
+import type {
+  ImageNodeState,
+  TetherEdgeState,
+  WidgetNodeState,
+} from '@/types/workspace';
 
 // ─── Document metadata ──────────────────────────────────────────────
 
@@ -13,11 +18,23 @@ export interface DocumentMeta {
 
 // ─── Serializable state snapshot ────────────────────────────────────
 
-/** The subset of Zustand state captured for undo/redo snapshots. */
+/**
+ * The subset of Zustand state captured for undo/redo snapshots.
+ *
+ * Note: `workspaceExpandedWidgetIds` is intentionally excluded — it's a
+ * UI-only collapsed/expanded toggle that shouldn't produce undo entries.
+ */
 export interface SerializableState {
   layers: Layer[];
   activeLayerId: string | null;
   pixelVersion: number;
+
+  // Workspace fields — image nodes, widget node positions, and tether
+  // edges form the canvas-workspace graph and participate in undo/redo.
+  imageNodes: Record<string, ImageNodeState>;
+  widgetNodes: Record<string, WidgetNodeState>;
+  tetherEdges: Record<string, TetherEdgeState>;
+  activeImageNodeId: string | null;
 }
 
 // ─── Serializable adjustment params ─────────────────────────────────

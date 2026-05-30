@@ -10,10 +10,12 @@ import type {
   InteractionSession,
 } from './types';
 import type { EditorState } from '@/store';
+import type { Point, TetherEdgeState } from '@/types/workspace';
 import { pixelStore } from './pixel-store';
 import * as history from './history';
 import { putSource } from './pixel-source-store';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useEditorStore } from '@/store';
 
 const DEBOUNCE_MS = 2000;
 
@@ -55,7 +57,11 @@ function deepEqual(a: unknown, b: unknown): boolean {
 function statesChanged(a: SerializableState, b: SerializableState): boolean {
   return a.activeLayerId !== b.activeLayerId ||
     a.pixelVersion !== b.pixelVersion ||
-    !deepEqual(a.layers, b.layers);
+    a.activeImageNodeId !== b.activeImageNodeId ||
+    !deepEqual(a.layers, b.layers) ||
+    !deepEqual(a.imageNodes, b.imageNodes) ||
+    !deepEqual(a.widgetNodes, b.widgetNodes) ||
+    !deepEqual(a.tetherEdges, b.tetherEdges);
 }
 
 // ─── State capture / restore ────────────────────────────────────────
@@ -67,6 +73,10 @@ function captureState(): SerializableState | null {
     layers: structuredClone(s.layers),
     activeLayerId: s.activeLayerId,
     pixelVersion: s.pixelVersion,
+    imageNodes: structuredClone(s.imageNodes),
+    widgetNodes: structuredClone(s.widgetNodes),
+    tetherEdges: structuredClone(s.tetherEdges),
+    activeImageNodeId: s.activeImageNodeId,
   };
 }
 
@@ -76,6 +86,10 @@ function restoreState(snapshot: SerializableState): void {
     layers: snapshot.layers,
     activeLayerId: snapshot.activeLayerId,
     pixelVersion: snapshot.pixelVersion,
+    imageNodes: snapshot.imageNodes,
+    widgetNodes: snapshot.widgetNodes,
+    tetherEdges: snapshot.tetherEdges,
+    activeImageNodeId: snapshot.activeImageNodeId,
   });
 }
 
@@ -250,6 +264,72 @@ function redoAction(): void {
   if (snap) restoreState(snap);
 }
 
+// ─── Workspace mutations (each pushes a history entry) ──────────────
+
+/**
+ * Wrappers that route discrete workspace mutations through `recordSnapshot`
+ * so each user-driven graph edit becomes a distinct undo step.
+ *
+ * NOT wrapped (intentional):
+ * - The auto-mount `addImageNode` in `CanvasWorkspace` (initialization).
+ * - SSE-driven `setEdge`/`setWidgetPosition` in `workspace-tether.ts`
+ *   (those are reactions to backend events, not user actions).
+ * - Per-frame drag updates — only call wrappers on `onNodeDragStop`.
+ */
+const workspace = {
+  addImageNode(layerIds: string[], position?: Point): string | undefined {
+    let newId: string | undefined;
+    recordSnapshot('Add image node', () => {
+      newId = useEditorStore.getState().addImageNode(layerIds, position);
+    });
+    return newId;
+  },
+
+  splitImageNode(sourceId: string, layerIdToSplit: string): string | null {
+    let newId: string | null = null;
+    recordSnapshot('Split image node', () => {
+      newId = useEditorStore.getState().splitImageNode(sourceId, layerIdToSplit) ?? null;
+    });
+    return newId;
+  },
+
+  mergeImageNodes(sourceId: string, targetId: string): void {
+    recordSnapshot('Merge image nodes', () => {
+      useEditorStore.getState().mergeImageNodes(sourceId, targetId);
+    });
+  },
+
+  removeImageNode(id: string): void {
+    recordSnapshot('Remove image node', () => {
+      useEditorStore.getState().removeImageNode(id);
+    });
+  },
+
+  setEdge(edge: TetherEdgeState): void {
+    recordSnapshot('Bind tether', () => {
+      useEditorStore.getState().setEdge(edge);
+    });
+  },
+
+  unbindEdge(edgeId: string): void {
+    recordSnapshot('Unbind tether', () => {
+      useEditorStore.getState().unbindEdge(edgeId);
+    });
+  },
+
+  setNodePosition(id: string, position: Point): void {
+    recordSnapshot('Move image node', () => {
+      useEditorStore.getState().setNodePosition(id, position);
+    });
+  },
+
+  setWidgetPosition(id: string, position: Point): void {
+    recordSnapshot('Move widget', () => {
+      useEditorStore.getState().setWidgetPosition(id, position);
+    });
+  },
+};
+
 // ─── Public API ─────────────────────────────────────────────────────
 
 export const editorDocument = {
@@ -269,6 +349,9 @@ export const editorDocument = {
 
   // Discrete actions
   recordSnapshot,
+
+  // Workspace mutations (each produces a history entry)
+  workspace,
 
   // Undo / redo
   undo: undoAction,

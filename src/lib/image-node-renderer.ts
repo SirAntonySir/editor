@@ -90,10 +90,6 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
     ctx.restore();
   }
 
-  // Node-scope widget adjustments will apply to the composite once T17–T19
-  // land. Walk the list now so the surface is wired and lint stays clean.
-  for (const _w of widgets) {
-    // Intentionally empty — node-scope semantics aren't wired yet.
-    void _w;
-  }
+  // TODO(T17–T19): apply node-scope widgets to the composite.
+  void widgets;
 }

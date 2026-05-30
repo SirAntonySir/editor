@@ -1,7 +1,9 @@
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
+import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
 import { scopeEquals, type Scope as StoreScope } from '@/types/scope';
+import type { Widget } from '@/types/widget';
 import { AskAiInput } from './AskAiInput';
 
 export function SuggestionsSection() {
@@ -17,14 +19,18 @@ export function SuggestionsSection() {
     !accepted.has(w.id),
   );
 
-  function onRowClick(widgetId: string, widgetScope: StoreScope | null) {
+  function onRowClick(widget: Widget, widgetScope: StoreScope | null) {
     // Frontend-only engage: add to acceptedSuggestions so the canvas shell
     // picks it up. Does NOT call backendTools.accept_widget (that is the
     // backend BAKE step, triggered later when the user clicks Apply).
-    addAcceptedSuggestion(widgetId);
+    addAcceptedSuggestion(widget.id);
     const store = useEditorStore.getState();
     if (widgetScope) store.setActiveScope(widgetScope);
-    store.focusWidget(widgetId);
+    store.focusWidget(widget.id);
+    // Workspace branch: also tether to the active ImageNode so the engaged
+    // suggestion gets a canvas footprint. No-op on the Fabric branch and
+    // when no image node is selectable (the row still moves to Active).
+    tetherWorkspaceWidgetOnEngage(widget);
   }
 
   function onDismiss(e: React.MouseEvent, widgetId: string) {
@@ -55,7 +61,7 @@ export function SuggestionsSection() {
           <button
             key={w.id}
             type="button"
-            onClick={() => onRowClick(w.id, toStoreScope(w.scope))}
+            onClick={() => onRowClick(w, toStoreScope(w.scope))}
             className="grid w-full items-center text-left text-[10px] py-1 px-1 rounded
               hover:bg-surface-secondary transition-colors group"
             style={{ gridTemplateColumns: '14px 1fr auto 20px 14px', gap: 6, opacity: matches ? 1 : 0.1 }}

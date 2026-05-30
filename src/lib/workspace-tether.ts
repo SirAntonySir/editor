@@ -11,21 +11,20 @@ import { WIDGET_SHELL_WIDTH } from '@/components/widget/WidgetShell';
 const WIDGET_SPAWN_SIZE = { w: WIDGET_SHELL_WIDTH, h: 60 } as const;
 
 /**
- * Workspace-mode side-effect: when a new tool-invoked widget appears in the
- * snapshot, position it next to the currently active ImageNode and create a
- * TetherEdge attaching it. No-op on the Fabric branch, and no-op for AI
- * widgets (those don't render in the canvas workspace until accepted).
+ * Position `widget` next to the currently active ImageNode and create a
+ * TetherEdge attaching it. Shared body between the SSE `tool_invoked` path
+ * and the Suggestions ↗ engage path.
+ *
+ * No-op when no ImageNode can be resolved (workspace empty or no active
+ * selection); caller is responsible for the workspace-mode gate.
  */
-export function tetherWorkspaceWidget(widget: Widget): void {
-  if (!usePreferencesStore.getState().useWorkspaceCanvas) return;
-  if (widget.origin.kind !== 'tool_invoked') return;
-
+function buildTetherForWidget(widget: Widget): void {
   const editor = useEditorStore.getState();
   const imageNodes = editor.imageNodes;
 
-  // Resolve target ImageNode. tool_invoked widgets always carry a layer_id on
-  // their first node — locate the ImageNode containing that layer. Fall back
-  // to the active image node if the layer can't be resolved.
+  // Resolve target ImageNode. Widgets typically carry a layer_id on their
+  // first node — locate the ImageNode containing that layer. Fall back to
+  // the active image node if the layer can't be resolved.
   const firstNode = widget.nodes[0];
   const widgetLayerId = firstNode?.layer_id ?? null;
 
@@ -59,9 +58,9 @@ export function tetherWorkspaceWidget(widget: Widget): void {
     occupied,
   );
 
-  // Build edge scope from the widget's WidgetNode.layer_id. AI widgets that
-  // somehow reach this branch (e.g. future image_node scope) fall through to
-  // a node-wide tether.
+  // Build edge scope from the widget's WidgetNode.layer_id. Widgets without
+  // a layer_id (e.g. future image_node scope) fall through to a node-wide
+  // tether.
   const edgeScope: TetherEdgeState['scope'] = widgetLayerId
     ? { kind: 'layer', layerId: widgetLayerId }
     : { kind: 'node' };
@@ -73,4 +72,32 @@ export function tetherWorkspaceWidget(widget: Widget): void {
     targetImageNodeId,
     scope: edgeScope,
   });
+}
+
+/**
+ * Workspace-mode side-effect: when a new tool-invoked widget appears in the
+ * snapshot, position it next to the currently active ImageNode and create a
+ * TetherEdge attaching it. No-op on the Fabric branch, and no-op for AI
+ * widgets (those don't render in the canvas workspace until accepted via
+ * the Suggestions ↗ engage flow — see {@link tetherWorkspaceWidgetOnEngage}).
+ */
+export function tetherWorkspaceWidget(widget: Widget): void {
+  if (!usePreferencesStore.getState().useWorkspaceCanvas) return;
+  if (widget.origin.kind !== 'tool_invoked') return;
+  buildTetherForWidget(widget);
+}
+
+/**
+ * Workspace-mode side-effect for the Suggestions ↗ engage path. AI-origin
+ * widgets are already in the snapshot from autonomous/user-prompt analyze,
+ * but they only get a canvas footprint when the user explicitly engages.
+ *
+ * Bypasses the `tool_invoked` filter that {@link tetherWorkspaceWidget}
+ * applies, but still gates on workspace mode being on. No-op when workspace
+ * mode is off — the Fabric branch shows accepted suggestions via the
+ * legacy `CanvasWidgetLayer`.
+ */
+export function tetherWorkspaceWidgetOnEngage(widget: Widget): void {
+  if (!usePreferencesStore.getState().useWorkspaceCanvas) return;
+  buildTetherForWidget(widget);
 }

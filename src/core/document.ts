@@ -236,18 +236,22 @@ function endInteraction(): void {
  *
  * Use this for one-shot actions (e.g. revert, layer reorder, visibility toggle)
  * that should each produce a distinct undo entry without debouncing.
+ *
+ * Skips the history push when the action produces no observable state change
+ * (e.g. a drag-stop with zero displacement), avoiding useless undo entries.
  */
-function recordSnapshot(_label: string, fn: () => void): void {
+function recordSnapshot<T>(_label: string, fn: () => T): T {
   if (!store) {
-    fn(); // not initialized — action runs but no history entry
-    return;
+    return fn(); // not initialized — action runs but no history entry
   }
-  fn();
-  const snap = captureState();
-  if (snap) {
-    history.push(snap);
+  const pre = captureState();
+  const result = fn();
+  const post = captureState();
+  if (pre && post && statesChanged(pre, post)) {
+    history.push(post);
     markDirty();
   }
+  return result;
 }
 
 // ─── Undo / redo ────────────────────────────────────────────────────
@@ -272,61 +276,68 @@ function redoAction(): void {
  *
  * NOT wrapped (intentional):
  * - The auto-mount `addImageNode` in `CanvasWorkspace` (initialization).
- * - SSE-driven `setEdge`/`setWidgetPosition` in `workspace-tether.ts`
- *   (those are reactions to backend events, not user actions).
  * - Per-frame drag updates — only call wrappers on `onNodeDragStop`.
+ *
+ * SSE-driven placements (`workspace-tether.ts`) ARE wrapped, via `batch`:
+ * the user expects undo to be able to roll back a backend-placed widget to
+ * the pre-placement state. `batch` consolidates multiple slice mutations
+ * (e.g. position + edge) into a single history entry.
  */
 const workspace = {
   addImageNode(layerIds: string[], position?: Point): string | undefined {
-    let newId: string | undefined;
-    recordSnapshot('Add image node', () => {
-      newId = useEditorStore.getState().addImageNode(layerIds, position);
-    });
-    return newId;
+    return recordSnapshot('Add image node', () =>
+      useEditorStore.getState().addImageNode(layerIds, position),
+    );
   },
 
   splitImageNode(sourceId: string, layerIdToSplit: string): string | null {
-    let newId: string | null = null;
-    recordSnapshot('Split image node', () => {
-      newId = useEditorStore.getState().splitImageNode(sourceId, layerIdToSplit) ?? null;
-    });
-    return newId;
+    return recordSnapshot(
+      'Split image node',
+      () => useEditorStore.getState().splitImageNode(sourceId, layerIdToSplit) ?? null,
+    );
   },
 
   mergeImageNodes(sourceId: string, targetId: string): void {
-    recordSnapshot('Merge image nodes', () => {
-      useEditorStore.getState().mergeImageNodes(sourceId, targetId);
-    });
+    recordSnapshot('Merge image nodes', () =>
+      useEditorStore.getState().mergeImageNodes(sourceId, targetId),
+    );
   },
 
   removeImageNode(id: string): void {
-    recordSnapshot('Remove image node', () => {
-      useEditorStore.getState().removeImageNode(id);
-    });
+    recordSnapshot('Remove image node', () =>
+      useEditorStore.getState().removeImageNode(id),
+    );
   },
 
   setEdge(edge: TetherEdgeState): void {
-    recordSnapshot('Bind tether', () => {
-      useEditorStore.getState().setEdge(edge);
-    });
+    recordSnapshot('Bind tether', () => useEditorStore.getState().setEdge(edge));
   },
 
   unbindEdge(edgeId: string): void {
-    recordSnapshot('Unbind tether', () => {
-      useEditorStore.getState().unbindEdge(edgeId);
-    });
+    recordSnapshot('Unbind tether', () => useEditorStore.getState().unbindEdge(edgeId));
   },
 
   setNodePosition(id: string, position: Point): void {
-    recordSnapshot('Move image node', () => {
-      useEditorStore.getState().setNodePosition(id, position);
-    });
+    recordSnapshot('Move image node', () =>
+      useEditorStore.getState().setNodePosition(id, position),
+    );
   },
 
   setWidgetPosition(id: string, position: Point): void {
-    recordSnapshot('Move widget', () => {
-      useEditorStore.getState().setWidgetPosition(id, position);
-    });
+    recordSnapshot('Move widget', () =>
+      useEditorStore.getState().setWidgetPosition(id, position),
+    );
+  },
+
+  /**
+   * Wrap several slice mutations in a single history snapshot.
+   *
+   * Use when one logical action involves multiple slice calls (e.g. SSE
+   * widget placement = setWidgetPosition + setEdge) and you want them to
+   * appear as a single undo step.
+   */
+  batch(label: string, fn: () => void): void {
+    recordSnapshot(label, fn);
   },
 };
 

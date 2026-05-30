@@ -4,6 +4,7 @@ import { usePreferencesStore } from '@/store/preferences-store';
 import { nextSpawnPositionFor, type PlacedRect } from '@/components/workspace/workspace-layout';
 import type { TetherEdgeState } from '@/types/workspace';
 import { WIDGET_SHELL_WIDTH } from '@/components/widget/WidgetShell';
+import { editorDocument } from '@/core/document';
 
 // Workspace widget placement assumes a collapsed WidgetShell footprint.
 // Height varies, but the spawn algorithm only needs an estimate to detect
@@ -65,12 +66,16 @@ function buildTetherForWidget(widget: Widget): void {
     ? { kind: 'layer', layerId: widgetLayerId }
     : { kind: 'node' };
 
-  editor.setWidgetPosition(widget.id, pos);
-  editor.setEdge({
-    id: `te-${widget.id}`,
-    widgetNodeId: widget.id,
-    targetImageNodeId,
-    scope: edgeScope,
+  // SSE-driven placement: consolidate position + edge into a single history
+  // snapshot so undo can roll the widget back to the pre-placement state.
+  editorDocument.workspace.batch('Tether widget', () => {
+    editor.setWidgetPosition(widget.id, pos);
+    editor.setEdge({
+      id: `te-${widget.id}`,
+      widgetNodeId: widget.id,
+      targetImageNodeId,
+      scope: edgeScope,
+    });
   });
 }
 

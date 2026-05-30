@@ -218,4 +218,73 @@ describe('history — workspace ops via editorDocument', () => {
     editorDocument.redo();
     expect(useEditorStore.getState().imageNodes[id].position).toEqual({ x: 100, y: 100 });
   });
+
+  it('recordSnapshot skips no-op mutations (drag-stop with zero displacement)', () => {
+    const id = useEditorStore.getState().addImageNode(['L1'], { x: 42, y: 84 });
+    history.clear();
+    history.initWith({
+      layers: [],
+      activeLayerId: null,
+      pixelVersion: 0,
+      imageNodes: structuredClone(useEditorStore.getState().imageNodes),
+      widgetNodes: {},
+      tetherEdges: {},
+      activeImageNodeId: null,
+    });
+
+    // Sanity: the seed snapshot is the only entry — nothing to undo back to.
+    expect(history.historyStore.getState().canUndo).toBe(false);
+
+    // Setting the position to the same value must NOT create a history entry.
+    editorDocument.workspace.setNodePosition(id, { x: 42, y: 84 });
+    expect(history.historyStore.getState().canUndo).toBe(false);
+
+    // A real displacement DOES create one.
+    editorDocument.workspace.setNodePosition(id, { x: 100, y: 200 });
+    expect(history.historyStore.getState().canUndo).toBe(true);
+  });
+
+  it('SSE batched placement + user drag → undo restores SSE position, then removes the widget', () => {
+    // Arrange: an image node exists (snapshot A). Seed root.
+    const imageNodeId = useEditorStore.getState().addImageNode(['L1'], { x: 0, y: 0 });
+    history.clear();
+    history.initWith({
+      layers: [],
+      activeLayerId: null,
+      pixelVersion: 0,
+      imageNodes: structuredClone(useEditorStore.getState().imageNodes),
+      widgetNodes: {},
+      tetherEdges: {},
+      activeImageNodeId: null,
+    });
+
+    // Simulate SSE-driven placement: batched position + edge → snapshot B.
+    editorDocument.workspace.batch('Tether widget', () => {
+      useEditorStore.getState().setWidgetPosition('w1', { x: 150, y: 50 });
+      useEditorStore.getState().setEdge({
+        id: 'te-w1',
+        widgetNodeId: 'w1',
+        targetImageNodeId: imageNodeId,
+        scope: { kind: 'layer', layerId: 'L1' },
+      });
+    });
+    expect(useEditorStore.getState().widgetNodes['w1'].position).toEqual({ x: 150, y: 50 });
+    expect(useEditorStore.getState().tetherEdges['te-w1']).toBeDefined();
+
+    // User drags the widget → snapshot C.
+    editorDocument.workspace.setWidgetPosition('w1', { x: 400, y: 300 });
+    expect(useEditorStore.getState().widgetNodes['w1'].position).toEqual({ x: 400, y: 300 });
+
+    // Undo once: back to SSE position, edge still intact.
+    editorDocument.undo();
+    let s = useEditorStore.getState();
+    expect(s.widgetNodes['w1'].position).toEqual({ x: 150, y: 50 });
+    expect(s.tetherEdges['te-w1']).toBeDefined();
+
+    // Undo again: SSE placement rolled back entirely → no widget, no edge.
+    editorDocument.undo();
+    s = useEditorStore.getState();
+    expect(s.widgetNodes['w1']).toBeUndefined();
+    expect(s.tetherEdges['te-w1']).toBeUndefined();
+  });
 });

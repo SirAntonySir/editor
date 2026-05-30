@@ -5,6 +5,7 @@ import type { Scope } from '@/types/scope';
  *  (no mask = applies to whole image). */
 export function scopeToMask(scope: Scope): Mask | null {
   if (scope.kind === 'global') return null;
+  if (scope.kind === 'image_node') return null;
   if (scope.kind === 'mask') {
     return maskStore.get(scope.mask_id) ?? null;
   }

@@ -57,6 +57,7 @@ function scopeLabel(scope: Widget['scope']): string {
       return scope.label;
     case 'mask':
       return scope.mask_id ? 'segment' : 'global';
+    case 'image_node': return 'image';
     default: return 'global';
   }
 }

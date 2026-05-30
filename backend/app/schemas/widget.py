@@ -28,8 +28,15 @@ class MaskScope(BaseModel):
     mask_id: str = Field(min_length=1)
 
 
+class ImageNodeScope(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["image_node"]
+    image_node_id: str = Field(min_length=1)
+    layer_ids: list[str] = Field(default_factory=list)
+
+
 _ScopeAny = Annotated[
-    Union[GlobalScope, NamedRegionScope, MaskScope],
+    Union[GlobalScope, NamedRegionScope, MaskScope, ImageNodeScope],
     Field(discriminator="kind"),
 ]
 

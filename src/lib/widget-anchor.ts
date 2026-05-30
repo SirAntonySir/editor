@@ -5,5 +5,6 @@ export function anchorForScope(scope: Scope): WidgetAnchor {
   if (scope.kind === 'named_region') return { kind: 'region_label', label: scope.label };
   if (scope.kind === 'mask:proposed') return { kind: 'region_label', label: scope.label };
   if (scope.kind === 'mask') return { kind: 'mask_id', mask_id: scope.mask_id };
+  if (scope.kind === 'image_node') return { kind: 'global' };
   return { kind: 'global' };
 }

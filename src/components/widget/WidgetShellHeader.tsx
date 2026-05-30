@@ -20,6 +20,7 @@ function scopeLabel(widget: Widget): string {
   if (s.kind === 'named_region') return s.label;
   if (s.kind === 'mask:proposed') return s.label;
   if (s.kind === 'mask') return s.mask_id.slice(0, 6);
+  if (s.kind === 'image_node') return `Image (${s.layer_ids.length} layer${s.layer_ids.length === 1 ? '' : 's'})`;
   return '—';
 }
 

@@ -13,6 +13,7 @@ from app.schemas.widget import (
     DismissalRule,
     GlobalScope,
     HistogramMarkerSchema,
+    ImageNodeScope,
     MaskRecord,
     MaskScope,
     MaskThumbnailSchema,
@@ -54,6 +55,32 @@ def test_scope_mask() -> None:
     s = Scope.model_validate({"kind": "mask", "mask_id": "m_1"})
     assert isinstance(s.root, MaskScope)
     assert s.root.mask_id == "m_1"
+
+
+def test_scope_image_node_round_trip() -> None:
+    raw = {"kind": "image_node", "image_node_id": "in-1", "layer_ids": ["l-1", "l-2"]}
+    s = Scope.model_validate(raw)
+    assert isinstance(s.root, ImageNodeScope)
+    assert s.root.image_node_id == "in-1"
+    assert s.root.layer_ids == ["l-1", "l-2"]
+
+
+def test_scope_image_node_layer_ids_default_empty() -> None:
+    s = Scope.model_validate({"kind": "image_node", "image_node_id": "in-1"})
+    assert isinstance(s.root, ImageNodeScope)
+    assert s.root.layer_ids == []
+
+
+def test_scope_image_node_rejects_empty_id() -> None:
+    with pytest.raises(ValidationError):
+        Scope.model_validate({"kind": "image_node", "image_node_id": "", "layer_ids": []})
+
+
+def test_scope_image_node_rejects_extra_field() -> None:
+    with pytest.raises(ValidationError):
+        Scope.model_validate(
+            {"kind": "image_node", "image_node_id": "in-1", "layer_ids": [], "extra": "nope"}
+        )
 
 
 def test_scope_unknown_kind_rejected() -> None:

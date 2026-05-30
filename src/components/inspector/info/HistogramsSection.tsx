@@ -13,7 +13,7 @@ export function HistogramsSection({ ctx }: Props) {
         Histograms
       </div>
       <div className="flex flex-col gap-1 mb-2">
-        <Histogram bins={ctx.luma_histogram} color="rgba(255,255,255,0.7)" />
+        <Histogram bins={ctx.luma_histogram} color="var(--color-text-secondary)" />
         {ctx.rgb_histograms.r && <Histogram bins={ctx.rgb_histograms.r} color="rgba(239,68,68,0.7)" />}
         {ctx.rgb_histograms.g && <Histogram bins={ctx.rgb_histograms.g} color="rgba(34,197,94,0.7)" />}
         {ctx.rgb_histograms.b && <Histogram bins={ctx.rgb_histograms.b} color="rgba(59,130,246,0.7)" />}

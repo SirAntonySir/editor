@@ -11,7 +11,7 @@ export function SemanticSection({ ctx }: Props) {
         Semantic
       </div>
       <Chips items={ctx.subjects} />
-      <Chips items={ctx.dominantTones} muted />
+      <Chips items={ctx.dominant_tones} muted />
       <Row k="Lighting" v={ctx.lighting} />
       <Row k="Mood" v={ctx.mood} />
       {ctx.grade_character && ctx.grade_character !== 'neutral' && (

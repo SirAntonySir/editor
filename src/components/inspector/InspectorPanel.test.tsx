@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
-import { InspectorPanel } from './InspectorPanel';
+import { render, screen, cleanup, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { InspectorPanel, INSPECTOR_SHOW_INFO_EVENT } from './InspectorPanel';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 
@@ -44,5 +45,29 @@ describe('InspectorPanel — Suggestions / Active / Layers', () => {
     });
     render(<InspectorPanel />);
     expect(screen.getByText('Recover sky')).toBeDefined();
+  });
+});
+
+describe('InspectorPanel — tab switcher', () => {
+  it('defaults to the Adjustments tab and shows Suggestions/Layers', () => {
+    render(<InspectorPanel />);
+    expect(screen.getByText(/suggestions/i)).toBeDefined();
+    expect(screen.getByText(/^layers$/i)).toBeDefined();
+  });
+
+  it('clicking Info hides Suggestions and renders the Info empty state', async () => {
+    const user = userEvent.setup();
+    render(<InspectorPanel />);
+    await user.click(screen.getByText('Info'));
+    expect(screen.queryByText(/suggestions/i)).toBeNull();
+    expect(screen.getByText('No image context yet.')).toBeDefined();
+  });
+
+  it('switches to the Info tab on the inspector:show-info window event', () => {
+    render(<InspectorPanel />);
+    expect(screen.getByText(/suggestions/i)).toBeDefined();
+    act(() => { window.dispatchEvent(new Event(INSPECTOR_SHOW_INFO_EVENT)); });
+    expect(screen.queryByText(/suggestions/i)).toBeNull();
+    expect(screen.getByText('No image context yet.')).toBeDefined();
   });
 });

@@ -254,9 +254,9 @@ export function BackendStatusBar() {
     status && !(showReady && status.kind === 'success') ? status : null;
 
   const handleShowContext = () => {
-    // TODO: wire to the image-info inspector tab once it lands.
-    // The new tab is being built in parallel; this is a placeholder so the
-    // affordance is in place when wiring is ready.
+    // Flip the inspector to its Info tab. Uses a window event to avoid coupling
+    // this docked-chrome component to the inspector's local tab state.
+    window.dispatchEvent(new Event('inspector:show-info'));
   };
 
   return (

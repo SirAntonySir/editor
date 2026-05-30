@@ -2,18 +2,18 @@ import type { EnrichedImageContext } from '@/types/enriched-context';
 
 export function makeFullContext(): EnrichedImageContext {
   return {
-    // v1 ImageContext
+    // base context (snake_case, matching the backend wire shape)
     subjects: ['train station platform at night', 'black locomotive'],
     lighting: 'mixed',
-    dominantTones: ['shadows', 'midtones'],
+    dominant_tones: ['shadows', 'midtones'],
     mood: 'quiet, moody, nocturnal',
-    candidateRegions: [
+    candidate_regions: [
       { label: 'sky', description: 'overcast night sky', bbox: [0, 0, 1, 0.3] },
       { label: 'locomotive', description: 'black engine, foreground', bbox: [0.2, 0.4, 0.5, 0.5] },
     ],
-    modelName: 'claude',
-    modelVersion: 'sonnet-4.5',
-    generatedAt: '2026-05-29T00:00:00Z',
+    model_name: 'claude',
+    model_version: 'sonnet-4.5',
+    generated_at: '2026-05-29T00:00:00Z',
     // mechanical
     luma_histogram: Array.from({ length: 256 }, (_, i) => Math.round(Math.sin(i / 20) * 50 + 60)),
     rgb_histograms: {

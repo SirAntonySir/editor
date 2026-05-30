@@ -3,6 +3,7 @@ import type * as fabric from 'fabric';
 import { AnimatePresence } from 'framer-motion';
 import { EditorProvider, useEditor } from '@/components/EditorProvider';
 import { EditorCanvas, loadImageToCanvas } from '@/components/canvas/EditorCanvas';
+import { CanvasWorkspace } from '@/components/workspace/CanvasWorkspace';
 
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 import { Toolbar } from '@/components/toolbar/Toolbar';
@@ -69,6 +70,7 @@ function MainLayout({
   activeTool: string;
   handleFileOpen: () => void;
 }) {
+  const useWorkspace = usePreferencesStore((s) => s.useWorkspaceCanvas);
   return (
     <div className="relative flex-1 min-h-0 flex flex-row">
       <Toolbar />
@@ -78,7 +80,10 @@ function MainLayout({
         <div className="absolute inset-0">
           <CanvasContextMenu>
             <div className="absolute inset-0">
-              <EditorCanvas canvasRef={canvasRef} />
+              {useWorkspace
+                ? <CanvasWorkspace />
+                : <EditorCanvas canvasRef={canvasRef} />
+              }
             </div>
           </CanvasContextMenu>
         </div>

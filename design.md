@@ -195,18 +195,34 @@ When the visual language evolves:
 
 ---
 
-## 10. Widget Shell (on-canvas right-edge dock)
+## 10. Canvas Workspace (React Flow)
 
-All active widgets render through `CanvasWidgetLayer` as floating `.overlay` cards anchored in a calculated right-edge column. The widget column starts at `photo.right + 12px` and extends down with a 5px gap between cards. Anchored widgets (`region_label` / `mask_id` / `image_point`) align their y to the anchor centroid; global widgets fill the next free slot top-down.
+The editor canvas is an infinite React Flow workspace (`src/components/workspace/CanvasWorkspace.tsx`). Two node types and one edge type carry all visible state.
 
-**States.** Widgets spawn collapsed (30px title strip with grip · variant badge · intent · dirty dot · scope chip · chevron). Click the strip to expand the full card (reasoning · preview · bindings · footer with Refine · Why? · Reset · Apply).
+**ImageNode** (`src/components/workspace/ImageNode.tsx`). A flat `.overlay` card with header (icon · name · `N LAYERS` badge) · body `<canvas>` driven by `useImageNodeRender` · footer (`{w} × {h}` · `Layer N`). When the node is selected, a stack strip appears below the body for multi-layer nodes and a circular split/menu affordance at the top-right opens a Radix DropdownMenu with **Split last layer** / **Delete**. Each node also acts as the trigger for an `ImageNodeSelectionPopover` anchored to its header, surfacing **Create layer** / **Discard** when a committed selection mask sits inside its layers.
+
+**WidgetNode** (`src/components/workspace/WidgetNode.tsx`). A thin wrapper that renders the unchanged `WidgetShell` as its body. Cross-reference §11 for the WidgetShell anatomy.
+
+**TetherEdge** (`src/components/workspace/TetherEdge.tsx`). A bezier curve in `--color-accent` with 3px accent endpoints. Solid stroke for layer-scope tethers (the widget edits a single layer); `stroke-dasharray="3 3"` for node-scope (the widget edits the whole composite). Tethers carry attribution only — they have no DAG semantics and never resolve to data flow.
+
+**Soft auto-layout.** New widget and image nodes spawn via `nextSpawnPositionFor` (`src/components/workspace/workspace-layout.ts`): one slot to the right of the target with a 24px gap, shifting down to clear occupied slots. Once placed, users drag nodes freely; the layout helper only computes initial placement.
+
+**Selection & keyboard.** React Flow owns transient multi-selection. `onSelectionChange` mirrors the single-image-node case into `activeImageNodeId` on the workspace slice (see `src/hooks/useWorkspaceSelection.ts`). A `WorkspaceKeyHandler` child of `<ReactFlow>` handles `Delete`/`Backspace` for selected image nodes (`removeImageNode`), widget nodes (`backendTools.delete_widget`), and edges (`unbindEdge`). Inputs/textareas/contenteditable early-out.
+
+**Spawn paths.** Three origins → one backend call (`backendTools.propose_widget`). Toolrail clicks gate on a present `activeImageNodeId` and show a toast otherwise. SSE-time tether creation lives in `src/lib/workspace-tether.ts` and reads the new widget's `nodes[0].layer_id` to build a layer-scope or node-scope `TetherEdgeState`. Suggestions ↗ engages run the same tether builder synchronously.
+
+**Sidebar.** Suggestions stay in the right panel; the canvas surfaces every active widget directly as a `WidgetNode`. There is no on-canvas dock.
+
+**Composite-then-apply.** For node-scope adjustments (`operation_graph.nodes[].layer_ids` is set), `image-node-renderer.ts` runs the per-layer composite first, then pipes the canvas back through `PipelineManager` to apply the node-scope shader pass to the entire composite. Overlays (full-image outline, mask fills/outlines, segmentation chrome) render last so they stay on top.
+
+---
+
+## 11. Widget Shell (inside WidgetNode)
+
+The WidgetShell anatomy from the canvas-centric UI project is unchanged; it lives as the body of every `WidgetNode`. The calculated right-edge dock and anchor tick layer are retired — the React Flow workspace is the host now, and node position is decided by `workspace-layout.ts` (auto) and React Flow drag (manual).
+
+**States.** Widgets spawn collapsed (title strip with variant badge · intent · dirty dot · scope chip · chevron). Click the strip to expand the full card (reasoning · preview · bindings · footer with Refine · Why? · Reset · Apply).
 
 **Variant badge.** AI badge for `mcp_*`/`refine`/`repeat` origins; muted `·` chip for `tool_invoked` / `fused_expansion`.
 
-**Anchor tick.** A 9×2px accent rectangle on the photo's right edge marks the centroid y for every anchored widget. Always visible (collapsed or expanded).
-
-**Bidirectional hover.** Hovering a widget brightens the matching region overlay on the photo; hovering a region brightens the matching widget. Driven by `hoveredWidgetId` in `tool-slice`.
-
 **Lifecycle (live + Apply = bake).** Slider edits flow through the existing optimistic + `set_widget_param` path. **Apply** calls `accept_widget` and bakes the effect into `operation_graph` (the widget vanishes from the canvas). **×** dismisses (effect undone). **Reset** reverts every binding to its default. **Refine** opens an inline text input that calls `refine_widget` with the typed instruction.
-
-**Manual drag override.** Dragging the grip writes to `sessionDragOverrides` (per-session, cleared on document close). A "return to dock" affordance appears on hover when an override is active. (Drag mechanics deferred to a follow-up commit — the store + dock layout already honour overrides; the grip mouse handlers are not yet wired in v1.)

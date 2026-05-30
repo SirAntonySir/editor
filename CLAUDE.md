@@ -1,13 +1,13 @@
 # Photo Editor — Claude Development Environment
 
 ## Project Overview
-High-fidelity React photo editor with non-destructive editing, WebGL filter pipeline, Fabric.js canvas, and multi-layer compositing.
+High-fidelity React photo editor with non-destructive editing, WebGL filter pipeline, React Flow infinite canvas, and multi-layer compositing.
 
 Full architecture plan: `docs/architecture-plan.md`
 
 ## Tech Stack
 - **Framework**: React 19 + Vite + TypeScript (strict)
-- **Canvas**: Fabric.js v7
+- **Canvas**: React Flow (`@xyflow/react`) — infinite workspace of ImageNodes + WidgetNodes connected by attribution tethers
 - **Filters**: Custom WebGL shaders (ping-pong framebuffers)
 - **Heavy processing**: Photon WASM (via Comlink Web Workers)
 - **State**: Zustand v5 + Immer (linear undo stack; no zundo)
@@ -24,7 +24,7 @@ Full architecture plan: `docs/architecture-plan.md`
   - **ProcessingRegistry** — processing features (light, color, curves, filters) as ProcessingDefinition objects. One registration makes a feature appear in the inspector panel and WebGL pipeline.
 - **Extensible types** — `LayerType` and processing node types are all `string` (not unions), so new processing/layer types can be registered without modifying core types
 - **Web Workers** for all heavy computation (Comlink + worker pool)
-- **Layer compositing** — each layer rendered through its own WebGL adjustment pipeline, then composited with 2D Canvas blend modes. Pipeline reads from `snapshot.operation_graph.nodes` filtered by `layer_id === activeLayerId`.
+- **Layer compositing** — each layer rendered through its own WebGL adjustment pipeline, then composited with 2D Canvas blend modes. Pipeline reads from `snapshot.operation_graph.nodes` filtered by `layer_id`. Node-scope nodes (those with `layer_ids: string[]`) run after the per-layer composite via composite-then-apply.
 - **Single EditorStore** composed of slices: layer, viewport, tool, document, segmentation (encoder state), selection. Plus a separate **BackendState** store for snapshot + SSE connection status.
 - **Document facade** (`editorDocument`) — coordinates: store init, image open, undo/redo (linear stack), pixel data registry.
 - **Three spawn paths, one backend call**: Cmd+K palette (`origin: 'mcp_user_prompt'`), backend autonomous analyze (`origin: 'mcp_autonomous'`), toolrail buttons (`origin: 'tool_invoked'`, skips LLM, ships defaults from `TOOL_DEFAULTS`). All three call `backendTools.propose_widget`.
@@ -42,7 +42,7 @@ Full architecture plan: `docs/architecture-plan.md`
 The frontend follows a 3-tier hierarchy. **Reuse before invent.** Before writing JSX, search the existing tiers for a fit.
 
 1. **Primitives** — `src/components/ui/`. Atomic, presentational, no app state. Wrap Radix or expose CSS tokens. Examples: `Kbd`, `Empty`, `Swatch`, `PercentBar`.
-2. **Level-2 (topic folders)** — `canvas/`, `inspector/`, `panels/`, `toolbar/`. Compose primitives + read stores. Each folder owns its domain. (`graph/` has been removed — no graph mode.)
+2. **Level-2 (topic folders)** — `workspace/`, `inspector/`, `panels/`, `toolbar/`, `widget/`. Compose primitives + read stores. Each folder owns its domain. (Both `canvas/` and `graph/` have been removed.)
 3. **Page scaffolds** — root of `src/components/` (`EditorDialog`, `PreferencesPage`, `EditorProvider`, `KeyboardShortcuts`, etc.). Wire level-2 pieces into surfaces.
 
 **Hard rules:**
@@ -51,8 +51,8 @@ The frontend follows a 3-tier hierarchy. **Reuse before invent.** Before writing
 - **Cross-domain primitives** (used by ≥2 topic folders) belong in `ui/`. Topic-local sub-components stay in their topic folder.
 - **Style only via design tokens** in `src/index.css` (color, radius, shadow, motion vars). No hardcoded hex or px for design values.
 - **Visual register**: see `design.md` at project root — it is authoritative for tokens, motion, and the flat overlay aesthetic.
-- **Widget shell**: every active widget renders through `CanvasWidgetLayer` as a flat `.overlay` card in a calculated right-edge column on the canvas. Widgets spawn collapsed; click to expand. AI suggestions stay in the sidebar Suggestions section; clicking ↗ engages a suggestion (adds it to `acceptedSuggestions`) so it appears in the column. Baked widgets are pure `operation_graph` effects — no widget chrome.
-- **Toolrail is 6 buttons** (Light / Color / Kelvin / Curves / Levels / Filters). All disabled when `useBackendState.sseStatus !== 'open'`.
+- **Canvas surface**: the editor canvas is a React Flow workspace (`src/components/workspace/CanvasWorkspace.tsx`). Image nodes render via the existing WebGL pipeline (`useImageNodeRender`); Widget nodes wrap `WidgetShell`. Tether edges carry attribution only — they have no DAG semantics.
+- **Toolrail is 6 buttons** (Light / Color / Kelvin / Curves / Levels / Filters). Toolrail clicks gate on a selected ImageNode (`activeImageNodeId !== null`); otherwise a toast asks the user to select one. All buttons disabled when `useBackendState.sseStatus !== 'open'`.
 
 **Enforcement:** `npm run check` (runs `tsc -b` + `eslint .` + the `no-nested-component` custom rule). Lint must pass before any commit; the rule is wired through pre-commit.
 
@@ -81,7 +81,8 @@ Always develop on `dev`. Merge flow: `dev` → `testing` → `staging` → `main
 ```
 src/
   components/           # React UI
-    canvas/             #   EditorCanvas, adjustment pipeline hook
+    workspace/          #   CanvasWorkspace + ImageNode/WidgetNode/TetherEdge + layout helpers
+    widget/             #   WidgetShell + parts (header/footer, RefineInput, PreviewSlot, WhyPopover)
     inspector/          #   InspectorPanel (renders ProcessingDefinition.Panel per widget)
     panels/             #   Layers panel with drag reorder
     toolbar/            #   Main toolbar (6-button toolrail), MenuBar
@@ -94,31 +95,33 @@ src/
     levels.tsx          #   Levels with live histogram (adjustmentType: 'levels')
     filters.tsx         #   LUT-based colour grading (adjustmentType: 'lut')
     index.ts            #   registerAllProcessing() entry point
-  tools/                # CanvasToolDefinition objects (left-rail canvas tools only)
-    select-tool.ts      #   Selection / move
-    light-tool.tsx      #   Toolrail entry → calls backendTools.propose_widget('light')
-    color-tool.tsx      #   Toolrail entry → calls backendTools.propose_widget('color')
-    kelvin-tool.tsx     #   Toolrail entry → calls backendTools.propose_widget('kelvin')
-    curves-tool.tsx     #   Toolrail entry → calls backendTools.propose_widget('curves')
-    levels-tool.tsx     #   Toolrail entry → calls backendTools.propose_widget('levels')
-    filters-tool.tsx    #   Toolrail entry → calls backendTools.propose_widget('filters')
+  tools/                # Toolrail entries — each calls backendTools.propose_widget
+    light-tool.tsx
+    color-tool.tsx
+    kelvin-tool.tsx
+    curves-tool.tsx
+    levels-tool.tsx
+    filters-tool.tsx
   store/                # Zustand slices
     layer-slice.ts      #   Layer metadata (id/name/order/visibility/blend/opacity/parentLayerId/layerMask)
-    tool-slice.ts       #   Active tool, editor mode
+    tool-slice.ts       #   Active tool, editor mode, expandedWidgetIds, hoveredWidgetId
     viewport-slice.ts   #   Zoom, pan, canvas dimensions
-    selection-slice.ts  #   Unified selection state (activeScope, hoveredScope, focusedWidgetId, pendingBind, cycleStack)
+    selection-slice.ts  #   Unified selection state (activeScope, hoveredScope, focusedWidgetId, cycleStack)
+    workspace-slice.ts  #   Workspace state (imageNodes, widgetNodes, tetherEdges, activeImageNodeId)
   core/                 # Core logic
-    document.ts         #   Document facade (store init, image open, linear undo/redo, pixel data registry)
+    document.ts         #   Document facade (init, image open, linear undo/redo, workspace ops via editorDocument.workspace.*)
     layer-lifecycle.ts  #   Auto-cleans pixel data when layers are removed
   shaders/              # GLSL shader sources (as TS template literals)
   hooks/                # Extracted React hooks
-    useCanvasZoom.ts    #   Zoom/fit controls
+    useCanvasZoom.ts    #   Zoom/fit controls (dispatches workspace:zoom* events)
     useImageTransform.ts#   Rotate/flip operations
     useFileIO.ts        #   Open/save/export file I/O
     useLayerWidgets.ts  #   Read snapshot filtered by layer_id for active layer
+    useImageNodeRender.ts #   Drives the WebGL composite + overlays for one ImageNode canvas
+    useWorkspaceSelection.ts # Selector over activeImageNodeId + expandedWidgetIds
   lib/                  # Core utilities
     processing-registry.ts      # ProcessingRegistry singleton
-    canvas-tool-registry.ts     # CanvasToolRegistry singleton (left-rail canvas tools)
+    canvas-tool-registry.ts     # CanvasToolRegistry singleton
     tool-manifest/
       llm-tool-registry.ts      # LlmToolRegistry — LLM-facing tool manifests for backend MCP server
     use-processing-param.ts     # Unified param hook (reads from snapshot widget node)
@@ -126,12 +129,18 @@ src/
     param-ranges.ts             # Delegates to ProcessingRegistry for param ranges
     pipeline-manager.ts         # WebGL render pipeline orchestration
     layer-compositor.ts         # Multi-layer compositing with blend modes
+    image-node-renderer.ts      # Pure: per-layer composite → node-scope apply → overlay pass
+    overlay-painters.ts         # Pure 2D drawing routines (mask fill/outline, segmentation, full-image)
+    workspace-tether.ts         # SSE-time tether creation (image_node resolution + nextSpawnPositionFor)
+    toolrail-spawn.ts           # Toolrail click → propose_widget with active-image-node gate
     lut-registry.ts             # LUT filter management
     lut-parser.ts               # .cube LUT file parser
   types/                # Shared TypeScript interfaces
     processing.ts       #   ProcessingDefinition, ProcessingPanelProps, ParamDefinition
     tool.ts             #   ToolDefinition, ToolContext, EditorCommand
     adjustment.ts       #   Adjustment, BlendMode, AiSource types
+    workspace.ts        #   Point, Size, ImageNodeState, WidgetNodeState, TetherEdgeState
+    scope.ts            #   Scope discriminated union (mirrors backend Scope)
 ```
 
 ## Engine SSoT Doctrine

@@ -27,9 +27,9 @@ export function SuggestionsSection() {
     const store = useEditorStore.getState();
     if (widgetScope) store.setActiveScope(widgetScope);
     store.focusWidget(widget.id);
-    // Workspace branch: also tether to the active ImageNode so the engaged
-    // suggestion gets a canvas footprint. No-op on the Fabric branch and
-    // when no image node is selectable (the row still moves to Active).
+    // Tether to the active ImageNode so the engaged suggestion gets a canvas
+    // footprint. No-op when no image node is selectable (the row still moves
+    // to Active).
     tetherWorkspaceWidgetOnEngage(widget);
   }
 

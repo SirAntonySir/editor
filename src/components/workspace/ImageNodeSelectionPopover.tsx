@@ -14,12 +14,9 @@ interface ImageNodeSelectionPopoverProps {
 }
 
 /**
- * Workspace port of `SelectionActionsOverlay.tsx`. Anchors the
- * Create-layer / Discard actions to the image node header instead of
- * floating above the global canvas. Only mounts when there is a
- * committed selection mask that belongs to this image node.
- *
- * Esc still discards globally — kept consistent with the Fabric path.
+ * Anchors the Create-layer / Discard actions to the image node header. Only
+ * mounts when there is a committed selection mask that belongs to this image
+ * node. Esc discards globally.
  */
 export function ImageNodeSelectionPopover({
   layerIds,

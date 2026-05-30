@@ -8,16 +8,8 @@
  *   - the canvas dimensions (so masks at native resolution can be scaled),
  *   - the data needed for that one pass (mask data, colours, etc).
  *
- * No React, no Fabric, no store reads — callers pass in what they need.
- * This keeps the painters trivially unit-testable and lets the workspace
- * and Fabric paths share the underlying drawing math without coupling.
- *
- * The Fabric branch keeps its own (slightly more elaborate) overlay
- * machinery in `src/components/canvas/*` because it relies on Fabric
- * object transforms / events; this module is the de-coupled equivalent
- * for the workspace branch. Both are wired to the same `maskStore`
- * single-source-of-truth — only the rendering medium differs. The
- * Fabric copy disappears at T20.
+ * No React, no store reads — callers pass in what they need. This keeps the
+ * painters trivially unit-testable.
  */
 
 import type { Mask } from '@/core/mask-store';
@@ -29,7 +21,7 @@ export interface OverlayPainterContext {
   canvasHeight: number;
 }
 
-/** Default colours match the Fabric overlay aesthetic. */
+/** Default overlay colours. */
 const DEFAULTS = {
   /** Blue accent for full-image outline and committed selection. */
   accent: 'rgba(0, 113, 227, 1)',
@@ -37,7 +29,7 @@ const DEFAULTS = {
   selectionFill: 'rgba(10, 132, 255, 0.12)',
   /** Translucent blue hover fill. */
   hoverFill: 'rgba(10, 132, 255, 0.08)',
-  /** Mask fill HSL (matches Fabric "active" pink). */
+  /** Mask fill HSL — warm pink for active state. */
   maskFillHsl: [310, 90, 60] as [number, number, number],
   /** Outline stroke colour for committed masks. */
   outlineStroke: 'rgba(255, 255, 255, 0.95)',
@@ -45,7 +37,7 @@ const DEFAULTS = {
 
 /**
  * Named mask paint styles — single source of truth for the active vs committed
- * mask tints. Consumed by the renderer; matches the Fabric branch's palette.
+ * mask tints. Consumed by the renderer.
  */
 export const MASK_STYLES = {
   /** SAM preview / highlight_region. Warm pink to read as "in-progress". */
@@ -66,9 +58,8 @@ export interface PaintFullImageOutlineOptions {
 }
 
 /**
- * Paints a hairline rectangle around the entire canvas — mirrors the
- * `FullImageOutline.tsx` blue accent used in the Fabric branch when the
- * active scope is `global`.
+ * Paints a hairline rectangle around the entire canvas — the blue accent
+ * shown when the active scope is `global`.
  */
 export function paintFullImageOutline(
   ctx: CanvasRenderingContext2D,
@@ -93,16 +84,15 @@ export function paintFullImageOutline(
 /* -------------------------------------------------------------------------- */
 
 export interface PaintMaskFillOptions {
-  /** Fill colour as HSL triple (default: pink, matches Fabric "active" state). */
+  /** Fill colour as HSL triple (default: pink active state). */
   fillHsl?: [number, number, number];
-  /** Final alpha multiplier 0..1 (default 0.45 — matches Fabric default). */
+  /** Final alpha multiplier 0..1 (default 0.45). */
   alpha?: number;
 }
 
 /**
- * Paints a translucent mask fill scaled to the canvas. Mirrors
- * `buildMaskFillCanvas` from `useFabricOverlays.ts` — pixels with mask
- * value 0 are transparent, the rest are the same coloured fill.
+ * Paints a translucent mask fill scaled to the canvas. Pixels with mask
+ * value 0 are transparent; the rest take the coloured fill.
  */
 export function paintMaskFill(
   painter: OverlayPainterContext,
@@ -149,14 +139,9 @@ export interface PaintMaskOutlineOptions {
 }
 
 /**
- * Paints a 1px outline tracing the boundary of a binary mask. Uses an
- * edge-cell pass equivalent to `SegmentOverlay`'s outline pass: for every
+ * Paints a 1px outline tracing the boundary of a binary mask. For every
  * set pixel we draw the edge of any side that borders an unset pixel.
- *
- * The Fabric branch uses `maskToOutlinePathData` + an SVG path for the
- * marching-ants animation; we draw the same geometry directly into the
- * 2D context here because the workspace canvas is re-painted on every
- * snapshot change, which is plenty for this pass.
+ * Re-painted on every snapshot change, no animation loop required.
  */
 export function paintMaskOutline(
   painter: OverlayPainterContext,
@@ -221,9 +206,8 @@ export type SegmentOutlineStyle = 'hover' | 'selected';
 
 /**
  * Paints the segmentation overlay — a translucent fill plus an edge-cell
- * outline. Ports the inner `drawOutline` loop from `SegmentOverlay.tsx`,
- * minus the Fabric viewport transform / image-bounds math (the workspace
- * canvas is already in image-pixel space).
+ * outline. The workspace canvas is already in image-pixel space, so no
+ * viewport math is needed here.
  */
 export function paintSegmentationOverlay(
   painter: OverlayPainterContext,

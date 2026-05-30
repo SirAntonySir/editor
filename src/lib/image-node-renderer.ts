@@ -4,13 +4,11 @@
  *
  * Pure orchestration: it wires together CanvasRegistry (per-layer source
  * bitmaps), the WebGL PipelineManager (per-layer adjustments from the backend
- * operation_graph) and the 2D blend pipeline used by LayerCompositor — without
- * routing the result through Fabric.js.
+ * operation_graph) and the 2D blend pipeline used by LayerCompositor.
  *
- * Sits alongside `useAdjustmentPipeline` (Fabric path); both consume the same
- * backend snapshot. After per-layer adjustments are composited, node-scope
- * adjustments (operation_graph nodes whose `layer_ids` cover layers in this
- * image node) are applied to the composite via composite-then-apply.
+ * After per-layer adjustments are composited, node-scope adjustments
+ * (operation_graph nodes whose `layer_ids` cover layers in this image node)
+ * are applied to the composite via composite-then-apply.
  */
 
 import { CanvasRegistry } from './canvas-registry';
@@ -127,9 +125,8 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   void widgets; // widgets still passed through for future use
 
   // ---- Overlay pass --------------------------------------------------------
-  // Painted on top of the composite so chrome is always visible. State read
-  // here matches the Fabric overlay path (same maskStore / selection slice
-  // SSoT) — the workspace branch just renders it without Fabric.
+  // Painted on top of the composite so chrome is always visible. State source:
+  // maskStore + selection slice.
   paintOverlays({ ctx, canvas, imageNodeId: args.imageNodeId, layerIds });
 }
 
@@ -147,7 +144,7 @@ function paintOverlays({ ctx, canvas, imageNodeId, layerIds }: PaintOverlaysArgs
   const painterCtx = { ctx, canvasWidth: canvas.width, canvasHeight: canvas.height };
 
   // Full-image outline: only on the active image node when the active scope
-  // is global. Mirrors `FullImageOutline.tsx` from the Fabric branch.
+  // is global.
   if (isActiveNode && state.activeScope.kind === 'global') {
     paintFullImageOutline(ctx, canvas.width, canvas.height);
   }

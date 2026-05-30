@@ -55,8 +55,8 @@
 html, body, #root {
   height: 100%;
   /* Editor is a single-page surface — any horizontal "scroll by a few pixels"
-   * is a layout overshoot (sidebar chevron / mask overlay / Fabric canvas
-   * sub-pixel rounding), never a real scroll affordance. Clip it. */
+   * is a layout overshoot (sidebar chevron / mask overlay sub-pixel rounding),
+   * never a real scroll affordance. Clip it. */
   overflow-x: hidden;
   margin: 0;
   padding: 0;

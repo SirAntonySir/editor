@@ -41,8 +41,7 @@ export function Toolbar() {
             if (!value) return;
             const tool = registry.get(value);
             // Widget tools (have a processingId) → spawn via the toolrail
-            // helper, which picks the cursor-bind flow on the Fabric branch
-            // and a direct propose_widget call on the workspace branch.
+            // helper (direct propose_widget call with active-image-node gate).
             // Mode tools (text, crop) → keep legacy setActiveTool behavior.
             if (tool?.processingId) {
               if (spawnToolWidget(value)) return;

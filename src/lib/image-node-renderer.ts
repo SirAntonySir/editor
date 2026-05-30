@@ -18,6 +18,7 @@ import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { nodeToAdjustment } from './node-to-adjustment';
 import {
+  MASK_STYLES,
   paintFullImageOutline,
   paintMaskFill,
   paintMaskOutline,
@@ -132,7 +133,7 @@ function paintOverlays({ ctx, canvas, imageNodeId, layerIds }: PaintOverlaysArgs
   if (state.activeMaskRef) {
     const mask = maskStore.get(state.activeMaskRef);
     if (mask && layerSet.has(mask.layerId)) {
-      paintMaskFill(painterCtx, mask, { fillHsl: [310, 90, 60], alpha: 0.45 });
+      paintMaskFill(painterCtx, mask, MASK_STYLES.active);
       paintMaskOutline(painterCtx, mask);
     }
   }
@@ -141,7 +142,7 @@ function paintOverlays({ ctx, canvas, imageNodeId, layerIds }: PaintOverlaysArgs
   if (state.committedMaskRef && state.committedMaskRef !== state.activeMaskRef) {
     const mask = maskStore.get(state.committedMaskRef);
     if (mask && layerSet.has(mask.layerId)) {
-      paintMaskFill(painterCtx, mask, { fillHsl: [200, 90, 55], alpha: 0.45 });
+      paintMaskFill(painterCtx, mask, MASK_STYLES.committed);
       paintMaskOutline(painterCtx, mask);
     }
   }

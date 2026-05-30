@@ -43,6 +43,17 @@ const DEFAULTS = {
   outlineStroke: 'rgba(255, 255, 255, 0.95)',
 } as const;
 
+/**
+ * Named mask paint styles — single source of truth for the active vs committed
+ * mask tints. Consumed by the renderer; matches the Fabric branch's palette.
+ */
+export const MASK_STYLES = {
+  /** SAM preview / highlight_region. Warm pink to read as "in-progress". */
+  active: { fillHsl: [310, 90, 60] as [number, number, number], alpha: 0.45 },
+  /** Settled mask. Cooler blue to read as "committed". */
+  committed: { fillHsl: [200, 90, 55] as [number, number, number], alpha: 0.45 },
+} as const;
+
 /* -------------------------------------------------------------------------- */
 /* Full-image outline                                                         */
 /* -------------------------------------------------------------------------- */

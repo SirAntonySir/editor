@@ -100,6 +100,9 @@ interface BackendState {
   applyEvent: (ev: StateEvent) => void;
   applyOptimistic: (widgetId: WidgetId, patch: OptimisticPatch) => void;
   clearOptimistic: (widgetId: WidgetId) => void;
+  /** Frontend-only engage: moves a suggestion widget into the acceptedSuggestions set
+   *  so it appears on the canvas shell. Does NOT call backendTools.accept_widget. */
+  addAcceptedSuggestion: (widgetId: WidgetId) => void;
   setSseStatus: (status: SseStatus) => void;
   setSnapshot: (snapshot: SessionStateSnapshot) => void;
   setSessionId: (sessionId: string | null) => void;
@@ -249,6 +252,11 @@ export const useBackendState = create<BackendState>()(
     clearOptimistic: (widgetId) =>
       set((s) => {
         s.optimistic.delete(widgetId);
+      }),
+
+    addAcceptedSuggestion: (widgetId) =>
+      set((s) => {
+        s.acceptedSuggestions.add(widgetId);
       }),
 
     setSseStatus: (status) => set((s) => { s.sseStatus = status; }),

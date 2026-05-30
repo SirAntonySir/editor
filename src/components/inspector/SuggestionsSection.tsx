@@ -8,6 +8,7 @@ export function SuggestionsSection() {
   const snapshot = useBackendState((s) => s.snapshot);
   const activeScope = useEditorStore((s) => s.activeScope);
   const accepted = useBackendState((s) => s.acceptedSuggestions);
+  const addAcceptedSuggestion = useBackendState((s) => s.addAcceptedSuggestion);
   const sessionId = useBackendState((s) => s.sessionId);
 
   const suggestions = (snapshot?.widgets ?? []).filter((w) =>
@@ -17,9 +18,13 @@ export function SuggestionsSection() {
   );
 
   function onRowClick(widgetId: string, widgetScope: StoreScope | null) {
+    // Frontend-only engage: add to acceptedSuggestions so the canvas shell
+    // picks it up. Does NOT call backendTools.accept_widget (that is the
+    // backend BAKE step, triggered later when the user clicks Apply).
+    addAcceptedSuggestion(widgetId);
     const store = useEditorStore.getState();
     if (widgetScope) store.setActiveScope(widgetScope);
-    store.startSuggestionBind(widgetId);
+    store.focusWidget(widgetId);
   }
 
   function onDismiss(e: React.MouseEvent, widgetId: string) {
@@ -52,13 +57,18 @@ export function SuggestionsSection() {
             type="button"
             onClick={() => onRowClick(w.id, toStoreScope(w.scope))}
             className="grid w-full items-center text-left text-[10px] py-1 px-1 rounded
-              hover:bg-surface-secondary transition-colors"
-            style={{ gridTemplateColumns: '14px 1fr auto 14px', gap: 6, opacity: matches ? 1 : 0.1 }}
+              hover:bg-surface-secondary transition-colors group"
+            style={{ gridTemplateColumns: '14px 1fr auto 20px 14px', gap: 6, opacity: matches ? 1 : 0.1 }}
           >
             <span className="w-3.5 h-3.5 rounded-sm bg-accent text-white flex items-center
               justify-center text-[7px] font-semibold">AI</span>
             <span className="truncate">{w.intent}</span>
             <span className="text-text-secondary text-[9px]">{scopeLabel(w.scope)}</span>
+            {/* ↗ affordance — signals the suggestion moves to the canvas */}
+            <span
+              aria-hidden="true"
+              className="text-text-secondary group-hover:text-accent text-[11px] leading-none transition-colors"
+            >↗</span>
             <span
               onClick={(e) => onDismiss(e, w.id)}
               className="text-text-secondary hover:text-text-primary text-[12px] leading-none"

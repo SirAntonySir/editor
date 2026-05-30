@@ -12,11 +12,10 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
-describe('InspectorPanel — Suggestions / Active / Layers', () => {
-  it('renders the three section headings', () => {
+describe('InspectorPanel — Suggestions / Layers', () => {
+  it('renders Suggestions and Layers section headings (ActiveSection removed)', () => {
     render(<InspectorPanel />);
     expect(screen.getByText(/suggestions/i)).toBeDefined();
-    expect(screen.getByText(/active/i)).toBeDefined();
     expect(screen.getByText(/layers/i)).toBeDefined();
   });
 

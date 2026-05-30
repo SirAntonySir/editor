@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import { SuggestionsSection } from './SuggestionsSection';
-import { ActiveSection } from './ActiveSection';
 import { LayersSection } from './LayersSection';
 import { InfoTab } from './info/InfoTab';
 
@@ -35,7 +34,6 @@ export function InspectorPanel() {
       {tab === 'adjustments' ? (
         <div className="flex-1 min-h-0 flex flex-col overflow-y-auto">
           <SuggestionsSection />
-          <ActiveSection />
           <LayersSection />
         </div>
       ) : (

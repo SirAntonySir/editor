@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 import { useBackendState, type PhaseName } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
@@ -53,7 +53,7 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
 
   // Fabric viewport tick — re-renders on every Fabric after:render so that
   // the photo bbox re-computes and widget positions stay current.
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     const f = fabricCanvasRef.current;
     if (!f) return;
@@ -73,9 +73,9 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
     const parent = el.parentElement?.getBoundingClientRect() ?? rect;
     return { left: rect.left - parent.left, top: rect.top - parent.top, width: rect.width, height: rect.height };
   // fabricCanvasRef.current is intentionally read at render time;
-  // the tick state variable is included so the memo re-runs on every Fabric after:render.
+  // tick is included so the memo re-runs on every Fabric after:render.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fabricCanvasRef, setTick]);
+  }, [fabricCanvasRef, tick]);
 
   const dockInputs = useMemo(
     () => widgets.map((w) => ({
@@ -124,12 +124,16 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
 
   // Focus pan: when a widget is focused (e.g. from Active row click), bring
   // its dock position to the viewport center, then clear focus after animation.
+  // positionsRef keeps the latest positions without making it a dep of the
+  // effect, so unrelated dock-layout recomputations don't trigger spurious re-pans.
   const focusedId = useEditorStore((s) => s.focusedWidgetId);
+  const positionsRef = useRef(positions);
+  positionsRef.current = positions;
   useEffect(() => {
     if (!focusedId) return;
     const f = fabricCanvasRef.current;
     if (!f) return;
-    const pos = positions.find((p) => p.widgetId === focusedId);
+    const pos = positionsRef.current.find((p) => p.widgetId === focusedId);
     if (!pos) return;
     const vw = f.getWidth();
     const vh = f.getHeight();
@@ -144,7 +148,13 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
       useEditorStore.getState().focusWidget(null);
     }, 600);
     return () => window.clearTimeout(t);
-  }, [focusedId, fabricCanvasRef, positions]);
+  }, [focusedId, fabricCanvasRef]);
+
+  // O(1) widget lookup for the render pass below.
+  const widgetById = useMemo(
+    () => new Map(widgets.map((w) => [w.id, w])),
+    [widgets],
+  );
 
   // Cursor-bind drop: while a tool/suggestion is bound to the cursor, swallow
   // a click on the canvas overlay to commit the widget.
@@ -185,7 +195,7 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
       <AnchorTickLayer photo={photo} positions={positions} />
       <RegionHighlightLayer photo={photo} anchorBoxes={anchorBoxes} hoveredWidgetId={hoveredWidgetId} />
       {positions.map((p) => {
-        const widget = widgets.find((w) => w.id === p.widgetId);
+        const widget = widgetById.get(p.widgetId);
         if (!widget) return null;
         return (
           <div key={p.widgetId} className="absolute pointer-events-auto" style={{ left: p.x, top: p.y }}>

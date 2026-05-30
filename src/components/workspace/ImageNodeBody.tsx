@@ -1,3 +1,5 @@
+import { useImageNodeRender } from '@/hooks/useImageNodeRender';
+
 interface ImageNodeBodyProps {
   imageNodeId: string;
   layerIds: string[];
@@ -5,12 +7,14 @@ interface ImageNodeBodyProps {
   height: number;
 }
 
-export function ImageNodeBody({ width, height }: ImageNodeBodyProps) {
+export function ImageNodeBody({ imageNodeId, layerIds, width, height }: ImageNodeBodyProps) {
+  const { canvasRef } = useImageNodeRender({ imageNodeId, layerIds, width, height });
   return (
-    <div
+    <canvas
+      ref={canvasRef}
       aria-label="Image node body"
-      className="bg-surface-secondary border border-separator"
-      style={{ width, height }}
+      className="bg-surface-secondary border-y border-separator"
+      style={{ width, height, display: 'block' }}
     />
   );
 }

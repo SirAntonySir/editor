@@ -1,0 +1,99 @@
+/**
+ * Image-node renderer — paints a per-image-node composite into a plain
+ * HTMLCanvasElement.
+ *
+ * Pure orchestration: it wires together CanvasRegistry (per-layer source
+ * bitmaps), the WebGL PipelineManager (per-layer adjustments from the backend
+ * operation_graph) and the 2D blend pipeline used by LayerCompositor — without
+ * routing the result through Fabric.js.
+ *
+ * Sits alongside `useAdjustmentPipeline` (Fabric path); both consume the same
+ * backend snapshot. T17–T19 will extend `widgets` handling for node-scope
+ * adjustments; for now node-scope widgets are passed through but no-op.
+ */
+
+import { CanvasRegistry } from './canvas-registry';
+import { PipelineManager } from './pipeline-manager';
+import { useEditorStore } from '@/store';
+import { nodeToAdjustment } from './node-to-adjustment';
+import type { Adjustment, BlendMode } from '@/types/adjustment';
+import type { OperationGraph } from '@/types/operation-graph';
+import type { Widget } from '@/types/widget';
+
+const BLEND_MODE_MAP: Record<BlendMode, GlobalCompositeOperation> = {
+  'normal': 'source-over',
+  'multiply': 'multiply',
+  'screen': 'screen',
+  'overlay': 'overlay',
+  'darken': 'darken',
+  'lighten': 'lighten',
+  'soft-light': 'soft-light',
+  'hard-light': 'hard-light',
+};
+
+export interface RenderImageNodeCompositeArgs {
+  /** Target canvas to paint into. */
+  canvas: HTMLCanvasElement;
+  /** Image-node id (reserved for future widget-scope routing — T17–T19). */
+  imageNodeId: string;
+  /** Layer ids that belong to this image node, ordered bottom → top. */
+  layerIds: string[];
+  /** Backend operation graph; per-layer adjustments are filtered by layer_id. */
+  opGraph: OperationGraph | undefined;
+  /**
+   * Widgets in the current snapshot. Walked here so future node-scope widgets
+   * (T17–T19) can be applied to the composite; for now every widget is skipped.
+   */
+  widgets: Widget[];
+}
+
+/**
+ * Apply each layer's adjustments and composite the results into `canvas`.
+ * No-op when the operation can't proceed (missing pixels, missing 2d context, …).
+ */
+export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): void {
+  const { canvas, layerIds, opGraph, widgets } = args;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (layerIds.length === 0) return;
+
+  const allLayers = useEditorStore.getState().layers;
+  const layersById = new Map(allLayers.map((l) => [l.id, l] as const));
+  const nodes = opGraph?.nodes ?? [];
+
+  for (const layerId of layerIds) {
+    const layer = layersById.get(layerId);
+    if (!layer || !layer.visible) continue;
+
+    const source = CanvasRegistry.get(layerId);
+    if (!source) continue;
+
+    const layerNodes = nodes.filter((n) => n.layer_id === layerId);
+    const adjustments: Adjustment[] = layerNodes
+      .map(nodeToAdjustment)
+      .filter((a) => a.enabled);
+
+    let rendered: HTMLCanvasElement | OffscreenCanvas;
+    if (adjustments.length === 0) {
+      rendered = source;
+    } else {
+      PipelineManager.setSourceCanvas(source);
+      rendered = PipelineManager.renderSync(adjustments);
+    }
+
+    ctx.save();
+    ctx.globalAlpha = layer.opacity;
+    ctx.globalCompositeOperation = BLEND_MODE_MAP[layer.blendMode] ?? 'source-over';
+    ctx.drawImage(rendered, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  }
+
+  // Node-scope widget adjustments will apply to the composite once T17–T19
+  // land. Walk the list now so the surface is wired and lint stays clean.
+  for (const _w of widgets) {
+    // Intentionally empty — node-scope semantics aren't wired yet.
+    void _w;
+  }
+}

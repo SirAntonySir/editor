@@ -2,7 +2,7 @@ import { Image, Split, MoreHorizontal } from 'lucide-react';
 import { Handle, Position } from '@xyflow/react';
 import { ImageNodeBody } from './ImageNodeBody';
 
-export interface ImageNodeData {
+export interface ImageNodeData extends Record<string, unknown> {
   name?: string;
   layerIds: string[];
   size: { w: number; h: number };

@@ -2,7 +2,7 @@ import { Handle, Position } from '@xyflow/react';
 import { WidgetShell } from '@/components/widget/WidgetShell';
 import type { Widget } from '@/types/widget';
 
-export interface WidgetNodeData {
+export interface WidgetNodeData extends Record<string, unknown> {
   widget: Widget;
 }
 

@@ -1,20 +1,7 @@
-import { describe, it, expect, afterEach, beforeAll } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 import { CanvasWorkspace } from './CanvasWorkspace';
 import { useEditorStore } from '@/store';
-
-beforeAll(() => {
-  if (!('ResizeObserver' in window)) {
-    Object.defineProperty(window, 'ResizeObserver', {
-      writable: true,
-      value: class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      },
-    });
-  }
-});
 
 afterEach(cleanup);
 

@@ -10,8 +10,8 @@ import {
 import '@xyflow/react/dist/style.css';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
-import { ImageNode } from './ImageNode';
-import { WidgetNode } from './WidgetNode';
+import { ImageNode, type ImageNodeData } from './ImageNode';
+import { WidgetNode, type WidgetNodeData } from './WidgetNode';
 import { TetherEdge, type TetherEdgeType } from './TetherEdge';
 import type { Widget } from '@/types/widget';
 
@@ -19,6 +19,10 @@ const nodeTypes = { image: ImageNode, widget: WidgetNode };
 const edgeTypes = { tether: TetherEdge };
 
 const EMPTY_WIDGETS: Widget[] = [];
+
+type ImageNodeType = Node<ImageNodeData, 'image'>;
+type WidgetNodeType = Node<WidgetNodeData, 'widget'>;
+type WorkspaceNode = ImageNodeType | WidgetNodeType;
 
 export function CanvasWorkspace() {
   const imageNodes = useEditorStore((s) => s.imageNodes);
@@ -29,8 +33,8 @@ export function CanvasWorkspace() {
   const setWidgetPosition = useEditorStore((s) => s.setWidgetPosition);
   const setActiveImageNode = useEditorStore((s) => s.setActiveImageNode);
 
-  const nodes = useMemo<Node[]>(() => {
-    const imgs: Node[] = Object.values(imageNodes).map((n) => ({
+  const nodes = useMemo<WorkspaceNode[]>(() => {
+    const imgs: ImageNodeType[] = Object.values(imageNodes).map((n) => ({
       id: n.id,
       type: 'image',
       position: n.position,
@@ -40,13 +44,13 @@ export function CanvasWorkspace() {
         name: n.layerIds[0] ?? 'Image',
       },
     }));
-    const widgets: Node[] = snapshotWidgets
+    const widgets: WidgetNodeType[] = snapshotWidgets
       .filter((w) => w.status === 'active')
       .map((w) => ({
         id: w.id,
         type: 'widget',
         position: widgetNodes[w.id]?.position ?? { x: 0, y: 0 },
-        data: { widget: w as unknown as Record<string, unknown> },
+        data: { widget: w },
       }));
     return [...imgs, ...widgets];
   }, [imageNodes, widgetNodes, snapshotWidgets]);
@@ -98,7 +102,7 @@ export function CanvasWorkspace() {
         proOptions={{ hideAttribution: true }}
         fitView
       >
-        <Background />
+        <Background color="var(--color-separator)" gap={16} size={1} />
         <Controls showInteractive={false} />
       </ReactFlow>
     </div>

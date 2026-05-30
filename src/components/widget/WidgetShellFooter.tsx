@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react';
 import { RotateCcw, HelpCircle } from 'lucide-react';
 
 interface WidgetShellFooterProps {
@@ -6,9 +7,11 @@ interface WidgetShellFooterProps {
   onReset: () => void;
   onApply: () => void;
   applyDisabled: boolean;
+  /** When provided, rendered in place of the built-in Why? button. */
+  whyButton?: ReactNode;
 }
 
-export function WidgetShellFooter({ onRefine, onWhy, onReset, onApply, applyDisabled }: WidgetShellFooterProps) {
+export function WidgetShellFooter({ onRefine, onWhy, onReset, onApply, applyDisabled, whyButton }: WidgetShellFooterProps) {
   return (
     <div className="flex items-center gap-px px-1.5 pt-1 pb-1.5 border-t border-separator">
       <button
@@ -17,12 +20,14 @@ export function WidgetShellFooter({ onRefine, onWhy, onReset, onApply, applyDisa
       >
         <RotateCcw size={10} aria-hidden /> Refine
       </button>
-      <button
-        onClick={onWhy}
-        className="inline-flex items-center gap-1 text-[9px] text-text-secondary hover:text-text-primary hover:bg-surface-secondary px-1.5 py-0.5 rounded-[3px]"
-      >
-        <HelpCircle size={10} aria-hidden /> Why?
-      </button>
+      {whyButton ?? (
+        <button
+          onClick={onWhy}
+          className="inline-flex items-center gap-1 text-[9px] text-text-secondary hover:text-text-primary hover:bg-surface-secondary px-1.5 py-0.5 rounded-[3px]"
+        >
+          <HelpCircle size={10} aria-hidden /> Why?
+        </button>
+      )}
       <span className="flex-1" />
       <button
         onClick={onReset}

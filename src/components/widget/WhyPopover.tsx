@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import type { Widget } from '@/types/widget';
 
@@ -5,13 +6,13 @@ interface WhyPopoverProps {
   open: boolean;
   widget: Widget;
   onOpenChange: (open: boolean) => void;
+  children: ReactNode; // the trigger element (wrapped via Trigger asChild)
 }
 
-export function WhyPopover({ open, widget, onOpenChange }: WhyPopoverProps) {
-  if (!open) return null;
+export function WhyPopover({ open, widget, onOpenChange, children }: WhyPopoverProps) {
   return (
     <Popover.Root open={open} onOpenChange={onOpenChange}>
-      <Popover.Anchor />
+      <Popover.Trigger asChild>{children}</Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
           className="overlay w-[260px] p-2.5 text-[11px] text-text-primary z-[60]"

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Widget, MaskSummary } from '@/types/widget';
+import { HelpCircle } from 'lucide-react';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useWidgetExpansion } from '@/hooks/useWidgetExpansion';
@@ -48,7 +49,7 @@ export function WidgetShell({ widget }: WidgetShellProps) {
   }
 
   function handleApply() {
-    if (!sessionId) return;
+    if (!sessionId || offline) return;
     void backendTools.accept_widget(sessionId, { widget_id: widget.id });
   }
 
@@ -126,8 +127,14 @@ export function WidgetShell({ widget }: WidgetShellProps) {
             onReset={handleReset}
             onApply={handleApply}
             applyDisabled={offline}
+            whyButton={
+              <WhyPopover open={whyOpen} widget={widget} onOpenChange={setWhyOpen}>
+                <button className="inline-flex items-center gap-1 text-[9px] text-text-secondary hover:text-text-primary hover:bg-surface-secondary px-1.5 py-0.5 rounded-[3px]">
+                  <HelpCircle size={10} aria-hidden /> Why?
+                </button>
+              </WhyPopover>
+            }
           />
-          <WhyPopover open={whyOpen} widget={widget} onOpenChange={setWhyOpen} />
         </>
       )}
     </div>

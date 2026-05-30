@@ -12,6 +12,13 @@ import { RefineInput } from './RefineInput';
 import { WhyPopover } from './WhyPopover';
 import { BindingRow } from '@/components/inspector/widget/BindingRow';
 
+/**
+ * Collapsed WidgetShell width in CSS pixels. Tailwind's `w-[226px]` is a
+ * compile-time literal so we can't interpolate this into the className —
+ * keep the literal below in sync with this constant.
+ */
+export const WIDGET_SHELL_WIDTH = 226;
+
 interface WidgetShellProps {
   widget: Widget;
 }
@@ -81,6 +88,7 @@ export function WidgetShell({ widget }: WidgetShellProps) {
 
   return (
     <div
+      // w-[226px] matches WIDGET_SHELL_WIDTH
       className={`overlay w-[226px] ${hovered ? 'border-accent' : ''}`}
       onMouseEnter={() => setHoveredWidget(widget.id)}
       onMouseLeave={() => setHoveredWidget(null)}

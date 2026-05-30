@@ -40,6 +40,7 @@ export interface PreferencesState {
   rightSidebarCollapsed: boolean;
   rightSidebarWidth: number;
   rightSidebarTab: RightSidebarTab;
+  useWorkspaceCanvas: boolean;
 
   setThemeMode: (mode: ThemeMode) => void;
   setAccentColor: (color: string) => void;
@@ -48,6 +49,7 @@ export interface PreferencesState {
   toggleRightSidebar: () => void;
   setRightSidebarWidth: (w: number) => void;
   setRightSidebarTab: (tab: RightSidebarTab) => void;
+  setUseWorkspaceCanvas: (v: boolean) => void;
 }
 
 export const SIDEBAR_MIN_WIDTH = 200;
@@ -67,6 +69,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       rightSidebarCollapsed: false,
       rightSidebarWidth: 264,
       rightSidebarTab: 'inspector',
+      useWorkspaceCanvas: false,
 
       setThemeMode: (mode) => set({ themeMode: mode }),
       setAccentColor: (color) => set({ accentColor: color }),
@@ -77,6 +80,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       setRightSidebarWidth: (w) =>
         set({ rightSidebarWidth: clampSidebarWidth(w) }),
       setRightSidebarTab: (tab) => set({ rightSidebarTab: tab }),
+      setUseWorkspaceCanvas: (v) => set({ useWorkspaceCanvas: v }),
     }),
     {
       name: 'editor-preferences',
@@ -87,6 +91,7 @@ export const usePreferencesStore = create<PreferencesState>()(
         rightSidebarCollapsed: state.rightSidebarCollapsed,
         rightSidebarWidth: state.rightSidebarWidth,
         rightSidebarTab: state.rightSidebarTab,
+        useWorkspaceCanvas: state.useWorkspaceCanvas,
       }),
     },
   ),

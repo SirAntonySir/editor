@@ -33,7 +33,7 @@ export function WidgetShellFooter({ onRefine, onWhy, onReset, onApply, applyDisa
       <button
         onClick={onApply}
         disabled={applyDisabled}
-        className="text-[10px] bg-accent text-white border border-accent rounded-[4px] px-2 py-0.5 hover:bg-accent-hover disabled:opacity-50 ml-1"
+        className="text-[10px] bg-accent text-white border border-accent rounded-[4px] px-2 py-0.5 hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed ml-1"
       >
         Apply
       </button>

@@ -34,7 +34,6 @@ interface CanvasWidgetLayerProps {
 export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
   const snapshotWidgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
   const accepted = useBackendState((s) => s.acceptedSuggestions);
-  const activeLayerId = useEditorStore((s) => s.activeLayerId);
   const expandedIds = useEditorStore((s) => s.expandedWidgetIds);
   const { hoveredWidgetId } = useHoveredWidget();
   const context = useAiSession((s) => s.context);
@@ -44,16 +43,18 @@ export function CanvasWidgetLayer({ fabricCanvasRef }: CanvasWidgetLayerProps) {
 
   // Canvas only hosts tool-origin widgets + accepted AI widgets. Unaccepted
   // mcp_autonomous suggestions live in the right-panel Suggestions list until
-  // the user cursor-bind-drops them.
+  // the user clicks ↗. We deliberately do NOT filter by activeLayerId here:
+  // `WidgetNode.layer_id` is optional on the backend and only materialised at
+  // accept_widget time, so a layer filter would hide every freshly-spawned
+  // widget. (`useLayerWidgets` filters via operation_graph.nodes for the
+  // inspector case, but those are baked-only.)
   const widgets = useMemo<Widget[]>(() => {
     return snapshotWidgets.filter((w) => {
       if (w.status !== 'active') return false;
-      const layerOk = activeLayerId ? w.nodes.some((n) => n.layer_id === activeLayerId) : true;
-      if (!layerOk) return false;
       if (w.origin.kind === 'mcp_autonomous' && !accepted.has(w.id)) return false;
       return true;
     });
-  }, [snapshotWidgets, accepted, activeLayerId]);
+  }, [snapshotWidgets, accepted]);
 
   // Fabric viewport tick — re-renders on every Fabric after:render so that
   // the photo bbox re-computes and widget positions stay current.

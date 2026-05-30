@@ -1,26 +1,46 @@
 import type { StateCreator } from 'zustand';
-import type { ImageNodeState, TetherEdgeState, WorkspaceViewport } from '@/types/workspace';
+import type {
+  ImageNodeState,
+  TetherEdgeState,
+  WidgetNodeState,
+  WorkspaceViewport,
+} from '@/types/workspace';
 
 const DEFAULT_NODE_SIZE = { w: 240, h: 180 };
 
 export interface WorkspaceSlice {
   imageNodes: Record<string, ImageNodeState>;
-  widgetPositions: Record<string, { x: number; y: number }>;
+  widgetNodes: Map<string, WidgetNodeState>;
   tetherEdges: Record<string, TetherEdgeState>;
   viewport: WorkspaceViewport;
-  selectedNodeIds: Set<string>;
-  selectedEdgeIds: Set<string>;
   workspaceExpandedWidgetIds: Set<string>;
   activeImageNodeId: string | null;
 
   addImageNode: (layerIds: string[], position?: { x: number; y: number }) => string;
-  splitImageNode: (id: string) => string[];
-  mergeImageNodes: (ids: string[]) => string;
+  /**
+   * Peel a single layer off `sourceId`, place it on a new image node, and return the new node's id.
+   * Source node survives (minus the migrated layer). Tether edges whose
+   * `targetImageNodeId === sourceId` AND whose scope is `{ kind: 'layer', layerId: layerIdToSplit }`
+   * are redirected to the new node id. All other edges remain on the source.
+   */
+  splitImageNode: (sourceId: string, layerIdToSplit: string) => string;
+  /**
+   * Append source's layerIds to target's, delete the source node, and redirect every tether edge
+   * whose `targetImageNodeId === sourceId` to `targetId` (scope preserved). Target keeps its id.
+   */
+  mergeImageNodes: (sourceId: string, targetId: string) => void;
   setNodePosition: (id: string, position: { x: number; y: number }) => void;
   setWidgetPosition: (id: string, position: { x: number; y: number }) => void;
-  setEdge: (widgetNodeId: string, targetImageNodeId: string, scope: TetherEdgeState['scope']) => string;
+  /**
+   * Insert or replace an edge by `edge.id`. The caller owns the id; use `newEdgeId()` to allocate.
+   */
+  setEdge: (edge: TetherEdgeState) => void;
   unbindEdge: (edgeId: string) => void;
-  setSelection: (nodeIds: string[], edgeIds: string[]) => void;
+  /**
+   * Mirror the currently active image node id derived from selection-slice.
+   * The workspace slice does not own selection state.
+   */
+  setSelection: (activeImageNodeId: string | null) => void;
   setViewport: (v: WorkspaceViewport) => void;
   toggleWorkspaceExpanded: (widgetId: string) => void;
   resetWorkspace: () => void;
@@ -29,15 +49,13 @@ export interface WorkspaceSlice {
 let nextNodeCounter = 1;
 function newNodeId() { return `in-${nextNodeCounter++}`; }
 let nextEdgeCounter = 1;
-function newEdgeId() { return `te-${nextEdgeCounter++}`; }
+export function newEdgeId() { return `te-${nextEdgeCounter++}`; }
 
 export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer', never]], []> = (set) => ({
   imageNodes: {},
-  widgetPositions: {},
+  widgetNodes: new Map(),
   tetherEdges: {},
   viewport: { zoom: 1, pan: { x: 0, y: 0 } },
-  selectedNodeIds: new Set<string>(),
-  selectedEdgeIds: new Set<string>(),
   workspaceExpandedWidgetIds: new Set<string>(),
   activeImageNodeId: null,
 
@@ -49,64 +67,45 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
     return id;
   },
 
-  splitImageNode: (id) => {
-    let result: string[] = [];
+  splitImageNode: (sourceId, layerIdToSplit) => {
+    const newId = newNodeId();
     set((s) => {
-      const src = s.imageNodes[id];
-      if (!src) { result = []; return; }
-      if (src.layerIds.length <= 1) { result = [id]; return; }
-      const newIds: string[] = [];
-      src.layerIds.forEach((lid, i) => {
-        const nid = newNodeId();
-        newIds.push(nid);
-        s.imageNodes[nid] = {
-          id: nid,
-          layerIds: [lid],
-          position: { x: src.position.x + i * (DEFAULT_NODE_SIZE.w + 24), y: src.position.y },
-          size: { ...DEFAULT_NODE_SIZE },
-        };
-      });
-      delete s.imageNodes[id];
-      for (const edge of Object.values(s.tetherEdges)) {
-        if (edge.targetImageNodeId !== id) continue;
-        if (edge.scope.kind === 'layer') {
-          const { layerId } = edge.scope;
-          const owner = newIds.find((nid) => s.imageNodes[nid].layerIds.includes(layerId));
-          if (owner) edge.targetImageNodeId = owner;
-        } else {
-          edge.targetImageNodeId = newIds[0];
-        }
-      }
-      result = newIds;
-    });
-    return result;
-  },
-
-  mergeImageNodes: (ids) => {
-    let newId = '';
-    set((s) => {
-      if (ids.length === 0) return;
-      newId = newNodeId();
-      const layerIds: string[] = [];
-      let basePos: { x: number; y: number } | null = null;
-      for (const id of ids) {
-        const n = s.imageNodes[id];
-        if (!n) continue;
-        basePos ??= { ...n.position };
-        layerIds.push(...n.layerIds);
-        delete s.imageNodes[id];
-      }
+      const src = s.imageNodes[sourceId];
+      if (!src) return;
+      if (!src.layerIds.includes(layerIdToSplit)) return;
+      // Remove the layer from the source.
+      src.layerIds = src.layerIds.filter((lid) => lid !== layerIdToSplit);
+      // Place the peeled layer on a new node positioned next to the source.
       s.imageNodes[newId] = {
         id: newId,
-        layerIds,
-        position: basePos ?? { x: 0, y: 0 },
+        layerIds: [layerIdToSplit],
+        position: { x: src.position.x + DEFAULT_NODE_SIZE.w + 24, y: src.position.y },
         size: { ...DEFAULT_NODE_SIZE },
       };
+      // Migrate only edges that target the source AND are scoped to the peeled layer.
       for (const edge of Object.values(s.tetherEdges)) {
-        if (ids.includes(edge.targetImageNodeId)) edge.targetImageNodeId = newId;
+        if (edge.targetImageNodeId !== sourceId) continue;
+        if (edge.scope.kind !== 'layer') continue;
+        if (edge.scope.layerId !== layerIdToSplit) continue;
+        edge.targetImageNodeId = newId;
       }
     });
     return newId;
+  },
+
+  mergeImageNodes: (sourceId, targetId) => {
+    set((s) => {
+      const src = s.imageNodes[sourceId];
+      const tgt = s.imageNodes[targetId];
+      if (!src || !tgt || sourceId === targetId) return;
+      // Append source layers to target (target keeps its id).
+      tgt.layerIds.push(...src.layerIds);
+      // Redirect every edge pointing at the source to the target (scope preserved).
+      for (const edge of Object.values(s.tetherEdges)) {
+        if (edge.targetImageNodeId === sourceId) edge.targetImageNodeId = targetId;
+      }
+      delete s.imageNodes[sourceId];
+    });
   },
 
   setNodePosition: (id, position) =>
@@ -117,28 +116,27 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
 
   setWidgetPosition: (id, position) =>
     set((s) => {
-      s.widgetPositions[id] = position;
+      const existing = s.widgetNodes.get(id);
+      if (existing) {
+        existing.position = position;
+      } else {
+        s.widgetNodes.set(id, { id, position });
+      }
     }),
 
-  setEdge: (widgetNodeId, targetImageNodeId, scope) => {
-    const id = newEdgeId();
+  setEdge: (edge) =>
     set((s) => {
-      s.tetherEdges[id] = { id, widgetNodeId, targetImageNodeId, scope };
-    });
-    return id;
-  },
+      s.tetherEdges[edge.id] = { ...edge };
+    }),
 
   unbindEdge: (edgeId) =>
     set((s) => {
       delete s.tetherEdges[edgeId];
     }),
 
-  setSelection: (nodeIds, edgeIds) =>
+  setSelection: (activeImageNodeId) =>
     set((s) => {
-      s.selectedNodeIds = new Set(nodeIds);
-      s.selectedEdgeIds = new Set(edgeIds);
-      const imageOnly = nodeIds.filter((id) => s.imageNodes[id]);
-      s.activeImageNodeId = imageOnly.length === 1 ? imageOnly[0] : null;
+      s.activeImageNodeId = activeImageNodeId;
     }),
 
   setViewport: (v) =>
@@ -155,12 +153,12 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
   resetWorkspace: () =>
     set((s) => {
       s.imageNodes = {};
-      s.widgetPositions = {};
+      s.widgetNodes.clear();
       s.tetherEdges = {};
       s.viewport = { zoom: 1, pan: { x: 0, y: 0 } };
-      s.selectedNodeIds.clear();
-      s.selectedEdgeIds.clear();
       s.workspaceExpandedWidgetIds.clear();
       s.activeImageNodeId = null;
+      nextNodeCounter = 1;
+      nextEdgeCounter = 1;
     }),
 });

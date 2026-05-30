@@ -10,17 +10,11 @@ export interface CycleStack {
   cursor: number;
 }
 
-export type PendingBind =
-  | { kind: 'tool'; toolName: string }
-  | { kind: 'suggestion'; widgetId: string };
-
 export interface SelectionSlice {
   activeScope: Scope;
   hoveredScope: Scope | null;
   cycleStack: CycleStack | null;
   focusedWidgetId: string | null;
-  pendingBind: PendingBind | null;
-  cursor: { x: number; y: number } | null;
   /** Draft mask being previewed before the user commits (SAM preview, highlight_region). */
   activeMaskRef: MaskRef | null;
   /** Mask that has been committed — persists until the user discards or creates a new layer. */
@@ -32,10 +26,6 @@ export interface SelectionSlice {
   /** Select smallest mask at a point without starting a cycle (shift-click). Returns the mask id or null. */
   shiftClickAt: (imageX: number, imageY: number, candidates: string[]) => string | null;
   focusWidget: (id: string | null) => void;
-  startToolBind: (toolName: string) => void;
-  startSuggestionBind: (widgetId: string) => void;
-  updateCursor: (x: number, y: number) => void;
-  cancelBind: () => void;
   clearSelection: () => void;
   setActiveMask: (ref: MaskRef | null) => void;
   commitMask: () => void;
@@ -69,25 +59,17 @@ export const createSelectionSlice: StateCreator<
   hoveredScope: null,
   cycleStack: null,
   focusedWidgetId: null,
-  pendingBind: null,
-  cursor: null,
   activeMaskRef: null,
   committedMaskRef: null,
 
   setActiveScope: (scope) => set((s) => { s.activeScope = scope; }),
   setHoveredScope: (scope) => set((s) => { s.hoveredScope = scope; }),
   focusWidget: (id) => set((s) => { s.focusedWidgetId = id; }),
-  startToolBind: (toolName) => set((s) => { s.pendingBind = { kind: 'tool', toolName }; }),
-  startSuggestionBind: (widgetId) => set((s) => { s.pendingBind = { kind: 'suggestion', widgetId }; }),
-  updateCursor: (x, y) => set((s) => { s.cursor = { x, y }; }),
-  cancelBind: () => set((s) => { s.pendingBind = null; s.cursor = null; }),
   clearSelection: () => set((s) => {
     s.activeScope = GLOBAL_SCOPE;
     s.hoveredScope = null;
     s.cycleStack = null;
     s.focusedWidgetId = null;
-    s.pendingBind = null;
-    s.cursor = null;
   }),
   setActiveMask: (ref) => set((s) => { s.activeMaskRef = ref; }),
   commitMask: () => set((s) => {

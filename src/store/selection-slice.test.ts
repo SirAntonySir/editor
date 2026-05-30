@@ -21,22 +21,6 @@ describe('selection-slice', () => {
     expect(useEditorStore.getState().focusedWidgetId).toBe('w1');
   });
 
-  it('startToolBind sets pendingBind', () => {
-    useEditorStore.getState().startToolBind('curves');
-    expect(useEditorStore.getState().pendingBind).toEqual({ kind: 'tool', toolName: 'curves' });
-  });
-
-  it('startSuggestionBind sets pendingBind', () => {
-    useEditorStore.getState().startSuggestionBind('w_s1');
-    expect(useEditorStore.getState().pendingBind).toEqual({ kind: 'suggestion', widgetId: 'w_s1' });
-  });
-
-  it('cancelBind clears pendingBind', () => {
-    useEditorStore.getState().startToolBind('curves');
-    useEditorStore.getState().cancelBind();
-    expect(useEditorStore.getState().pendingBind).toBeNull();
-  });
-
   it('clickAt with empty candidates clears selection to global', () => {
     useEditorStore.getState().setActiveScope({ kind: 'mask', mask_id: 'm1' });
     useEditorStore.getState().clickAt(10, 10, []);
@@ -53,12 +37,10 @@ describe('selection-slice', () => {
   it('clearSelection resets everything', () => {
     useEditorStore.getState().setActiveScope({ kind: 'mask', mask_id: 'm1' });
     useEditorStore.getState().focusWidget('w1');
-    useEditorStore.getState().startToolBind('curves');
     useEditorStore.getState().setHoveredScope({ kind: 'mask:proposed', label: 'sky' });
     useEditorStore.getState().clearSelection();
     expect(useEditorStore.getState().activeScope).toEqual(GLOBAL_SCOPE);
     expect(useEditorStore.getState().focusedWidgetId).toBeNull();
-    expect(useEditorStore.getState().pendingBind).toBeNull();
     expect(useEditorStore.getState().hoveredScope).toBeNull();
   });
 });

@@ -5,7 +5,6 @@ import {
   tetherWorkspaceWidgetOnEngage,
 } from '@/lib/workspace-tether';
 import { useEditorStore } from '@/store';
-import { usePreferencesStore } from '@/store/preferences-store';
 import type { Widget } from '@/types/widget';
 
 function makeWidget(id: string, overrides: Partial<Widget> = {}): Widget {
@@ -30,29 +29,10 @@ function makeWidget(id: string, overrides: Partial<Widget> = {}): Widget {
 describe('tetherWorkspaceWidgetOnEngage', () => {
   beforeEach(() => {
     useEditorStore.getState().resetWorkspace();
-    usePreferencesStore.setState({ useWorkspaceCanvas: false });
   });
 
-  it('no-op when workspace mode is off (Fabric branch)', () => {
-    usePreferencesStore.setState({ useWorkspaceCanvas: false });
-    const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 0, y: 0 });
-    useEditorStore.getState().setActiveImageNode(nodeId);
-
-    const w = makeWidget('w_ai', {
-      origin: { kind: 'mcp_autonomous' },
-      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w_ai', layer_id: 'layer-a' }],
-    });
-    tetherWorkspaceWidgetOnEngage(w);
-
-    const editor = useEditorStore.getState();
-    expect(editor.widgetNodes[w.id]).toBeUndefined();
-    expect(Object.values(editor.tetherEdges)).toEqual([]);
-  });
-
-  it('workspace mode + no active image node → no edge created', () => {
-    usePreferencesStore.setState({ useWorkspaceCanvas: true });
+  it('no active image node → no edge created', () => {
     // No image nodes added; no activeImageNodeId.
-
     const w = makeWidget('w_ai', {
       origin: { kind: 'mcp_autonomous' },
       nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w_ai', layer_id: 'layer-missing' }],
@@ -64,8 +44,7 @@ describe('tetherWorkspaceWidgetOnEngage', () => {
     expect(Object.values(editor.tetherEdges)).toEqual([]);
   });
 
-  it('workspace mode + AI-origin widget + active node → edge + position written', () => {
-    usePreferencesStore.setState({ useWorkspaceCanvas: true });
+  it('AI-origin widget + active node → edge + position written', () => {
     const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 100, y: 50 });
     useEditorStore.getState().setActiveImageNode(nodeId);
 
@@ -87,8 +66,7 @@ describe('tetherWorkspaceWidgetOnEngage', () => {
     });
   });
 
-  it('workspace mode + mcp_user_prompt widget + active node → edge + position written', () => {
-    usePreferencesStore.setState({ useWorkspaceCanvas: true });
+  it('mcp_user_prompt widget + active node → edge + position written', () => {
     const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 0, y: 0 });
     useEditorStore.getState().setActiveImageNode(nodeId);
 
@@ -104,7 +82,6 @@ describe('tetherWorkspaceWidgetOnEngage', () => {
   });
 
   it('falls back to activeImageNodeId when widget node layer_id does not match any image node', () => {
-    usePreferencesStore.setState({ useWorkspaceCanvas: true });
     const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 0, y: 0 });
     useEditorStore.getState().setActiveImageNode(nodeId);
 
@@ -130,11 +107,9 @@ describe('tetherWorkspaceWidgetOnEngage', () => {
 describe('tetherWorkspaceWidget — origin filter (regression)', () => {
   beforeEach(() => {
     useEditorStore.getState().resetWorkspace();
-    usePreferencesStore.setState({ useWorkspaceCanvas: false });
   });
 
-  it('rejects AI-origin widgets even when workspace mode is on', () => {
-    usePreferencesStore.setState({ useWorkspaceCanvas: true });
+  it('rejects AI-origin widgets (only tool_invoked passes through)', () => {
     const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 0, y: 0 });
     useEditorStore.getState().setActiveImageNode(nodeId);
 

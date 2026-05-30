@@ -25,8 +25,6 @@ import { LevelsTool } from '@/tools/levels-tool';
 import { FiltersTool } from '@/tools/filters-tool';
 import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
 import { useBackendState } from '@/store/backend-state-slice';
-import { CursorBindGhost } from '@/components/widget/CursorBindGhost';
-import { useCursorBind } from '@/hooks/useCursorBind';
 import { Upload } from 'lucide-react';
 
 import {
@@ -133,9 +131,6 @@ function EditorContent() {
   const showPreferences = usePreferencesStore((s) => s.showPreferences);
   const toolDef = getActiveTool();
 
-  // Cursor-bind: track cursor + ESC handling while a tool/suggestion is bound.
-  useCursorBind();
-
   // ⌘K focuses the inline AskAiInput via the 'spawn-palette:open' event.
   // Disabled when the backend SSE connection is not open.
   useEffect(() => {
@@ -188,9 +183,6 @@ function EditorContent() {
       <AnimatePresence>
         {showPreferences && <PreferencesPage />}
       </AnimatePresence>
-
-      {/* Cursor-bind ghost — follows the cursor while a tool/suggestion is bound */}
-      <CursorBindGhost />
     </div>
   );
 }

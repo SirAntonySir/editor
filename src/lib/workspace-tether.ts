@@ -1,6 +1,5 @@
 import type { Widget } from '@/types/widget';
 import { useEditorStore } from '@/store';
-import { usePreferencesStore } from '@/store/preferences-store';
 import { nextSpawnPositionFor, type PlacedRect } from '@/components/workspace/workspace-layout';
 import type { TetherEdgeState } from '@/types/workspace';
 import { WIDGET_SHELL_WIDTH } from '@/components/widget/WidgetShell';
@@ -80,29 +79,23 @@ function buildTetherForWidget(widget: Widget): void {
 }
 
 /**
- * Workspace-mode side-effect: when a new tool-invoked widget appears in the
- * snapshot, position it next to the currently active ImageNode and create a
- * TetherEdge attaching it. No-op on the Fabric branch, and no-op for AI
- * widgets (those don't render in the canvas workspace until accepted via
- * the Suggestions ↗ engage flow — see {@link tetherWorkspaceWidgetOnEngage}).
+ * When a new tool-invoked widget appears in the snapshot, position it next
+ * to the currently active ImageNode and create a TetherEdge attaching it.
+ * No-op for AI widgets (those don't render in the canvas workspace until
+ * accepted via the Suggestions ↗ engage flow — see
+ * {@link tetherWorkspaceWidgetOnEngage}).
  */
 export function tetherWorkspaceWidget(widget: Widget): void {
-  if (!usePreferencesStore.getState().useWorkspaceCanvas) return;
   if (widget.origin.kind !== 'tool_invoked') return;
   buildTetherForWidget(widget);
 }
 
 /**
- * Workspace-mode side-effect for the Suggestions ↗ engage path. AI-origin
- * widgets are already in the snapshot from autonomous/user-prompt analyze,
- * but they only get a canvas footprint when the user explicitly engages.
- *
- * Bypasses the `tool_invoked` filter that {@link tetherWorkspaceWidget}
- * applies, but still gates on workspace mode being on. No-op when workspace
- * mode is off — the Fabric branch shows accepted suggestions via the
- * legacy `CanvasWidgetLayer`.
+ * Suggestions ↗ engage side-effect. AI-origin widgets are already in the
+ * snapshot from autonomous/user-prompt analyze, but they only get a canvas
+ * footprint when the user explicitly engages — at which point we tether
+ * them next to the active ImageNode.
  */
 export function tetherWorkspaceWidgetOnEngage(widget: Widget): void {
-  if (!usePreferencesStore.getState().useWorkspaceCanvas) return;
   buildTetherForWidget(widget);
 }

@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import 'fake-indexeddb/auto';
 import { useBackendState, getPersistedSessionId } from './backend-state-slice';
 import { useEditorStore } from '@/store';
-import { usePreferencesStore } from '@/store/preferences-store';
 import type { SessionStateSnapshot, StateEvent, Widget } from '@/types/widget';
 
 function makeWidget(id: string, overrides: Partial<Widget> = {}): Widget {
@@ -158,7 +157,6 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
   beforeEach(() => {
     useBackendState.getState().reset();
     useEditorStore.getState().resetWorkspace();
-    usePreferencesStore.setState({ useWorkspaceCanvas: false });
   });
 
   function fireCreated(widget: Widget, revision = 2): void {
@@ -171,20 +169,7 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
     });
   }
 
-  it('Fabric branch: no workspace state is touched', () => {
-    usePreferencesStore.setState({ useWorkspaceCanvas: false });
-    const w = makeWidget('w_tool', {
-      origin: { kind: 'tool_invoked' },
-      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w_tool', layer_id: 'layer-a' }],
-    });
-    fireCreated(w);
-    const editor = useEditorStore.getState();
-    expect(editor.widgetNodes[w.id]).toBeUndefined();
-    expect(Object.values(editor.tetherEdges)).toEqual([]);
-  });
-
-  it('Workspace branch: tool_invoked widget gets positioned + tethered to the layer\'s ImageNode', () => {
-    usePreferencesStore.setState({ useWorkspaceCanvas: true });
+  it('tool_invoked widget gets positioned + tethered to the layer\'s ImageNode', () => {
     const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 100, y: 50 });
     useEditorStore.getState().setActiveImageNode(nodeId);
 
@@ -208,8 +193,7 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
     });
   });
 
-  it('Workspace branch: AI-origin widgets are not auto-tethered', () => {
-    usePreferencesStore.setState({ useWorkspaceCanvas: true });
+  it('AI-origin widgets are not auto-tethered', () => {
     const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 0, y: 0 });
     useEditorStore.getState().setActiveImageNode(nodeId);
 
@@ -224,8 +208,7 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
     expect(Object.values(editor.tetherEdges)).toEqual([]);
   });
 
-  it('Workspace branch: falls back to activeImageNodeId when widget has no node layer_id', () => {
-    usePreferencesStore.setState({ useWorkspaceCanvas: true });
+  it('falls back to activeImageNodeId when widget has no node layer_id', () => {
     const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 0, y: 0 });
     useEditorStore.getState().setActiveImageNode(nodeId);
 
@@ -245,8 +228,7 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
     });
   });
 
-  it('Workspace branch: skips when no active image node is selectable', () => {
-    usePreferencesStore.setState({ useWorkspaceCanvas: true });
+  it('skips when no active image node is selectable', () => {
     // No image nodes, no activeImageNodeId.
     const w = makeWidget('w_tool', {
       origin: { kind: 'tool_invoked' },

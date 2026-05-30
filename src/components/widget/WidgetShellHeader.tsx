@@ -33,7 +33,14 @@ export function WidgetShellHeader({ widget, expanded, dirty, onToggle, onClose }
     <div
       role="button"
       aria-label="Toggle widget"
+      tabIndex={0}
       onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
       className="flex items-center gap-1.5 px-1.5 py-1 cursor-pointer select-none"
     >
       <span className="grip flex flex-col gap-px pr-1 opacity-55" aria-hidden>

@@ -51,7 +51,7 @@ The frontend follows a 3-tier hierarchy. **Reuse before invent.** Before writing
 - **Cross-domain primitives** (used by ≥2 topic folders) belong in `ui/`. Topic-local sub-components stay in their topic folder.
 - **Style only via design tokens** in `src/index.css` (color, radius, shadow, motion vars). No hardcoded hex or px for design values.
 - **Visual register**: see `design.md` at project root — it is authoritative for tokens, motion, and the flat overlay aesthetic.
-- **Widget-driven panels**: `ProcessingDefinition.Panel` renders for each widget returned by the backend snapshot, not for static layer state. There is no "active tool drives panel" model.
+- **Widget shell**: every active widget renders through `CanvasWidgetLayer` as a flat `.overlay` card in a calculated right-edge column on the canvas. Widgets spawn collapsed; click to expand. AI suggestions stay in the sidebar Suggestions section; clicking ↗ engages a suggestion (adds it to `acceptedSuggestions`) so it appears in the column. Baked widgets are pure `operation_graph` effects — no widget chrome.
 - **Toolrail is 6 buttons** (Light / Color / Kelvin / Curves / Levels / Filters). All disabled when `useBackendState.sseStatus !== 'open'`.
 
 **Enforcement:** `npm run check` (runs `tsc -b` + `eslint .` + the `no-nested-component` custom rule). Lint must pass before any commit; the rule is wired through pre-commit.

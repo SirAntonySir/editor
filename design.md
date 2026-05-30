@@ -192,3 +192,21 @@ When the visual language evolves:
 2. Update this file's token tables and examples.
 3. Update `CLAUDE.md` if the tier rules change.
 4. Run `npm run check` to verify nothing regressed.
+
+---
+
+## 10. Widget Shell (on-canvas right-edge dock)
+
+All active widgets render through `CanvasWidgetLayer` as floating `.overlay` cards anchored in a calculated right-edge column. The widget column starts at `photo.right + 12px` and extends down with a 5px gap between cards. Anchored widgets (`region_label` / `mask_id` / `image_point`) align their y to the anchor centroid; global widgets fill the next free slot top-down.
+
+**States.** Widgets spawn collapsed (30px title strip with grip · variant badge · intent · dirty dot · scope chip · chevron). Click the strip to expand the full card (reasoning · preview · bindings · footer with Refine · Why? · Reset · Apply).
+
+**Variant badge.** AI badge for `mcp_*`/`refine`/`repeat` origins; muted `·` chip for `tool_invoked` / `fused_expansion`.
+
+**Anchor tick.** A 9×2px accent rectangle on the photo's right edge marks the centroid y for every anchored widget. Always visible (collapsed or expanded).
+
+**Bidirectional hover.** Hovering a widget brightens the matching region overlay on the photo; hovering a region brightens the matching widget. Driven by `hoveredWidgetId` in `tool-slice`.
+
+**Lifecycle (live + Apply = bake).** Slider edits flow through the existing optimistic + `set_widget_param` path. **Apply** calls `accept_widget` and bakes the effect into `operation_graph` (the widget vanishes from the canvas). **×** dismisses (effect undone). **Reset** reverts every binding to its default. **Refine** opens an inline text input that calls `refine_widget` with the typed instruction.
+
+**Manual drag override.** Dragging the grip writes to `sessionDragOverrides` (per-session, cleared on document close). A "return to dock" affordance appears on hover when an override is active. (Drag mechanics deferred to a follow-up commit — the store + dock layout already honour overrides; the grip mouse handlers are not yet wired in v1.)

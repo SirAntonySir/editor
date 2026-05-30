@@ -76,7 +76,7 @@ export function computeDockLayout(inputs: DockInputs): DockedPosition[] {
   const { widgets, photo, candidateRegions, masksIndex, dragOverrides } = inputs;
   const columnX = photo.left + photo.width + COLUMN_X_GAP;
   const columnTop = photo.top + COLUMN_TOP_INSET;
-  const columnBottom = photo.top + photo.height + COLUMN_BOTTOM_INSET;
+  const columnBottom = photo.top + photo.height - COLUMN_BOTTOM_INSET;
 
   type Placement = { id: string; top: number; height: number };
   const placed: Placement[] = [];

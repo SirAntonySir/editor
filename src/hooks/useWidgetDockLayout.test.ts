@@ -34,6 +34,19 @@ describe('computeDockLayout · anchored', () => {
     });
     expect(out[0].isAnchored).toBe(false);
   });
+
+  it('clamps a near-bottom anchored widget so its bottom stays inside the column', () => {
+    // photo.top=100, photo.height=320 → column bottom = 100+320-24 = 396
+    // image_point y=0.95 → centroid_y = 100 + 304 = 404 (past column bottom)
+    // cardHeight=30 → uncramped top = 404 - 15 = 389
+    // top + cardHeight = 419, exceeds columnBottom (396)
+    // Clamp top = columnBottom - cardHeight = 396 - 30 = 366
+    const out = computeDockLayout({
+      widgets: [{ id: 'w-bot', anchor: { kind: 'image_point', x: 0.5, y: 0.95 }, cardHeight: 30 }],
+      photo: { left: 32, top: 100, width: 480, height: 320 },
+    });
+    expect(out[0].y).toBe(366);
+  });
 });
 
 describe('computeDockLayout · global slots', () => {

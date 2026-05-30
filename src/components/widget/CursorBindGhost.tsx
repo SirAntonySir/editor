@@ -1,3 +1,4 @@
+// Retained: used by the cursor-drop tool-spawn flow (pendingBind / startToolBind / startSuggestionBind). See App.tsx.
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { ProcessingRegistry } from '@/lib/processing-registry';

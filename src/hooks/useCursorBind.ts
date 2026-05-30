@@ -1,3 +1,4 @@
+// Retained: used by the cursor-drop tool-spawn flow (pendingBind / startToolBind / startSuggestionBind). See App.tsx.
 import { useEffect } from 'react';
 import { useEditorStore } from '@/store';
 

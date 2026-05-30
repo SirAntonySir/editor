@@ -2,7 +2,6 @@ import { useRef, useCallback, useEffect } from 'react';
 import type * as fabric from 'fabric';
 import { AnimatePresence } from 'framer-motion';
 import { EditorProvider, useEditor } from '@/components/EditorProvider';
-import { EditorCanvas, loadImageToCanvas } from '@/components/canvas/EditorCanvas';
 import { CanvasWorkspace } from '@/components/workspace/CanvasWorkspace';
 
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
@@ -56,21 +55,18 @@ CanvasToolRegistry.register(FiltersTool);
 
 /** Main canvas area */
 function MainLayout({
-  canvasRef,
   layers,
   toolDef,
   toolContext,
   activeTool,
   handleFileOpen,
 }: {
-  canvasRef: React.RefObject<fabric.Canvas | null>;
   layers: unknown[];
   toolDef: ReturnType<ReturnType<typeof useEditor>['getActiveTool']>;
   toolContext: ReturnType<typeof useEditor>['toolContext'];
   activeTool: string;
   handleFileOpen: () => void;
 }) {
-  const useWorkspace = usePreferencesStore((s) => s.useWorkspaceCanvas);
   return (
     <div className="relative flex-1 min-h-0 flex flex-row">
       <Toolbar />
@@ -80,10 +76,7 @@ function MainLayout({
         <div className="absolute inset-0">
           <CanvasContextMenu>
             <div className="absolute inset-0">
-              {useWorkspace
-                ? <CanvasWorkspace />
-                : <EditorCanvas canvasRef={canvasRef} />
-              }
+              <CanvasWorkspace />
             </div>
           </CanvasContextMenu>
         </div>
@@ -166,11 +159,11 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
     input.onchange = async () => {
       const file = input.files?.[0];
       if (file) {
-        await loadImageToCanvas(file, canvasRef.current);
+        await editorDocument.openImage(file);
       }
     };
     input.click();
-  }, [canvasRef]);
+  }, []);
 
   return (
     <div className="relative flex flex-col h-full">
@@ -185,7 +178,6 @@ function EditorContent({ canvasRef }: { canvasRef: React.RefObject<fabric.Canvas
 
       {/* Main canvas area */}
       <MainLayout
-        canvasRef={canvasRef}
         layers={layers}
         toolDef={toolDef}
         toolContext={toolContext}

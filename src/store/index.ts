@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { enableMapSet } from 'immer';
+enableMapSet();
 import { type LayerSlice, createLayerSlice } from './layer-slice';
 import { type ViewportSlice, createViewportSlice } from './viewport-slice';
 import { type ToolSlice, createToolSlice } from './tool-slice';

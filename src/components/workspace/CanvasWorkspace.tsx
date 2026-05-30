@@ -3,6 +3,7 @@ import {
   ReactFlow,
   Background,
   Controls,
+  useReactFlow,
   type Node,
   type Edge,
   type Connection,
@@ -10,6 +11,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
+import { backendTools } from '@/lib/backend-tools';
 import { ImageNode, type ImageNodeData } from './ImageNode';
 import { WidgetNode, type WidgetNodeData } from './WidgetNode';
 import { TetherEdge, type TetherEdgeType } from './TetherEdge';
@@ -17,6 +19,48 @@ import type { Widget } from '@/types/widget';
 
 const nodeTypes = { image: ImageNode, widget: WidgetNode };
 const edgeTypes = { tether: TetherEdge };
+
+/**
+ * Listens for Delete/Backspace and removes selected image nodes, widget nodes,
+ * and tether edges. Rendered as a child of `<ReactFlow>` so `useReactFlow`
+ * returns *this* flow's instance.
+ */
+function WorkspaceKeyHandler() {
+  const { getNodes, getEdges } = useReactFlow();
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+
+      const selectedNodes = getNodes().filter((n) => n.selected);
+      const selectedEdges = getEdges().filter((edge) => edge.selected);
+
+      if (selectedNodes.length === 0 && selectedEdges.length === 0) return;
+
+      const sessionId = useBackendState.getState().sessionId;
+      const { removeImageNode, unbindEdge } = useEditorStore.getState();
+
+      for (const node of selectedNodes) {
+        if (node.type === 'image') {
+          removeImageNode(node.id);
+        } else if (node.type === 'widget') {
+          if (sessionId) {
+            void backendTools.delete_widget(sessionId, { widget_id: node.id, suppress_similar: false });
+          }
+        }
+      }
+      for (const edge of selectedEdges) {
+        unbindEdge(edge.id);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [getNodes, getEdges]);
+
+  return null;
+}
 
 const EMPTY_WIDGETS: Widget[] = [];
 
@@ -117,6 +161,7 @@ export function CanvasWorkspace() {
       >
         <Background color="var(--color-separator)" gap={16} size={1} />
         <Controls showInteractive={false} />
+        <WorkspaceKeyHandler />
       </ReactFlow>
     </div>
   );

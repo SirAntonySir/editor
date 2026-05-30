@@ -37,6 +37,11 @@ export interface WorkspaceSlice {
    * whose `targetImageNodeId === sourceId` to `targetId` (scope preserved). Target keeps its id.
    */
   mergeImageNodes: (sourceId: string, targetId: string) => void;
+  /**
+   * Delete an image node by id. Cascades: any tether edge whose `targetImageNodeId === id`
+   * is removed. Clears `activeImageNodeId` if it matched.
+   */
+  removeImageNode: (id: string) => void;
   setNodePosition: (id: string, position: Point) => void;
   /** Creates the entry if it does not yet exist. */
   setWidgetPosition: (id: string, position: Point) => void;
@@ -115,6 +120,22 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       delete state.imageNodes[sourceId];
     });
   },
+
+  removeImageNode: (id) =>
+    set((state) => {
+      if (!state.imageNodes[id]) return;
+      delete state.imageNodes[id];
+      // Cascade: remove tether edges pointing at this node.
+      for (const edgeId of Object.keys(state.tetherEdges)) {
+        if (state.tetherEdges[edgeId].targetImageNodeId === id) {
+          delete state.tetherEdges[edgeId];
+        }
+      }
+      // Clear active mirror if it was this node.
+      if (state.activeImageNodeId === id) {
+        state.activeImageNodeId = null;
+      }
+    }),
 
   setNodePosition: (id, position) =>
     set((state) => {

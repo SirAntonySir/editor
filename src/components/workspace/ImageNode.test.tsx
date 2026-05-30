@@ -1,7 +1,9 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ImageNode } from './ImageNode';
 import { ReactFlowProvider } from '@xyflow/react';
+import { useEditorStore } from '@/store';
 
 afterEach(cleanup);
 
@@ -39,5 +41,69 @@ describe('ImageNode', () => {
     // Walk up to find the nearest .overlay ancestor and assert the button is NOT inside it.
     const overlay = btn.closest('.overlay');
     expect(overlay).toBeNull();
+  });
+
+  describe('dropdown menu', () => {
+    beforeEach(() => {
+      useEditorStore.getState().resetWorkspace();
+    });
+
+    it('marks the trigger as a menu opener (aria-haspopup="menu")', () => {
+      renderInFlow(
+        <ImageNode id="in-1" data={{ ...baseData, layerIds: ['l-1', 'l-2'], name: 'Sky' }} selected />,
+      );
+      const trigger = screen.getByLabelText('Split or merge');
+      // Radix DropdownMenu.Trigger sets these.
+      expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+      expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    it('opens the menu when the Split-or-merge trigger is keyboard-activated', async () => {
+      const user = userEvent.setup();
+      renderInFlow(
+        <ImageNode id="in-1" data={{ ...baseData, layerIds: ['l-1', 'l-2'], name: 'Sky' }} selected />,
+      );
+      const trigger = screen.getByLabelText('Split or merge');
+      // Radix DropdownMenu's Trigger reliably opens via keyboard activation under jsdom.
+      trigger.focus();
+      await user.keyboard('{Enter}');
+      expect(screen.getByRole('menuitem', { name: /Split last layer/i })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: /^Delete$/i })).toBeInTheDocument();
+    });
+
+    it('Delete menu item removes the node from the store', async () => {
+      const user = userEvent.setup();
+      const id = useEditorStore.getState().addImageNode(['l-1']);
+      expect(useEditorStore.getState().imageNodes[id]).toBeDefined();
+      renderInFlow(
+        <ImageNode id={id} data={{ ...baseData, layerIds: ['l-1'], name: 'Sky' }} selected />,
+      );
+      const trigger = screen.getByLabelText('Split or merge');
+      trigger.focus();
+      await user.keyboard('{Enter}');
+      const deleteItem = screen.getByRole('menuitem', { name: /^Delete$/i });
+      deleteItem.focus();
+      await user.keyboard('{Enter}');
+      expect(useEditorStore.getState().imageNodes[id]).toBeUndefined();
+    });
+
+    it('Split last layer menu item peels the last layer onto a new node', async () => {
+      const user = userEvent.setup();
+      const id = useEditorStore.getState().addImageNode(['L1', 'L2', 'L3']);
+      renderInFlow(
+        <ImageNode id={id} data={{ ...baseData, layerIds: ['L1', 'L2', 'L3'], name: 'Sky' }} selected />,
+      );
+      const trigger = screen.getByLabelText('Split or merge');
+      trigger.focus();
+      await user.keyboard('{Enter}');
+      const splitItem = screen.getByRole('menuitem', { name: /Split last layer/i });
+      splitItem.focus();
+      await user.keyboard('{Enter}');
+      const after = useEditorStore.getState();
+      expect(after.imageNodes[id].layerIds).toEqual(['L1', 'L2']);
+      // A new node with the peeled layer should exist.
+      const peeled = Object.values(after.imageNodes).find((n) => n.id !== id);
+      expect(peeled?.layerIds).toEqual(['L3']);
+    });
   });
 });

@@ -1,7 +1,13 @@
-import { describe, it, expect, afterEach, beforeEach } from 'vitest';
-import { cleanup, render } from '@testing-library/react';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
+import { cleanup, render, fireEvent } from '@testing-library/react';
 import { CanvasWorkspace } from './CanvasWorkspace';
 import { useEditorStore } from '@/store';
+
+vi.mock('@/lib/backend-tools', () => ({
+  backendTools: {
+    delete_widget: vi.fn(),
+  },
+}));
 
 beforeEach(() => {
   useEditorStore.getState().resetWorkspace();
@@ -23,6 +29,27 @@ describe('CanvasWorkspace', () => {
     const id = useEditorStore.getState().addImageNode(['l-1'], { x: 50, y: 50 });
     render(<CanvasWorkspace />);
     expect(document.querySelector(`[data-id="${id}"]`)).toBeTruthy();
+  });
+
+  it('Delete key ignores keypresses originating from form inputs', async () => {
+    const id = useEditorStore.getState().addImageNode(['l-1'], { x: 50, y: 50 });
+    render(<CanvasWorkspace />);
+    await new Promise((r) => setTimeout(r, 0));
+    // Simulate a keypress whose target is an input — handler must early-out.
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    fireEvent.keyDown(input, { key: 'Delete' });
+    expect(useEditorStore.getState().imageNodes[id]).toBeDefined();
+    document.body.removeChild(input);
+  });
+
+  it('Delete key without selected nodes/edges is a no-op', async () => {
+    const id = useEditorStore.getState().addImageNode(['l-1'], { x: 50, y: 50 });
+    render(<CanvasWorkspace />);
+    await new Promise((r) => setTimeout(r, 0));
+    fireEvent.keyDown(window, { key: 'Delete' });
+    // Node still present because nothing was selected in React Flow's state.
+    expect(useEditorStore.getState().imageNodes[id]).toBeDefined();
   });
 
   it('auto-creates an ImageNode from current layers when none exist', async () => {

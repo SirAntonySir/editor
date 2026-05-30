@@ -1,7 +1,9 @@
 import { Image, Split, MoreHorizontal } from 'lucide-react';
 import { Handle, Position } from '@xyflow/react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { ImageNodeBody } from './ImageNodeBody';
 import { ImageNodeSelectionPopover } from './ImageNodeSelectionPopover';
+import { useEditorStore } from '@/store';
 
 export interface ImageNodeData extends Record<string, unknown> {
   name?: string;
@@ -19,6 +21,18 @@ interface ImageNodeProps {
 export function ImageNode({ id, data, selected }: ImageNodeProps) {
   const stacked = data.layerIds.length > 1;
   const showStrip = stacked && selected;
+  const canSplit = data.layerIds.length >= 2;
+
+  function handleSplit() {
+    if (!canSplit) return;
+    const lastLayerId = data.layerIds[data.layerIds.length - 1];
+    useEditorStore.getState().splitImageNode(id, lastLayerId);
+  }
+
+  function handleDelete() {
+    useEditorStore.getState().removeImageNode(id);
+  }
+
   return (
     <div className="relative" style={{ width: data.size.w + 2 /* outer border */ }}>
       <div
@@ -59,14 +73,39 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
         )}
       </div>
       {selected && (
-        <button
-          type="button"
-          aria-label="Split or merge"
-          onClick={() => { /* TODO(T15): split/merge action */ }}
-          className="absolute -top-2 -right-2 w-[18px] h-[18px] rounded-full bg-surface border border-border-strong shadow-[0_2px_6px_rgba(0,0,0,0.06)] flex items-center justify-center text-text-secondary"
-        >
-          <Split size={10} aria-hidden />
-        </button>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild>
+            <button
+              type="button"
+              aria-label="Split or merge"
+              className="absolute -top-2 -right-2 w-[18px] h-[18px] rounded-full bg-surface border border-border-strong shadow-[0_2px_6px_rgba(0,0,0,0.06)] flex items-center justify-center text-text-secondary"
+            >
+              <Split size={10} aria-hidden />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content className="overlay p-1 min-w-[140px] z-50" sideOffset={4} align="end">
+              <DropdownMenu.Item
+                className={`px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none
+                  ${canSplit
+                    ? 'text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary'
+                    : 'text-text-tertiary cursor-not-allowed'
+                  }`}
+                disabled={!canSplit}
+                onSelect={handleSplit}
+              >
+                Split last layer
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none
+                  text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary"
+                onSelect={handleDelete}
+              >
+                Delete
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
       )}
       <Handle type="source" position={Position.Left} id="tether-out" style={{ opacity: 0 }} />
       <Handle type="target" position={Position.Right} id="tether-in" style={{ opacity: 0 }} />

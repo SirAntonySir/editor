@@ -106,6 +106,54 @@ describe('workspace-slice', () => {
     expect(after.tetherEdges['te-b'].scope).toEqual({ kind: 'layer', layerId: 'L2' });
   });
 
+  it('removeImageNode removes the node', () => {
+    const s = useEditorStore.getState();
+    const a = s.addImageNode(['L1']);
+    s.removeImageNode(a);
+    expect(useEditorStore.getState().imageNodes[a]).toBeUndefined();
+  });
+
+  it('removeImageNode cascades to tether edges targeting the removed node, leaves others', () => {
+    const s = useEditorStore.getState();
+    const a = s.addImageNode(['L1']);
+    const b = s.addImageNode(['L2']);
+    s.setEdge({
+      id: 'te-on-a',
+      widgetNodeId: 'w1',
+      targetImageNodeId: a,
+      scope: { kind: 'node' },
+    });
+    s.setEdge({
+      id: 'te-on-b',
+      widgetNodeId: 'w2',
+      targetImageNodeId: b,
+      scope: { kind: 'node' },
+    });
+    s.removeImageNode(a);
+    const after = useEditorStore.getState();
+    expect(after.tetherEdges['te-on-a']).toBeUndefined();
+    expect(after.tetherEdges['te-on-b']).toBeDefined();
+    expect(after.tetherEdges['te-on-b'].targetImageNodeId).toBe(b);
+  });
+
+  it('removeImageNode clears activeImageNodeId if it matched', () => {
+    const s = useEditorStore.getState();
+    const a = s.addImageNode(['L1']);
+    s.setActiveImageNode(a);
+    expect(useEditorStore.getState().activeImageNodeId).toBe(a);
+    s.removeImageNode(a);
+    expect(useEditorStore.getState().activeImageNodeId).toBeNull();
+  });
+
+  it('removeImageNode does not clear activeImageNodeId when it was a different node', () => {
+    const s = useEditorStore.getState();
+    const a = s.addImageNode(['L1']);
+    const b = s.addImageNode(['L2']);
+    s.setActiveImageNode(b);
+    s.removeImageNode(a);
+    expect(useEditorStore.getState().activeImageNodeId).toBe(b);
+  });
+
   it('setEdge inserts an edge by caller-supplied id', () => {
     const s = useEditorStore.getState();
     const img = s.addImageNode(['l-1']);

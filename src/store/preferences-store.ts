@@ -69,7 +69,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       rightSidebarCollapsed: false,
       rightSidebarWidth: 264,
       rightSidebarTab: 'inspector',
-      useWorkspaceCanvas: false,
+      useWorkspaceCanvas: true,
 
       setThemeMode: (mode) => set({ themeMode: mode }),
       setAccentColor: (color) => set({ accentColor: color }),

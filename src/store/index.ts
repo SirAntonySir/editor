@@ -9,13 +9,15 @@ import { type ToolSlice, createToolSlice } from './tool-slice';
 import { type DocumentSlice, createDocumentSlice } from './document-slice';
 import { type SegmentationSlice, createSegmentationSlice } from './segmentation-slice';
 import { type SelectionSlice, createSelectionSlice } from './selection-slice';
+import { type WorkspaceSlice, createWorkspaceSlice } from './workspace-slice';
 
 export type EditorState = LayerSlice &
   ViewportSlice &
   ToolSlice &
   DocumentSlice &
   SegmentationSlice &
-  SelectionSlice;
+  SelectionSlice &
+  WorkspaceSlice;
 
 export const useEditorStore = create<EditorState>()(
   devtools(
@@ -26,6 +28,7 @@ export const useEditorStore = create<EditorState>()(
       ...createDocumentSlice(set as never, get as never, store as never),
       ...createSegmentationSlice(set as never, get as never, store as never),
       ...createSelectionSlice(set as never, get as never, store as never),
+      ...createWorkspaceSlice(set as never, get as never, store as never),
     }))
   )
 );

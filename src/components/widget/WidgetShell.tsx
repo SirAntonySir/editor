@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Widget, MaskSummary } from '@/types/widget';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
@@ -29,17 +29,21 @@ export function WidgetShell({ widget }: WidgetShellProps) {
   const [refineOpen, setRefineOpen] = useState(false);
   const [refinePending, setRefinePending] = useState(false);
 
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
   const hovered = hoveredWidgetId === widget.id;
 
+  const widgetPatch = optimistic.get(widget.id);
   // dirty: any binding diverges from default (optimistic-aware)
   const dirty = widget.bindings.some((b) => {
-    const patch = optimistic.get(widget.id)?.bindings.find((p) => p.paramKey === b.param_key);
+    const patch = widgetPatch?.bindings.find((p) => p.paramKey === b.param_key);
     const effective = patch ? patch.value : b.value;
     return effective !== b.default;
   });
 
   function setParam(paramKey: string, value: Widget['bindings'][number]['value']) {
-    if (!sessionId) return;
+    if (!sessionId || offline) return;
     void backendTools.set_widget_param(sessionId, { widget_id: widget.id, param_key: paramKey, value });
   }
 
@@ -49,7 +53,7 @@ export function WidgetShell({ widget }: WidgetShellProps) {
   }
 
   function handleClose() {
-    if (!sessionId) return;
+    if (!sessionId || offline) return;
     void backendTools.delete_widget(sessionId, { widget_id: widget.id, suppress_similar: false });
   }
 
@@ -58,18 +62,19 @@ export function WidgetShell({ widget }: WidgetShellProps) {
   }
 
   function handleRefineSubmit(instruction: string) {
-    if (!sessionId) return;
+    if (!sessionId || offline) return;
     setRefinePending(true);
     void backendTools
       .refine_widget(sessionId, { widget_id: widget.id, instruction, edits: [], additions: [] })
       .finally(() => {
+        if (!mountedRef.current) return;
         setRefinePending(false);
         setRefineOpen(false);
       });
   }
 
   function effectiveValue(b: Widget['bindings'][number]) {
-    const patch = optimistic.get(widget.id)?.bindings.find((p) => p.paramKey === b.param_key);
+    const patch = widgetPatch?.bindings.find((p) => p.paramKey === b.param_key);
     return patch ? patch.value : b.value;
   }
 

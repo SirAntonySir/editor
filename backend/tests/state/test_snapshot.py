@@ -37,6 +37,8 @@ def _widget(wid: str) -> Widget:
 
 def test_snapshot_carries_widgets_and_projection() -> None:
     doc = SessionDocument(session_id="s1")
+    # Seed canonical so the projected op_graph has a node
+    doc.set_param("legacy", "kelvin", "temperature", 6500)
     doc.add_widget(_widget("w_1"))
     snap = compute_snapshot(doc)
     assert isinstance(snap, SessionStateSnapshot)

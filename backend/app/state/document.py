@@ -13,6 +13,7 @@ from app.schemas.widget import (
     StateEvent,
     Widget,
 )
+from app.state.canonical import Canonical, set_param_value
 
 
 class SessionDocument(BaseModel):
@@ -29,6 +30,7 @@ class SessionDocument(BaseModel):
     masks: dict[str, MaskRecord] = Field(default_factory=dict)
     active_mask_id: str | None = None
     committed_mask_id: str | None = None
+    canonical: Canonical = Field(default_factory=dict)
     widgets: dict[str, Widget] = Field(default_factory=dict)
     widget_order: list[str] = Field(default_factory=list)
     dismissals: list[DismissalRule] = Field(default_factory=list)
@@ -138,6 +140,14 @@ class SessionDocument(BaseModel):
         w.updated_at = datetime.now(timezone.utc)
         return [self._emit("widget.accepted", {
             "widget_id": widget_id,
+            "operation_graph": self._op_graph_payload(),
+        })]
+
+    def set_param(self, layer_id: str, op: str, param: str, value: Any) -> list[StateEvent]:
+        """Canonical write: the single source the op_graph projects from."""
+        set_param_value(self.canonical, layer_id, op, param, value)
+        return [self._emit("canonical.updated", {
+            "layer_id": layer_id, "op": op, "param": param, "value": value,
             "operation_graph": self._op_graph_payload(),
         })]
 

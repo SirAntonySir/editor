@@ -25,7 +25,7 @@ class Node(BaseModel):
     inputs: list[str] = Field(default_factory=list)  # node IDs
     layer_id: str  # which frontend layer this node renders into
     layer_ids: list[str] | None = None  # populated for image_node-scope nodes
-    widget_id: str  # originating Widget id (for delete_widget cleanup)
+    widget_id: str | None = None  # originating Widget id (for delete_widget cleanup); None for canonical nodes
 
 
 class PanelBinding(BaseModel):

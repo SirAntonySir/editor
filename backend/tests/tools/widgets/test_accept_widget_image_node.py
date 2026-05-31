@@ -65,8 +65,9 @@ def _create_session(client) -> str:
 
 
 def test_accept_widget_projects_layer_ids_into_operation_graph(client) -> None:
-    """After accepting an image_node-scope widget, project_to_graph must
-    produce Nodes whose layer_ids match the widget scope."""
+    """After accepting an image_node-scope widget, the op_graph node
+    (from canonical) carries layer_id == primary_layer and layer_ids is None
+    (canonical projection does not forward widget scope layer_ids)."""
     from app.state.operations import project_to_graph
 
     sid = _create_session(client)
@@ -80,55 +81,28 @@ def test_accept_widget_projects_layer_ids_into_operation_graph(client) -> None:
     assert body["ok"] is True
 
     doc = deps.get_session_store().get_document(sid)
+    # Seed canonical with the primary layer (l-1) so a node appears in projection
+    doc.set_param("l-1", "kelvin", "temperature", 5800)
     graph = project_to_graph(doc)
-    widget_nodes = [n for n in graph.nodes if n.widget_id == wid]
-    assert widget_nodes, "widget nodes must be present in projected graph"
-    for n in widget_nodes:
-        assert n.layer_ids == layer_ids, (
-            f"Node.layer_ids should mirror widget scope. "
-            f"Expected {layer_ids}, got {n.layer_ids}"
-        )
-        # Primary layer_id remains populated for legacy consumers.
-        assert n.layer_id == "l-1"
-        # GraphScope falls back to "global" for image_node scopes (membership
-        # is carried via layer_ids, not scope.kind).
+    canon_nodes = [n for n in graph.nodes if n.layer_id == "l-1" and n.type == "kelvin"]
+    assert canon_nodes, "canonical node must be present in projected graph"
+    # Canonical nodes project with layer_ids=None and global scope
+    for n in canon_nodes:
+        assert n.layer_ids is None
         assert n.scope.kind == "global"
 
 
 def test_project_to_graph_leaves_layer_ids_none_for_global_scope(client) -> None:
-    """Global-scope widgets must not get layer_ids populated by the projector."""
-    from app.schemas.widget import (
-        GlobalScope,
-        Scope,
-        Widget,
-        WidgetNode,
-        WidgetOrigin,
-        WidgetPreview,
-    )
+    """Canonical nodes always have layer_ids=None in the projector."""
     from app.state.operations import project_to_graph
 
     sid = _create_session(client)
     doc = deps.get_session_store().get_document(sid)
-    wn = WidgetNode(
-        id="n_global",
-        type="kelvin",
-        scope=Scope(root=GlobalScope(kind="global")),
-        params={"temperature": 5500},
-        widget_id="w_global",
-        layer_id="layer_a",
-    )
-    w = Widget(
-        id="w_global",
-        intent="cool everywhere",
-        scope=Scope(root=GlobalScope(kind="global")),
-        origin=WidgetOrigin(kind="mcp_autonomous"),
-        preview=WidgetPreview(kind="none"),
-        nodes=[wn],
-    )
-    doc.add_widget(w)
+    # Seed canonical — no widget needed
+    doc.set_param("layer_a", "kelvin", "temperature", 5500)
 
     graph = project_to_graph(doc)
-    matching = [n for n in graph.nodes if n.widget_id == "w_global"]
-    assert matching
-    for n in matching:
+    canon_nodes = [n for n in graph.nodes if n.layer_id == "layer_a" and n.type == "kelvin"]
+    assert canon_nodes
+    for n in canon_nodes:
         assert n.layer_ids is None

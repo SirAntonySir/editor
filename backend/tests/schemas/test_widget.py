@@ -257,5 +257,6 @@ def test_state_event_kinds() -> None:
         "context.updated", "dismissal.added",
         "note.created",
         "phase.started", "phase.progress", "phase.completed",
+        "canonical.updated",
     }
     assert set(StateEventKind.__args__) == expected

@@ -103,16 +103,22 @@ def test_accept_widget_keeps_widget_in_doc(client) -> None:
 
 
 def test_accept_widget_keeps_nodes_in_operation_graph(client) -> None:
-    """accept_widget MUST keep the widget's nodes in the projected operation_graph."""
+    """accept_widget MUST keep the canonical nodes in the projected operation_graph.
+    Nodes come from canonical, not from the widget — seed canonical before testing."""
     from app.state.operations import project_to_graph
 
     sid = _create_session(client)
     wid = _push_widget(sid)
 
     doc = deps.get_session_store().get_document(sid)
+    # Seed canonical to match the widget's node (layer_id="layer_01", op="kelvin")
+    doc.set_param("layer_01", "kelvin", "temperature", 5800)
+
     graph_before = project_to_graph(doc)
-    node_ids_before = {n.id for n in graph_before.nodes if n.widget_id == wid}
-    assert node_ids_before, "test prerequisite: widget must have op_graph nodes before accept"
+    canon_node_id = "canon:layer_01:kelvin"
+    assert any(n.id == canon_node_id for n in graph_before.nodes), (
+        "test prerequisite: canonical node must appear in op_graph before accept"
+    )
 
     client.post(
         "/api/tools/accept_widget",
@@ -120,8 +126,6 @@ def test_accept_widget_keeps_nodes_in_operation_graph(client) -> None:
     )
 
     graph_after = project_to_graph(doc)
-    node_ids_after = {n.id for n in graph_after.nodes if n.widget_id == wid}
-    assert node_ids_after == node_ids_before, (
-        f"accept_widget must keep widget nodes in operation_graph. "
-        f"Before: {node_ids_before}, After: {node_ids_after}"
+    assert any(n.id == canon_node_id for n in graph_after.nodes), (
+        "accept_widget must not remove canonical nodes from operation_graph"
     )

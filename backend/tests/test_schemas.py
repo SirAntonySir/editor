@@ -93,15 +93,15 @@ def test_node_layer_id_required():
         )  # missing layer_id
 
 
-def test_node_widget_id_required():
-    import pytest
-    from pydantic import ValidationError
-    with pytest.raises(ValidationError):
-        Node(
-            id="n1",
-            type="curves",
-            scope={"kind": "global"},
-            params={},
-            inputs=[],
-            layer_id="layer_a",
-        )  # missing widget_id
+def test_node_widget_id_optional():
+    # widget_id is None for canonical-projected nodes (one slot per (layer, op),
+    # no originating widget).  The schema must accept omission without error.
+    node = Node(
+        id="n1",
+        type="curves",
+        scope={"kind": "global"},
+        params={},
+        inputs=[],
+        layer_id="layer_a",
+    )
+    assert node.widget_id is None

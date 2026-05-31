@@ -193,5 +193,8 @@ class ProposeWidgetTool(BackendTool[_Input, _Output]):
             status="active",
             revision=1,
         )
+        for nd in nodes:
+            for pkey, pval in nd.params.items():
+                doc.set_param(nd.layer_id, nd.type, pkey, pval)
         doc.add_widget(widget)
         return _Output(widget=widget.model_dump(mode="json"))

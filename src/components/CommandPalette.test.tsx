@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, cleanup, act } from '@testing-library/react';
+import { render, screen, cleanup, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CommandPalette } from './CommandPalette';
 import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
@@ -8,6 +8,8 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { LightTool } from '@/tools/light-tool';
 import { CurvesTool } from '@/tools/curves-tool';
 import { toast } from '@/components/ui/Toast';
+import { spawnToolWidget } from '@/lib/toolrail-spawn';
+import { proposeFromPalette } from '@/lib/palette-actions';
 
 vi.mock('@/lib/toolrail-spawn', () => ({ spawnToolWidget: vi.fn(() => true) }));
 vi.mock('@/lib/palette-actions', () => ({ proposeFromPalette: vi.fn().mockResolvedValue(undefined) }));
@@ -52,5 +54,34 @@ describe('CommandPalette open + gating', () => {
     await userEvent.type(screen.getByPlaceholderText(/search tools/i), 'cur');
     expect(screen.getByText('Curves')).toBeDefined();
     expect(screen.queryByText('Light')).toBeNull();
+  });
+});
+
+describe('CommandPalette execution', () => {
+  it('runs the highlighted tool with Enter and closes', async () => {
+    useEditorStore.getState().addImageNode(['l1']);
+    render(<CommandPalette />);
+    open();
+    await userEvent.type(screen.getByPlaceholderText(/search tools/i), 'light{Enter}');
+    expect(spawnToolWidget).toHaveBeenCalledWith('light');
+    await waitFor(() => expect(screen.queryByPlaceholderText(/search tools/i)).toBeNull());
+  });
+
+  it('clicking a tool row spawns it', async () => {
+    useEditorStore.getState().addImageNode(['l1']);
+    render(<CommandPalette />);
+    open();
+    await userEvent.click(screen.getByText('Curves'));
+    expect(spawnToolWidget).toHaveBeenCalledWith('curves');
+  });
+
+  it('Cmd+Enter sends the query to the AI', async () => {
+    useEditorStore.getState().addImageNode(['l1']);
+    render(<CommandPalette />);
+    open();
+    const input = screen.getByPlaceholderText(/search tools/i);
+    await userEvent.type(input, 'make it warmer');
+    await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
+    expect(proposeFromPalette).toHaveBeenCalledWith('make it warmer', expect.objectContaining({ kind: 'global' }));
   });
 });

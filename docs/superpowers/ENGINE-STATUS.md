@@ -21,6 +21,12 @@ _Compact reference for the canonical-engine + accordion program. Last updated 20
 - **Phase 3 Slice 2 — route fused/autonomous into canonical.** `add_widget` seeds canonical
   centrally from a widget's nodes, so ALL creation paths (tool_invoked, fused/LLM, autonomous)
   project after the Slice-1 switch. Projection source is canonical, not `widget.nodes`.
+- **Phase 3 Slice 3 — widget-less writes + accept/close semantics.** New `set_param` REST tool
+  (`/api/tools/set_param`, `layer_id/op/param/value`) writes canonical with no widget — the
+  accordion's direct edit path. `delete_widget` (close ×) now resets the param keys the widget
+  owns (`clear_param_value`, prunes emptied slots); `restore_widget` re-seeds them.
+  `accept_widget` unchanged — canonical already persists (Apply keeps the value, drops the
+  view). Seeding/resetting factored into `_seed_canonical_from_widget` / `_reset_canonical_from_widget`.
 
 ## Specs (designs)
 
@@ -33,12 +39,14 @@ _Compact reference for the canonical-engine + accordion program. Last updated 20
 ## Roadmap (remaining — sequential)
 
 1. ~~Route fused/autonomous creation into canonical.~~ **DONE (Slice 2).**
-2. **Frontend canonical hooks.** A read selector over `op_graph` canonical nodes + a
-   `set_param(layer, op, param, value)` setter the views call (the canvas widget already routes
-   via `set_widget_param`; accordion will use the same canonical path).
-3. **Remove `Widget.nodes` (thin views).** Widgets stop owning params; bindings reference
+2. ~~Widget-less `set_param` + accept/close canonical semantics (backend).~~ **DONE (Slice 3).**
+3. **Frontend canonical hooks.** A read selector over `op_graph` canonical nodes + a
+   `setParam(layer, op, param, value)` caller hitting `/api/tools/set_param`. The canvas widget
+   already routes via `set_widget_param`; the accordion uses the new widget-less path. Wire the
+   ↗ promote + accept(Apply)/close(×) buttons to `accept_widget` / `delete_widget`.
+4. **Remove `Widget.nodes` (thin views).** Widgets stop owning params; bindings reference
    `(layer, op, param)` canonical slots. Cleanup of the now-redundant node ownership.
-4. **Adjustments Accordion.** Build the accordion (per the spec) over the canonical state.
+5. **Adjustments Accordion.** Build the accordion (per the spec) over the canonical state.
 
 ## Refined model (decided after Slice 2)
 
@@ -50,9 +58,10 @@ _Compact reference for the canonical-engine + accordion program. Last updated 20
 - **accept vs close:** `accept` (Apply) → canonical value STAYS, widget (view) goes (commit).
   `close` (×) → canonical value RESETS, widget goes (discard). Note: reset only the param
   keys that widget/section owns, not the whole shared (layer,op) slot.
-- **Implied next backend work:** a widget-less `set_param` tool/endpoint; make
-  `accept_widget` drop the widget but keep canonical; make `close/delete_widget` reset the
-  owned canonical params + drop the widget.
+- **Backend for this model: DONE (Slice 3).** `set_param` tool ships; `delete_widget` resets
+  owned canonical; `accept_widget` keeps canonical. The remaining "drop the widget view" on
+  accept is a **frontend** rendering concern (don't render `accepted` widgets as canvas shells);
+  backend keeps the record so panel_bindings/history stay intact.
 
 ## Open decisions / behavior flags (from Slice 1)
 

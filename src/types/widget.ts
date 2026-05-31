@@ -9,7 +9,8 @@ export type ControlType =
   | 'choice'
   | 'color'
   | 'region_picker'
-  | 'mask_thumbnail';
+  | 'mask_thumbnail'
+  | 'curve';
 
 export interface SliderSchema {
   control_type: 'slider';
@@ -43,15 +44,28 @@ export interface MaskThumbnailSchema {
   control_type: 'mask_thumbnail';
 }
 
+export interface CurveSchema {
+  control_type: 'curve';
+  min_points?: number;
+  max_points?: number;
+}
+
 export type ControlSchema =
   | SliderSchema
   | ToggleSchema
   | ChoiceSchema
   | ColorSchema
   | RegionPickerSchema
-  | MaskThumbnailSchema;
+  | MaskThumbnailSchema
+  | CurveSchema;
 
-export type ControlValue = number | string | boolean;
+// Curve value model lives in its own leaf module (cycle-free); re-exported here
+// so existing `@/types/widget` imports keep working.
+import type { CurvesValue } from './curve';
+export type { CurvePoint, CurvesValue } from './curve';
+export { IDENTITY_CURVES } from './curve';
+
+export type ControlValue = number | string | boolean | CurvesValue;
 
 export interface NodeParamTarget {
   node_id: string;
@@ -69,7 +83,7 @@ export interface ControlBinding {
   reasoning?: string;
 }
 
-export type ParamValue = number | string | boolean;
+export type ParamValue = number | string | boolean | CurvesValue;
 
 export interface WidgetNode {
   id: string;

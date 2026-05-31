@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { enableMapSet } from 'immer';
 import type {
+  ControlValue,
   SessionStateSnapshot,
   StateEvent,
   Widget,
@@ -28,7 +29,8 @@ export function getPersistedSessionId(): string | null {
 type WidgetId = string;
 
 export interface OptimisticPatch {
-  bindings: { paramKey: string; value: number | string | boolean }[];
+  // value mirrors ControlValue: scalars, or a CurvesValue for live curve-editor preview.
+  bindings: { paramKey: string; value: ControlValue }[];
   baseRevision: number;
 }
 

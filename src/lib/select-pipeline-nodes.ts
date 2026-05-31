@@ -1,4 +1,5 @@
 import type { Node } from '@/types/operation-graph';
+import type { CurvesValue } from '@/types/curve';
 import type { OptimisticPatch } from '@/store/backend-state-slice';
 import { useBackendState } from '@/store/backend-state-slice';
 
@@ -32,7 +33,7 @@ export function mergeOptimistic(
   if (!snap) return nodes;
 
   // Build a lookup: node_id -> { param_key -> value }
-  const overrides = new Map<string, Record<string, number | string | boolean>>();
+  const overrides = new Map<string, Record<string, number | string | boolean | CurvesValue>>();
   for (const [widgetId, patch] of optimistic) {
     const widget = snap.widgets.find((w) => w.id === widgetId);
     if (!widget) continue;

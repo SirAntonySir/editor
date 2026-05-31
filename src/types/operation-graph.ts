@@ -1,11 +1,13 @@
 import type { Scope } from './scope';
+import type { CurvesValue } from './curve';
 export type { Scope, MaskRef } from './scope';
 
 export interface Node {
   id: string;
   type: string;
   scope: Scope;
-  params: Record<string, number | string | boolean>;
+  // CurvesValue lets a curves node carry its per-channel control points.
+  params: Record<string, number | string | boolean | CurvesValue>;
   inputs: string[];
   layer_id?: string;
   layer_ids?: string[];  // node-scope: applied to composite of these layers

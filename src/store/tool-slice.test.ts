@@ -41,4 +41,12 @@ describe('tool-slice · widget shell state', () => {
     s.setHoveredWidget(null);
     expect(useEditorStore.getState().hoveredWidgetId).toBeNull();
   });
+
+  it('toggleSectionExpanded adds then removes a section id', () => {
+    const { toggleSectionExpanded } = useEditorStore.getState();
+    toggleSectionExpanded('light');
+    expect(useEditorStore.getState().expandedSectionIds.has('light')).toBe(true);
+    toggleSectionExpanded('light');
+    expect(useEditorStore.getState().expandedSectionIds.has('light')).toBe(false);
+  });
 });

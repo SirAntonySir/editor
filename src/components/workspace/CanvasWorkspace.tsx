@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useCallback, useState } from 'react';
 import {
   ReactFlow,
   Background,
   Controls,
   useReactFlow,
+  applyNodeChanges,
   type Node,
   type Edge,
+  type NodeChange,
   type Connection,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -16,18 +18,20 @@ import { editorDocument } from '@/core/document';
 import { ImageNode, type ImageNodeData } from './ImageNode';
 import { WidgetNode, type WidgetNodeData } from './WidgetNode';
 import { TetherEdge, type TetherEdgeType } from './TetherEdge';
+import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
 import type { Widget } from '@/types/widget';
 
 const nodeTypes = { image: ImageNode, widget: WidgetNode };
 const edgeTypes = { tether: TetherEdge };
 
 /**
- * Listens for Delete/Backspace and removes selected image nodes, widget nodes,
- * and tether edges. Rendered as a child of `<ReactFlow>` so `useReactFlow`
- * returns *this* flow's instance.
+ * Listens for Delete/Backspace and removes selected image and widget nodes.
+ * Edges are auto-derived from active widgets (see CanvasWorkspace) and
+ * therefore not user-deletable. Rendered as a child of `<ReactFlow>` so
+ * `useReactFlow` returns *this* flow's instance.
  */
 function WorkspaceKeyHandler() {
-  const { getNodes, getEdges, getZoom, zoomTo, zoomIn, zoomOut, fitView } = useReactFlow();
+  const { getNodes, getZoom, zoomTo, zoomIn, zoomOut, fitView } = useReactFlow();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -36,9 +40,7 @@ function WorkspaceKeyHandler() {
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
 
       const selectedNodes = getNodes().filter((n) => n.selected);
-      const selectedEdges = getEdges().filter((edge) => edge.selected);
-
-      if (selectedNodes.length === 0 && selectedEdges.length === 0) return;
+      if (selectedNodes.length === 0) return;
 
       const sessionId = useBackendState.getState().sessionId;
 
@@ -53,13 +55,10 @@ function WorkspaceKeyHandler() {
           }
         }
       }
-      for (const edge of selectedEdges) {
-        editorDocument.workspace.unbindEdge(edge.id);
-      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [getNodes, getEdges]);
+  }, [getNodes]);
 
   // Viewport controls dispatched from MenuBar via `useCanvasZoom`.
   useEffect(() => {
@@ -99,8 +98,9 @@ type WorkspaceNode = ImageNodeType | WidgetNodeType;
 export function CanvasWorkspace() {
   const imageNodes = useEditorStore((s) => s.imageNodes);
   const widgetNodes = useEditorStore((s) => s.widgetNodes);
-  const tetherEdges = useEditorStore((s) => s.tetherEdges);
   const layers = useEditorStore((s) => s.layers);
+  const documentMeta = useEditorStore((s) => s.documentMeta);
+  const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   const snapshotWidgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
   const setActiveImageNode = useEditorStore((s) => s.setActiveImageNode);
   const addImageNode = useEditorStore((s) => s.addImageNode);
@@ -109,46 +109,111 @@ export function CanvasWorkspace() {
   // when no nodes exist yet. Ensures the workspace shows the open image immediately.
   useEffect(() => {
     if (Object.keys(imageNodes).length === 0 && layers.length > 0) {
+      const size =
+        documentMeta && documentMeta.width > 0 && documentMeta.height > 0
+          ? { w: documentMeta.width, h: documentMeta.height }
+          : undefined;
       addImageNode(
         layers.map((l) => l.id),
         { x: 100, y: 100 },
+        size,
       );
     }
-  }, [imageNodes, layers, addImageNode]);
+  }, [imageNodes, layers, documentMeta, addImageNode]);
 
-  const nodes = useMemo<WorkspaceNode[]>(() => {
+  const storeNodes = useMemo<WorkspaceNode[]>(() => {
     const imgs: ImageNodeType[] = Object.values(imageNodes).map((n) => ({
       id: n.id,
       type: 'image',
       position: n.position,
+      // Only the header strip drags the node; the canvas body and footer ignore drag.
+      dragHandle: '.workspace-drag-handle',
       data: {
         layerIds: n.layerIds,
         size: n.size,
         name: n.layerIds[0] ?? 'Image',
       },
     }));
+    // Render only widgets that have been tethered. Untethered widgets (e.g.
+    // unengaged AI suggestions or Cmd+K palette widgets) live in the
+    // Suggestions panel until the user engages them; rendering them at the
+    // default (0, 0) would also break edge geometry.
     const widgets: WidgetNodeType[] = snapshotWidgets
-      .filter((w) => w.status === 'active')
+      .filter((w) => w.status === 'active' && widgetNodes[w.id])
       .map((w) => ({
         id: w.id,
         type: 'widget',
-        position: widgetNodes[w.id]?.position ?? { x: 0, y: 0 },
+        position: widgetNodes[w.id].position,
+        // Only the header drags; sliders and other body controls work freely.
+        dragHandle: '.workspace-drag-handle',
         data: { widget: w },
       }));
     return [...imgs, ...widgets];
   }, [imageNodes, widgetNodes, snapshotWidgets]);
 
-  const edges = useMemo<TetherEdgeType[]>(
-    () =>
-      Object.values(tetherEdges).map((e) => ({
-        id: e.id,
-        source: e.widgetNodeId,
-        target: e.targetImageNodeId,
+  // Local RF state mirrors the store. React Flow needs to own positions during
+  // drag (via onNodesChange) so the visual position follows the cursor without
+  // snap-back on re-renders. Drag-stop persists back to the store.
+  const [nodes, setNodes] = useState<WorkspaceNode[]>(storeNodes);
+  useEffect(() => {
+    setNodes(storeNodes);
+  }, [storeNodes]);
+
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    setNodes((prev) => applyNodeChanges(changes, prev) as WorkspaceNode[]);
+  }, []);
+
+  // Edges are auto-derived from active widgets. Each widget gets one edge to
+  // the image node it belongs to: image_node-scoped widgets target their
+  // `scope.image_node_id`; otherwise we resolve via `nodes[0].layer_id` and
+  // fall back to the active image node.
+  const edges = useMemo<TetherEdgeType[]>(() => {
+    const out: TetherEdgeType[] = [];
+    for (const w of snapshotWidgets) {
+      if (w.status !== 'active') continue;
+      const widgetNode = widgetNodes[w.id];
+      if (!widgetNode) continue; // no canvas footprint without a tether
+      let targetId: string | null = null;
+      let scopeKind: 'layer' | 'node' = 'layer';
+      if (w.scope.kind === 'image_node') {
+        if (imageNodes[w.scope.image_node_id]) {
+          targetId = w.scope.image_node_id;
+          scopeKind = 'node';
+        }
+      }
+      if (!targetId) {
+        const layerId = w.nodes[0]?.layer_id;
+        if (layerId) {
+          for (const n of Object.values(imageNodes)) {
+            if (n.layerIds.includes(layerId)) { targetId = n.id; break; }
+          }
+        }
+      }
+      if (!targetId && activeImageNodeId && imageNodes[activeImageNodeId]) {
+        targetId = activeImageNodeId;
+      }
+      if (!targetId) continue;
+      // Pick the edge sides from store positions + known sizes. Widget width
+      // is dynamic (w-fit) but at least WIDGET_SHELL_MIN_WIDTH, which is a
+      // good-enough proxy for direction comparison. Re-picks on drag-stop
+      // (when widgetNodes updates) and on any image-node move.
+      const target = imageNodes[targetId];
+      const widgetCenterX = widgetNode.position.x + WIDGET_SHELL_MIN_WIDTH / 2;
+      const targetCenterX = target.position.x + target.size.w / 2;
+      const targetOnRight = targetCenterX > widgetCenterX;
+      out.push({
+        id: `auto-${w.id}`,
+        source: w.id,
+        target: targetId,
+        sourceHandle: targetOnRight ? 'tether-out-right' : 'tether-out-left',
+        targetHandle: targetOnRight ? 'tether-in-left' : 'tether-in-right',
         type: 'tether',
-        data: { scopeKind: e.scope.kind },
-      })),
-    [tetherEdges],
-  );
+        data: { scopeKind },
+        selectable: false,
+      });
+    }
+    return out;
+  }, [snapshotWidgets, imageNodes, widgetNodes, activeImageNodeId]);
 
   const onNodeDragStop = useCallback(
     (_: unknown, node: Node) => {
@@ -181,10 +246,13 @@ export function CanvasWorkspace() {
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
+        onNodesChange={onNodesChange}
         onNodeDragStop={onNodeDragStop}
         onSelectionChange={onSelectionChange}
         onConnect={onConnect}
         proOptions={{ hideAttribution: true }}
+        minZoom={0.05}
+        maxZoom={4}
         fitView
       >
         <Background color="var(--color-separator)" gap={16} size={1} />

@@ -42,7 +42,7 @@ export function WidgetShellHeader({ widget, expanded, dirty, onToggle, onClose }
           onToggle();
         }
       }}
-      className="flex items-center gap-1.5 px-1.5 py-1 cursor-pointer select-none"
+      className="workspace-drag-handle flex items-center gap-1.5 px-1.5 py-1 cursor-grab active:cursor-grabbing select-none"
     >
       <span className="grip flex flex-col gap-px pr-1 opacity-55" aria-hidden>
         {[0,1,2].map((r) => (

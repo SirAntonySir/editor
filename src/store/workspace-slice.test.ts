@@ -16,6 +16,13 @@ describe('workspace-slice', () => {
     expect(node.size).toEqual({ w: 240, h: 180 });
   });
 
+  it('addImageNode persists a caller-provided size', () => {
+    const s = useEditorStore.getState();
+    const id = s.addImageNode(['l-1'], { x: 0, y: 0 }, { w: 4000, h: 3000 });
+    const node = useEditorStore.getState().imageNodes[id];
+    expect(node.size).toEqual({ w: 4000, h: 3000 });
+  });
+
   it('splitImageNode peels one layer onto a new node and source survives minus that layer', () => {
     const s = useEditorStore.getState();
     const a = s.addImageNode(['L1', 'L2']);
@@ -25,6 +32,16 @@ describe('workspace-slice', () => {
     expect(after.imageNodes[a].layerIds).toEqual(['L2']);
     expect(after.imageNodes[newId!].layerIds).toEqual(['L1']);
     expect(newId).not.toBe(a);
+  });
+
+  it('splitImageNode inherits the source node size', () => {
+    const s = useEditorStore.getState();
+    const a = s.addImageNode(['L1', 'L2'], { x: 0, y: 0 }, { w: 4000, h: 3000 });
+    const newId = s.splitImageNode(a, 'L1');
+    const after = useEditorStore.getState();
+    expect(after.imageNodes[newId!].size).toEqual({ w: 4000, h: 3000 });
+    // New node sits to the right of the source by source-width + gap.
+    expect(after.imageNodes[newId!].position.x).toBe(4000 + 24);
   });
 
   it('splitImageNode returns null when the source does not exist', () => {

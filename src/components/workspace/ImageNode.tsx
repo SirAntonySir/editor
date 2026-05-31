@@ -4,6 +4,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { ImageNodeBody } from './ImageNodeBody';
 import { ImageNodeSelectionPopover } from './ImageNodeSelectionPopover';
 import { editorDocument } from '@/core/document';
+import { useChromeScale } from '@/hooks/useChromeScale';
 
 export interface ImageNodeData extends Record<string, unknown> {
   name?: string;
@@ -22,6 +23,25 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   const stacked = data.layerIds.length > 1;
   const showStrip = stacked && selected;
   const canSplit = data.layerIds.length >= 2;
+  const chromeScale = useChromeScale();
+
+  // Strips are CSS-transform-scaled around the appropriate corner so their
+  // on-screen height stays readable at low workspace zoom. Compensate width
+  // so post-scale they still fill the overlay horizontally.
+  const stripScaleTop: React.CSSProperties = {
+    transform: `scale(${chromeScale})`,
+    transformOrigin: 'top left',
+    width: `${100 / chromeScale}%`,
+  };
+  const stripScaleBottom: React.CSSProperties = {
+    transform: `scale(${chromeScale})`,
+    transformOrigin: 'bottom left',
+    width: `${100 / chromeScale}%`,
+  };
+  const cornerBtnScale: React.CSSProperties = {
+    transform: `scale(${chromeScale})`,
+    transformOrigin: 'top right',
+  };
 
   function handleSplit() {
     if (!canSplit) return;
@@ -39,7 +59,10 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
         className={`overlay overflow-hidden ${selected ? 'outline-2 outline outline-accent -outline-offset-1' : ''}`}
       >
         <ImageNodeSelectionPopover layerIds={data.layerIds}>
-          <div className="flex items-center gap-1.5 px-2 py-1 border-b border-separator">
+          <div
+            className="workspace-drag-handle flex items-center gap-1.5 px-2 py-1 bg-surface border-b border-separator cursor-grab active:cursor-grabbing"
+            style={stripScaleTop}
+          >
             <Image size={11} className="text-text-secondary" aria-hidden />
             <span className="text-[10px] font-medium flex-1 truncate">{data.name ?? 'Image'}</span>
             <span className="text-[8px] font-semibold bg-surface-secondary border border-separator rounded-full px-1.5 py-px text-text-secondary uppercase">
@@ -48,13 +71,20 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
           </div>
         </ImageNodeSelectionPopover>
         <ImageNodeBody imageNodeId={id} layerIds={data.layerIds} width={data.size.w} height={data.size.h} />
-        <div className="flex items-center gap-1.5 px-2 py-1 text-[9px] text-text-secondary border-t border-separator">
+        <div
+          className="flex items-center gap-1.5 px-2 py-1 text-[9px] text-text-secondary bg-surface border-t border-separator"
+          style={stripScaleBottom}
+        >
           <span className="num">{data.size.w} × {data.size.h}</span>
           <span className="flex-1" />
           <span>Layer {(data.activeLayerIndex ?? 0) + 1}</span>
         </div>
         {showStrip && (
-          <div aria-label="Layer strip" className="flex gap-1 px-2 py-1 bg-surface-secondary border-t border-separator">
+          <div
+            aria-label="Layer strip"
+            className="flex gap-1 px-2 py-1 bg-surface-secondary border-t border-separator"
+            style={stripScaleBottom}
+          >
             {data.layerIds.map((lid, i) => (
               <div
                 key={lid}
@@ -71,6 +101,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
               type="button"
               aria-label="Split or merge"
               className="absolute -top-2 -right-2 w-[18px] h-[18px] rounded-full bg-surface border border-border-strong shadow-[0_2px_6px_rgba(0,0,0,0.06)] flex items-center justify-center text-text-secondary"
+              style={cornerBtnScale}
             >
               <Split size={10} aria-hidden />
             </button>
@@ -99,8 +130,18 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
       )}
-      <Handle type="source" position={Position.Left} id="tether-out" style={{ opacity: 0 }} />
-      <Handle type="target" position={Position.Right} id="tether-in" style={{ opacity: 0 }} />
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="tether-in-left"
+        style={{ top: `${10 * chromeScale}px`, opacity: 0 }}
+      />
+      <Handle
+        type="target"
+        position={Position.Right}
+        id="tether-in-right"
+        style={{ top: `${10 * chromeScale}px`, opacity: 0 }}
+      />
     </div>
   );
 }

@@ -2,13 +2,13 @@ import type { Widget } from '@/types/widget';
 import { useEditorStore } from '@/store';
 import { nextSpawnPositionFor, type PlacedRect } from '@/components/workspace/workspace-layout';
 import type { TetherEdgeState } from '@/types/workspace';
-import { WIDGET_SHELL_WIDTH } from '@/components/widget/WidgetShell';
+import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
 import { editorDocument } from '@/core/document';
 
 // Workspace widget placement assumes a collapsed WidgetShell footprint.
-// Height varies, but the spawn algorithm only needs an estimate to detect
-// overlaps; 60 is a reasonable collapsed-header height.
-const WIDGET_SPAWN_SIZE = { w: WIDGET_SHELL_WIDTH, h: 60 } as const;
+// Width and height both vary with content, so the spawn algorithm uses the
+// shell's minimum width and an estimated collapsed-header height (60).
+const WIDGET_SPAWN_SIZE = { w: WIDGET_SHELL_MIN_WIDTH, h: 60 } as const;
 
 /**
  * Position `widget` next to the currently active ImageNode and create a
@@ -54,6 +54,7 @@ function buildTetherForWidget(widget: Widget): void {
 
   const pos = nextSpawnPositionFor(
     { position: targetNode.position, size: targetNode.size },
+    WIDGET_SPAWN_SIZE,
     'widget',
     occupied,
   );

@@ -22,7 +22,7 @@ export interface WorkspaceSlice {
   _nextNodeSeq: number;
   _nextEdgeSeq: number;
 
-  addImageNode: (layerIds: string[], position?: Point) => string;
+  addImageNode: (layerIds: string[], position?: Point, size?: Size) => string;
   /**
    * Peel a single layer off `sourceId`, place it on a new image node, and return the new node's id.
    * Source node survives (minus the migrated layer). Tether edges whose
@@ -67,11 +67,16 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
   _nextNodeSeq: 1,
   _nextEdgeSeq: 1,
 
-  addImageNode: (layerIds, position = { x: 0, y: 0 }) => {
+  addImageNode: (layerIds, position = { x: 0, y: 0 }, size) => {
     let id = '';
     set((state) => {
       id = `in-${state._nextNodeSeq++}`;
-      state.imageNodes[id] = { id, layerIds: [...layerIds], position, size: { ...DEFAULT_NODE_SIZE } };
+      state.imageNodes[id] = {
+        id,
+        layerIds: [...layerIds],
+        position,
+        size: size ? { ...size } : { ...DEFAULT_NODE_SIZE },
+      };
     });
     return id;
   },
@@ -86,11 +91,13 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       // Remove the layer from the source.
       src.layerIds = src.layerIds.filter((lid) => lid !== layerIdToSplit);
       // Place the peeled layer on a new node positioned next to the source.
+      // Inherit the source's size — the peeled layer belongs to the same
+      // document, so it shares the source image's intrinsic dimensions.
       state.imageNodes[newId] = {
         id: newId,
         layerIds: [layerIdToSplit],
-        position: { x: src.position.x + DEFAULT_NODE_SIZE.w + SPLIT_GAP_PX, y: src.position.y },
-        size: { ...DEFAULT_NODE_SIZE },
+        position: { x: src.position.x + src.size.w + SPLIT_GAP_PX, y: src.position.y },
+        size: { ...src.size },
       };
       // Migrate only edges that target the source AND are scoped to the peeled layer.
       for (const edge of Object.values(state.tetherEdges)) {

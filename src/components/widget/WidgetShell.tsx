@@ -7,17 +7,16 @@ import { useWidgetExpansion } from '@/hooks/useWidgetExpansion';
 import { useHoveredWidget } from '@/hooks/useHoveredWidget';
 import { WidgetShellHeader } from './WidgetShellHeader';
 import { WidgetShellFooter } from './WidgetShellFooter';
-import { PreviewSlot } from './PreviewSlot';
 import { RefineInput } from './RefineInput';
 import { WhyPopover } from './WhyPopover';
 import { BindingRow } from '@/components/inspector/widget/BindingRow';
 
 /**
- * Collapsed WidgetShell width in CSS pixels. Tailwind's `w-[226px]` is a
- * compile-time literal so we can't interpolate this into the className —
- * keep the literal below in sync with this constant.
+ * Minimum WidgetShell width in CSS pixels. The shell grows past this to fit
+ * its content. Tailwind's `min-w-[226px]` is a compile-time literal, so keep
+ * the literal in the className in sync with this constant.
  */
-export const WIDGET_SHELL_WIDTH = 226;
+export const WIDGET_SHELL_MIN_WIDTH = 226;
 
 interface WidgetShellProps {
   widget: Widget;
@@ -42,16 +41,33 @@ export function WidgetShell({ widget }: WidgetShellProps) {
 
   const hovered = hoveredWidgetId === widget.id;
 
-  const widgetPatch = optimistic.get(widget.id);
+  // Optimistic patches are keyed by the operation_graph node id the binding
+  // targets — that matches the renderer's view of params and lets a slider
+  // move pixels before the backend SSE roundtrip completes.
+  function readOptimistic(b: Widget['bindings'][number]): Widget['bindings'][number]['value'] | undefined {
+    const patch = optimistic.get(b.target.node_id);
+    if (!patch) return undefined;
+    const p = patch.bindings.find((p) => p.paramKey === b.target.param_key);
+    return p?.value;
+  }
+
   // dirty: any binding diverges from default (optimistic-aware)
   const dirty = widget.bindings.some((b) => {
-    const patch = widgetPatch?.bindings.find((p) => p.paramKey === b.param_key);
-    const effective = patch ? patch.value : b.value;
+    const opt = readOptimistic(b);
+    const effective = opt !== undefined ? opt : b.value;
     return effective !== b.default;
   });
 
   function setParam(paramKey: string, value: Widget['bindings'][number]['value']) {
     if (!sessionId || offline) return;
+    const binding = widget.bindings.find((b) => b.param_key === paramKey);
+    if (binding) {
+      const baseRevision = useBackendState.getState().snapshot?.revision ?? 0;
+      useBackendState.getState().applyOptimistic(binding.target.node_id, {
+        bindings: [{ paramKey: binding.target.param_key, value }],
+        baseRevision,
+      });
+    }
     void backendTools.set_widget_param(sessionId, { widget_id: widget.id, param_key: paramKey, value });
   }
 
@@ -82,14 +98,14 @@ export function WidgetShell({ widget }: WidgetShellProps) {
   }
 
   function effectiveValue(b: Widget['bindings'][number]) {
-    const patch = widgetPatch?.bindings.find((p) => p.paramKey === b.param_key);
-    return patch ? patch.value : b.value;
+    const opt = readOptimistic(b);
+    return opt !== undefined ? opt : b.value;
   }
 
   return (
     <div
-      // w-[226px] matches WIDGET_SHELL_WIDTH
-      className={`overlay w-[226px] ${hovered ? 'border-accent' : ''}`}
+      // min-w-[226px] matches WIDGET_SHELL_MIN_WIDTH; width grows to fit content.
+      className={`overlay min-w-[226px] w-fit ${hovered ? 'border-accent' : ''}`}
       onMouseEnter={() => setHoveredWidget(widget.id)}
       onMouseLeave={() => setHoveredWidget(null)}
     >
@@ -105,10 +121,9 @@ export function WidgetShell({ widget }: WidgetShellProps) {
           {widget.reasoning && (
             <div className="flex items-start gap-1.5 px-1.5 py-1 border-b border-separator bg-surface-secondary text-[10px] text-text-secondary leading-snug">
               <span className="flex-none mt-0.5">ⓘ</span>
-              <span className="line-clamp-2">{widget.reasoning}</span>
+              <span className="line-clamp-2 max-w-[200px]">{widget.reasoning}</span>
             </div>
           )}
-          <PreviewSlot kind={widget.preview.kind} />
           {widget.bindings.length > 0 && (
             <div className="flex flex-col gap-1.5 px-1.5 py-1">
               {widget.bindings.map((b) => (

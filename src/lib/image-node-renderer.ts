@@ -26,6 +26,9 @@ import {
 import type { Adjustment, BlendMode } from '@/types/adjustment';
 import type { OperationGraph } from '@/types/operation-graph';
 import type { Widget } from '@/types/widget';
+import type { OptimisticPatch } from '@/store/backend-state-slice';
+
+type OperationNode = OperationGraph['nodes'][number];
 
 const BLEND_MODE_MAP: Record<BlendMode, GlobalCompositeOperation> = {
   'normal': 'source-over',
@@ -52,6 +55,22 @@ export interface RenderImageNodeCompositeArgs {
    * shader work is driven by `opGraph.nodes` (per-layer + node-scope).
    */
   widgets: Widget[];
+  /**
+   * Local optimistic patches keyed by op-graph node id. Param values from
+   * a matching patch override `node.params` for the current paint, giving
+   * sliders a live preview before the backend SSE roundtrip completes.
+   */
+  optimistic?: Map<string, OptimisticPatch>;
+}
+
+/** Apply any optimistic patch to a node's params; returns the node unchanged when no patch matches. */
+function withOptimistic(node: OperationNode, optimistic: Map<string, OptimisticPatch> | undefined): OperationNode {
+  if (!optimistic) return node;
+  const patch = optimistic.get(node.id);
+  if (!patch) return node;
+  const params = { ...node.params };
+  for (const b of patch.bindings) params[b.paramKey] = b.value;
+  return { ...node, params };
 }
 
 /**
@@ -59,7 +78,7 @@ export interface RenderImageNodeCompositeArgs {
  * No-op when the operation can't proceed (missing pixels, missing 2d context, …).
  */
 export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): void {
-  const { canvas, layerIds, opGraph, widgets } = args;
+  const { canvas, layerIds, opGraph, widgets, optimistic } = args;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
@@ -79,6 +98,7 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
 
     const layerNodes = nodes.filter((n) => n.layer_id === layerId);
     const adjustments: Adjustment[] = layerNodes
+      .map((n) => withOptimistic(n, optimistic))
       .map(nodeToAdjustment)
       .filter((a) => a.enabled);
 
@@ -111,6 +131,7 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
 
   if (nodeScopeNodes.length > 0) {
     const nodeAdjustments: Adjustment[] = nodeScopeNodes
+      .map((n) => withOptimistic(n, optimistic))
       .map(nodeToAdjustment)
       .filter((a) => a.enabled);
 

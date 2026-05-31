@@ -9,6 +9,7 @@ import type { Widget } from '@/types/widget';
 vi.mock('@/lib/backend-tools', () => ({ backendTools: {
   accept_widget: vi.fn().mockResolvedValue({ ok: true }),
   delete_widget: vi.fn().mockResolvedValue({ ok: true }),
+  set_widget_param: vi.fn().mockResolvedValue({ ok: true }),
 } }));
 
 const widget = {
@@ -54,4 +55,30 @@ it('the arrow engages the suggestion onto the canvas, then disables once placed'
   cleanup();
   render(<AiSection widget={widget} />);
   expect((screen.getByLabelText('Already on canvas') as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('keys AI-suggestion optimistic preview on the canonical node id, not the widget node id', () => {
+  const w = {
+    id: 'w1', intent: 'Recover', status: 'active',
+    origin: { kind: 'mcp_autonomous' }, scope: { root: { kind: 'global' } },
+    nodes: [{ id: 'n_basic', type: 'basic', layer_id: 'L1', params: { highlights: 0 } }],
+    bindings: [{
+      param_key: 'highlights', label: 'Highlights', control_type: 'slider',
+      control_schema: { control_type: 'slider', min: -100, max: 100, step: 1 },
+      target: { node_id: 'n_basic', param_key: 'highlights' },
+      value: 0, default: 0,
+    }],
+    preview: { kind: 'none' },
+  } as unknown as Widget;
+  useBackendState.setState({ snapshot: { ...useBackendState.getState().snapshot!, widgets: [w] } } as never);
+  render(<AiSection widget={w} />);
+  // Drive the click-to-edit readout to trigger setParam
+  const r = screen.getByTitle('Drag to scrub · click to type');
+  fireEvent.pointerDown(r, { clientX: 0 });
+  fireEvent.pointerUp(r, { clientX: 0 });
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: '40' } });
+  fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+  const opt = useBackendState.getState().optimistic;
+  expect(opt.has('canon:L1:basic')).toBe(true);
+  expect(opt.has('n_basic')).toBe(false);
 });

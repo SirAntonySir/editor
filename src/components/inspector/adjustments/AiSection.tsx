@@ -58,10 +58,17 @@ export function AiSection({ widget }: AiSectionProps) {
     return Boolean(sessionId) && !offline;
   }
 
-  // Effective value = pending optimistic patch (keyed by the binding's node id)
+  function canonIdFor(b: ControlBinding): string | null {
+    const node = widget.nodes.find((n) => n.id === b.target.node_id);
+    if (!node) return null;
+    return `canon:${node.layer_id}:${node.type}`;
+  }
+
+  // Effective value = pending optimistic patch (keyed by the canonical node id)
   // falling back to the widget's stored binding value. Mirrors WidgetShell.
   function effectiveOf(b: ControlBinding): ControlValue {
-    const patch = optimistic.get(b.target.node_id);
+    const canonId = canonIdFor(b);
+    const patch = canonId ? optimistic.get(canonId) : undefined;
     const opt = patch?.bindings.find((p) => p.paramKey === b.target.param_key)?.value;
     return opt !== undefined ? opt : b.value;
   }
@@ -69,8 +76,9 @@ export function AiSection({ widget }: AiSectionProps) {
   function setParam(b: ControlBinding, value: ControlValue) {
     if (!canWrite() || !sessionId) return;
     const node = widget.nodes.find((n) => n.id === b.target.node_id);
+    const canonId = node ? `canon:${node.layer_id}:${node.type}` : b.target.node_id;
     const baseRevision = useBackendState.getState().snapshot?.revision ?? 0;
-    useBackendState.getState().applyOptimistic(b.target.node_id, {
+    useBackendState.getState().applyOptimistic(canonId, {
       bindings: [{ paramKey: b.target.param_key, value }],
       baseRevision,
     });

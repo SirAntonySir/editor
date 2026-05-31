@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ChevronRight, ChevronDown, X, HelpCircle } from 'lucide-react';
+import { ChevronRight, ChevronDown, X, HelpCircle, ArrowUpRight } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
+import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
 import { BindingRow } from '@/components/inspector/widget/BindingRow';
 import { bindingProvenance, touchKey } from '@/hooks/useParamProvenance';
 import type { ControlBinding, ControlValue, MaskSummary, Scope, Widget } from '@/types/widget';
@@ -50,6 +51,7 @@ export function AiSection({ widget }: AiSectionProps) {
   const optimistic = useBackendState((s) => s.optimistic);
   const maskSummaries = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
   const touched = useEditorStore((s) => s.touchedParams);
+  const onCanvas = useEditorStore((s) => Boolean(s.widgetNodes[widget.id]));
   const [showWhy, setShowWhy] = useState(false);
 
   function canWrite(): boolean {
@@ -109,6 +111,16 @@ export function AiSection({ widget }: AiSectionProps) {
         </span>
         <span className="flex-1 truncate text-xs font-medium text-text-primary">{widget.intent}</span>
         <span className="text-[10px] text-text-secondary">{scopeChipLabel(widget.scope)}</span>
+        <button
+          type="button"
+          disabled={offline || onCanvas}
+          onClick={() => tetherWorkspaceWidgetOnEngage(widget)}
+          aria-label={onCanvas ? 'Already on canvas' : 'Open on canvas'}
+          title={onCanvas ? 'Already on canvas' : 'Open on canvas'}
+          className="inline-flex items-center text-text-secondary hover:text-text-primary hover:bg-surface-secondary p-0.5 rounded-[3px] disabled:opacity-40 disabled:hover:bg-transparent"
+        >
+          <ArrowUpRight size={13} aria-hidden />
+        </button>
         <button
           type="button"
           onClick={() => toggle(widget.id)}

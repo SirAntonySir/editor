@@ -20,7 +20,12 @@ const widget = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useEditorStore.setState({ expandedSectionIds: new Set(['w1']), activeLayerId: 'L1' } as never);
+  useEditorStore.setState({
+    expandedSectionIds: new Set(['w1']), activeLayerId: 'L1',
+    widgetNodes: {}, tetherEdges: {},
+    imageNodes: { img1: { id: 'img1', layerIds: ['L1'], position: { x: 0, y: 0 }, size: { width: 800, height: 600 } } },
+    activeImageNodeId: 'img1',
+  } as never);
   useBackendState.setState({ sessionId: 's1', sseStatus: 'open', optimistic: new Map(),
     snapshot: { session_id: 's1', image_context: null, widgets: [widget], masks_index: [],
       operation_graph: { id: 'g', userGoal: '', nodes: widget.nodes as never, panelBindings: [], metadata: {} }, revision: 1 } as never } as never);
@@ -38,4 +43,15 @@ it('header × discards the widget', () => {
   render(<AiSection widget={widget} />);
   fireEvent.click(screen.getByLabelText('Close'));
   expect(backendTools.delete_widget).toHaveBeenCalledWith('s1', { widget_id: 'w1', suppress_similar: false });
+});
+
+it('the arrow engages the suggestion onto the canvas, then disables once placed', () => {
+  render(<AiSection widget={widget} />);
+  const arrow = screen.getByLabelText('Open on canvas');
+  expect((arrow as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(arrow);
+  expect(useEditorStore.getState().widgetNodes['w1']).toBeTruthy();
+  cleanup();
+  render(<AiSection widget={widget} />);
+  expect((screen.getByLabelText('Already on canvas') as HTMLButtonElement).disabled).toBe(true);
 });

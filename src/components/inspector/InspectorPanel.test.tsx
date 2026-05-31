@@ -19,9 +19,9 @@ describe('InspectorPanel — Suggestions / Layers', () => {
     expect(screen.getByText(/layers/i)).toBeDefined();
   });
 
-  it('renders the Ask AI input at the top of Suggestions', () => {
+  it('does not render the Ask AI inline input (moved to command palette)', () => {
     render(<InspectorPanel />);
-    expect(screen.getByPlaceholderText(/ask ai/i)).toBeDefined();
+    expect(screen.queryByPlaceholderText(/ask ai/i)).toBeNull();
   });
 
   it('renders an autonomous suggestion row', () => {

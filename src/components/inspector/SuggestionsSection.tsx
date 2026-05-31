@@ -4,7 +4,6 @@ import { backendTools } from '@/lib/backend-tools';
 import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
 import { scopeEquals, type Scope as StoreScope } from '@/types/scope';
 import type { Widget } from '@/types/widget';
-import { AskAiInput } from './AskAiInput';
 
 export function SuggestionsSection() {
   const snapshot = useBackendState((s) => s.snapshot);
@@ -54,7 +53,6 @@ export function SuggestionsSection() {
         Suggestions
         <span className="bg-surface-secondary px-1 rounded text-[8px]">{suggestions.length}</span>
       </div>
-      <AskAiInput />
       {suggestions.map((w) => {
         const matches = !activeScope || activeScope.kind === 'global' || scopeEquals(activeScope, w.scope);
         return (

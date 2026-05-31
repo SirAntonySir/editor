@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import os
 import time
 import uuid
 
@@ -17,6 +18,16 @@ from app.state.context_stats import compute_cheap_pass
 from app.state.document import SessionDocument
 from app.tools.atomic.select_by_point import _encode_mask_png_b64
 from app.tools.base import BackendTool, ToolPermissions
+
+
+# Feature flag: run the SAM segmentation service during analyze (image embed +
+# per-region mask precompute). Gated OFF by default — the heavy SAM embed shares
+# the asyncio default executor with the Claude ai_context phase and starves it,
+# leaving the analyze stepper stuck on "ai_context". The image context (Claude's
+# understanding + labelled regions with bbox/representative_point) is produced
+# without SAM. Set ANALYZE_SAM=1 to re-enable the on-load SAM service.
+def _sam_enabled() -> bool:
+    return os.environ.get("ANALYZE_SAM", "0") not in ("0", "", "false", "False")
 
 
 class _Input(BaseModel):
@@ -47,7 +58,10 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
             return _Output.model_validate(doc.image_context.model_dump(mode="json"))
 
         client = deps.get_anthropic_client()
-        sam = deps.get_sam_client()
+        # SAM is gated off by default (see _sam_enabled). When off we never load
+        # the SAM client (avoids the heavy model load) nor run the embed.
+        sam_on = _sam_enabled()
+        sam = deps.get_sam_client() if sam_on else None
 
         TOTAL_PHASES = 6
 
@@ -81,6 +95,12 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
         async def _phase_sam_embed() -> bool:
             doc._emit_phase_started("sam_embed", index=3, total=TOTAL_PHASES)
             start = time.monotonic()
+            if not sam_on:
+                # SAM disabled: instant skip. Crucially does NOT touch the shared
+                # executor, so the concurrent ai_context (Claude) phase isn't
+                # starved. Returns False → mask precompute is skipped below.
+                doc._emit_phase_completed("sam_embed", duration_ms=0)
+                return False
             try:
                 await asyncio.get_running_loop().run_in_executor(
                     None, sam.embed, doc.session_id, arr,

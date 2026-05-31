@@ -112,6 +112,30 @@ def test_analyze_image_fills_cheap_pass_and_soft_fields(client) -> None:
     assert isinstance(doc.image_context, EnrichedImageContext)
 
 
+def test_analyze_image_skips_sam_by_default(client, monkeypatch) -> None:
+    """SAM segmentation is gated OFF by default: analyze must NOT call the SAM
+    service (no embed), yet still produce the Claude image context. Keeping SAM
+    out of the concurrent gather is what lets the ai_context phase finish."""
+    from io import BytesIO
+    from unittest.mock import MagicMock
+    from PIL import Image
+    from app.schemas.enriched_context import EnrichedImageContext
+
+    monkeypatch.delenv("ANALYZE_SAM", raising=False)
+    fake_sam = MagicMock()
+    monkeypatch.setattr(deps, "get_sam_client", lambda: fake_sam)
+
+    buf = BytesIO(); Image.new("RGB", (32, 32), (128, 128, 128)).save(buf, format="JPEG")
+    files = {"image": ("a.jpg", buf.getvalue(), "image/jpeg")}
+    sid = client.post("/api/session", files=files).json()["session_id"]
+    body = client.post("/api/tools/analyze_image", json={"session_id": sid, "input": {}}).json()
+
+    assert body["ok"] is True
+    fake_sam.embed.assert_not_called()  # SAM service must stay idle when disabled
+    doc = deps.get_session_store().get_document(sid)
+    assert isinstance(doc.image_context, EnrichedImageContext)  # context still produced
+
+
 def test_autonomous_suggestions_minted_from_problems(client) -> None:
     from io import BytesIO
     from PIL import Image

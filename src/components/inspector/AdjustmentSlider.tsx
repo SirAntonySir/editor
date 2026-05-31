@@ -157,7 +157,7 @@ export function AdjustmentSlider({
         onValueCommit={handleValueCommit}
         onDoubleClick={() => { onChange(resetValue); onCommit?.(); }}
       >
-        <Slider.Track className="relative h-1.5 grow rounded-sm bg-surface-secondary overflow-hidden">
+        <Slider.Track className="relative h-0.5 grow rounded-sm bg-surface-secondary overflow-hidden">
           <Slider.Range
             className="absolute h-full rounded-sm"
             style={{

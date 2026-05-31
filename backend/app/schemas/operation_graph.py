@@ -21,7 +21,7 @@ class Node(BaseModel):
     id: str
     type: str  # Resolved against ProcessingRegistry at runtime.
     scope: Scope = Field(default_factory=lambda: Scope(kind="global"))
-    params: dict[str, float | int | str | bool] = Field(default_factory=dict)
+    params: dict[str, float | int | str | bool | list | dict] = Field(default_factory=dict)
     inputs: list[str] = Field(default_factory=list)  # node IDs
     layer_id: str  # which frontend layer this node renders into
     layer_ids: list[str] | None = None  # populated for image_node-scope nodes

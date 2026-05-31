@@ -45,13 +45,29 @@ def _scalar_tool(op: str) -> dict[str, Any]:
 TOOL_DEFAULTS: dict[str, dict[str, Any]] = {op: _scalar_tool(op) for op in _SCALAR_OPS}
 
 # --- LUT / texture ops: hand-written, Phase 2 will give them real controls ----
+_IDENTITY_CURVE = [{"x": 0, "y": 0}, {"x": 1, "y": 1}]
 TOOL_DEFAULTS["curves"] = {
-    "nodes": [{"type": "curves", "params": {"intensity": 1.0}}],
-    "bindings": [
-        {"param_key": "intensity", "label": "Intensity", "control_type": "slider",
-         "control_schema": {"control_type": "slider", "min": 0, "max": 1, "step": 0.01},
-         "value": 1.0, "default": 1.0},
-    ],
+    "nodes": [{
+        "type": "curves",
+        "params": {"curves": {
+            "rgb": list(_IDENTITY_CURVE), "red": list(_IDENTITY_CURVE),
+            "green": list(_IDENTITY_CURVE), "blue": list(_IDENTITY_CURVE),
+        }},
+    }],
+    "bindings": [{
+        "param_key": "curves",
+        "label": "Curves",
+        "control_type": "curve",
+        "control_schema": {"control_type": "curve", "min_points": 2, "max_points": 16},
+        "value": {
+            "rgb": list(_IDENTITY_CURVE), "red": list(_IDENTITY_CURVE),
+            "green": list(_IDENTITY_CURVE), "blue": list(_IDENTITY_CURVE),
+        },
+        "default": {
+            "rgb": list(_IDENTITY_CURVE), "red": list(_IDENTITY_CURVE),
+            "green": list(_IDENTITY_CURVE), "blue": list(_IDENTITY_CURVE),
+        },
+    }],
 }
 TOOL_DEFAULTS["filter"] = {
     "nodes": [{"type": "lut", "params": {"intensity": 1.0}}],

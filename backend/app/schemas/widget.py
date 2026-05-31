@@ -125,7 +125,8 @@ class ColorSchema(BaseModel):
 class CurveSchema(BaseModel):
     model_config = ConfigDict(extra="forbid")
     control_type: Literal["curve"]
-    channel: Literal["luma", "r", "g", "b"]
+    # None means "all channels" (multi-channel curves control).
+    channel: Literal["luma", "r", "g", "b"] | None = None
     min_points: int = 2
     max_points: int = 16
 
@@ -210,7 +211,7 @@ class ControlBinding(BaseModel):
 # ------------------------------------------------------------------
 
 
-ParamValue = Union[float, int, str, bool]
+ParamValue = Union[float, int, str, bool, list, dict]
 
 
 class WidgetNode(BaseModel):

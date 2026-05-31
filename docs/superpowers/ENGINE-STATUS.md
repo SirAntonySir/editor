@@ -27,6 +27,15 @@ _Compact reference for the canonical-engine + accordion program. Last updated 20
   owns (`clear_param_value`, prunes emptied slots); `restore_widget` re-seeds them.
   `accept_widget` unchanged — canonical already persists (Apply keeps the value, drops the
   view). Seeding/resetting factored into `_seed_canonical_from_widget` / `_reset_canonical_from_widget`.
+- **Adjustments Accordion (frontend) — DONE.** The Adjustments tab is now the Lightroom-style
+  accordion over canonical state (`src/components/inspector/adjustments/`). `backendTools.set_param`
+  + `useCanonicalParam` (optimistic + 300ms debounce, keyed on the `canon:{layer}:{op}` node id)
+  are the widget-less read/write path. 6 tool sections from `ProcessingRegistry` (Light/Color/
+  Kelvin/Curves/Levels/Filters; light+color share the `basic` node, filtered by param key);
+  curves param key is `'curves'`. AI sections pinned on top (Apply→`accept_widget`, ×→`delete_widget`).
+  Per-section `↗ Open on canvas` promotes via `propose_widget`. Filters (lut) is promote-only for
+  now; AI **Refine** deferred (TODO in `AiSection.tsx`). 10 TDD tasks, ~298 FE tests green.
+  (plan: `plans/2026-05-31-adjustments-accordion.md`)
 
 ## Specs (designs)
 
@@ -40,13 +49,10 @@ _Compact reference for the canonical-engine + accordion program. Last updated 20
 
 1. ~~Route fused/autonomous creation into canonical.~~ **DONE (Slice 2).**
 2. ~~Widget-less `set_param` + accept/close canonical semantics (backend).~~ **DONE (Slice 3).**
-3. **Adjustments Accordion (incl. frontend canonical hooks).** **Plan written:**
-   `plans/2026-05-31-adjustments-accordion.md` — 10 TDD tasks. Task 1 IS the frontend canonical
-   hooks (`backendTools.set_param` client + `useCanonicalParam` hook over `canon:{layer}:{op}`
-   nodes); the rest build the section primitives, AI sections, composition, and the InspectorPanel
-   migration. ↗ promote + Apply(accept)/close(delete) wired in. Sections come from
-   `ProcessingRegistry` (6); Filters (lut) is promote-only for the first cut. Visual target:
-   `.superpowers/brainstorm/28353-1780240612/content/accordion-layout.html`.
+3. ~~Adjustments Accordion (incl. frontend canonical hooks).~~ **DONE** — see Done list above.
+   (plan: `plans/2026-05-31-adjustments-accordion.md`.) Follow-ups left: AI **Refine** wiring,
+   **Filters/LUT-over-canonical** (currently promote-only), and a test for the AI binding/reset
+   write path.
 4. **Remove `Widget.nodes` (thin views).** Widgets stop owning params; bindings reference
    `(layer, op, param)` canonical slots. Cleanup of the now-redundant node ownership. (After the
    accordion proves the widget-less path end-to-end.)

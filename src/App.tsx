@@ -4,7 +4,8 @@ import { EditorProvider, useEditor } from '@/components/EditorProvider';
 import { CanvasWorkspace } from '@/components/workspace/CanvasWorkspace';
 
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
-import { Toolbar } from '@/components/toolbar/Toolbar';
+import { CommandTrigger } from '@/components/ui/CommandTrigger';
+import { CommandPalette } from '@/components/CommandPalette';
 import { MenuBar } from '@/components/toolbar/MenuBar';
 import { RightSidebar } from '@/components/panels/RightSidebar';
 import { PreferencesPage } from '@/components/PreferencesPage';
@@ -66,7 +67,7 @@ function MainLayout({
 }) {
   return (
     <div className="relative flex-1 min-h-0 flex flex-row">
-      <Toolbar />
+      <CommandTrigger />
 
       {/* Canvas column */}
       <div className="relative flex-1 min-w-0 min-h-0">
@@ -131,7 +132,7 @@ function EditorContent() {
   const showPreferences = usePreferencesStore((s) => s.showPreferences);
   const toolDef = getActiveTool();
 
-  // ⌘K focuses the inline AskAiInput via the 'spawn-palette:open' event.
+  // ⌘K opens the CommandPalette via the 'spawn-palette:open' event.
   // Disabled when the backend SSE connection is not open.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -162,6 +163,7 @@ function EditorContent() {
   return (
     <div className="relative flex flex-col h-full">
       <KeyboardShortcuts />
+      <CommandPalette />
 
       {/* Menu bar — fixed at top */}
       <div className="relative z-30 flex-none h-[24px] flex items-center px-1 bg-surface border-b border-separator">

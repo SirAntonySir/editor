@@ -5,6 +5,7 @@ import { curvesFragment } from './curves.glsl.ts';
 import { levelsFragment } from './levels.glsl.ts';
 import { kelvinFragment } from './kelvin.glsl.ts';
 import { hslFragment } from './hsl.glsl.ts';
+import { sharpenFragment } from './sharpen.glsl.ts';
 import { lutFragment } from './lut.glsl.ts';
 import { blendFragment } from './blend.glsl.ts';
 import { LutRegistry } from '@/lib/lut-registry';
@@ -179,6 +180,16 @@ export class WebGLPipeline {
           gl.uniform1f(gl.getUniformLocation(program, `u_hslSat[${i}]`), engineUniformValue(`${band}_sat`, (p[`${band}_sat`] as number) ?? 0));
           gl.uniform1f(gl.getUniformLocation(program, `u_hslLum[${i}]`), engineUniformValue(`${band}_lum`, (p[`${band}_lum`] as number) ?? 0));
         });
+      },
+    });
+
+    // Sharpen (single-pass unsharp)
+    const sharpenProgram = createProgram(gl, fullscreenQuadVertex, sharpenFragment);
+    this.shaders.set('sharpen', {
+      program: sharpenProgram,
+      needsTexel: true,
+      setUniforms: (gl, program, adj) => {
+        gl.uniform1f(gl.getUniformLocation(program, 'u_amount'), engineUniformValue('amount', (adj.params.amount as number) ?? 0));
       },
     });
 

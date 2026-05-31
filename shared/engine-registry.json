@@ -70,6 +70,13 @@
         "magenta_sat": { "uniform": "u_hslSat[7]", "label": "Magenta Sat", "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
         "magenta_lum": { "uniform": "u_hslLum[7]", "label": "Magenta Lum", "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 }
       }
+    },
+    "sharpen": {
+      "shaderBinding": "sharpen",
+      "toolDefaults": [],
+      "params": {
+        "amount": { "uniform": "u_amount", "label": "Amount", "min": 0, "max": 100, "step": 1, "scale": 100, "default": 0 }
+      }
     }
   }
 }

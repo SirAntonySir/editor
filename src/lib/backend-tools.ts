@@ -69,6 +69,9 @@ export const backendTools = {
   set_widget_param(sessionId: string, args: { widget_id: string; param_key: string; value: ControlValue }) {
     return invokeTool<{ widget: Widget }>('set_widget_param', sessionId, args);
   },
+  set_param(sessionId: string, args: { layer_id: string; op: string; param: string; value: ControlValue }) {
+    return invokeTool<{ ok: boolean }>('set_param', sessionId, args);
+  },
   preview_widget(sessionId: string, args: { widget_id: string; max_dim?: number }) {
     return invokeTool<{ mime_type: string; image_b64: string | null; reason?: string }>(
       'preview_widget', sessionId, args,

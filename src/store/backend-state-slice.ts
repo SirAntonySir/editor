@@ -256,7 +256,14 @@ export const useBackendState = create<BackendState>()(
 
     applyOptimistic: (widgetId, patch) =>
       set((s) => {
-        s.optimistic.set(widgetId, patch);
+        const existing = s.optimistic.get(widgetId);
+        if (!existing || existing.baseRevision !== patch.baseRevision) {
+          s.optimistic.set(widgetId, patch);
+          return;
+        }
+        const byKey = new Map(existing.bindings.map((b) => [b.paramKey, b]));
+        for (const b of patch.bindings) byKey.set(b.paramKey, b);
+        s.optimistic.set(widgetId, { baseRevision: patch.baseRevision, bindings: [...byKey.values()] });
       }),
 
     clearOptimistic: (widgetId) =>

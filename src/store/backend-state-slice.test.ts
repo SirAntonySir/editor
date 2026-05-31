@@ -350,6 +350,27 @@ describe('BackendStateSlice phase events', () => {
   });
 });
 
+describe('BackendStateSlice — applyOptimistic merge', () => {
+  beforeEach(() => useBackendState.getState().reset());
+
+  it('applyOptimistic merges bindings on the same node by paramKey', () => {
+    const s = useBackendState.getState();
+    s.applyOptimistic('canon:L1:basic', { bindings: [{ paramKey: 'highlights', value: 40 }], baseRevision: 1 });
+    s.applyOptimistic('canon:L1:basic', { bindings: [{ paramKey: 'shadows', value: -20 }], baseRevision: 1 });
+    const patch = useBackendState.getState().optimistic.get('canon:L1:basic');
+    const byKey = Object.fromEntries((patch?.bindings ?? []).map((b) => [b.paramKey, b.value]));
+    expect(byKey).toEqual({ highlights: 40, shadows: -20 });
+  });
+
+  it('applyOptimistic overwrites the same paramKey rather than duplicating', () => {
+    const s = useBackendState.getState();
+    s.applyOptimistic('canon:L1:basic', { bindings: [{ paramKey: 'highlights', value: 40 }], baseRevision: 1 });
+    s.applyOptimistic('canon:L1:basic', { bindings: [{ paramKey: 'highlights', value: 10 }], baseRevision: 1 });
+    const patch = useBackendState.getState().optimistic.get('canon:L1:basic');
+    expect(patch?.bindings).toEqual([{ paramKey: 'highlights', value: 10 }]);
+  });
+});
+
 describe('BackendStateSlice — session persistence', () => {
   // Provide a minimal localStorage mock in the node test environment.
   const store: Record<string, string> = {};

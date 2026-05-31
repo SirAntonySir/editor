@@ -48,6 +48,8 @@ class SetWidgetParamTool(BackendTool[_Input, _Output]):
         node = next((n for n in w.nodes if n.id == binding.target.node_id), None)
         if node is not None:
             node.params[binding.target.param_key] = input.value
+            # Canonical write: the op_graph now projects from here.
+            doc.set_param(node.layer_id, node.type, binding.target.param_key, input.value)
         w.revision += 1
         doc.update_widget(w)
         return _Output(ok=True)

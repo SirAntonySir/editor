@@ -18,6 +18,9 @@ _Compact reference for the canonical-engine + accordion program. Last updated 20
   is the op_graph projection source (`project_to_graph` → `canonical_to_nodes`, dedup by
   (layer,op)). `set_param` + `set_widget_param` + tool spawns write it. Two views of one op
   dedup to one node. (plan: `plans/2026-05-31-phase3-canonical-core.md`)
+- **Phase 3 Slice 2 — route fused/autonomous into canonical.** `add_widget` seeds canonical
+  centrally from a widget's nodes, so ALL creation paths (tool_invoked, fused/LLM, autonomous)
+  project after the Slice-1 switch. Projection source is canonical, not `widget.nodes`.
 
 ## Specs (designs)
 
@@ -29,9 +32,7 @@ _Compact reference for the canonical-engine + accordion program. Last updated 20
 
 ## Roadmap (remaining — sequential)
 
-1. **Route fused/autonomous creation into canonical.** `propose_widget` (LLM path) + the
-   autonomous-mint path must `doc.set_param(...)` their nodes' params (today only the
-   tool_invoked path does). Until then, AI/fused widgets don't project after the Slice-1 switch.
+1. ~~Route fused/autonomous creation into canonical.~~ **DONE (Slice 2).**
 2. **Frontend canonical hooks.** A read selector over `op_graph` canonical nodes + a
    `set_param(layer, op, param, value)` setter the views call (the canvas widget already routes
    via `set_widget_param`; accordion will use the same canonical path).

@@ -12,12 +12,14 @@ interface ToolSectionProps {
   layerId: string | null;
 }
 
+const EMPTY_PARAMS: Record<string, unknown> = {};
+
 export function ToolSection({ def, layerId }: ToolSectionProps) {
   const expanded = useEditorStore((s) => s.expandedSectionIds.has(def.id));
   const toggle = useEditorStore((s) => s.toggleSectionExpanded);
   const canonical = useBackendState((s) => {
     const id = layerId ? `canon:${layerId}:${def.adjustmentType}` : '';
-    return (s.snapshot?.operation_graph.nodes.find((n) => n.id === id)?.params ?? {}) as Record<string, unknown>;
+    return (s.snapshot?.operation_graph.nodes.find((n) => n.id === id)?.params ?? EMPTY_PARAMS) as Record<string, unknown>;
   });
   const { summary, dirty } = sectionSummary(def.params, canonical);
   const Icon = def.icon;

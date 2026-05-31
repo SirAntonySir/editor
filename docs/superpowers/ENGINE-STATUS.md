@@ -40,13 +40,16 @@ _Compact reference for the canonical-engine + accordion program. Last updated 20
 
 1. ~~Route fused/autonomous creation into canonical.~~ **DONE (Slice 2).**
 2. ~~Widget-less `set_param` + accept/close canonical semantics (backend).~~ **DONE (Slice 3).**
-3. **Frontend canonical hooks.** A read selector over `op_graph` canonical nodes + a
-   `setParam(layer, op, param, value)` caller hitting `/api/tools/set_param`. The canvas widget
-   already routes via `set_widget_param`; the accordion uses the new widget-less path. Wire the
-   ↗ promote + accept(Apply)/close(×) buttons to `accept_widget` / `delete_widget`.
+3. **Adjustments Accordion (incl. frontend canonical hooks).** **Plan written:**
+   `plans/2026-05-31-adjustments-accordion.md` — 10 TDD tasks. Task 1 IS the frontend canonical
+   hooks (`backendTools.set_param` client + `useCanonicalParam` hook over `canon:{layer}:{op}`
+   nodes); the rest build the section primitives, AI sections, composition, and the InspectorPanel
+   migration. ↗ promote + Apply(accept)/close(delete) wired in. Sections come from
+   `ProcessingRegistry` (6); Filters (lut) is promote-only for the first cut. Visual target:
+   `.superpowers/brainstorm/28353-1780240612/content/accordion-layout.html`.
 4. **Remove `Widget.nodes` (thin views).** Widgets stop owning params; bindings reference
-   `(layer, op, param)` canonical slots. Cleanup of the now-redundant node ownership.
-5. **Adjustments Accordion.** Build the accordion (per the spec) over the canonical state.
+   `(layer, op, param)` canonical slots. Cleanup of the now-redundant node ownership. (After the
+   accordion proves the widget-less path end-to-end.)
 
 ## Refined model (decided after Slice 2)
 

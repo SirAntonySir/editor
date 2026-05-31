@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { nodeToAdjustment } from './node-to-adjustment';
 import type { Node } from '@/types/operation-graph';
+import { IDENTITY_CURVES } from '@/types/widget';
 
 describe('nodeToAdjustment', () => {
   it('maps numeric params verbatim', () => {
@@ -32,5 +33,25 @@ describe('nodeToAdjustment', () => {
     } as unknown as Node;
     const adj = nodeToAdjustment(node);
     expect(adj.scope).toEqual({ kind: 'mask', mask_id: 'm_1' });
+  });
+
+  it('evaluates a curves node into four Float32Array channel LUTs', () => {
+    const node = {
+      id: 'n_c', type: 'curves',
+      params: { curves: {
+        ...IDENTITY_CURVES,
+        rgb: [{ x: 0, y: 0 }, { x: 0.5, y: 0.8 }, { x: 1, y: 1 }],
+      } },
+      scope: { kind: 'global' },
+    } as unknown as Parameters<typeof nodeToAdjustment>[0];
+
+    const adj = nodeToAdjustment(node);
+    expect(adj.type).toBe('curves');
+    for (const ch of ['rgb', 'red', 'green', 'blue'] as const) {
+      expect(adj.params[ch]).toBeInstanceOf(Float32Array);
+      expect((adj.params[ch] as Float32Array).length).toBe(256);
+    }
+    const rgb = adj.params.rgb as Float32Array;
+    expect(rgb[128]).toBeGreaterThan(0.5); // midpoint lifted above identity
   });
 });

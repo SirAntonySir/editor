@@ -97,8 +97,17 @@ export function useBackendSession(): void {
           if (cancelled) return;
 
           // 2. Trigger analyze. Events emitted during this call now reach the
-          //    frontend because the SSE connection is already open.
-          const envelope = await backendTools.analyze_image(sessionId);
+          //    frontend because the SSE connection is already open. Pass the
+          //    real layer id so autonomous widget nodes are stamped with it
+          //    (not "legacy") — the renderer filters op_graph nodes by exact
+          //    layer_id match, so a mismatch would silently drop every
+          //    autonomous adjustment.
+          const editor = useEditorStore.getState();
+          const layerId = editor.activeLayerId ?? editor.layers[0]?.id;
+          const envelope = await backendTools.analyze_image(
+            sessionId,
+            layerId ? { layer_id: layerId } : {},
+          );
           if (cancelled) return;
           if (!envelope.ok) {
             console.warn('[backend-session] analyze_image failed:', envelope.error);

@@ -30,8 +30,8 @@ async function invokeTool<T>(
 }
 
 export const backendTools = {
-  analyze_image(sessionId: string) {
-    return invokeTool<{ image_context: unknown }>('analyze_image', sessionId, {});
+  analyze_image(sessionId: string, args: { layer_id?: string } = {}) {
+    return invokeTool<{ image_context: unknown }>('analyze_image', sessionId, args);
   },
   list_widgets(sessionId: string) {
     return invokeTool<{ widgets: Widget[] }>('list_widgets', sessionId, {});

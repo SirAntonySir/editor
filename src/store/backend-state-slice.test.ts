@@ -71,6 +71,43 @@ describe('BackendStateSlice', () => {
     expect(snap.revision).toBe(2);
   });
 
+  it('applyEvent widget.created swaps in the embedded operation_graph', () => {
+    useBackendState.setState({ snapshot: baseSnapshot() });
+    const ev: StateEvent = {
+      revision: 2,
+      kind: 'widget.created',
+      payload: {
+        widget: makeWidget('w_2'),
+        operation_graph: {
+          id: 'projected-y',
+          nodes: [{ id: 'n_new', type: 'basic', layer_id: 'layer-1', params: { exposure: 40 } }],
+        },
+      },
+      emitted_at: '2026-05-23T00:00:01Z',
+    };
+    useBackendState.getState().applyEvent(ev);
+    const snap = useBackendState.getState().snapshot!;
+    expect(snap.operation_graph.nodes.map((n) => n.id)).toEqual(['n_new']);
+  });
+
+  it('applyEvent widget.updated swaps in the embedded operation_graph', () => {
+    useBackendState.setState({ snapshot: baseSnapshot() });
+    useBackendState.getState().applyEvent({
+      revision: 2,
+      kind: 'widget.updated',
+      payload: {
+        widget: makeWidget('w_1', { revision: 2 }),
+        operation_graph: {
+          id: 'projected-z',
+          nodes: [{ id: 'n_1', type: 'basic', layer_id: 'layer-1', params: { exposure: 90 } }],
+        },
+      },
+      emitted_at: '2026-05-23T00:00:02Z',
+    } as StateEvent);
+    const snap = useBackendState.getState().snapshot!;
+    expect(snap.operation_graph.nodes[0].params.exposure).toBe(90);
+  });
+
   it('applyEvent widget.updated replaces in place', () => {
     useBackendState.setState({ snapshot: baseSnapshot() });
     const updated = makeWidget('w_1', { intent: 'changed', revision: 2 });

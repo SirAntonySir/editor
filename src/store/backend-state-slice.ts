@@ -238,6 +238,12 @@ export const useBackendState = create<BackendState>()(
             break;
         }
 
+        // Widget lifecycle events embed the freshly-projected operation_graph
+        // (the renderer only knows op_graph nodes). Swap it in so newly
+        // created/edited widgets reach the canvas without a full re-fetch.
+        const incomingGraph = (payload as { operation_graph?: SessionStateSnapshot['operation_graph'] }).operation_graph;
+        if (incomingGraph) s.snapshot.operation_graph = incomingGraph;
+
         s.snapshot.revision = ev.revision;
 
         // Drop optimistic patches whose baseRevision is now stale.

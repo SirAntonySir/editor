@@ -72,19 +72,36 @@ class SessionDocument(BaseModel):
 
     # ---------------- widget mutations ----------------
 
+    def _op_graph_payload(self) -> dict[str, Any]:
+        """Projected operation_graph as a JSON dict, embedded in every widget
+        lifecycle event. The frontend renderer only knows op_graph nodes, so it
+        needs the fresh projection on each widget change — otherwise newly
+        created/edited widgets never reach the canvas until a full re-fetch.
+
+        Imported lazily: operations.py imports SessionDocument, so a top-level
+        import here would be circular."""
+        from app.state.operations import project_to_graph
+        return project_to_graph(self).model_dump(mode="json")
+
     def add_widget(self, widget: Widget) -> list[StateEvent]:
         if widget.id in self.widgets:
             raise KeyError(f"widget {widget.id} already exists")
         self.widgets[widget.id] = widget
         self.widget_order.append(widget.id)
-        return [self._emit("widget.created", {"widget": widget.model_dump(mode="json")})]
+        return [self._emit("widget.created", {
+            "widget": widget.model_dump(mode="json"),
+            "operation_graph": self._op_graph_payload(),
+        })]
 
     def update_widget(self, widget: Widget) -> list[StateEvent]:
         if widget.id not in self.widgets:
             raise KeyError(widget.id)
         widget.updated_at = datetime.now(timezone.utc)
         self.widgets[widget.id] = widget
-        return [self._emit("widget.updated", {"widget": widget.model_dump(mode="json")})]
+        return [self._emit("widget.updated", {
+            "widget": widget.model_dump(mode="json"),
+            "operation_graph": self._op_graph_payload(),
+        })]
 
     def dismiss_widget(self, widget_id: str, rule: DismissalRule | None = None) -> list[StateEvent]:
         if widget_id not in self.widgets:
@@ -92,7 +109,10 @@ class SessionDocument(BaseModel):
         w = self.widgets[widget_id]
         w.status = "dismissed"
         w.updated_at = datetime.now(timezone.utc)
-        events = [self._emit("widget.deleted", {"widget_id": widget_id})]
+        events = [self._emit("widget.deleted", {
+            "widget_id": widget_id,
+            "operation_graph": self._op_graph_payload(),
+        })]
         if rule is not None:
             self.dismissals.append(rule)
             events.append(self._emit("dismissal.added", {"rule": rule.model_dump(mode="json")}))
@@ -105,7 +125,10 @@ class SessionDocument(BaseModel):
         w.status = "active"
         w.updated_at = datetime.now(timezone.utc)
         self.dismissals = [r for r in self.dismissals if r.source_widget_id != widget_id]
-        return [self._emit("widget.restored", {"widget_id": widget_id})]
+        return [self._emit("widget.restored", {
+            "widget_id": widget_id,
+            "operation_graph": self._op_graph_payload(),
+        })]
 
     def accept_widget(self, widget_id: str) -> list[StateEvent]:
         if widget_id not in self.widgets:
@@ -113,7 +136,10 @@ class SessionDocument(BaseModel):
         w = self.widgets[widget_id]
         w.status = "accepted"
         w.updated_at = datetime.now(timezone.utc)
-        return [self._emit("widget.accepted", {"widget_id": widget_id})]
+        return [self._emit("widget.accepted", {
+            "widget_id": widget_id,
+            "operation_graph": self._op_graph_payload(),
+        })]
 
     # ---------------- mask mutations ----------------
 

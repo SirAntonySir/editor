@@ -110,8 +110,10 @@ def test_propose_widget_tool_invoked_skips_llm(client, fake_anthropic) -> None:
     assert fake_anthropic._call_count == 0
     widget = body["output"]["widget"]
     assert widget["origin"]["kind"] == "tool_invoked"
-    # Tool-invoked widgets are pre-accepted (the click IS the accept)
-    assert widget["status"] == "accepted"
+    # Tool-invoked widgets spawn as an editable shell on the canvas. The user
+    # tunes sliders, then commits via Apply (accept_widget). So a freshly
+    # minted tool_invoked widget is "active", not pre-accepted.
+    assert widget["status"] == "active"
 
 
 def test_propose_widget_tool_invoked_unknown_tool_errors(client) -> None:

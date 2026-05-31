@@ -20,7 +20,11 @@ from app.tools.base import BackendTool, ToolPermissions
 
 
 class _Input(BaseModel):
-    pass
+    # The frontend's layer id for the image being analyzed. Stamped onto every
+    # autonomous widget node so the renderer (which filters op_graph nodes by
+    # exact layer_id match) actually applies them. Defaults to "legacy" for
+    # callers that don't supply one (e.g. MCP / tests).
+    layer_id: str = "legacy"
 
 
 class _Output(EnrichedImageContext):
@@ -158,7 +162,7 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
 
         doc._emit_phase_started("widget_mint", index=6, total=TOTAL_PHASES)
         start = time.monotonic()
-        await _mint_autonomous_suggestions(doc, ctx, client)
+        await _mint_autonomous_suggestions(doc, ctx, client, input.layer_id)
         doc._emit_phase_completed(
             "widget_mint", duration_ms=int((time.monotonic() - start) * 1000),
         )
@@ -224,10 +228,18 @@ async def _precompute_region_masks(
     )
 
 
-async def _mint_autonomous_suggestions(doc, ctx, anthropic) -> None:
+async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "legacy") -> None:
     """For each high-severity Problem, run the suggested fused tool with
     origin.kind='mcp_autonomous'. Suggestions whose (fused_tool_id, scope)
-    matches an existing dismissal rule are skipped."""
+    matches an existing dismissal rule are skipped.
+
+    Every minted widget's nodes are stamped with ``layer_id`` (the frontend's
+    real layer id) so the renderer applies them — the fused framework leaves
+    nodes on the "legacy" default otherwise."""
+
+    def _stamp(widget) -> None:
+        for node in widget.nodes:
+            node.layer_id = layer_id
     from app.schemas.widget import Scope, WidgetOrigin
     from app.tools.fused import all_fused_templates
     from app.tools.fused_framework import run_fused_tool
@@ -270,6 +282,7 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic) -> None:
                 )
             except Exception:
                 continue
+            _stamp(widget)
             doc.add_widget(widget)
             break  # one per problem
 
@@ -326,6 +339,7 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic) -> None:
             continue
         if widget is None:
             continue
+        _stamp(widget)
         doc.add_widget(widget)
         already_used.add(fused_id)
 

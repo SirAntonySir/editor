@@ -187,7 +187,10 @@ class ProposeWidgetTool(BackendTool[_Input, _Output]):
             bindings=bindings,
             preview=WidgetPreview(kind="none", auto_before_after=False),
             rejected_attempts=[],
-            status="accepted",
+            # Spawn as an editable shell on the canvas. The toolbar click
+            # creates the widget "active"; the user tunes it and commits via
+            # Apply (accept_widget), which flips status → "accepted".
+            status="active",
             revision=1,
         )
         doc.add_widget(widget)

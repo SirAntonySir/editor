@@ -86,3 +86,29 @@ def test_pure_function_does_not_mutate_doc() -> None:
     project_to_graph(doc)
     after = doc.model_dump_json()
     assert before == after
+
+
+def test_widget_created_event_carries_operation_graph() -> None:
+    """widget.created must embed the freshly-projected operation_graph so the
+    frontend renderer (which only knows op_graph nodes) sees the new node
+    without a full snapshot re-fetch."""
+    doc = SessionDocument(session_id="s1")
+    events = doc.add_widget(_widget("w_1", "n_1", {"temperature": 6500}))
+    ev = events[0]
+    assert ev.kind == "widget.created"
+    assert "operation_graph" in ev.payload
+    node_ids = [n["id"] for n in ev.payload["operation_graph"]["nodes"]]
+    assert "n_1" in node_ids
+
+
+def test_widget_updated_event_carries_operation_graph() -> None:
+    """widget.updated must embed the updated operation_graph so a slider change
+    (set_widget_param → update_widget) reaches the renderer."""
+    doc = SessionDocument(session_id="s1")
+    doc.add_widget(_widget("w_1", "n_1", {"temperature": 6500}))
+    updated = _widget("w_1", "n_1", {"temperature": 8000})
+    events = doc.update_widget(updated)
+    ev = events[0]
+    assert ev.kind == "widget.updated"
+    graph_nodes = ev.payload["operation_graph"]["nodes"]
+    assert graph_nodes[0]["params"]["temperature"] == 8000

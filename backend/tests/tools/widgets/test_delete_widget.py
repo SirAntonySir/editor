@@ -141,20 +141,17 @@ def test_delete_widget_flips_status_to_dismissed(client) -> None:
     )
 
 
-def test_delete_widget_does_not_clear_canonical_nodes(client) -> None:
-    """delete_widget dismisses the widget but does NOT clear canonical state.
-    Canonical nodes persist in the op_graph projection even after deletion.
-    (Clearing canonical is an explicit future operation, not a side-effect of
-    widget dismissal.)"""
+def test_delete_widget_resets_owned_canonical_params(client) -> None:
+    """delete_widget IS the 'close (×)' action (Q2: 'close → value resets').
+    It resets the canonical params the widget owns and prunes the now-empty
+    slot, so the owned node disappears from the op_graph projection. (accept,
+    by contrast, keeps canonical — see test_accept_widget.)"""
     from app.state.operations import project_to_graph
 
     sid = _create_session(client)
-    wid = _push_widget(sid)
+    wid = _push_widget(sid)  # node: layer_01 / kelvin / temperature=5800
 
     doc = deps.get_session_store().get_document(sid)
-    # Seed canonical to match the widget's node
-    doc.set_param("layer_01", "kelvin", "temperature", 5800)
-
     canon_node_id = "canon:layer_01:kelvin"
     graph_before = project_to_graph(doc)
     assert any(n.id == canon_node_id for n in graph_before.nodes), (
@@ -166,11 +163,10 @@ def test_delete_widget_does_not_clear_canonical_nodes(client) -> None:
         json={"session_id": sid, "input": {"widget_id": wid, "suppress_similar": False}},
     )
 
-    # Widget is dismissed, but canonical state is preserved
+    # Widget is dismissed AND its owned canonical params are reset → node gone.
     graph_after = project_to_graph(doc)
-    assert any(n.id == canon_node_id for n in graph_after.nodes), (
-        "delete_widget must NOT remove canonical nodes from op_graph; "
-        "canonical state persists independently of widget lifecycle"
+    assert not any(n.id == canon_node_id for n in graph_after.nodes), (
+        "delete_widget (close) must reset the widget's owned canonical params"
     )
 
 

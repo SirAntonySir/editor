@@ -117,7 +117,14 @@ export function CurveEditor({ value, onChange }: CurveEditorProps) {
   );
 
   const handleReset = () => {
-    onChange({ ...IDENTITY_CURVES });
+    // Deep-copy: IDENTITY_CURVES is a shared exported constant — never hand its
+    // inner arrays out as the live value.
+    onChange({
+      rgb: [...IDENTITY_CURVES.rgb],
+      red: [...IDENTITY_CURVES.red],
+      green: [...IDENTITY_CURVES.green],
+      blue: [...IDENTITY_CURVES.blue],
+    });
   };
 
   // Build SVG path from spline (200×200 viewBox)

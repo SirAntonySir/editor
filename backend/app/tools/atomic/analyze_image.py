@@ -63,7 +63,11 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
         sam_on = _sam_enabled()
         sam = deps.get_sam_client() if sam_on else None
 
-        TOTAL_PHASES = 6
+        # SAM is gated off, so the stepper shows only the 4 phases that actually
+        # run: update, mechanical, ai_context, widget_mint. The sam_embed and
+        # mask_precompute (Regions) phases are NOT emitted while SAM is off —
+        # re-add them (and bump this count) when segmentation is brought back.
+        TOTAL_PHASES = 4
 
         # Phase 1 — "update": load + decode the source image. Bracketed in its
         # own phase so the stepper shows a first active step while the
@@ -93,31 +97,22 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
             return cheap
 
         async def _phase_sam_embed() -> bool:
-            doc._emit_phase_started("sam_embed", index=3, total=TOTAL_PHASES)
-            start = time.monotonic()
+            # No stepper phase while SAM is gated off (see TOTAL_PHASES). When
+            # off this is an instant skip that never touches the shared executor,
+            # so it can't starve the concurrent ai_context (Claude) phase.
             if not sam_on:
-                # SAM disabled: instant skip. Crucially does NOT touch the shared
-                # executor, so the concurrent ai_context (Claude) phase isn't
-                # starved. Returns False → mask precompute is skipped below.
-                doc._emit_phase_completed("sam_embed", duration_ms=0)
                 return False
             try:
                 await asyncio.get_running_loop().run_in_executor(
                     None, sam.embed, doc.session_id, arr,
                 )
-                doc._emit_phase_completed(
-                    "sam_embed", duration_ms=int((time.monotonic() - start) * 1000),
-                )
                 return True
             except Exception as err:
-                doc._emit_phase_completed(
-                    "sam_embed", duration_ms=int((time.monotonic() - start) * 1000),
-                )
                 doc._emit("context.updated", {"sam_unavailable": True, "reason": str(err)})
                 return False
 
         async def _phase_ai_context():
-            doc._emit_phase_started("ai_context", index=4, total=TOTAL_PHASES)
+            doc._emit_phase_started("ai_context", index=3, total=TOTAL_PHASES)
             start = time.monotonic()
             base_ctx = await asyncio.get_running_loop().run_in_executor(
                 None,
@@ -174,13 +169,12 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
         deps.get_session_store().set_context(doc.session_id, ctx.model_dump(mode="json"))
         doc._emit("context.updated", {"available": True})
 
+        # Region mask precompute only runs when SAM is enabled (future re-enable).
+        # While SAM is off there is no "Regions" phase at all.
         if sam_ok:
             await _precompute_region_masks(doc, base_ctx.candidate_regions, sam, w_img, h_img)
-        else:
-            doc._emit_phase_started("mask_precompute", index=5, total=TOTAL_PHASES)
-            doc._emit_phase_completed("mask_precompute", duration_ms=0)
 
-        doc._emit_phase_started("widget_mint", index=6, total=TOTAL_PHASES)
+        doc._emit_phase_started("widget_mint", index=4, total=TOTAL_PHASES)
         start = time.monotonic()
         await _mint_autonomous_suggestions(doc, ctx, client, input.layer_id)
         doc._emit_phase_completed(

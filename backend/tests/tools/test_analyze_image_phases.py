@@ -74,9 +74,10 @@ async def test_phase_events_emitted_in_order():
     assert "phase.completed" in phase_events
     started_count = sum(1 for k in phase_events if k == "phase.started")
     completed_count = sum(1 for k in phase_events if k == "phase.completed")
-    # update + mechanical + sam_embed + ai_context + mask_precompute + widget_mint
-    assert started_count == 6
-    assert completed_count == 6
+    # SAM gated off → only the 4 real phases fire:
+    # update + mechanical + ai_context + widget_mint (no sam_embed / mask_precompute).
+    assert started_count == 4
+    assert completed_count == 4
 
 
 @pytest.mark.asyncio

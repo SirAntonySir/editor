@@ -12,10 +12,11 @@ import {
 export const PHASES: { key: PhaseName; label: string }[] = [
   { key: 'update', label: 'Update' },
   { key: 'mechanical', label: 'Mechanical' },
-  { key: 'sam_embed', label: 'SAM embed' },
   { key: 'ai_context', label: 'AI context' },
-  { key: 'mask_precompute', label: 'Regions' },
   { key: 'widget_mint', label: 'Suggest' },
+  // 'sam_embed' (SAM embed) + 'mask_precompute' (Regions) are omitted while SAM
+  // is gated off — the backend no longer emits them. Re-add when segmentation
+  // returns.
 ];
 
 /** Label of the furthest-along active phase, for single-line UIs. Null when

@@ -184,13 +184,15 @@ export function CommandPalette() {
                     </>
                   )}
                   {flat.length === 0 && (
-                    <div className="px-3.5 py-3 text-xs text-text-secondary">No matching tools.</div>
+                    <div className="px-3.5 py-3 text-xs text-text-secondary">No tools available.</div>
                   )}
                 </div>
 
                 {/* Footer */}
                 <div className="flex items-center gap-3.5 px-3.5 py-2 border-t border-separator text-[10px] text-text-secondary">
-                  <span>↑↓ navigate</span><span>↵ run</span><span>⇥ target</span><span>esc close</span>
+                  <span>↑↓ navigate</span><span>↵ run</span>
+                  {aiCommand && <span>⌘↵ AI</span>}
+                  <span>⇥ target</span><span>esc close</span>
                 </div>
               </motion.div>
             </Dialog.Content>

@@ -17,10 +17,27 @@ interface FBO {
   texture: WebGLTexture;
 }
 
+interface RenderIntoCtx {
+  gl: WebGL2RenderingContext;
+  inputTexture: WebGLTexture;
+  targetFramebuffer: WebGLFramebuffer | null;
+  scratchA: FBO;
+  scratchB: FBO;
+  width: number;
+  height: number;
+  texel: [number, number];
+  drawQuad: () => void;
+}
+
 interface ShaderPass {
   program: WebGLProgram;
   setUniforms: (gl: WebGL2RenderingContext, program: WebGLProgram, adj: Adjustment) => void;
   extraTextures?: (gl: WebGL2RenderingContext, program: WebGLProgram, adj: Adjustment) => WebGLTexture[];
+  /** When true, drawPass sets u_texel = (1/width, 1/height) before drawing. */
+  needsTexel?: boolean;
+  /** Optional multi-pass override. When present the render loop calls this
+   *  instead of a single drawPass; it must end by drawing into targetFramebuffer. */
+  renderInto?: (ctx: RenderIntoCtx, adj: Adjustment) => void;
 }
 
 const BLEND_MODE_INDEX: Record<BlendMode, number> = {
@@ -47,6 +64,7 @@ export class WebGLPipeline {
   private fboA: FBO;
   private fboB: FBO;
   private fboC: FBO; // used for blend intermediate
+  private fboD: FBO;
   private vao: WebGLVertexArrayObject;
   private shaders: Map<string, ShaderPass> = new Map();
   private blendProgram: WebGLProgram;
@@ -69,6 +87,7 @@ export class WebGLPipeline {
     this.fboA = this.createFBO(1, 1);
     this.fboB = this.createFBO(1, 1);
     this.fboC = this.createFBO(1, 1);
+    this.fboD = this.createFBO(1, 1);
     this.vao = this.createQuadVAO();
     this.blendProgram = createProgram(gl, fullscreenQuadVertex, blendFragment);
     this.initShaders();
@@ -88,9 +107,11 @@ export class WebGLPipeline {
     this.deleteFBO(this.fboA);
     this.deleteFBO(this.fboB);
     this.deleteFBO(this.fboC);
+    this.deleteFBO(this.fboD);
     this.fboA = this.createFBO(width, height);
     this.fboB = this.createFBO(width, height);
     this.fboC = this.createFBO(width, height);
+    this.fboD = this.createFBO(width, height);
     this.outputCanvas.width = width;
     this.outputCanvas.height = height;
     gl.viewport(0, 0, width, height);
@@ -288,9 +309,18 @@ export class WebGLPipeline {
       if (!needsBlend) {
         // Direct pass — apply adjustment, output becomes new current
         const target = isLast ? null : pingPong[ppIdx].framebuffer;
-        const temps = this.drawPass(currentTex, target, shader, adj);
-        for (const t of temps) gl.deleteTexture(t);
-
+        if (shader.renderInto) {
+          shader.renderInto({
+            gl, inputTexture: currentTex, targetFramebuffer: target,
+            scratchA: this.fboC, scratchB: this.fboD,
+            width: this.width, height: this.height,
+            texel: [1 / this.width, 1 / this.height],
+            drawQuad: () => this.drawQuad(),
+          }, adj);
+        } else {
+          const temps = this.drawPass(currentTex, target, shader, adj);
+          for (const t of temps) gl.deleteTexture(t);
+        }
         if (!isLast) {
           currentTex = pingPong[ppIdx].texture;
           ppIdx = 1 - ppIdx;
@@ -341,6 +371,13 @@ export class WebGLPipeline {
     gl.bindVertexArray(null);
   }
 
+  private drawQuad(): void {
+    const { gl } = this;
+    gl.bindVertexArray(this.vao);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.bindVertexArray(null);
+  }
+
   private drawPass(
     inputTexture: WebGLTexture,
     targetFramebuffer: WebGLFramebuffer | null,
@@ -361,6 +398,9 @@ export class WebGLPipeline {
       gl.uniform1i(gl.getUniformLocation(shader.program, 'u_texture'), 0);
 
       shader.setUniforms(gl, shader.program, adj);
+      if (shader.needsTexel) {
+        gl.uniform2f(gl.getUniformLocation(shader.program, 'u_texel'), 1 / this.width, 1 / this.height);
+      }
       tempTextures = shader.extraTextures?.(gl, shader.program, adj) ?? [];
 
       // Mask binding — upload R8 mask texture when scope.kind === 'mask'
@@ -438,6 +478,7 @@ export class WebGLPipeline {
     this.deleteFBO(this.fboA);
     this.deleteFBO(this.fboB);
     this.deleteFBO(this.fboC);
+    this.deleteFBO(this.fboD);
     if (this.sourceTexture) gl.deleteTexture(this.sourceTexture);
     if (this.maskTexture) gl.deleteTexture(this.maskTexture);
     for (const shader of this.shaders.values()) {

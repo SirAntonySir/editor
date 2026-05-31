@@ -17,22 +17,28 @@ def _scalar_tool(op: str) -> dict[str, Any]:
     params = spec["params"]
     exposed = spec["toolDefaults"]  # curated subset the tool shows today
     node_params = {key: params[key]["default"] for key in exposed}
-    bindings = [
-        {
-            "param_key": key,
-            "label": params[key]["label"],
+
+    def _binding(key: str) -> dict[str, Any]:
+        p = params[key]
+        schema: dict[str, Any] = {
             "control_type": "slider",
-            "control_schema": {
-                "control_type": "slider",
-                "min": params[key]["min"],
-                "max": params[key]["max"],
-                "step": params[key]["step"],
-            },
-            "value": params[key]["default"],
-            "default": params[key]["default"],
+            "min": p["min"],
+            "max": p["max"],
+            "step": p["step"],
         }
-        for key in exposed
-    ]
+        # Optional display hint (e.g. kelvin → "K"); only present on some params.
+        if "unit" in p:
+            schema["unit"] = p["unit"]
+        return {
+            "param_key": key,
+            "label": p["label"],
+            "control_type": "slider",
+            "control_schema": schema,
+            "value": p["default"],
+            "default": p["default"],
+        }
+
+    bindings = [_binding(key) for key in exposed]
     return {"nodes": [{"type": shader_binding, "params": node_params}], "bindings": bindings}
 
 

@@ -24,7 +24,7 @@
       "shaderBinding": "kelvin",
       "toolDefaults": ["kelvin", "tint"],
       "params": {
-        "kelvin": { "uniform": "u_kelvin", "label": "Temperature", "min": 2000, "max": 10000, "step": 50, "scale": 1,   "default": 6500 },
+        "kelvin": { "uniform": "u_kelvin", "label": "Temperature", "min": 2000, "max": 10000, "step": 50, "scale": 1,   "default": 6500, "unit": "K" },
         "tint":   { "uniform": "u_tint",   "label": "Tint",        "min": -100, "max": 100,   "step": 1,  "scale": 100, "default": 0 }
       }
     },

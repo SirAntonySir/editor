@@ -21,6 +21,11 @@ def test_kelvin_uses_canonical_key_not_temp():
     assert "kelvin" in TOOL_DEFAULTS["kelvin"]["nodes"][0]["params"]
 
 
+def test_kelvin_binding_keeps_unit_hint():
+    b = _binding("kelvin", "kelvin")
+    assert b["control_schema"]["unit"] == "K"
+
+
 def test_levels_uses_inblack_not_black():
     keys = {b["param_key"] for b in TOOL_DEFAULTS["levels"]["bindings"]}
     assert "inBlack" in keys and "black" not in keys

@@ -29,6 +29,8 @@ export interface EngineParam {
   step: number;
   scale: EngineScale;
   default: number;
+  /** Optional display hint shown on the control (e.g. kelvin → "K"). */
+  unit?: string;
 }
 
 export interface EngineOp {

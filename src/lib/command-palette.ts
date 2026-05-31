@@ -13,7 +13,8 @@ export interface PaletteCommand {
   toolName?: string;
 }
 
-/** Short, human descriptions per tool name. Keyed by ToolDefinition.name. */
+/** Short, human descriptions per tool name. Keyed by ToolDefinition.name.
+ *  Keep in sync with registered adjustment tools — an unlisted tool falls back to ''. */
 const TOOL_DESCRIPTIONS: Record<string, string> = {
   light: 'Exposure, contrast, highlights, shadows',
   color: 'Saturation, vibrance, hue',
@@ -56,8 +57,8 @@ export function resolveInitialTargetId(ids: string[], activeId: string | null): 
   return ids[0];
 }
 
-export function nextTargetId(ids: string[], currentId: string | null): string {
-  if (ids.length === 0) return '';
+export function nextTargetId(ids: string[], currentId: string | null): string | null {
+  if (ids.length === 0) return null;
   const idx = currentId ? ids.indexOf(currentId) : -1;
   return ids[(idx + 1) % ids.length];
 }

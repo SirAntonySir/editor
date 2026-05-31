@@ -80,4 +80,7 @@ describe('nextTargetId', () => {
   it('returns the first id when current is unknown/null', () => {
     expect(nextTargetId(['a', 'b'], null)).toBe('a');
   });
+  it('returns null when there are no ids', () => {
+    expect(nextTargetId([], 'a')).toBeNull();
+  });
 });

@@ -14,6 +14,8 @@ vi.mock('@/lib/backend-tools', () => ({
   },
 }));
 
+const mockApplyOptimistic = vi.fn();
+
 vi.mock('@/store/backend-state-slice', async () => {
   const actual = await vi.importActual<typeof import('@/store/backend-state-slice')>('@/store/backend-state-slice');
   return {
@@ -23,7 +25,7 @@ vi.mock('@/store/backend-state-slice', async () => {
       (selector: (s: any) => any) => selector({
         sessionId: 's-1', optimistic: new Map(), snapshot: { masks_index: [], revision: 1 }, sseStatus: 'open',
       }),
-      { getState: () => ({ sessionId: 's-1', optimistic: new Map(), snapshot: { masks_index: [], revision: 1 }, sseStatus: 'open' }) },
+      { getState: () => ({ sessionId: 's-1', optimistic: new Map(), snapshot: { masks_index: [], revision: 1 }, sseStatus: 'open', applyOptimistic: mockApplyOptimistic }) },
     ),
   };
 });
@@ -73,5 +75,38 @@ describe('WidgetShell', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
     render(<WidgetShell widget={makeAiWidget()} />);
     expect(screen.getByText(/refine/i)).toBeInTheDocument();
+  });
+
+  it('setParam keys the optimistic patch by binding.target.node_id, not widget id', () => {
+    // Build a widget with a slider binding whose target.node_id is 'n_abc'
+    const widget = makeAiWidget({
+      bindings: [
+        {
+          param_key: 'exposure',
+          label: 'Exposure',
+          control_type: 'slider',
+          target: { node_id: 'n_abc', param_key: 'exposure' },
+          control_schema: { control_type: 'slider', min: -100, max: 100, step: 1 },
+          value: 0,
+          default: 0,
+        },
+      ],
+    });
+
+    // Expand the shell so the slider is rendered
+    useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
+    render(<WidgetShell widget={widget} />);
+
+    // Drive the slider's onChange — matches SliderControl's <input type="range"> pattern
+    const slider = screen.getByRole('slider');
+    fireEvent.change(slider, { target: { value: '40' } });
+
+    // The optimistic patch must be keyed by node_id ('n_abc'), not the widget id ('w-ai-1')
+    expect(mockApplyOptimistic).toHaveBeenCalledWith(
+      'n_abc',
+      expect.objectContaining({
+        bindings: [expect.objectContaining({ paramKey: 'exposure', value: 40 })],
+      }),
+    );
   });
 });

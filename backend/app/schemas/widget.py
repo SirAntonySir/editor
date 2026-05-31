@@ -346,6 +346,7 @@ StateEventKind = Literal[
     "context.updated", "dismissal.added",
     "note.created",
     "phase.started", "phase.progress", "phase.completed",
+    "canonical.updated",
 ]
 
 

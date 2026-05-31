@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { it, expect } from 'vitest';
 import { sectionSummary } from './section-summary';
 import type { ParamDefinition } from '@/types/processing';
 

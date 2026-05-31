@@ -6,6 +6,7 @@ import { levelsFragment } from './levels.glsl.ts';
 import { kelvinFragment } from './kelvin.glsl.ts';
 import { hslFragment } from './hsl.glsl.ts';
 import { sharpenFragment } from './sharpen.glsl.ts';
+import { blurFragment } from './blur.glsl.ts';
 import { lutFragment } from './lut.glsl.ts';
 import { blendFragment } from './blend.glsl.ts';
 import { LutRegistry } from '@/lib/lut-registry';
@@ -190,6 +191,32 @@ export class WebGLPipeline {
       needsTexel: true,
       setUniforms: (gl, program, adj) => {
         gl.uniform1f(gl.getUniformLocation(program, 'u_amount'), engineUniformValue('amount', (adj.params.amount as number) ?? 0));
+      },
+    });
+
+    // Gaussian blur (separable: H then V)
+    const blurProgram = createProgram(gl, fullscreenQuadVertex, blurFragment);
+    this.shaders.set('blur', {
+      program: blurProgram,
+      setUniforms: () => {},  // uniforms set inside renderInto per sub-pass
+      renderInto: (ctx, adj) => {
+        const { gl, inputTexture, targetFramebuffer, scratchA, texel, drawQuad } = ctx;
+        const radius = engineUniformValue('radius', (adj.params.radius as number) ?? 0);
+        const runPass = (inTex: WebGLTexture, outFb: WebGLFramebuffer | null, dir: [number, number]) => {
+          gl.bindFramebuffer(gl.FRAMEBUFFER, outFb);
+          gl.viewport(0, 0, ctx.width, ctx.height);
+          gl.useProgram(blurProgram);
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, inTex);
+          gl.uniform1i(gl.getUniformLocation(blurProgram, 'u_texture'), 0);
+          gl.uniform2f(gl.getUniformLocation(blurProgram, 'u_texel'), texel[0], texel[1]);
+          gl.uniform2f(gl.getUniformLocation(blurProgram, 'u_direction'), dir[0], dir[1]);
+          gl.uniform1f(gl.getUniformLocation(blurProgram, 'u_radius'), radius);
+          gl.uniform1i(gl.getUniformLocation(blurProgram, 'u_useMask'), 0);
+          drawQuad();
+        };
+        runPass(inputTexture, scratchA.framebuffer, [texel[0], 0]);  // horizontal → scratchA
+        runPass(scratchA.texture, targetFramebuffer, [0, texel[1]]); // vertical → target
       },
     });
 

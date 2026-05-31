@@ -7,6 +7,7 @@ import { curvesProcessing } from './curves';
 import { levelsProcessing } from './levels';
 import { filtersProcessing } from './filters';
 import { sharpenProcessing } from './sharpen';
+import { blurProcessing } from './blur';
 
 export function registerAllProcessing(): void {
   ProcessingRegistry.register(lightProcessing);
@@ -17,6 +18,7 @@ export function registerAllProcessing(): void {
   ProcessingRegistry.register(levelsProcessing);
   ProcessingRegistry.register(filtersProcessing);
   ProcessingRegistry.register(sharpenProcessing);
+  ProcessingRegistry.register(blurProcessing);
 }
 
 export {
@@ -28,4 +30,5 @@ export {
   levelsProcessing,
   filtersProcessing,
   sharpenProcessing,
+  blurProcessing,
 };

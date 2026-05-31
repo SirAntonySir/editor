@@ -25,19 +25,41 @@ function setSnapshotWithContext(ctx: unknown) {
 
 describe('InfoTab', () => {
   beforeEach(() => {
-    useBackendState.setState({ snapshot: null });
+    useBackendState.setState({ snapshot: null, phases: null, mcpAnalyzeComplete: false });
   });
   afterEach(cleanup);
 
   it('renders an empty state when no snapshot is present', () => {
     render(<InfoTab />);
-    expect(screen.getByText('No image context yet.')).not.toBeNull();
+    expect(screen.getByText('No image context yet')).not.toBeNull();
+  });
+
+  it('offers an Analyze with AI action in the empty state', () => {
+    render(<InfoTab />);
+    expect(screen.getByRole('button', { name: /analyze with ai/i })).not.toBeNull();
+  });
+
+  it('shows the analysis-progress steps while analyzing (no context yet)', () => {
+    useBackendState.setState({
+      phases: {
+        update: { status: 'done' },
+        mechanical: { status: 'active' },
+        sam_embed: { status: 'active' },
+        ai_context: { status: 'pending' },
+        mask_precompute: { status: 'pending' },
+        widget_mint: { status: 'pending' },
+      },
+      mcpAnalyzeComplete: false,
+    });
+    render(<InfoTab />);
+    expect(screen.getByText('Analysis progress')).not.toBeNull();
+    expect(screen.queryByText('No image context yet')).toBeNull();
   });
 
   it('renders an empty state when snapshot has no image_context', () => {
     setSnapshotWithContext(null);
     render(<InfoTab />);
-    expect(screen.getByText('No image context yet.')).not.toBeNull();
+    expect(screen.getByText('No image context yet')).not.toBeNull();
   });
 
   it('renders all four sections for a complete context', () => {

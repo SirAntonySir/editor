@@ -1,7 +1,6 @@
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Check,
   CircleX,
   Info,
   Loader2,
@@ -13,14 +12,14 @@ import {
   type BackendStatus,
   type BackendStatusKind,
 } from '@/hooks/useBackendStatus';
-import {
-  useBackendState,
-  representativePhase,
-  type PhaseName,
-  type PhaseMap,
-  type PhaseInfo,
-} from '@/store/backend-state-slice';
+import { useBackendState } from '@/store/backend-state-slice';
+import { representativePhaseLabel } from '@/components/ui/PhaseSteps';
 import { useAiSession } from '@/hooks/useImageContext';
+
+// Cross-component signal handled by InspectorPanel — flips it to the Info tab.
+// A bare literal (not an import) keeps this docked-chrome primitive decoupled
+// from the inspector tier; the string is the contract.
+const INSPECTOR_SHOW_INFO_EVENT = 'inspector:show-info';
 
 const COLORS: Record<BackendStatusKind, string> = {
   progress: 'text-text-secondary',
@@ -35,117 +34,6 @@ const STRIP_BG: Record<BackendStatusKind, string> = {
   info: 'bg-surface-secondary',
   error: 'bg-red-500/10',
 };
-
-const PHASES: { key: PhaseName; label: string }[] = [
-  { key: 'update', label: 'Update' },
-  { key: 'mechanical', label: 'Mechanical' },
-  { key: 'sam_embed', label: 'SAM embed' },
-  { key: 'ai_context', label: 'AI context' },
-  { key: 'mask_precompute', label: 'Regions' },
-  { key: 'widget_mint', label: 'Suggest' },
-];
-
-type NodeState = 'done' | 'active' | 'pending';
-
-function PhaseNode({ label, state }: { label: string; state: NodeState }) {
-  const labelColor =
-    state === 'active'
-      ? 'text-text-primary font-semibold'
-      : state === 'done'
-      ? 'text-text-secondary'
-      : 'text-text-secondary/60';
-
-  return (
-    <div className="flex flex-col items-center gap-1 min-w-0">
-      <div
-        className={
-          state === 'done'
-            ? 'w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center'
-            : state === 'active'
-            ? 'w-5 h-5 rounded-full border-2 border-accent border-t-transparent animate-spin'
-            : 'w-5 h-5 rounded-full border border-separator flex items-center justify-center'
-        }
-        aria-hidden
-      >
-        {state === 'done' && <Check size={12} strokeWidth={3} />}
-        {state === 'pending' && (
-          <span className="w-1 h-1 rounded-full bg-text-secondary/40" />
-        )}
-      </div>
-      <span className={`text-[9px] leading-none truncate ${labelColor}`}>{label}</span>
-    </div>
-  );
-}
-
-function Connector({ state }: { state: NodeState }) {
-  const bg =
-    state === 'done' ? 'bg-emerald-500' : state === 'active' ? 'bg-accent' : 'bg-separator';
-  return <div className={`h-px flex-none w-5 ${bg}`} aria-hidden />;
-}
-
-function PhaseStepper({
-  phases,
-  prePhaseText,
-}: {
-  phases: PhaseMap | null;
-  prePhaseText: string | null;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-1 px-4 py-2">
-      <div className="flex items-center justify-center gap-1.5">
-        {PHASES.map((p, i) => {
-          // Each node reflects its own backend status. Phases 2–4 run
-          // concurrently, so several may be 'active' (spinning) at once.
-          const info: PhaseInfo | undefined = phases?.[p.key];
-          const nodeState: NodeState = info?.status ?? 'pending';
-          const sub =
-            p.key === 'mask_precompute' && info?.total
-              ? `${info.done ?? 0}/${info.total}`
-              : null;
-          return (
-            <Fragment key={p.key}>
-              <div className="flex flex-col items-center gap-0.5">
-                <PhaseNode label={p.label} state={nodeState} />
-                {nodeState === 'active' && sub && (
-                  <span className="text-[9px] text-text-secondary tabular-nums leading-none -mt-0.5">
-                    {sub}
-                  </span>
-                )}
-              </div>
-              {/* Connector inherits the left node's state. */}
-              {i < PHASES.length - 1 && <Connector state={nodeState} />}
-            </Fragment>
-          );
-        })}
-      </div>
-      {prePhaseText && (
-        <div className="flex items-center gap-1.5 text-[10px] text-text-secondary">
-          <Loader2 size={10} className="animate-spin shrink-0" />
-          <span>{prePhaseText}</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ReadyStepper() {
-  return (
-    <div className="flex flex-col items-center gap-1 px-4 py-2">
-      <div className="flex items-center justify-center gap-1.5">
-        {PHASES.map((p, i) => (
-          <Fragment key={p.key}>
-            <PhaseNode label={p.label} state="done" />
-            {i < PHASES.length - 1 && <Connector state="done" />}
-          </Fragment>
-        ))}
-      </div>
-      <div className="flex items-center gap-1.5 text-[10px] text-emerald-400">
-        <Sparkles size={10} className="shrink-0" />
-        <span>Image context ready</span>
-      </div>
-    </div>
-  );
-}
 
 function StatusContent({ status }: { status: BackendStatus }) {
   const Icon =
@@ -165,7 +53,25 @@ function StatusContent({ status }: { status: BackendStatus }) {
   );
 }
 
-function ReadyActions({
+/** Single-line analyzing row: spinner + current phase, with a More-info link
+ *  that flips the inspector to its Info tab (where the full step list lives). */
+function AnalyzingLine({ text }: { text: string }) {
+  return (
+    <div className="relative flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] text-text-secondary">
+      <Loader2 size={12} className="animate-spin shrink-0" />
+      <span className="truncate">{text}</span>
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new Event(INSPECTOR_SHOW_INFO_EVENT))}
+        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm px-2 py-1 text-[10px] font-medium text-accent transition-colors hover:bg-surface hover:text-accent-hover"
+      >
+        More info
+      </button>
+    </div>
+  );
+}
+
+function ReadyLine({
   onShowContext,
   onDismiss,
 }: {
@@ -173,32 +79,36 @@ function ReadyActions({
   onDismiss: () => void;
 }) {
   return (
-    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-      <button
-        type="button"
-        onClick={onShowContext}
-        className="text-[10px] text-accent hover:text-accent-hover font-medium px-2 py-1 rounded-sm hover:bg-surface transition-colors"
-      >
-        Show context
-      </button>
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label="Dismiss"
-        className="text-text-secondary hover:text-text-primary p-1 rounded-sm hover:bg-surface transition-colors"
-      >
-        <X size={12} />
-      </button>
+    <div className="relative flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] text-emerald-400">
+      <Sparkles size={12} className="shrink-0" />
+      <span className="truncate">Image context ready</span>
+      <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1">
+        <button
+          type="button"
+          onClick={onShowContext}
+          className="rounded-sm px-2 py-1 text-[10px] font-medium text-accent transition-colors hover:bg-surface hover:text-accent-hover"
+        >
+          Show context
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          className="rounded-sm p-1 text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
+        >
+          <X size={12} />
+        </button>
+      </div>
     </div>
   );
 }
 
 /**
- * Slides in under the toolbar when the backend has something to show.
- * - During analyze: 5-node horizontal stepper (Option B from brainstorm) that
- *   tracks SSE phase progress.
- * - After analyze completes: a persistent "ready" bar with a Show-context link
- *   and a dismiss button. Stays until the user dismisses it.
+ * Slides in under the toolbar when the backend has something to show. All
+ * states are a single line — the full 6-step progress lives in the inspector's
+ * Info tab, reachable via "More info" / "Show context".
+ * - During analyze: spinner + the current phase label.
+ * - After analyze completes: a persistent "ready" line that stays until dismissed.
  * - Otherwise: thin single-line strip (toast / error).
  */
 export function BackendStatusBar() {
@@ -209,11 +119,11 @@ export function BackendStatusBar() {
 
   const preAnalyze = aiStatus === 'uploading' || aiStatus === 'analysing';
   // Live analyze: the pre-phase upload window, or phases streaming before
-  // widget_mint completes. Once mcpAnalyzeComplete the live stepper gives way
-  // to the persistent "ready" bar.
+  // widget_mint completes. Once mcpAnalyzeComplete the live row gives way to
+  // the persistent "ready" line.
   const inAnalyze = preAnalyze || (phases !== null && !mcpComplete);
 
-  // Persistent "ready" bar. Triggered on the REAL completion signal
+  // Persistent "ready" line. Triggered on the REAL completion signal
   // (mcpAnalyzeComplete = widget_mint done), with an aiStatus === 'ready'
   // fallback for the cached-context path where analyze_image early-returns and
   // emits no phases. Re-armed by resetting dismissal on every transition to
@@ -235,35 +145,31 @@ export function BackendStatusBar() {
   // suppress the stale map until the new run's phase.started(update) resets it.
   const livePhases = mcpComplete ? null : phases;
 
-  const repName = representativePhase(livePhases);
-  const prePhaseText = livePhases
-    ? null
+  const phaseLabel = representativePhaseLabel(livePhases);
+  const analyzingText = phaseLabel
+    ? `Analyzing · ${phaseLabel}`
     : aiStatus === 'uploading'
     ? 'Uploading image…'
     : aiStatus === 'analysing'
     ? 'Connecting to backend…'
-    : null;
-
-  const ariaLabel = repName
-    ? `Analyzing image: ${PHASES.find((p) => p.key === repName)?.label}`
-    : prePhaseText ?? 'Analyzing image';
+    : 'Analyzing image…';
 
   // The auto-dismissing "Image context ready" success from useBackendStatus is
-  // replaced by the persistent ready bar — skip the strip in that case.
+  // replaced by the persistent ready line — skip the strip in that case.
   const stripStatus =
     status && !(showReady && status.kind === 'success') ? status : null;
 
   const handleShowContext = () => {
     // Flip the inspector to its Info tab. Uses a window event to avoid coupling
     // this docked-chrome component to the inspector's local tab state.
-    window.dispatchEvent(new Event('inspector:show-info'));
+    window.dispatchEvent(new Event(INSPECTOR_SHOW_INFO_EVENT));
   };
 
   return (
     <AnimatePresence initial={false} mode="popLayout">
       {inAnalyze ? (
         <motion.div
-          key="stepper"
+          key="analyzing"
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: 'auto', opacity: 1 }}
           exit={{ height: 0, opacity: 0 }}
@@ -271,9 +177,9 @@ export function BackendStatusBar() {
           className="flex-none overflow-hidden border-b border-separator bg-surface-secondary"
           role="status"
           aria-live="polite"
-          aria-label={ariaLabel}
+          aria-label={`Analyzing image: ${analyzingText}`}
         >
-          <PhaseStepper phases={livePhases} prePhaseText={prePhaseText} />
+          <AnalyzingLine text={analyzingText} />
         </motion.div>
       ) : showReady ? (
         <motion.div
@@ -282,13 +188,12 @@ export function BackendStatusBar() {
           animate={{ height: 'auto', opacity: 1 }}
           exit={{ height: 0, opacity: 0 }}
           transition={{ duration: 0.22, ease: 'easeOut' }}
-          className="flex-none overflow-hidden border-b border-separator bg-emerald-500/10 relative"
+          className="flex-none overflow-hidden border-b border-separator bg-emerald-500/10"
           role="status"
           aria-live="polite"
           aria-label="Image context ready"
         >
-          <ReadyStepper />
-          <ReadyActions
+          <ReadyLine
             onShowContext={handleShowContext}
             onDismiss={() => setReadyDismissed(true)}
           />

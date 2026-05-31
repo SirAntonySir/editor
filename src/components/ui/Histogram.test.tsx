@@ -35,4 +35,32 @@ describe('Histogram', () => {
     const d = container.querySelector('path')?.getAttribute('d') ?? '';
     expect(d).toBe('');
   });
+
+  it('renders one path per series in overlay mode', () => {
+    const { container } = render(
+      <Histogram
+        series={[
+          { bins: [1, 2, 3], color: '#aaa', fill: true },
+          { bins: [3, 2, 1], color: '#f00', fill: false },
+          { bins: [1, 3, 2], color: '#0f0', fill: false },
+        ]}
+      />,
+    );
+    expect(container.querySelectorAll('path').length).toBe(3);
+  });
+
+  it('strokes (not fills) line series and fills area series', () => {
+    const { container } = render(
+      <Histogram
+        series={[
+          { bins: [1, 2], color: '#aaa', fill: true },
+          { bins: [2, 1], color: '#f00', fill: false },
+        ]}
+      />,
+    );
+    const paths = container.querySelectorAll('path');
+    expect(paths[0].getAttribute('fill')).toBe('#aaa');
+    expect(paths[1].getAttribute('fill')).toBe('none');
+    expect(paths[1].getAttribute('stroke')).toBe('#f00');
+  });
 });

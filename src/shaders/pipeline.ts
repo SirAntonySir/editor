@@ -4,6 +4,7 @@ import { basicAdjustmentsFragment } from './basic-adjustments.glsl.ts';
 import { curvesFragment } from './curves.glsl.ts';
 import { levelsFragment } from './levels.glsl.ts';
 import { kelvinFragment } from './kelvin.glsl.ts';
+import { hslFragment } from './hsl.glsl.ts';
 import { lutFragment } from './lut.glsl.ts';
 import { blendFragment } from './blend.glsl.ts';
 import { LutRegistry } from '@/lib/lut-registry';
@@ -142,6 +143,21 @@ export class WebGLPipeline {
         gl.uniform1f(gl.getUniformLocation(program, 'u_whites'), engineUniformValue('whites', (p.whites as number) ?? 0));
         gl.uniform1f(gl.getUniformLocation(program, 'u_blacks'), engineUniformValue('blacks', (p.blacks as number) ?? 0));
         gl.uniform1f(gl.getUniformLocation(program, 'u_vibrance'), engineUniformValue('vibrance', (p.vibrance as number) ?? 0));
+      },
+    });
+
+    // HSL targeted colour
+    const hslProgram = createProgram(gl, fullscreenQuadVertex, hslFragment);
+    const HSL_BANDS = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta'] as const;
+    this.shaders.set('hsl', {
+      program: hslProgram,
+      setUniforms: (gl, program, adj) => {
+        const p = adj.params;
+        HSL_BANDS.forEach((band, i) => {
+          gl.uniform1f(gl.getUniformLocation(program, `u_hslHue[${i}]`), engineUniformValue(`${band}_hue`, (p[`${band}_hue`] as number) ?? 0));
+          gl.uniform1f(gl.getUniformLocation(program, `u_hslSat[${i}]`), engineUniformValue(`${band}_sat`, (p[`${band}_sat`] as number) ?? 0));
+          gl.uniform1f(gl.getUniformLocation(program, `u_hslLum[${i}]`), engineUniformValue(`${band}_lum`, (p[`${band}_lum`] as number) ?? 0));
+        });
       },
     });
 

@@ -1,3 +1,22 @@
+/**
+ * Shared engine registry accessor — the single source of truth for each op's
+ * param keys, ranges, scale and shader-uniform binding (same JSON the backend
+ * reads). Lets the WebGL pipeline and the backend defaults stay in lock-step.
+ *
+ * Phase 1 scope: the four scalar ops (light, color, kelvin, levels) only.
+ * Deliberate omissions:
+ * - `curves` and `lut`/filter are LUT/texture based (no scalar params) and get
+ *   real controls in Phase 2 — they are intentionally not listed here yet.
+ * - `temperature` is a legacy `u_temperature` uniform handled directly in
+ *   `pipeline.ts`; it has no tool today, so it is intentionally absent.
+ * - `toolDefaults` is a deliberate curated subset of `params` (e.g. `light`
+ *   exposes Exposure/Contrast/Highlights/Shadows but not Brightness), so the
+ *   existing tool UIs stay identical while the contract still covers every
+ *   shader param.
+ *
+ * `engineUniformValue` returns unknown keys unchanged on purpose — that is the
+ * pass-through path for legacy uniforms like `temperature`.
+ */
 import registryJson from '../../shared/engine-registry.json';
 
 export type EngineScale = number | 'deg2rad';

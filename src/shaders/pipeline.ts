@@ -9,6 +9,7 @@ import { blendFragment } from './blend.glsl.ts';
 import { LutRegistry } from '@/lib/lut-registry';
 import { maskStore } from '@/core/mask-store';
 import type { Adjustment, BlendMode } from '@/types/adjustment';
+import { engineUniformValue } from '@/engine/registry';
 
 interface FBO {
   framebuffer: WebGLFramebuffer;
@@ -130,15 +131,15 @@ export class WebGLPipeline {
       program: basicProgram,
       setUniforms: (gl, program, adj) => {
         const p = adj.params;
-        gl.uniform1f(gl.getUniformLocation(program, 'u_brightness'), (p.brightness as number ?? 0) / 100);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_contrast'), (p.contrast as number ?? 0) / 100);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_saturation'), (p.saturation as number ?? 0) / 100);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_hue'), (p.hue as number ?? 0) * Math.PI / 180);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_temperature'), (p.temperature as number ?? 0) / 100);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_exposure'), (p.exposure as number ?? 0) / 100);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_highlights'), (p.highlights as number ?? 0) / 100);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_shadows'), (p.shadows as number ?? 0) / 100);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_vibrance'), (p.vibrance as number ?? 0) / 100);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_brightness'), engineUniformValue('brightness', (p.brightness as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_contrast'), engineUniformValue('contrast', (p.contrast as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_saturation'), engineUniformValue('saturation', (p.saturation as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_hue'), engineUniformValue('hue', (p.hue as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_temperature'), ((p.temperature as number) ?? 0) / 100);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_exposure'), engineUniformValue('exposure', (p.exposure as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_highlights'), engineUniformValue('highlights', (p.highlights as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_shadows'), engineUniformValue('shadows', (p.shadows as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_vibrance'), engineUniformValue('vibrance', (p.vibrance as number) ?? 0));
       },
     });
 
@@ -181,11 +182,11 @@ export class WebGLPipeline {
       program: levelsProgram,
       setUniforms: (gl, program, adj) => {
         const p = adj.params;
-        gl.uniform1f(gl.getUniformLocation(program, 'u_inBlack'), (p.inBlack as number ?? 0) / 255);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_inWhite'), (p.inWhite as number ?? 255) / 255);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_gamma'), p.gamma as number ?? 1.0);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_outBlack'), (p.outBlack as number ?? 0) / 255);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_outWhite'), (p.outWhite as number ?? 255) / 255);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_inBlack'), engineUniformValue('inBlack', (p.inBlack as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_inWhite'), engineUniformValue('inWhite', (p.inWhite as number) ?? 255));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_gamma'), engineUniformValue('gamma', (p.gamma as number) ?? 1.0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_outBlack'), engineUniformValue('outBlack', (p.outBlack as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_outWhite'), engineUniformValue('outWhite', (p.outWhite as number) ?? 255));
       },
     });
 
@@ -195,8 +196,8 @@ export class WebGLPipeline {
       program: kelvinProgram,
       setUniforms: (gl, program, adj) => {
         const p = adj.params;
-        gl.uniform1f(gl.getUniformLocation(program, 'u_kelvin'), p.kelvin as number ?? 6500);
-        gl.uniform1f(gl.getUniformLocation(program, 'u_tint'), (p.tint as number ?? 0) / 100);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_kelvin'), engineUniformValue('kelvin', (p.kelvin as number) ?? 6500));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_tint'), engineUniformValue('tint', (p.tint as number) ?? 0));
       },
     });
 

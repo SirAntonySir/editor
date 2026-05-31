@@ -13,7 +13,7 @@ from app.schemas.widget import (
     StateEvent,
     Widget,
 )
-from app.state.canonical import Canonical, set_param_value
+from app.state.canonical import Canonical, clear_param_value, set_param_value
 
 
 class SessionDocument(BaseModel):
@@ -85,6 +85,22 @@ class SessionDocument(BaseModel):
         from app.state.operations import project_to_graph
         return project_to_graph(self).model_dump(mode="json")
 
+    def _seed_canonical_from_widget(self, widget: Widget) -> None:
+        """Write every (layer, op, param) the widget's nodes carry into
+        canonical. Silent (no events) — callers emit a single lifecycle event
+        whose op_graph payload already reflects the seeded canonical."""
+        for node in widget.nodes:
+            for pkey, pval in node.params.items():
+                set_param_value(self.canonical, node.layer_id, node.type, pkey, pval)
+
+    def _reset_canonical_from_widget(self, widget: Widget) -> None:
+        """Inverse of _seed_canonical_from_widget: clear exactly the param keys
+        the widget owns, pruning emptied slots. A sibling param on the same
+        (layer, op) set by another view survives."""
+        for node in widget.nodes:
+            for pkey in node.params:
+                clear_param_value(self.canonical, node.layer_id, node.type, pkey)
+
     def add_widget(self, widget: Widget) -> list[StateEvent]:
         if widget.id in self.widgets:
             raise KeyError(f"widget {widget.id} already exists")
@@ -92,11 +108,8 @@ class SessionDocument(BaseModel):
         self.widget_order.append(widget.id)
         # Seed canonical from the widget's nodes — covers ALL creation paths
         # (tool_invoked, fused/LLM, autonomous) so the widget projects to the
-        # op_graph immediately. Silent (no extra events): the widget.created
-        # op_graph payload below already reflects the seeded canonical.
-        for node in widget.nodes:
-            for pkey, pval in node.params.items():
-                set_param_value(self.canonical, node.layer_id, node.type, pkey, pval)
+        # op_graph immediately.
+        self._seed_canonical_from_widget(widget)
         return [self._emit("widget.created", {
             "widget": widget.model_dump(mode="json"),
             "operation_graph": self._op_graph_payload(),
@@ -118,6 +131,10 @@ class SessionDocument(BaseModel):
         w = self.widgets[widget_id]
         w.status = "dismissed"
         w.updated_at = datetime.now(timezone.utc)
+        # Close (×) discards the adjustment: reset the canonical params this
+        # widget owns before emitting, so the widget.deleted op_graph payload
+        # already reflects the removed node. (accept_widget keeps canonical.)
+        self._reset_canonical_from_widget(w)
         events = [self._emit("widget.deleted", {
             "widget_id": widget_id,
             "operation_graph": self._op_graph_payload(),
@@ -134,6 +151,8 @@ class SessionDocument(BaseModel):
         w.status = "active"
         w.updated_at = datetime.now(timezone.utc)
         self.dismissals = [r for r in self.dismissals if r.source_widget_id != widget_id]
+        # Restore re-applies the adjustment dismiss() discarded.
+        self._seed_canonical_from_widget(w)
         return [self._emit("widget.restored", {
             "widget_id": widget_id,
             "operation_graph": self._op_graph_payload(),

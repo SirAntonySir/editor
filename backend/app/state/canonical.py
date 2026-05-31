@@ -14,6 +14,24 @@ def set_param_value(canonical: Canonical, layer_id: str, op: str, param: str, va
     canonical.setdefault(layer_id, {}).setdefault(op, {})[param] = value
 
 
+def clear_param_value(canonical: Canonical, layer_id: str, op: str, param: str) -> bool:
+    """Remove one (layer, op, param) value, pruning now-empty op and layer
+    dicts so the slot disappears from `canonical_to_nodes`. Returns True if a
+    value was removed, False if it was absent (no-op)."""
+    layer = canonical.get(layer_id)
+    if not layer:
+        return False
+    ops = layer.get(op)
+    if not ops or param not in ops:
+        return False
+    del ops[param]
+    if not ops:
+        del layer[op]
+    if not layer:
+        del canonical[layer_id]
+    return True
+
+
 def canonical_to_nodes(canonical: Canonical) -> list[dict[str, Any]]:
     """Project the canonical state into op_graph node dicts — one node per
     (layer, op), params merged. Deterministic order: layer then op."""

@@ -151,3 +151,43 @@ def test_resolve_fused_tool_returns_dict(monkeypatch) -> None:
         response_schema={"type": "object", "properties": {"values": {"type": "object"}}},
     )
     assert out["values"]["temperature"] == 700
+
+
+# ── _cap_image: downscale large vision input ────────────────────────────────
+
+def _png_bytes(w: int, h: int) -> bytes:
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (w, h), (120, 120, 120)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def test_cap_image_downscales_large_to_1568_jpeg():
+    import io
+    from PIL import Image
+    from app.services.anthropic_client import AnthropicClient, MAX_VISION_DIM
+
+    data, media = AnthropicClient._cap_image(_png_bytes(3055, 4547), "image/png")
+    assert media == "image/jpeg"
+    w, h = Image.open(io.BytesIO(data)).size
+    assert max(w, h) == MAX_VISION_DIM
+    # aspect ratio preserved (portrait stays portrait)
+    assert h > w
+
+
+def test_cap_image_passes_small_through_untouched():
+    from app.services.anthropic_client import AnthropicClient
+
+    original = _png_bytes(800, 600)
+    data, media = AnthropicClient._cap_image(original, "image/png")
+    assert data is original
+    assert media == "image/png"
+
+
+def test_cap_image_soft_fails_on_garbage():
+    from app.services.anthropic_client import AnthropicClient
+
+    data, media = AnthropicClient._cap_image(b"not an image", "image/png")
+    assert data == b"not an image"
+    assert media == "image/png"

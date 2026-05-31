@@ -1,12 +1,23 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import logging
 from typing import Any
 
 from anthropic import Anthropic
+from PIL import Image
 from pydantic import BaseModel, ValidationError
+
+# Claude downsamples vision input to ~1568px on the long edge, so sending more
+# is pure upload/latency waste. Capping here keeps analyze fast on large source
+# images (a 14MP photo is ~19MB of base64 and was stalling the analyze stepper).
+MAX_VISION_DIM = 1568
+
+# Hard ceiling on a single Anthropic request so a slow/hung call surfaces as an
+# error instead of blocking on the SDK's 10-minute default.
+ANTHROPIC_TIMEOUT_S = 120.0
 
 from app.schemas.enriched_context import Problem
 from app.schemas.image_context import ContextRefinements, ImageContext, RegionLabel
@@ -259,16 +270,38 @@ class AnthropicClient:
     """Wrapper around the Anthropic SDK with structured tool use + prompt caching."""
 
     def __init__(self, api_key: str, model: str) -> None:
-        self._client = Anthropic(api_key=api_key)
+        self._client = Anthropic(api_key=api_key, timeout=ANTHROPIC_TIMEOUT_S)
         self._model = model
 
+    @staticmethod
+    def _cap_image(image_bytes: bytes, mime_type: str) -> tuple[bytes, str]:
+        """Downscale to MAX_VISION_DIM on the long edge if larger, re-encoding as
+        JPEG. Small images pass through untouched. Soft-fails to the original
+        bytes on any decode error."""
+        try:
+            img = Image.open(io.BytesIO(image_bytes))
+            w, h = img.size
+            longest = max(w, h)
+            if longest <= MAX_VISION_DIM:
+                return image_bytes, mime_type
+            scale = MAX_VISION_DIM / longest
+            resized = img.convert("RGB").resize(
+                (max(1, round(w * scale)), max(1, round(h * scale))), Image.LANCZOS,
+            )
+            buf = io.BytesIO()
+            resized.save(buf, format="JPEG", quality=85)
+            return buf.getvalue(), "image/jpeg"
+        except Exception:
+            return image_bytes, mime_type
+
     def _image_block(self, image_bytes: bytes, mime_type: str) -> dict[str, Any]:
+        data, media_type = self._cap_image(image_bytes, mime_type)
         return {
             "type": "image",
             "source": {
                 "type": "base64",
-                "media_type": mime_type,
-                "data": base64.standard_b64encode(image_bytes).decode("ascii"),
+                "media_type": media_type,
+                "data": base64.standard_b64encode(data).decode("ascii"),
             },
             "cache_control": {"type": "ephemeral"},
         }

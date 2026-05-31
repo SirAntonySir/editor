@@ -7,6 +7,10 @@ import { useCanonicalParam } from '@/hooks/useCanonicalParam';
 import { BindingRow } from '@/components/inspector/widget/BindingRow';
 import type { ControlBinding, ControlValue, MaskSummary, Scope, Widget } from '@/types/widget';
 
+// Stable empty reference so the masks selector doesn't return a fresh literal
+// each render (avoids useSyncExternalStore re-render churn when snapshot is null).
+const EMPTY_MASKS: MaskSummary[] = [];
+
 /** Human-readable chip label for a widget's scope. Defensive: the projected
  * scope shape can drift, so we read `kind`/`label` off an unknown narrowing. */
 function scopeChipLabel(scope: Scope): string {
@@ -83,7 +87,7 @@ export function AiSection({ widget }: AiSectionProps) {
   const toggle = useEditorStore((s) => s.toggleSectionExpanded);
   const sessionId = useBackendState((s) => s.sessionId);
   const offline = useBackendState((s) => s.sseStatus !== 'open');
-  const maskSummaries = useBackendState((s) => s.snapshot?.masks_index ?? []);
+  const maskSummaries = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
   const [showWhy, setShowWhy] = useState(false);
 
   function canWrite(): boolean {

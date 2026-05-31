@@ -2,8 +2,13 @@ import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import type { ProcessingDefinition } from '@/types/processing';
+import type { Widget } from '@/types/widget';
 import { ToolSection } from './ToolSection';
 import { AiSection } from './AiSection';
+
+// Stable empty reference so the selector below doesn't return a fresh literal
+// each render (avoids useSyncExternalStore re-render churn when snapshot is null).
+const EMPTY_WIDGETS: Widget[] = [];
 
 // Canonical toolrail display names (CLAUDE.md: 6-button toolrail). A handful of
 // processing defs carry a longer descriptive label (e.g. 'White Balance') than
@@ -20,7 +25,7 @@ function sectionDef(def: ProcessingDefinition): ProcessingDefinition {
 
 export function AdjustmentsAccordion() {
   const layerId = useEditorStore((s) => s.activeLayerId);
-  const widgets = useBackendState((s) => s.snapshot?.widgets ?? []);
+  const widgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
   const aiWidgets = widgets.filter(
     (w) => (w.status === 'active' || w.status === 'accepted') && w.origin.kind === 'mcp_autonomous',
   );

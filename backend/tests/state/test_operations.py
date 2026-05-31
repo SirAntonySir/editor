@@ -144,8 +144,14 @@ def test_projection_reads_canonical_and_dedups() -> None:
     assert any(n.type == "kelvin" and n.layer_id == "layer_a" for n in graph.nodes)
 
 
-def test_projection_ignores_widget_owned_nodes_now() -> None:
+def test_projection_source_is_canonical_not_widget_nodes() -> None:
+    """add_widget seeds canonical (Slice 2), so the widget projects — but the
+    PROJECTION SOURCE is canonical, not the widget's own nodes. Mutating a
+    widget node directly (bypassing set_param) does NOT change the graph."""
     doc = SessionDocument(session_id="s1")
-    doc.add_widget(_widget("w_1", "n_1", {"temperature": 6500}))  # writes no canonical
+    doc.add_widget(_widget("w_1", "n_1", {"temperature": 6500}))  # seeds canonical
+    # Directly mutate the widget's node, bypassing canonical:
+    doc.widgets["w_1"].nodes[0].params["temperature"] = 9999
     graph = project_to_graph(doc)
-    assert graph.nodes == []  # nothing in canonical → empty graph
+    node = next(n for n in graph.nodes if n.type == "kelvin")
+    assert node.params["temperature"] == 6500  # canonical wins, not the widget node

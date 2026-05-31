@@ -193,8 +193,7 @@ class ProposeWidgetTool(BackendTool[_Input, _Output]):
             status="active",
             revision=1,
         )
-        for nd in nodes:
-            for pkey, pval in nd.params.items():
-                doc.set_param(nd.layer_id, nd.type, pkey, pval)
+        # Canonical seeding now happens centrally in doc.add_widget (covers
+        # tool_invoked + fused + autonomous paths).
         doc.add_widget(widget)
         return _Output(widget=widget.model_dump(mode="json"))

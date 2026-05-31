@@ -90,6 +90,13 @@ class SessionDocument(BaseModel):
             raise KeyError(f"widget {widget.id} already exists")
         self.widgets[widget.id] = widget
         self.widget_order.append(widget.id)
+        # Seed canonical from the widget's nodes — covers ALL creation paths
+        # (tool_invoked, fused/LLM, autonomous) so the widget projects to the
+        # op_graph immediately. Silent (no extra events): the widget.created
+        # op_graph payload below already reflects the seeded canonical.
+        for node in widget.nodes:
+            for pkey, pval in node.params.items():
+                set_param_value(self.canonical, node.layer_id, node.type, pkey, pval)
         return [self._emit("widget.created", {
             "widget": widget.model_dump(mode="json"),
             "operation_graph": self._op_graph_payload(),

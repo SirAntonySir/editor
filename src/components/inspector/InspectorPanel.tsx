@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
-import { SuggestionsSection } from './SuggestionsSection';
-import { LayersSection } from './LayersSection';
+import { AdjustmentsAccordion } from './adjustments/AdjustmentsAccordion';
 import { InfoTab } from './info/InfoTab';
 
 type Tab = 'adjustments' | 'info';
@@ -32,10 +31,7 @@ export function InspectorPanel() {
         <TabButton value="info" label="Info" active={tab === 'info'} />
       </ToggleGroup.Root>
       {tab === 'adjustments' ? (
-        <div className="flex-1 min-h-0 flex flex-col overflow-y-auto">
-          <SuggestionsSection />
-          <LayersSection />
-        </div>
+        <AdjustmentsAccordion />
       ) : (
         <InfoTab />
       )}

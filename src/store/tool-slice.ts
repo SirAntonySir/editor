@@ -7,6 +7,7 @@ export interface ToolSlice {
   editorMode: EditorMode;
   toolConfigs: Record<string, unknown>;
   expandedWidgetIds: Set<string>;
+  expandedSectionIds: Set<string>;
   hoveredWidgetId: string | null;
 
   setActiveTool: (name: string) => void;
@@ -14,6 +15,7 @@ export interface ToolSlice {
   setToolConfig: (toolName: string, config: unknown) => void;
   getToolConfig: <T = unknown>(toolName: string) => T | undefined;
   toggleWidgetExpanded: (widgetId: string) => void;
+  toggleSectionExpanded: (sectionId: string) => void;
   collapseAllWidgets: () => void;
   setHoveredWidget: (widgetId: string | null) => void;
 }
@@ -23,6 +25,7 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   editorMode: 'develop',
   toolConfigs: {},
   expandedWidgetIds: new Set<string>(),
+  expandedSectionIds: new Set<string>(),
   hoveredWidgetId: null,
 
   setActiveTool: (name) =>
@@ -51,6 +54,15 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
         state.expandedWidgetIds.delete(widgetId);
       } else {
         state.expandedWidgetIds.add(widgetId);
+      }
+    }),
+
+  toggleSectionExpanded: (sectionId) =>
+    set((state) => {
+      if (state.expandedSectionIds.has(sectionId)) {
+        state.expandedSectionIds.delete(sectionId);
+      } else {
+        state.expandedSectionIds.add(sectionId);
       }
     }),
 

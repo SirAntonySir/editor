@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import { WidgetShell } from './WidgetShell';
-import { makeAiWidget } from './__fixtures__/widgets';
+import { makeAiWidget, makeToolWidget } from './__fixtures__/widgets';
 import { useEditorStore } from '@/store';
 import { backendTools } from '@/lib/backend-tools';
 
@@ -60,5 +60,18 @@ describe('WidgetShell', () => {
     render(<WidgetShell widget={makeAiWidget()} />);
     fireEvent.click(screen.getByRole('button', { name: /close widget/i }));
     expect(backendTools.delete_widget).toHaveBeenCalledWith('s-1', { widget_id: 'w-ai-1', suppress_similar: false });
+  });
+
+  it('tool_invoked widget shows NO Refine and NO Why when expanded', () => {
+    useEditorStore.getState().toggleWidgetExpanded('w-tool-1');
+    render(<WidgetShell widget={makeToolWidget()} />);
+    expect(screen.queryByText(/refine/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/why\?/i)).not.toBeInTheDocument();
+  });
+
+  it('mcp_autonomous widget shows Refine when expanded', () => {
+    useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
+    render(<WidgetShell widget={makeAiWidget()} />);
+    expect(screen.getByText(/refine/i)).toBeInTheDocument();
   });
 });

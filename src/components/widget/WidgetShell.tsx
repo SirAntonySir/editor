@@ -32,6 +32,8 @@ export function WidgetShell({ widget }: WidgetShellProps) {
   const masks = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
   const offline = useBackendState((s) => s.sseStatus !== 'open');
 
+  const showAiAffordances = widget.origin.kind !== 'tool_invoked';
+
   const [whyOpen, setWhyOpen] = useState(false);
   const [refineOpen, setRefineOpen] = useState(false);
   const [refinePending, setRefinePending] = useState(false);
@@ -150,6 +152,7 @@ export function WidgetShell({ widget }: WidgetShellProps) {
             onReset={handleReset}
             onApply={handleApply}
             applyDisabled={offline}
+            showAiAffordances={showAiAffordances}
             whyButton={
               <WhyPopover open={whyOpen} widget={widget} onOpenChange={setWhyOpen}>
                 <button className="inline-flex items-center gap-1 text-[9px] text-text-secondary hover:text-text-primary hover:bg-surface-secondary px-1.5 py-0.5 rounded-[3px]">

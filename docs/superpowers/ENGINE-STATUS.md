@@ -40,6 +40,20 @@ _Compact reference for the canonical-engine + accordion program. Last updated 20
    `(layer, op, param)` canonical slots. Cleanup of the now-redundant node ownership.
 4. **Adjustments Accordion.** Build the accordion (per the spec) over the canonical state.
 
+## Refined model (decided after Slice 2)
+
+- **Canonical is the base; widgets are optional views.** An adjustment (canonical
+  `(layer,op,param)` value) can exist WITHOUT a widget; a widget never exists without its
+  canonical adjustment. → the accordion edits canonical **directly** (widget-less
+  `set_param`); a per-section **↗ affordance** optionally "opens"/spawns a canvas widget
+  bound to that adjustment. Editing a section does NOT auto-spawn a widget.
+- **accept vs close:** `accept` (Apply) → canonical value STAYS, widget (view) goes (commit).
+  `close` (×) → canonical value RESETS, widget goes (discard). Note: reset only the param
+  keys that widget/section owns, not the whole shared (layer,op) slot.
+- **Implied next backend work:** a widget-less `set_param` tool/endpoint; make
+  `accept_widget` drop the widget but keep canonical; make `close/delete_widget` reset the
+  owned canonical params + drop the widget.
+
 ## Open decisions / behavior flags (from Slice 1)
 
 - **`layer_ids` forwarding lost:** canonical projects per-(layer,op) with `layer_ids=None`;

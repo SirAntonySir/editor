@@ -1,5 +1,5 @@
 import type { ControlBinding, CurvesValue, MaskSummary } from '@/types/widget';
-import { SliderControl } from './primitives/SliderControl';
+import { AdjustmentSlider, type SliderProvenance } from '@/components/inspector/AdjustmentSlider';
 import { ToggleControl } from './primitives/ToggleControl';
 import { ChoiceControl } from './primitives/ChoiceControl';
 import { ColorControl } from './primitives/ColorControl';
@@ -12,13 +12,27 @@ interface BindingRowProps {
   effectiveValue: ControlBinding['value'];
   onChange: (value: ControlBinding['value']) => void;
   maskSummaries: MaskSummary[];
+  /** Slider fill colour — default=grey, ai=violet, hand=accent. */
+  provenance?: SliderProvenance;
 }
 
-export function BindingRow({ binding, effectiveValue, onChange, maskSummaries }: BindingRowProps) {
+export function BindingRow({ binding, effectiveValue, onChange, maskSummaries, provenance }: BindingRowProps) {
   const s = binding.control_schema;
   switch (s.control_type) {
     case 'slider':
-      return <SliderControl label={binding.label} value={Number(effectiveValue)} default={Number(binding.default)} schema={s} onChange={onChange} />;
+      return (
+        <AdjustmentSlider
+          label={binding.label}
+          value={Number(effectiveValue)}
+          min={s.min}
+          max={s.max}
+          step={s.step}
+          defaultValue={Number(binding.default)}
+          provenance={provenance}
+          formatValue={s.unit ? (v) => `${Math.round(v)}${s.unit}` : undefined}
+          onChange={(v) => onChange(v)}
+        />
+      );
     case 'toggle':
       return <ToggleControl label={binding.label} value={Boolean(effectiveValue)} default={Boolean(binding.default)} schema={s} onChange={onChange} />;
     case 'choice':

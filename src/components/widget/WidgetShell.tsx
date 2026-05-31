@@ -5,6 +5,8 @@ import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useWidgetExpansion } from '@/hooks/useWidgetExpansion';
 import { useHoveredWidget } from '@/hooks/useHoveredWidget';
+import { useEditorStore } from '@/store';
+import { bindingProvenance, touchKey } from '@/hooks/useParamProvenance';
 import { WidgetShellHeader } from './WidgetShellHeader';
 import { WidgetShellFooter } from './WidgetShellFooter';
 import { RefineInput } from './RefineInput';
@@ -31,6 +33,7 @@ export function WidgetShell({ widget }: WidgetShellProps) {
   const optimistic = useBackendState((s) => s.optimistic);
   const masks = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
   const offline = useBackendState((s) => s.sseStatus !== 'open');
+  const touched = useEditorStore((s) => s.touchedParams);
 
   const showAiAffordances = widget.origin.kind !== 'tool_invoked';
 
@@ -69,6 +72,10 @@ export function WidgetShell({ widget }: WidgetShellProps) {
         bindings: [{ paramKey: binding.target.param_key, value }],
         baseRevision,
       });
+      const node = widget.nodes.find((n) => n.id === binding.target.node_id);
+      if (node?.layer_id) {
+        useEditorStore.getState().markParamTouched(touchKey(node.layer_id, node.type, binding.target.param_key));
+      }
     }
     void backendTools.set_widget_param(sessionId, { widget_id: widget.id, param_key: paramKey, value });
   }
@@ -128,15 +135,23 @@ export function WidgetShell({ widget }: WidgetShellProps) {
           )}
           {widget.bindings.length > 0 && (
             <div className="flex flex-col gap-1.5 px-1.5 py-1">
-              {widget.bindings.map((b) => (
-                <BindingRow
-                  key={b.param_key}
-                  binding={b}
-                  effectiveValue={effectiveValue(b)}
-                  maskSummaries={masks}
-                  onChange={(value) => setParam(b.param_key, value)}
-                />
-              ))}
+              {widget.bindings.map((b) => {
+                const eff = effectiveValue(b);
+                const node = widget.nodes.find((n) => n.id === b.target.node_id);
+                const isTouched = node?.layer_id
+                  ? touched.has(touchKey(node.layer_id, node.type, b.target.param_key))
+                  : false;
+                return (
+                  <BindingRow
+                    key={b.param_key}
+                    binding={b}
+                    effectiveValue={eff}
+                    maskSummaries={masks}
+                    onChange={(value) => setParam(b.param_key, value)}
+                    provenance={bindingProvenance(eff, b.default, widget.origin.kind !== 'tool_invoked', isTouched)}
+                  />
+                );
+              })}
             </div>
           )}
           {refineOpen && (

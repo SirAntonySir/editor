@@ -8,6 +8,25 @@ export function touchKey(layerId: string, op: string, param: string): string {
 }
 
 /**
+ * Pure provenance for a widget-binding value (used by canvas widgets + AI
+ * accordion sections, which render the same widget bindings):
+ *  - at default → `default` (grey)
+ *  - user moved it → `hand` (accent)
+ *  - AI-origin widget proposed this non-default value, untouched → `ai` (violet)
+ */
+export function bindingProvenance(
+  effectiveValue: unknown,
+  defaultValue: unknown,
+  isAiOrigin: boolean,
+  isTouched: boolean,
+): SliderProvenance {
+  if (effectiveValue === defaultValue) return 'default';
+  if (isTouched) return 'hand';
+  if (isAiOrigin) return 'ai';
+  return 'hand';
+}
+
+/**
  * Provenance of a canonical param's current value, for slider colour-coding:
  *  - `default`: value equals its default → grey
  *  - `hand`: the user moved it (in the touched set) → accent

@@ -97,9 +97,15 @@ describe('WidgetShell', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
     render(<WidgetShell widget={widget} />);
 
-    // Drive the slider's onChange — matches SliderControl's <input type="range"> pattern
-    const slider = screen.getByRole('slider');
-    fireEvent.change(slider, { target: { value: '40' } });
+    // Drive the slider's onChange via the minimal AdjustmentSlider's number
+    // field: a plain click (pointer down+up, no movement) opens the text input;
+    // typing + Enter commits the value.
+    const num = screen.getByTitle('Drag to scrub · click to type');
+    fireEvent.pointerDown(num, { clientX: 0, pointerId: 1 });
+    fireEvent.pointerUp(num, { clientX: 0, pointerId: 1 });
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: '40' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
 
     // The optimistic patch must be keyed by node_id ('n_abc'), not the widget id ('w-ai-1')
     expect(mockApplyOptimistic).toHaveBeenCalledWith(

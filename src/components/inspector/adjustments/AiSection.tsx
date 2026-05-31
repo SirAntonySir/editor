@@ -3,8 +3,8 @@ import { ChevronRight, ChevronDown, X, HelpCircle } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
-import { useCanonicalParam } from '@/hooks/useCanonicalParam';
 import { BindingRow } from '@/components/inspector/widget/BindingRow';
+import { bindingProvenance, touchKey } from '@/hooks/useParamProvenance';
 import type { ControlBinding, ControlValue, MaskSummary, Scope, Widget } from '@/types/widget';
 
 // Stable empty reference so the masks selector doesn't return a fresh literal
@@ -31,67 +31,51 @@ function scopeChipLabel(scope: Scope): string {
   }
 }
 
-interface AiBindingRowProps {
-  widget: Widget;
-  binding: ControlBinding;
-  maskSummaries: MaskSummary[];
-}
-
-/** One binding row that resolves its canonical (layer, op, param) slot and
- * drives it through useCanonicalParam. Module-scope so the hook is never
- * called in a loop (no-nested-component / rules-of-hooks safe). */
-function AiBindingRow({ widget, binding, maskSummaries }: AiBindingRowProps) {
-  const node = widget.nodes.find((n) => n.id === binding.target.node_id);
-  return node?.layer_id
-    ? (
-      <ResolvedBindingRow
-        layerId={node.layer_id}
-        op={node.type}
-        binding={binding}
-        maskSummaries={maskSummaries}
-      />
-    )
-    : <BindingRow binding={binding} effectiveValue={binding.value} onChange={() => {}} maskSummaries={maskSummaries} />;
-}
-
-interface ResolvedBindingRowProps {
-  layerId: string;
-  op: string;
-  binding: ControlBinding;
-  maskSummaries: MaskSummary[];
-}
-
-function ResolvedBindingRow({ layerId, op, binding, maskSummaries }: ResolvedBindingRowProps) {
-  const [value, setValue] = useCanonicalParam<ControlValue>(
-    layerId,
-    op,
-    binding.target.param_key,
-    binding.default,
-  );
-  return (
-    <BindingRow
-      binding={binding}
-      effectiveValue={value}
-      onChange={setValue}
-      maskSummaries={maskSummaries}
-    />
-  );
-}
-
 interface AiSectionProps {
   widget: Widget;
 }
 
+/**
+ * An AI suggestion rendered as an editable accordion section. It is a VIEW of
+ * the SAME widget the canvas shell shows, so it reads the widget's own bindings
+ * (optimistic-aware) and writes via `set_widget_param` — identical to
+ * `WidgetShell` — keeping the two views perfectly in sync. (Tool sections, by
+ * contrast, are the canonical view of the active layer.)
+ */
 export function AiSection({ widget }: AiSectionProps) {
   const expanded = useEditorStore((s) => s.expandedSectionIds.has(widget.id));
   const toggle = useEditorStore((s) => s.toggleSectionExpanded);
   const sessionId = useBackendState((s) => s.sessionId);
   const offline = useBackendState((s) => s.sseStatus !== 'open');
+  const optimistic = useBackendState((s) => s.optimistic);
   const maskSummaries = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
+  const touched = useEditorStore((s) => s.touchedParams);
   const [showWhy, setShowWhy] = useState(false);
 
   function canWrite(): boolean {
     return Boolean(sessionId) && !offline;
+  }
+
+  // Effective value = pending optimistic patch (keyed by the binding's node id)
+  // falling back to the widget's stored binding value. Mirrors WidgetShell.
+  function effectiveOf(b: ControlBinding): ControlValue {
+    const patch = optimistic.get(b.target.node_id);
+    const opt = patch?.bindings.find((p) => p.paramKey === b.target.param_key)?.value;
+    return opt !== undefined ? opt : b.value;
+  }
+
+  function setParam(b: ControlBinding, value: ControlValue) {
+    if (!canWrite() || !sessionId) return;
+    const node = widget.nodes.find((n) => n.id === b.target.node_id);
+    const baseRevision = useBackendState.getState().snapshot?.revision ?? 0;
+    useBackendState.getState().applyOptimistic(b.target.node_id, {
+      bindings: [{ paramKey: b.target.param_key, value }],
+      baseRevision,
+    });
+    if (node?.layer_id) {
+      useEditorStore.getState().markParamTouched(touchKey(node.layer_id, node.type, b.target.param_key));
+    }
+    void backendTools.set_widget_param(sessionId, { widget_id: widget.id, param_key: b.param_key, value });
   }
 
   function onApply() {
@@ -105,17 +89,15 @@ export function AiSection({ widget }: AiSectionProps) {
   }
 
   function onReset() {
-    if (!canWrite() || !sessionId) return;
-    for (const b of widget.bindings) {
-      const node = widget.nodes.find((n) => n.id === b.target.node_id);
-      if (!node?.layer_id) continue;
-      void backendTools.set_param(sessionId, {
-        layer_id: node.layer_id,
-        op: node.type,
-        param: b.target.param_key,
-        value: b.default,
-      });
-    }
+    for (const b of widget.bindings) setParam(b, b.default);
+  }
+
+  function provenanceOf(b: ControlBinding, eff: ControlValue): ReturnType<typeof bindingProvenance> {
+    const node = widget.nodes.find((n) => n.id === b.target.node_id);
+    const isTouched = node?.layer_id
+      ? touched.has(touchKey(node.layer_id, node.type, b.target.param_key))
+      : false;
+    return bindingProvenance(eff, b.default, true, isTouched);
   }
 
   // TODO(accordion): wire Refine — deferred, see plan Task 7
@@ -150,14 +132,19 @@ export function AiSection({ widget }: AiSectionProps) {
           {showWhy && widget.reasoning && (
             <p className="text-[10px] leading-snug text-text-secondary">{widget.reasoning}</p>
           )}
-          {widget.bindings.map((b) => (
-            <AiBindingRow
-              key={b.target.node_id + ':' + b.target.param_key}
-              widget={widget}
-              binding={b}
-              maskSummaries={maskSummaries}
-            />
-          ))}
+          {widget.bindings.map((b) => {
+            const eff = effectiveOf(b);
+            return (
+              <BindingRow
+                key={b.target.node_id + ':' + b.target.param_key}
+                binding={b}
+                effectiveValue={eff}
+                onChange={(v) => setParam(b, v)}
+                maskSummaries={maskSummaries}
+                provenance={provenanceOf(b, eff)}
+              />
+            );
+          })}
           <div className="flex items-center gap-px pt-1 border-t border-separator">
             <button
               type="button"

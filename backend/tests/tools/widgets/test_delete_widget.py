@@ -141,28 +141,36 @@ def test_delete_widget_flips_status_to_dismissed(client) -> None:
     )
 
 
-def test_delete_widget_removes_nodes_from_op_graph(client) -> None:
-    """delete_widget MUST cause the widget's nodes to be absent from the projected op graph."""
+def test_delete_widget_does_not_clear_canonical_nodes(client) -> None:
+    """delete_widget dismisses the widget but does NOT clear canonical state.
+    Canonical nodes persist in the op_graph projection even after deletion.
+    (Clearing canonical is an explicit future operation, not a side-effect of
+    widget dismissal.)"""
     from app.state.operations import project_to_graph
 
     sid = _create_session(client)
     wid = _push_widget(sid)
 
     doc = deps.get_session_store().get_document(sid)
+    # Seed canonical to match the widget's node
+    doc.set_param("layer_01", "kelvin", "temperature", 5800)
+
+    canon_node_id = "canon:layer_01:kelvin"
     graph_before = project_to_graph(doc)
-    node_ids_before = {n.id for n in graph_before.nodes if n.widget_id == wid}
-    assert node_ids_before, "test prerequisite: widget must have op_graph nodes before delete"
+    assert any(n.id == canon_node_id for n in graph_before.nodes), (
+        "test prerequisite: canonical node must be in op_graph before delete"
+    )
 
     client.post(
         "/api/tools/delete_widget",
         json={"session_id": sid, "input": {"widget_id": wid, "suppress_similar": False}},
     )
 
+    # Widget is dismissed, but canonical state is preserved
     graph_after = project_to_graph(doc)
-    node_ids_after = {n.id for n in graph_after.nodes if n.widget_id == wid}
-    assert not node_ids_after, (
-        f"delete_widget must remove widget nodes from operation_graph. "
-        f"Still present: {node_ids_after}"
+    assert any(n.id == canon_node_id for n in graph_after.nodes), (
+        "delete_widget must NOT remove canonical nodes from op_graph; "
+        "canonical state persists independently of widget lifecycle"
     )
 
 

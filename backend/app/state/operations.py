@@ -4,6 +4,7 @@ import uuid
 
 from app.schemas.operation_graph import Node, OperationGraph, PanelBinding, Scope as GraphScope
 from app.schemas.widget import Scope as WidgetScope, Widget
+from app.state.canonical import canonical_to_nodes
 from app.state.document import SessionDocument
 
 
@@ -53,32 +54,34 @@ def _binding_to_panel_binding(widget: Widget) -> list[PanelBinding]:
 
 
 def project_to_graph(doc: SessionDocument) -> OperationGraph:
-    """Pure projection of active widgets → OperationGraph.
+    """Pure projection of canonical state → OperationGraph.
 
-    Iterates doc.widget_order so the active-widget set keeps a deterministic
-    render order. Dismissed widgets are excluded. No mutation."""
-    nodes: list[Node] = []
+    Nodes come from doc.canonical (one node per (layer, op), deduped).
+    panel_bindings and user_goal still come from active/accepted widgets in
+    doc.widget_order. No mutation."""
     bindings: list[PanelBinding] = []
     user_goal_parts: list[str] = []
     for wid in doc.widget_order:
         w = doc.widgets.get(wid)
         if w is None or w.status not in {"active", "accepted"}:
             continue
-        for wn in w.nodes:
-            nodes.append(
-                Node(
-                    id=wn.id,
-                    type=wn.type,
-                    scope=_widget_scope_to_graph_scope(wn.scope),
-                    params=wn.params,
-                    inputs=wn.inputs,
-                    layer_id=wn.layer_id,
-                    layer_ids=wn.layer_ids,
-                    widget_id=wn.widget_id,
-                )
-            )
         bindings.extend(_binding_to_panel_binding(w))
         user_goal_parts.append(w.intent)
+
+    global_scope = _widget_scope_to_graph_scope(WidgetScope.model_validate({"kind": "global"}))
+    nodes = [
+        Node(
+            id=nd["id"],
+            type=nd["type"],
+            scope=global_scope,
+            params=nd["params"],
+            inputs=[],
+            layer_id=nd["layer_id"],
+            layer_ids=None,
+            widget_id=None,
+        )
+        for nd in canonical_to_nodes(doc.canonical)
+    ]
     return OperationGraph(
         id=f"projected-{uuid.uuid4().hex[:8]}",
         user_goal="; ".join(user_goal_parts),

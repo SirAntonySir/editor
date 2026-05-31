@@ -5,10 +5,12 @@ import type { TetherEdgeState } from '@/types/workspace';
 import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
 import { editorDocument } from '@/core/document';
 
-// Workspace widget placement assumes a collapsed WidgetShell footprint.
-// Width and height both vary with content, so the spawn algorithm uses the
-// shell's minimum width and an estimated collapsed-header height (60).
-const WIDGET_SPAWN_SIZE = { w: WIDGET_SHELL_MIN_WIDTH, h: 60 } as const;
+// Workspace widget placement footprint used by the collision-aware spawn
+// algorithm (nextSpawnPositionFor). Widgets now spawn EXPANDED (see
+// expandWidget below), so this height estimates an OPEN shell (header + a few
+// binding rows + footer) rather than the collapsed header — otherwise stacked
+// spawns visually overlap even though the rect math says they don't.
+const WIDGET_SPAWN_SIZE = { w: WIDGET_SHELL_MIN_WIDTH, h: 200 } as const;
 
 /**
  * Position `widget` next to the currently active ImageNode and create a
@@ -77,6 +79,9 @@ function buildTetherForWidget(widget: Widget): void {
       scope: edgeScope,
     });
   });
+
+  // Widgets spawn expanded so their controls are immediately visible.
+  useEditorStore.getState().expandWidget(widget.id);
 }
 
 /**

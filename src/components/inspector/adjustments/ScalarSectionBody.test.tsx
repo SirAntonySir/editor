@@ -22,10 +22,22 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it('renders a slider per param and writes canonical on edit', () => {
+it('renders a slider per param', () => {
   render(<ScalarSectionBody layerId="L1" op="basic" params={params} />);
-  const slider = screen.getByRole('slider');
-  fireEvent.change(slider, { target: { value: '20' } });
+  // Radix slider exposes its thumb with role="slider".
+  expect(screen.getAllByRole('slider').length).toBe(1);
+});
+
+it('typing a new value into the number field writes canonical', () => {
+  render(<ScalarSectionBody layerId="L1" op="basic" params={params} />);
+  // The value label scrubs on drag and opens a text input on a plain click
+  // (pointer down + up with no movement).
+  const num = screen.getByTitle('Drag to scrub · click to type');
+  fireEvent.pointerDown(num, { clientX: 0, pointerId: 1 });
+  fireEvent.pointerUp(num, { clientX: 0, pointerId: 1 });
+  const input = screen.getByRole('textbox');
+  fireEvent.change(input, { target: { value: '20' } });
+  fireEvent.keyDown(input, { key: 'Enter' });
   vi.advanceTimersByTime(300);
   expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layer_id: 'L1', op: 'basic', param: 'exposure', value: 20 });
 });

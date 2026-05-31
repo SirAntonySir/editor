@@ -1,5 +1,7 @@
-import { SliderControl } from '@/components/inspector/widget/primitives/SliderControl';
+import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
 import { useCanonicalParam } from '@/hooks/useCanonicalParam';
+import { useParamProvenance, touchKey } from '@/hooks/useParamProvenance';
+import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 import type { ParamDefinition } from '@/types/processing';
@@ -8,13 +10,22 @@ interface ScalarRowProps { layerId: string; op: string; param: ParamDefinition; 
 
 function ScalarRow({ layerId, op, param }: ScalarRowProps) {
   const [value, setValue] = useCanonicalParam<number>(layerId, op, param.key, param.default);
+  const provenance = useParamProvenance(layerId, op, param.key, value, param.default);
+  function onChange(v: number) {
+    // A human gesture → mark the slot hand-touched (accent, not AI violet).
+    useEditorStore.getState().markParamTouched(touchKey(layerId, op, param.key));
+    setValue(v);
+  }
   return (
-    <SliderControl
+    <AdjustmentSlider
       label={param.label}
       value={value}
-      default={param.default}
-      schema={{ control_type: 'slider', min: param.min, max: param.max, step: param.step ?? 1 }}
-      onChange={setValue}
+      min={param.min}
+      max={param.max}
+      step={param.step ?? 1}
+      defaultValue={param.default}
+      provenance={provenance}
+      onChange={onChange}
     />
   );
 }

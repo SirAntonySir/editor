@@ -9,15 +9,21 @@ export interface ToolSlice {
   expandedWidgetIds: Set<string>;
   expandedSectionIds: Set<string>;
   hoveredWidgetId: string | null;
+  /** Canonical `${layer}:${op}:${param}` keys the USER has moved by hand.
+   * Drives slider provenance colour (hand = accent vs AI = violet). */
+  touchedParams: Set<string>;
 
   setActiveTool: (name: string) => void;
   setEditorMode: (mode: EditorMode) => void;
   setToolConfig: (toolName: string, config: unknown) => void;
   getToolConfig: <T = unknown>(toolName: string) => T | undefined;
   toggleWidgetExpanded: (widgetId: string) => void;
+  /** Force a widget open (used when a widget spawns — it spawns expanded). */
+  expandWidget: (widgetId: string) => void;
   toggleSectionExpanded: (sectionId: string) => void;
   collapseAllWidgets: () => void;
   setHoveredWidget: (widgetId: string | null) => void;
+  markParamTouched: (key: string) => void;
 }
 
 export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]], []> = (set, get) => ({
@@ -27,6 +33,7 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   expandedWidgetIds: new Set<string>(),
   expandedSectionIds: new Set<string>(),
   hoveredWidgetId: null,
+  touchedParams: new Set<string>(),
 
   setActiveTool: (name) =>
     set((state) => {
@@ -57,6 +64,11 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
       }
     }),
 
+  expandWidget: (widgetId) =>
+    set((state) => {
+      state.expandedWidgetIds.add(widgetId);
+    }),
+
   toggleSectionExpanded: (sectionId) =>
     set((state) => {
       if (state.expandedSectionIds.has(sectionId)) {
@@ -64,6 +76,11 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
       } else {
         state.expandedSectionIds.add(sectionId);
       }
+    }),
+
+  markParamTouched: (key) =>
+    set((state) => {
+      state.touchedParams.add(key);
     }),
 
   collapseAllWidgets: () =>

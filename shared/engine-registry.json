@@ -40,6 +40,36 @@
         "outBlack": { "uniform": "u_outBlack", "label": "Output Black","min": 0,   "max": 255, "step": 1,    "scale": 255, "default": 0 },
         "outWhite": { "uniform": "u_outWhite", "label": "Output White","min": 0,   "max": 255, "step": 1,    "scale": 255, "default": 255 }
       }
+    },
+    "hsl": {
+      "shaderBinding": "hsl",
+      "toolDefaults": [],
+      "params": {
+        "red_hue":     { "uniform": "u_hslHue[0]", "label": "Red Hue",     "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "red_sat":     { "uniform": "u_hslSat[0]", "label": "Red Sat",     "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "red_lum":     { "uniform": "u_hslLum[0]", "label": "Red Lum",     "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "orange_hue":  { "uniform": "u_hslHue[1]", "label": "Orange Hue",  "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "orange_sat":  { "uniform": "u_hslSat[1]", "label": "Orange Sat",  "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "orange_lum":  { "uniform": "u_hslLum[1]", "label": "Orange Lum",  "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "yellow_hue":  { "uniform": "u_hslHue[2]", "label": "Yellow Hue",  "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "yellow_sat":  { "uniform": "u_hslSat[2]", "label": "Yellow Sat",  "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "yellow_lum":  { "uniform": "u_hslLum[2]", "label": "Yellow Lum",  "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "green_hue":   { "uniform": "u_hslHue[3]", "label": "Green Hue",   "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "green_sat":   { "uniform": "u_hslSat[3]", "label": "Green Sat",   "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "green_lum":   { "uniform": "u_hslLum[3]", "label": "Green Lum",   "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "aqua_hue":    { "uniform": "u_hslHue[4]", "label": "Aqua Hue",    "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "aqua_sat":    { "uniform": "u_hslSat[4]", "label": "Aqua Sat",    "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "aqua_lum":    { "uniform": "u_hslLum[4]", "label": "Aqua Lum",    "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "blue_hue":    { "uniform": "u_hslHue[5]", "label": "Blue Hue",    "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "blue_sat":    { "uniform": "u_hslSat[5]", "label": "Blue Sat",    "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "blue_lum":    { "uniform": "u_hslLum[5]", "label": "Blue Lum",    "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "purple_hue":  { "uniform": "u_hslHue[6]", "label": "Purple Hue",  "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "purple_sat":  { "uniform": "u_hslSat[6]", "label": "Purple Sat",  "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "purple_lum":  { "uniform": "u_hslLum[6]", "label": "Purple Lum",  "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "magenta_hue": { "uniform": "u_hslHue[7]", "label": "Magenta Hue", "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "magenta_sat": { "uniform": "u_hslSat[7]", "label": "Magenta Sat", "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "magenta_lum": { "uniform": "u_hslLum[7]", "label": "Magenta Lum", "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 }
+      }
     }
   }
 }

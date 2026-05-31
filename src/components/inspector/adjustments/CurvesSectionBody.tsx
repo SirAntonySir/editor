@@ -17,7 +17,7 @@ export function CurvesSectionBody({ layerId }: CurvesSectionBodyProps) {
     <div className="flex flex-col gap-2 px-2.5 py-2">
       <CurveControl label="Curves" value={value} onChange={setValue} />
       <div className="flex justify-end">
-        <button type="button" onClick={reset} className="text-[10px] text-text-secondary hover:text-text-primary border border-border rounded px-2 py-0.5">Reset</button>
+        <button type="button" onClick={reset} className="text-[10px] bg-surface text-text-primary border border-border-strong rounded-[4px] px-2 py-0.5 hover:bg-surface-secondary">Reset</button>
       </div>
     </div>
   );

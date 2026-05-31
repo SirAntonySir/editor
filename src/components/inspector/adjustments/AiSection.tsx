@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronRight, ChevronDown, X } from 'lucide-react';
+import { ChevronRight, ChevronDown, X, HelpCircle } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
@@ -120,7 +120,7 @@ export function AiSection({ widget }: AiSectionProps) {
 
   // TODO(accordion): wire Refine — deferred, see plan Task 7
   return (
-    <div className="border-b border-border">
+    <div className="border-b border-separator">
       <div className="w-full flex items-center gap-2 px-2.5 py-2">
         <span className="w-4 h-4 shrink-0 rounded-sm bg-accent text-white flex items-center justify-center text-[7px] font-semibold">
           AI
@@ -158,25 +158,27 @@ export function AiSection({ widget }: AiSectionProps) {
               maskSummaries={maskSummaries}
             />
           ))}
-          <div className="flex items-center justify-end gap-2 pt-1">
+          <div className="flex items-center gap-px pt-1 border-t border-separator">
             <button
               type="button"
               onClick={() => setShowWhy((v) => !v)}
-              className="text-[10px] text-text-secondary hover:text-text-primary border border-border rounded px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-[9px] text-text-secondary hover:text-text-primary hover:bg-surface-secondary px-1.5 py-0.5 rounded-[3px]"
             >
-              Why
+              <HelpCircle size={10} aria-hidden /> Why?
             </button>
+            <span className="flex-1" />
             <button
               type="button"
               onClick={onReset}
-              className="text-[10px] text-text-secondary hover:text-text-primary border border-border rounded px-2 py-0.5"
+              className="text-[10px] bg-surface text-text-primary border border-border-strong rounded-[4px] px-2 py-0.5 hover:bg-surface-secondary"
             >
               Reset
             </button>
             <button
               type="button"
               onClick={onApply}
-              className="text-[10px] text-white bg-accent rounded px-2 py-0.5"
+              disabled={offline}
+              className="text-[10px] bg-accent text-white border border-accent rounded-[4px] px-2 py-0.5 hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed ml-1"
             >
               Apply
             </button>

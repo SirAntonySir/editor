@@ -36,7 +36,7 @@ function ResetRow({ layerId, op, params }: ResetRowProps) {
   }
   return (
     <div className="flex justify-end pt-1">
-      <button type="button" onClick={reset} className="text-[10px] text-text-secondary hover:text-text-primary border border-border rounded px-2 py-0.5">Reset</button>
+      <button type="button" onClick={reset} className="text-[10px] bg-surface text-text-primary border border-border-strong rounded-[4px] px-2 py-0.5 hover:bg-surface-secondary">Reset</button>
     </div>
   );
 }

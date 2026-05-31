@@ -1,3 +1,4 @@
+import { ArrowUpRight } from 'lucide-react';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { promoteToCanvas } from './promote';
@@ -17,9 +18,9 @@ export function PromoteOnlyBody({ toolId }: PromoteOnlyBodyProps) {
         type="button"
         onClick={() => promoteToCanvas(sessionId, toolId, layerId)}
         disabled={offline || !layerId}
-        className="text-[10px] text-text-secondary hover:text-text-primary border border-border rounded px-2 py-1 disabled:opacity-40"
+        className="inline-flex items-center gap-1 text-[10px] bg-surface text-text-primary border border-border-strong rounded-[4px] px-2 py-1 hover:bg-surface-secondary disabled:opacity-40"
       >
-        ↗ Open on canvas
+        <ArrowUpRight size={11} aria-hidden /> Open on canvas
       </button>
     </div>
   );

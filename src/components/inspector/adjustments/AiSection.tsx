@@ -104,7 +104,7 @@ export function AiSection({ widget }: AiSectionProps) {
   return (
     <div className="border-b border-separator">
       <div className="w-full flex items-center gap-2 px-2.5 py-2">
-        <span className="w-4 h-4 shrink-0 rounded-sm bg-accent text-white flex items-center justify-center text-[7px] font-semibold">
+        <span className="w-4 h-4 shrink-0 rounded-sm bg-ai text-white flex items-center justify-center text-[7px] font-semibold">
           AI
         </span>
         <span className="flex-1 truncate text-xs font-medium text-text-primary">{widget.intent}</span>
@@ -165,7 +165,7 @@ export function AiSection({ widget }: AiSectionProps) {
               type="button"
               onClick={onApply}
               disabled={offline}
-              className="text-[10px] bg-accent text-white border border-accent rounded-[4px] px-2 py-0.5 hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed ml-1"
+              className="text-[10px] bg-ai text-white border border-ai rounded-[4px] px-2 py-0.5 hover:bg-ai/90 disabled:opacity-50 disabled:cursor-not-allowed ml-1"
             >
               Apply
             </button>

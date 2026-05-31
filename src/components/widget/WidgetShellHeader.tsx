@@ -55,7 +55,7 @@ export function WidgetShellHeader({ widget, expanded, dirty, onToggle, onClose }
       {ai ? (
         <span
           aria-label="AI-composed widget"
-          className="inline-flex items-center gap-0.5 text-[8px] font-semibold tracking-wide bg-accent text-white px-1 rounded-[3px] leading-none py-px"
+          className="inline-flex items-center gap-0.5 text-[8px] font-semibold tracking-wide bg-ai text-white px-1 rounded-[3px] leading-none py-px"
         >
           <Sparkles size={8} aria-hidden />AI
         </span>

@@ -32,7 +32,7 @@ export function RefineInput({ onSubmit, onCancel, pending }: RefineInputProps) {
       <button
         onClick={() => text.trim() && onSubmit(text.trim())}
         disabled={pending || !text.trim()}
-        className="text-[9px] bg-accent text-white border border-accent rounded-[3px] px-1.5 py-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="text-[9px] bg-ai text-white border border-ai rounded-[3px] px-1.5 py-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Send
       </button>

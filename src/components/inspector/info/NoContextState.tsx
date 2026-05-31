@@ -9,7 +9,6 @@ import {
   EmptyContent,
 } from '@/components/ui/empty';
 import { useEditorStore } from '@/store';
-import { useBackendState } from '@/store/backend-state-slice';
 import { analyseFirstImageLayer } from '@/hooks/useImageContext';
 
 /**
@@ -19,15 +18,14 @@ import { analyseFirstImageLayer } from '@/hooks/useImageContext';
  */
 export function NoContextState() {
   const hasImage = useEditorStore((s) => s.layers.some((l) => l.type === 'image'));
-  const sseOpen = useBackendState((s) => s.sseStatus === 'open');
   const [busy, setBusy] = useState(false);
 
-  const disabled = busy || !hasImage || !sseOpen;
-  const hint = !hasImage
-    ? 'Open an image to analyze.'
-    : !sseOpen
-    ? 'Connect to the backend to analyze.'
-    : null;
+  // Enabled as soon as an image is loaded. Analysis BOOTSTRAPS the backend
+  // session/SSE itself (analyseFirstImageLayer → uploadAndAnalyse), so we must
+  // NOT gate on an already-open SSE — that left the button stuck disabled on a
+  // freshly-loaded image (no session yet).
+  const disabled = busy || !hasImage;
+  const hint = !hasImage ? 'Open an image to analyze.' : null;
 
   async function run() {
     if (disabled) return;

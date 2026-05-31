@@ -67,8 +67,6 @@ function MainLayout({
 }) {
   return (
     <div className="relative flex-1 min-h-0 flex flex-row">
-      <CommandTrigger />
-
       {/* Canvas column */}
       <div className="relative flex-1 min-w-0 min-h-0">
         <div className="absolute inset-0">
@@ -118,6 +116,9 @@ function MainLayout({
           <span className="text-separator">|</span>
           <ZoomDisplay />
         </div>
+
+        {/* Floating command bar — opens the palette (⌘K) */}
+        <CommandTrigger />
       </div>
 
       <RightSidebar />

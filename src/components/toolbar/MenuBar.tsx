@@ -9,6 +9,7 @@ import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { revertToOriginal } from '@/lib/revert';
 import { editorDocument } from '@/core/document';
 import { useFileIO } from '@/hooks/useFileIO';
+import { BackendStatusBadge } from '@/components/ui/BackendStatusBadge';
 import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
 import { useCanvasZoom } from '@/hooks/useCanvasZoom';
 import { useImageTransform } from '@/hooks/useImageTransform';
@@ -118,6 +119,10 @@ export function MenuBar() {
 
         {/* Spacer */}
         <div className="flex-1" />
+
+        {/* Backend connection status */}
+        <BackendStatusBadge />
+        <div className="w-px h-3 bg-separator mx-1.5" />
 
         {/* Undo / Redo */}
         <UndoRedoButtons />

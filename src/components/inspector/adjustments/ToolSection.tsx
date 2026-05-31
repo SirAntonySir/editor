@@ -6,6 +6,7 @@ import { sectionSummary } from './section-summary';
 import { ScalarSectionBody } from './ScalarSectionBody';
 import { CurvesSectionBody } from './CurvesSectionBody';
 import { PromoteOnlyBody } from './PromoteOnlyBody';
+import { promoteToCanvas } from './promote';
 
 interface ToolSectionProps {
   def: ProcessingDefinition;
@@ -17,6 +18,8 @@ const EMPTY_PARAMS: Record<string, unknown> = {};
 export function ToolSection({ def, layerId }: ToolSectionProps) {
   const expanded = useEditorStore((s) => s.expandedSectionIds.has(def.id));
   const toggle = useEditorStore((s) => s.toggleSectionExpanded);
+  const sessionId = useBackendState((s) => s.sessionId);
+  const offline = useBackendState((s) => s.sseStatus !== 'open');
   const canonical = useBackendState((s) => {
     const id = layerId ? `canon:${layerId}:${def.adjustmentType}` : '';
     return (s.snapshot?.operation_graph.nodes.find((n) => n.id === id)?.params ?? EMPTY_PARAMS) as Record<string, unknown>;
@@ -45,6 +48,18 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
         ) : (
           <ScalarSectionBody layerId={layerId} op={def.adjustmentType} params={def.params} />
         )
+      )}
+      {expanded && layerId && def.adjustmentType !== 'lut' && (
+        <div className="flex justify-end px-2.5 pb-2">
+          <button
+            type="button"
+            disabled={offline}
+            onClick={() => promoteToCanvas(sessionId, def.id, layerId)}
+            className="text-[10px] text-text-secondary hover:text-text-primary border border-border rounded px-2 py-0.5 disabled:opacity-40"
+          >
+            ↗ Open on canvas
+          </button>
+        </div>
       )}
     </div>
   );

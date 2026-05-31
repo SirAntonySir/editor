@@ -6,6 +6,7 @@ import { sectionSummary } from './section-summary';
 import { ScalarSectionBody } from './ScalarSectionBody';
 import { CurvesSectionBody } from './CurvesSectionBody';
 import { PromoteOnlyBody } from './PromoteOnlyBody';
+import { HslSectionBody } from './HslSectionBody';
 import { promoteToCanvas } from './promote';
 
 interface ToolSectionProps {
@@ -62,6 +63,8 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
       {expanded && layerId && (
         def.adjustmentType === 'curves' ? (
           <CurvesSectionBody layerId={layerId} />
+        ) : def.adjustmentType === 'hsl' ? (
+          <HslSectionBody layerId={layerId} />
         ) : def.adjustmentType === 'lut' ? (
           <PromoteOnlyBody toolId={def.id} />
         ) : (

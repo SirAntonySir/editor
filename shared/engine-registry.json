@@ -8,6 +8,8 @@
         "contrast":   { "uniform": "u_contrast",   "label": "Contrast",   "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
         "highlights": { "uniform": "u_highlights", "label": "Highlights", "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
         "shadows":    { "uniform": "u_shadows",    "label": "Shadows",    "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "whites":     { "uniform": "u_whites",     "label": "Whites",     "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "blacks":     { "uniform": "u_blacks",     "label": "Blacks",     "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
         "brightness": { "uniform": "u_brightness", "label": "Brightness", "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 }
       }
     },

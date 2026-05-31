@@ -15,6 +15,8 @@ uniform float u_temperature; // -1 to 1
 uniform float u_exposure;    // -1 to 1
 uniform float u_highlights;  // -1 to 1
 uniform float u_shadows;     // -1 to 1
+uniform float u_whites;      // -1 to 1
+uniform float u_blacks;      // -1 to 1
 uniform float u_vibrance;    // -1 to 1
 
 vec3 rgb2hsl(vec3 c) {
@@ -76,6 +78,12 @@ void main() {
   color += u_highlights * highlightMask * 0.5;
   float shadowMask = 1.0 - smoothstep(0.2, 0.7, lum);
   color += u_shadows * shadowMask * 0.5;
+
+  // Whites & Blacks — act on the tonal extremes (vs highlights/shadows midtones)
+  float whitesMask = smoothstep(0.6, 1.0, lum);
+  color += u_whites * whitesMask * 0.5;
+  float blacksMask = 1.0 - smoothstep(0.0, 0.4, lum);
+  color += u_blacks * blacksMask * 0.5;
 
   // Saturation (recompute lum after tone changes)
   lum = dot(color, vec3(0.2126, 0.7152, 0.0722));

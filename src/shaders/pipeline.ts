@@ -139,6 +139,8 @@ export class WebGLPipeline {
         gl.uniform1f(gl.getUniformLocation(program, 'u_exposure'), engineUniformValue('exposure', (p.exposure as number) ?? 0));
         gl.uniform1f(gl.getUniformLocation(program, 'u_highlights'), engineUniformValue('highlights', (p.highlights as number) ?? 0));
         gl.uniform1f(gl.getUniformLocation(program, 'u_shadows'), engineUniformValue('shadows', (p.shadows as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_whites'), engineUniformValue('whites', (p.whites as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_blacks'), engineUniformValue('blacks', (p.blacks as number) ?? 0));
         gl.uniform1f(gl.getUniformLocation(program, 'u_vibrance'), engineUniformValue('vibrance', (p.vibrance as number) ?? 0));
       },
     });
@@ -384,6 +386,8 @@ export class WebGLPipeline {
       gl.uniform1f(gl.getUniformLocation(basic.program, 'u_exposure'), 0);
       gl.uniform1f(gl.getUniformLocation(basic.program, 'u_highlights'), 0);
       gl.uniform1f(gl.getUniformLocation(basic.program, 'u_shadows'), 0);
+      gl.uniform1f(gl.getUniformLocation(basic.program, 'u_whites'), 0);
+      gl.uniform1f(gl.getUniformLocation(basic.program, 'u_blacks'), 0);
       gl.uniform1f(gl.getUniformLocation(basic.program, 'u_vibrance'), 0);
       gl.uniform1i(gl.getUniformLocation(basic.program, 'u_useMask'), 0);
     }

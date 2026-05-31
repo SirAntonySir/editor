@@ -84,6 +84,13 @@
       "params": {
         "radius": { "uniform": "u_radius", "label": "Radius", "min": 0, "max": 100, "step": 1, "scale": 100, "default": 0 }
       }
+    },
+    "clarity": {
+      "shaderBinding": "clarity",
+      "toolDefaults": [],
+      "params": {
+        "amount": { "uniform": "u_amount", "label": "Amount", "min": 0, "max": 100, "step": 1, "scale": 100, "default": 0 }
+      }
     }
   }
 }

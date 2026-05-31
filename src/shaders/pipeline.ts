@@ -7,6 +7,7 @@ import { kelvinFragment } from './kelvin.glsl.ts';
 import { hslFragment } from './hsl.glsl.ts';
 import { sharpenFragment } from './sharpen.glsl.ts';
 import { blurFragment } from './blur.glsl.ts';
+import { clarityFragment } from './clarity.glsl.ts';
 import { lutFragment } from './lut.glsl.ts';
 import { blendFragment } from './blend.glsl.ts';
 import { LutRegistry } from '@/lib/lut-registry';
@@ -217,6 +218,47 @@ export class WebGLPipeline {
         };
         runPass(inputTexture, scratchA.framebuffer, [texel[0], 0]);  // horizontal → scratchA
         runPass(scratchA.texture, targetFramebuffer, [0, texel[1]]); // vertical → target
+      },
+    });
+
+    // Clarity (large-radius unsharp = blur then combine). Reuses the blur
+    // program declared just above (same initShaders scope) via closure.
+    const clarityProgram = createProgram(gl, fullscreenQuadVertex, clarityFragment);
+    this.shaders.set('clarity', {
+      program: clarityProgram,
+      setUniforms: () => {},
+      renderInto: (ctx, adj) => {
+        const { gl, inputTexture, targetFramebuffer, scratchA, scratchB, texel, drawQuad } = ctx;
+        const amount = engineUniformValue('amount', (adj.params.amount as number) ?? 0);
+        const radius = 0.5; // fixed large radius for local-contrast
+        const blurPass = (inTex: WebGLTexture, outFb: WebGLFramebuffer | null, dir: [number, number]) => {
+          gl.bindFramebuffer(gl.FRAMEBUFFER, outFb);
+          gl.viewport(0, 0, ctx.width, ctx.height);
+          gl.useProgram(blurProgram);
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, inTex);
+          gl.uniform1i(gl.getUniformLocation(blurProgram, 'u_texture'), 0);
+          gl.uniform2f(gl.getUniformLocation(blurProgram, 'u_texel'), texel[0], texel[1]);
+          gl.uniform2f(gl.getUniformLocation(blurProgram, 'u_direction'), dir[0], dir[1]);
+          gl.uniform1f(gl.getUniformLocation(blurProgram, 'u_radius'), radius);
+          gl.uniform1i(gl.getUniformLocation(blurProgram, 'u_useMask'), 0);
+          drawQuad();
+        };
+        blurPass(inputTexture, scratchA.framebuffer, [texel[0], 0]);   // H → scratchA
+        blurPass(scratchA.texture, scratchB.framebuffer, [0, texel[1]]); // V → scratchB (blurred)
+        // Combine original (inputTexture) + blurred (scratchB) → target
+        gl.bindFramebuffer(gl.FRAMEBUFFER, targetFramebuffer);
+        gl.viewport(0, 0, ctx.width, ctx.height);
+        gl.useProgram(clarityProgram);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, inputTexture);
+        gl.uniform1i(gl.getUniformLocation(clarityProgram, 'u_texture'), 0);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, scratchB.texture);
+        gl.uniform1i(gl.getUniformLocation(clarityProgram, 'u_blurred'), 1);
+        gl.uniform1f(gl.getUniformLocation(clarityProgram, 'u_amount'), amount);
+        gl.uniform1i(gl.getUniformLocation(clarityProgram, 'u_useMask'), 0);
+        drawQuad();
       },
     });
 

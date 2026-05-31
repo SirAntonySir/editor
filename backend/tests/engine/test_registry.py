@@ -2,7 +2,9 @@ from app.engine.registry import ENGINE_OPS, op_param
 
 
 def test_registry_loads_scalar_ops():
-    assert set(ENGINE_OPS) == {"light", "color", "kelvin", "levels"}
+    assert set(ENGINE_OPS) == {
+        "light", "color", "kelvin", "levels", "hsl", "sharpen", "blur", "clarity",
+    }
 
 
 def test_exposure_range_and_scale_match_frontend():

@@ -31,9 +31,12 @@ export function CommandPalette() {
   const toolCommands = useMemo(() => buildToolCommands(CanvasToolRegistry.getAll()), []);
   const filtered = useMemo(() => filterCommands(toolCommands, query), [toolCommands, query]);
 
-  const aiCommand: PaletteCommand | null = query.trim()
-    ? { id: 'ai', kind: 'ai', label: `"${query.trim()}" → ask AI`, description: 'Send as a prompt' }
-    : null;
+  const aiCommand = useMemo<PaletteCommand | null>(
+    () => (query.trim()
+      ? { id: 'ai', kind: 'ai', label: `"${query.trim()}" → ask AI`, description: 'Send as a prompt' }
+      : null),
+    [query],
+  );
   const flat = useMemo<PaletteCommand[]>(
     () => (aiCommand ? [...filtered, aiCommand] : filtered),
     [filtered, aiCommand],
@@ -73,6 +76,8 @@ export function CommandPalette() {
       if (cmd.kind === 'tool' && cmd.toolName) {
         spawnToolWidget(cmd.toolName);
       } else if (cmd.kind === 'ai') {
+        // Mirrors the former AskAiInput behavior: only mask scope is forwarded;
+        // all other scopes collapse to global for AI prompts.
         const active = useEditorStore.getState().activeScope ?? { kind: 'global' as const };
         const scope: Scope = active.kind === 'mask'
           ? { kind: 'mask', mask_id: active.mask_id }

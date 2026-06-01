@@ -241,8 +241,8 @@ grade_character (short label: warm-amber / cool-cinematic / neutral / teal-orang
 problems[] (one entry per detected issue with severity 0..1 and suggested_fused_tools), \
 and region_soft_fields[] (per candidate region label, is_skin_likely + is_sky_likely). \
 \
-Suggested fused tool ids are: warm_grade, cool_grade, exposure_balance, sky_recovery, \
-portrait_glow, bw_cinematic, cast_correct, teal_orange, subject_pop. \
+The valid `suggested_fused_tools` ids and what each does are listed in the catalog \
+attached as a user-message text block; choose ids only from that catalog. \
 \
 Call the `emit_context_soft_fields` tool exactly once. Do not return prose."""
 
@@ -693,6 +693,19 @@ class AnthropicClient:
         cheap_pass_summary: dict,
         session_id: str | None = None,
     ) -> _ContextSoftFields:
+        # Build the fused-tool catalogue dynamically so adding templates to
+        # `all_fused_templates()` automatically widens the autonomous picker.
+        # System prompt stays static (cache-friendly); the catalogue rides in
+        # a user-message block.
+        from app.tools.fused import all_fused_templates
+        catalog_lines = [
+            f"- {t.id}: {t.typical_use}" for t in all_fused_templates()
+        ]
+        catalog_block = (
+            "Catalogue of valid `suggested_fused_tools` ids "
+            f"({len(catalog_lines)} total):\n" + "\n".join(catalog_lines)
+        )
+
         last_error = None
         for attempt in range(3):
             response = self._client.messages.create(
@@ -708,6 +721,7 @@ class AnthropicClient:
                             self._image_block(image_bytes, mime_type),
                             {"type": "text", "text": f"Cheap-pass summary: {cheap_pass_summary}"},
                             {"type": "text", "text": f"Base context: {base_context_json}"},
+                            {"type": "text", "text": catalog_block},
                         ],
                     }
                 ],

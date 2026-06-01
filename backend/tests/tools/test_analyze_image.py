@@ -259,11 +259,11 @@ def _bootstrap_session() -> str:
     return client.post("/api/session", files=files).json()["session_id"]
 
 
-def test_analyze_mints_two_when_no_problems(monkeypatch) -> None:
-    """Zero problems → top-up fills both slots."""
+def test_analyze_mints_target_when_no_problems(monkeypatch) -> None:
+    """Zero problems → top-up fills to TARGET (3)."""
     fake = _fake_claude_for_topup(
         problems=[],
-        topup_picks=["warm_grade", "exposure_balance"],
+        topup_picks=["warm_grade", "exposure_balance", "cool_grade"],
         resolve_values={
             "temperature": 200, "highlight_warmth": 5, "saturation_lift": 2,
             "shadows": 10, "highlights": -10, "whites": 0, "blacks": 0,
@@ -277,19 +277,19 @@ def test_analyze_mints_two_when_no_problems(monkeypatch) -> None:
     assert r.json()["ok"] is True
     doc = deps.get_session_store().get_document(sid)
     autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
-    assert len(autonomous) == 2
+    assert len(autonomous) == 3
     fused_ids = {w.fused_tool_id for w in autonomous}
-    assert fused_ids == {"warm_grade", "exposure_balance"}
+    assert fused_ids == {"warm_grade", "exposure_balance", "cool_grade"}
 
 
 def test_analyze_tops_up_when_one_problem(monkeypatch) -> None:
-    """One high-severity problem → 1 minted from problem + 1 from top-up."""
+    """One high-severity problem → 1 minted from problem + 2 from top-up = TARGET (3)."""
     fake = _fake_claude_for_topup(
         problems=[Problem(
             kind="clipped_highlights", severity=0.8, region_label=None,
             suggested_fused_tools=["sky_recovery"],
         )],
-        topup_picks=["exposure_balance"],
+        topup_picks=["exposure_balance", "warm_grade"],
         resolve_values={
             "temperature": 0, "highlight_warmth": 0, "saturation_lift": 0,
             "shadows": 5, "highlights": -15, "whites": -5, "blacks": 5,
@@ -302,26 +302,29 @@ def test_analyze_tops_up_when_one_problem(monkeypatch) -> None:
     client.post("/api/tools/analyze_image", json={"session_id": sid, "input": {}})
     doc = deps.get_session_store().get_document(sid)
     autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
-    assert len(autonomous) == 2
-    assert {w.fused_tool_id for w in autonomous} == {"sky_recovery", "exposure_balance"}
+    assert len(autonomous) == 3
+    assert {w.fused_tool_id for w in autonomous} == {"sky_recovery", "exposure_balance", "warm_grade"}
     args, kwargs = fake.suggest_fused_tools_for_character.call_args
     assert "sky_recovery" in kwargs["exclude"]
 
 
-def test_analyze_no_topup_when_two_problems(monkeypatch) -> None:
-    """Two high-severity problems → top-up not called."""
+def test_analyze_no_topup_when_target_already_met(monkeypatch) -> None:
+    """3 high-severity problems → TARGET met → top-up not called."""
     fake = _fake_claude_for_topup(
         problems=[
             Problem(kind="clipped_highlights", severity=0.8, region_label=None,
                     suggested_fused_tools=["sky_recovery"]),
             Problem(kind="crushed_shadows", severity=0.8, region_label=None,
                     suggested_fused_tools=["exposure_balance"]),
+            Problem(kind="strong_color_cast", severity=0.8, region_label=None,
+                    suggested_fused_tools=["cast_correct"]),
         ],
         topup_picks=["warm_grade"],
         resolve_values={
             "temperature": 0, "highlight_warmth": 0, "saturation_lift": 0,
             "shadows": 30, "highlights": -20, "whites": 0, "blacks": 0,
             "highlight_amount": 0.5, "luma_curve_strength": 0.3,
+            "corrective_kelvin": 0, "sat_correction": 0,
         },
     )
     monkeypatch.setattr(deps, "_anthropic_client", fake)
@@ -330,7 +333,44 @@ def test_analyze_no_topup_when_two_problems(monkeypatch) -> None:
     client.post("/api/tools/analyze_image", json={"session_id": sid, "input": {}})
     doc = deps.get_session_store().get_document(sid)
     autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
-    assert len(autonomous) == 2
+    assert len(autonomous) == 3
+    fake.suggest_fused_tools_for_character.assert_not_called()
+
+
+def test_analyze_caps_at_max_for_many_problems(monkeypatch) -> None:
+    """Many high-severity problems → problem-driven minting capped at MAX (5)."""
+    fake = _fake_claude_for_topup(
+        problems=[
+            Problem(kind="clipped_highlights", severity=0.8, region_label=None,
+                    suggested_fused_tools=["sky_recovery"]),
+            Problem(kind="crushed_shadows", severity=0.8, region_label=None,
+                    suggested_fused_tools=["exposure_balance"]),
+            Problem(kind="strong_color_cast", severity=0.8, region_label=None,
+                    suggested_fused_tools=["cast_correct"]),
+            Problem(kind="low_contrast", severity=0.7, region_label=None,
+                    suggested_fused_tools=["subject_pop"]),
+            Problem(kind="noisy_shadows", severity=0.7, region_label=None,
+                    suggested_fused_tools=["portrait_glow"]),
+            Problem(kind="uneven_white_balance", severity=0.6, region_label=None,
+                    suggested_fused_tools=["warm_grade"]),
+        ],
+        topup_picks=[],
+        resolve_values={
+            "temperature": 0, "highlight_warmth": 0, "saturation_lift": 0,
+            "shadows": 0, "highlights": 0, "whites": 0, "blacks": 0,
+            "highlight_amount": 0.5, "luma_curve_strength": 0.3,
+            "corrective_kelvin": 0, "sat_correction": 0,
+            "exposure": 0, "contrast": 0,
+            "amount": 0.5,
+        },
+    )
+    monkeypatch.setattr(deps, "_anthropic_client", fake)
+    sid = _bootstrap_session()
+    client = TestClient(app)
+    client.post("/api/tools/analyze_image", json={"session_id": sid, "input": {}})
+    doc = deps.get_session_store().get_document(sid)
+    autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
+    assert len(autonomous) == 5  # MAX
     fake.suggest_fused_tools_for_character.assert_not_called()
 
 

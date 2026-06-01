@@ -278,7 +278,23 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
                 return True
         return False
 
+    # Target band: aim for at least TARGET autonomous suggestions, but allow up
+    # to MAX from the problem-driven pass if Claude flagged that many issues.
+    # Counts hover at exactly TARGET only when the analyze pass yields fewer
+    # than TARGET problems and the character-match top-up has to fill the gap;
+    # rich images can land 3-5 suggestions naturally.
+    TARGET_AUTONOMOUS_SUGGESTIONS = 3
+    MAX_AUTONOMOUS_SUGGESTIONS = 5
+
+    def _count_autonomous_active() -> int:
+        return sum(
+            1 for w in doc.widgets.values()
+            if w.origin.kind == "mcp_autonomous" and w.status == "active"
+        )
+
     for problem in ctx.problems:
+        if _count_autonomous_active() >= MAX_AUTONOMOUS_SUGGESTIONS:
+            break
         if problem.severity < 0.5:
             continue
         for fused_id in problem.suggested_fused_tools:
@@ -300,17 +316,10 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
             doc.add_widget(widget)
             break  # one per problem
 
-    # >=2 guarantee - top up via image-character match if the problem-driven
-    # pass produced fewer than 2 autonomous widgets.
-    MIN_AUTONOMOUS_SUGGESTIONS = 2
-
-    def _count_autonomous_active() -> int:
-        return sum(
-            1 for w in doc.widgets.values()
-            if w.origin.kind == "mcp_autonomous" and w.status == "active"
-        )
-
-    if _count_autonomous_active() >= MIN_AUTONOMOUS_SUGGESTIONS:
+    # Top up via image-character match only when the problem-driven pass
+    # produced fewer than TARGET widgets. Once TARGET is met, additional
+    # problem-driven suggestions can push the count up to MAX naturally.
+    if _count_autonomous_active() >= TARGET_AUTONOMOUS_SUGGESTIONS:
         return
 
     already_used = {
@@ -321,7 +330,7 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
         rule.fused_tool_id for rule in doc.dismissals
         if rule.scope_signature == "global"
     }
-    needed = MIN_AUTONOMOUS_SUGGESTIONS - _count_autonomous_active()
+    needed = TARGET_AUTONOMOUS_SUGGESTIONS - _count_autonomous_active()
     exclude = list(already_used | dismissed_global)
     candidates = anthropic.suggest_fused_tools_for_character(
         grade_character=ctx.grade_character,
@@ -335,7 +344,7 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
 
     global_scope = Scope.model_validate({"kind": "global"})
     for fused_id in candidates:
-        if _count_autonomous_active() >= MIN_AUTONOMOUS_SUGGESTIONS:
+        if _count_autonomous_active() >= TARGET_AUTONOMOUS_SUGGESTIONS:
             break
         if fused_id not in templates or fused_id in already_used:
             continue

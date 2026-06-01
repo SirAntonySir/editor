@@ -309,13 +309,30 @@ export class WebGLPipeline {
       },
     });
 
-    // Kelvin white balance shader
+    // Kelvin white balance shader.
+    //
+    // The canonical (and toolrail) param name is `kelvin` — absolute Kelvin
+    // value in 2000-10000, neutral 6500. Fused-template bindings (warm_grade,
+    // cast_correct, golden_hour, …) historically write a DELTA into a
+    // `temperature` param (range ±N around 6500) — that's what their
+    // resolvers emit and what `backend/app/state/preview_renderer.py`
+    // consumes. The two name conventions never overlap on a single node, so
+    // we honour whichever the widget actually wrote: prefer absolute
+    // `kelvin`, else translate `temperature` to absolute via `6500 + delta`.
     const kelvinProgram = createProgram(gl, fullscreenQuadVertex, kelvinFragment);
     this.shaders.set('kelvin', {
       program: kelvinProgram,
       setUniforms: (gl, program, adj) => {
         const p = adj.params;
-        gl.uniform1f(gl.getUniformLocation(program, 'u_kelvin'), engineUniformValue('kelvin', (p.kelvin as number) ?? 6500));
+        const kelvinAbs = p.kelvin as number | undefined;
+        const tempDelta = p.temperature as number | undefined;
+        const value =
+          kelvinAbs !== undefined
+            ? kelvinAbs
+            : tempDelta !== undefined
+            ? 6500 + tempDelta
+            : 6500;
+        gl.uniform1f(gl.getUniformLocation(program, 'u_kelvin'), engineUniformValue('kelvin', value));
         gl.uniform1f(gl.getUniformLocation(program, 'u_tint'), engineUniformValue('tint', (p.tint as number) ?? 0));
       },
     });

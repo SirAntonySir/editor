@@ -52,7 +52,7 @@ The frontend follows a 3-tier hierarchy. **Reuse before invent.** Before writing
 - **Style only via design tokens** in `src/index.css` (color, radius, shadow, motion vars). No hardcoded hex or px for design values.
 - **Visual register**: see `design.md` at project root — it is authoritative for tokens, motion, and the flat overlay aesthetic.
 - **Canvas surface**: the editor canvas is a React Flow workspace (`src/components/workspace/CanvasWorkspace.tsx`). Image nodes render via the existing WebGL pipeline (`useImageNodeRender`); Widget nodes wrap `WidgetShell`. Tether edges carry attribution only — they have no DAG semantics.
-- **Toolrail is 6 buttons** (Light / Color / Kelvin / Curves / Levels / Filters). Toolrail clicks gate on a selected ImageNode (`activeImageNodeId !== null`); otherwise a toast asks the user to select one. All buttons disabled when `useBackendState.sseStatus !== 'open'`.
+- **Toolrail is 6 buttons** (Light / Color / White Balance / Curves / Levels / Filters). Toolrail clicks gate on a selected ImageNode (`activeImageNodeId !== null`); otherwise a toast asks the user to select one. All buttons disabled when `useBackendState.sseStatus !== 'open'`.
 
 **Enforcement:** `npm run check` (runs `tsc -b` + `eslint .` + the `no-nested-component` custom rule). Lint must pass before any commit; the rule is wired through pre-commit.
 
@@ -157,6 +157,6 @@ The frontend reads it, displays it, and calls backend tools to mutate it.
 Three spawn paths → one backend call (`backendTools.propose_widget`):
 - Cmd+K palette → `origin: 'mcp_user_prompt'`
 - Backend autonomous analyze → `origin: 'mcp_autonomous'`
-- Toolrail buttons (Light/Color/Kelvin/Curves/Levels/Filters) → `origin: 'tool_invoked'` (skips LLM, ships defaults from backend `TOOL_DEFAULTS`)
+- Toolrail buttons (Light/Color/White Balance/Curves/Levels/Filters) → `origin: 'tool_invoked'` (skips LLM, ships defaults from backend `TOOL_DEFAULTS`)
 
 When the backend is disconnected (`useBackendState.sseStatus !== 'open'`): all tools disabled, Cmd+K disabled, last-rendered canvas visible.

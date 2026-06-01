@@ -7,16 +7,16 @@ import type { ProcessingDefinition } from '@/types/processing';
 import type { Widget } from '@/types/widget';
 import { ToolSection } from './ToolSection';
 import { AiSection } from './AiSection';
+import { ColourBandToolRow } from './ColourBandToolRow';
 
 // Stable empty reference so the selector below doesn't return a fresh literal
 // each render (avoids useSyncExternalStore re-render churn when snapshot is null).
 const EMPTY_WIDGETS: Widget[] = [];
 
-// Canonical toolrail display names (CLAUDE.md: 6-button toolrail). A handful of
-// processing defs carry a longer descriptive label (e.g. 'White Balance') than
-// the short toolrail name shown in the rail; map by def id where they differ.
+// Per-def label overrides for the accordion. Most defs use their own `.label`
+// directly; a few need a slightly different toolrail-style name here. Empty
+// today now that "White Balance" is the canonical name for the kelvin def.
 const SECTION_LABELS: Record<string, string> = {
-  kelvin: 'Kelvin',
   filter: 'Filters',
 };
 
@@ -72,6 +72,7 @@ export function AdjustmentsAccordion() {
       {tools.map((def) => (
         <ToolSection key={def.id} def={sectionDef(def)} layerId={layerId} />
       ))}
+      <ColourBandToolRow />
     </div>
   );
 }

@@ -16,7 +16,7 @@ afterEach(() => cleanup());
 
 it('renders the six tool sections in registry order', () => {
   render(<AdjustmentsAccordion />);
-  for (const label of ['Light', 'Color', 'Kelvin', 'Curves', 'Levels', 'Filters']) {
+  for (const label of ['Light', 'Color', 'White Balance', 'Curves', 'Levels', 'Filters']) {
     expect(screen.getByText(label)).toBeTruthy();
   }
 });

@@ -50,7 +50,11 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   }
 
   function handleDelete() {
-    editorDocument.workspace.removeImageNode(id);
+    // Image node delete = close the document: clear layers, pixel data,
+    // backend session (incl. localStorage), and the workspace. Without this,
+    // removing just the workspace node leaves layers populated → the
+    // auto-recreate effect in CanvasWorkspace immediately re-creates the node.
+    editorDocument.closeDocument();
   }
 
   return (

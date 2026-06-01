@@ -136,6 +136,32 @@ function newDocument(): void {
   if (seed) history.initWith(seed);
 }
 
+/**
+ * Reset back to the no-document state: clears layers, workspace nodes/edges,
+ * pixel data, history, and the persisted backend session (incl. its
+ * localStorage entry). Used by the image-node Delete action so the user can
+ * upload a fresh image and re-run analyze from scratch — info tab and AI
+ * suggestions all clear with the snapshot.
+ */
+function closeDocument(): void {
+  pixelStore.clear();
+  history.clear();
+  // Drops session id from in-memory state + localStorage and clears snapshot,
+  // so the info tab's image_context, regions, and AI suggestions all reset.
+  useBackendState.getState().reset();
+  // Workspace: image nodes, widget nodes, tether edges, active selection.
+  useEditorStore.getState().resetWorkspace();
+  if (store) {
+    store.setState({
+      layers: [],
+      activeLayerId: null,
+      pixelVersion: 0,
+      documentMeta: null,
+      isDirty: false,
+    });
+  }
+}
+
 async function openImage(file: File): Promise<void> {
   const bitmap = await createImageBitmap(file);
   const offscreen = new OffscreenCanvas(bitmap.width, bitmap.height);
@@ -348,6 +374,7 @@ export const editorDocument = {
   init,
   dispose,
   newDocument,
+  closeDocument,
   openImage,
 
   // Interactions (slider debouncing)

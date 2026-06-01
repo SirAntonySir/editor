@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { HistogramPlot } from '@/components/ui/HistogramPlot';
 import {
   computeHistogramBins,
-  histogramPeak,
   type HistogramBins,
 } from '@/lib/histogram-compute';
 
@@ -82,21 +82,6 @@ export function LevelsHistogramControl({
     setBins(computeHistogramBins(source));
   }, [source]);
 
-  // Build path data once per `bins` change so each handle-drag re-render
-  // doesn't re-trace 256 lineTo commands.
-  const peak = bins ? histogramPeak(bins) : 0;
-  const buildPath = (ch: Uint32Array): string => {
-    if (peak === 0) return '';
-    const parts: string[] = ['M0,100'];
-    for (let i = 0; i < 256; i++) {
-      const x = (i / 255) * 256;
-      const y = 100 - Math.min(100, (ch[i] / peak) * 100);
-      parts.push(`L${x},${y}`);
-    }
-    parts.push('L256,100', 'Z');
-    return parts.join(' ');
-  };
-
   function valueAtClientX(clientX: number): number {
     const rect = wrapRef.current?.getBoundingClientRect();
     if (!rect) return 0;
@@ -147,21 +132,20 @@ export function LevelsHistogramControl({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       >
-        {/* Histogram — drawn behind the handles. */}
+        {/* Histogram — drawn behind the handles via the shared
+            `HistogramPlot` primitive (same component the Info tab uses,
+            same colours/opacities). */}
+        <div className="absolute inset-0 pointer-events-none">
+          <HistogramPlot bins={bins} viewBoxHeight={100} className="w-full h-full" />
+        </div>
+        {/* Clipped-zone tints + guides stay LOCAL to this control — they
+            sit on top of the plot. */}
         <svg
           viewBox="0 0 256 100"
           preserveAspectRatio="none"
           className="absolute inset-0 w-full h-full pointer-events-none"
           aria-hidden
         >
-          {bins && peak > 0 && (
-            <>
-              <path d={buildPath(bins.r)} fill="rgba(255, 68, 68, 0.35)" />
-              <path d={buildPath(bins.g)} fill="rgba(68, 187, 68, 0.35)" />
-              <path d={buildPath(bins.b)} fill="rgba(68, 136, 255, 0.35)" />
-              <path d={buildPath(bins.lum)} fill="rgba(120, 120, 120, 0.45)" />
-            </>
-          )}
           {/* Clipped-zone overlays — anything outside [inBlack, inWhite] gets
               cut by the pipeline; tint those bands so the user sees it. */}
           {inBlack > 0 && (

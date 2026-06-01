@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { BarChart3 } from 'lucide-react';
 import type { EnrichedImageContext } from '@/types/enriched-context';
-import { Histogram, type HistogramSeries } from '@/components/ui/Histogram';
+import { HistogramPlot } from '@/components/ui/HistogramPlot';
+import type { HistogramBins } from '@/lib/histogram-compute';
 import { PercentBar } from '@/components/ui/PercentBar';
 import { SectionHeader } from './SectionHeader';
 
@@ -8,23 +10,37 @@ interface Props {
   ctx: EnrichedImageContext;
 }
 
+/** Convert the backend's number-array histogram payloads into the
+ *  Uint32Array-shaped `HistogramBins` the shared `HistogramPlot`
+ *  consumes. Missing channels default to a 256-element zero array — the
+ *  plot then renders just the channels that ARE populated. */
+function binsFromContext(ctx: EnrichedImageContext): HistogramBins | null {
+  if (!ctx.luma_histogram || ctx.luma_histogram.length === 0) return null;
+  const zero = (): Uint32Array => new Uint32Array(256);
+  const fromArr = (arr: number[] | undefined): Uint32Array => {
+    if (!arr) return zero();
+    const out = new Uint32Array(256);
+    for (let i = 0; i < Math.min(256, arr.length); i++) out[i] = arr[i] | 0;
+    return out;
+  };
+  return {
+    r: fromArr(ctx.rgb_histograms.r),
+    g: fromArr(ctx.rgb_histograms.g),
+    b: fromArr(ctx.rgb_histograms.b),
+    lum: fromArr(ctx.luma_histogram),
+  };
+}
+
 export function HistogramsSection({ ctx }: Props) {
-  // Photoshop-style stack: R / G / B as filled translucent areas (they
-  // overlap-darken on the light surface, giving the high-contrast banded look
-  // you get in the Levels tool), with luma painted last on top for an overall
-  // shape silhouette. Bins are pre-binned by the backend so we just feed them
-  // through.
-  const series: HistogramSeries[] = [];
-  if (ctx.rgb_histograms.r) series.push({ bins: ctx.rgb_histograms.r, color: 'rgba(255, 68, 68, 0.35)', fill: true });
-  if (ctx.rgb_histograms.g) series.push({ bins: ctx.rgb_histograms.g, color: 'rgba(68, 187, 68, 0.35)', fill: true });
-  if (ctx.rgb_histograms.b) series.push({ bins: ctx.rgb_histograms.b, color: 'rgba(68, 136, 255, 0.35)', fill: true });
-  series.push({ bins: ctx.luma_histogram, color: 'rgba(120, 120, 120, 0.45)', fill: true });
+  // Memoise the Uint32Array conversion — recomputes only when the context
+  // actually changes, not on every parent re-render.
+  const bins = useMemo(() => binsFromContext(ctx), [ctx]);
 
   return (
     <section className="px-3 py-2.5 border-b border-separator">
       <SectionHeader icon={BarChart3} label="Histograms" />
       <div className="mb-2 rounded-[3px] bg-surface-secondary p-1.5 border border-separator">
-        <Histogram series={series} height={68} />
+        <HistogramPlot bins={bins} viewBoxHeight={68} />
       </div>
       <div className="flex flex-col gap-1 mb-1.5">
         <PercentBar pct={ctx.clipped_shadows_pct} color="#3b82f6" label="Clipped shadows" />

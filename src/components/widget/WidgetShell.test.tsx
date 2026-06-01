@@ -116,6 +116,43 @@ describe('WidgetShell', () => {
     );
   });
 
+  it('setParam keys the optimistic patch by CANONICAL node id when the widget node is known', () => {
+    // When the binding's target node id resolves to a widget.nodes entry,
+    // the optimistic key must be `canon:<layer>:<op>` — that's the id the
+    // canvas renderer reads from when applying optimistic overrides, so
+    // pixels update mid-drag instead of waiting for the SSE roundtrip.
+    const widget = makeAiWidget({
+      nodes: [
+        { id: 'n_abc', type: 'basic', layer_id: 'L1', params: {}, scope: { kind: 'global' } } as never,
+      ],
+      bindings: [
+        {
+          param_key: 'exposure',
+          label: 'Exposure',
+          control_type: 'slider',
+          target: { node_id: 'n_abc', param_key: 'exposure' },
+          control_schema: { control_type: 'slider', min: -100, max: 100, step: 1 },
+          value: 0,
+          default: 0,
+        },
+      ],
+    });
+    useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
+    render(<WidgetShell widget={widget} />);
+    const num = screen.getByTitle('Drag to scrub · click to type');
+    fireEvent.pointerDown(num, { clientX: 0, pointerId: 1 });
+    fireEvent.pointerUp(num, { clientX: 0, pointerId: 1 });
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: '40' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(mockApplyOptimistic).toHaveBeenCalledWith(
+      'canon:L1:basic',
+      expect.objectContaining({
+        bindings: [expect.objectContaining({ paramKey: 'exposure', value: 40 })],
+      }),
+    );
+  });
+
   const ALL_BANDS = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta'];
 
   it('routes an all-bands HSL widget to the colour panel (By band / By channel)', () => {

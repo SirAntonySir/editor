@@ -48,11 +48,18 @@ export function WidgetShell({ widget }: WidgetShellProps) {
 
   const hovered = hoveredWidgetId === widget.id;
 
-  // Optimistic patches are keyed by the operation_graph node id the binding
-  // targets — that matches the renderer's view of params and lets a slider
-  // move pixels before the backend SSE roundtrip completes.
+  // Optimistic patches are keyed by the CANONICAL op-graph node id
+  // (`canon:<layer>:<op>`) — that's what `useImageNodeRender` reads from
+  // when applying overrides to op_graph nodes. The widget's own node id
+  // (`n_<hex>`) never appears in the canonical graph, so keying by it
+  // would correctly bump the slider position in JS state but leave the
+  // rendered pixels waiting for the SSE roundtrip — felt laggy.
+  function canonIdFor(b: Widget['bindings'][number]): string {
+    const node = widget.nodes.find((n) => n.id === b.target.node_id);
+    return node ? `canon:${node.layer_id}:${node.type}` : b.target.node_id;
+  }
   function readOptimistic(b: Widget['bindings'][number]): Widget['bindings'][number]['value'] | undefined {
-    const patch = optimistic.get(b.target.node_id);
+    const patch = optimistic.get(canonIdFor(b));
     if (!patch) return undefined;
     const p = patch.bindings.find((p) => p.paramKey === b.target.param_key);
     return p?.value;
@@ -70,7 +77,9 @@ export function WidgetShell({ widget }: WidgetShellProps) {
     const binding = widget.bindings.find((b) => b.param_key === paramKey);
     if (binding) {
       const baseRevision = useBackendState.getState().snapshot?.revision ?? 0;
-      useBackendState.getState().applyOptimistic(binding.target.node_id, {
+      // Key the optimistic patch by canonical id so the WebGL render pass
+      // picks it up immediately — see canonIdFor() above.
+      useBackendState.getState().applyOptimistic(canonIdFor(binding), {
         bindings: [{ paramKey: binding.target.param_key, value }],
         baseRevision,
       });

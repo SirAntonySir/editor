@@ -31,7 +31,7 @@ describe('InfoTab', () => {
 
   it('renders an empty state when no snapshot is present', () => {
     render(<InfoTab />);
-    expect(screen.getByText('No image context yet')).not.toBeNull();
+    expect(screen.getByText('Analyze this image')).not.toBeNull();
   });
 
   it('offers an Analyze with AI action in the empty state', () => {
@@ -53,13 +53,13 @@ describe('InfoTab', () => {
     });
     render(<InfoTab />);
     expect(screen.getByText('Analysis progress')).not.toBeNull();
-    expect(screen.queryByText('No image context yet')).toBeNull();
+    expect(screen.queryByText('Analyze this image')).toBeNull();
   });
 
   it('renders an empty state when snapshot has no image_context', () => {
     setSnapshotWithContext(null);
     render(<InfoTab />);
-    expect(screen.getByText('No image context yet')).not.toBeNull();
+    expect(screen.getByText('Analyze this image')).not.toBeNull();
   });
 
   it('renders all four sections for a complete context', () => {

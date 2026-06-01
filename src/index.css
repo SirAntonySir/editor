@@ -92,6 +92,35 @@ html, body, #root {
     var(--shadow-overlay);
 }
 
+/* Skeleton-shimmer animation for empty-state previews. A diagonal accent
+ * gradient sweeps across the element, riding atop whatever surface tile it
+ * sits on. Respects prefers-reduced-motion. */
+@keyframes ai-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.ai-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--color-ai) 22%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: ai-shimmer 2.4s ease-in-out infinite;
+}
+/* Subtle pulse-glow for the violet sparkles in the no-context state. */
+@keyframes ai-glow-pulse {
+  0%, 100% { filter: drop-shadow(0 0 0 transparent); transform: scale(1); }
+  50%      { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--color-ai) 60%, transparent)); transform: scale(1.05); }
+}
+.ai-glow-pulse {
+  animation: ai-glow-pulse 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-shimmer, .ai-glow-pulse { animation: none; }
+}
+
 /* Marching-ants animation for tether edges. Each edge sets `--march-shift`
  * inline so the offset shift always matches its own dash-pattern sum at the
  * current viewport zoom — keeps the loop seamless as zoom changes. */

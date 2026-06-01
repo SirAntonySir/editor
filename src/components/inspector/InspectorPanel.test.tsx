@@ -48,7 +48,7 @@ describe('InspectorPanel — tab switcher', () => {
     render(<InspectorPanel />);
     await user.click(screen.getByText('Info'));
     expect(screen.queryByText('Light')).toBeNull();
-    expect(screen.getByText('No image context yet')).toBeDefined();
+    expect(screen.getByText('Analyze this image')).toBeDefined();
   });
 
   it('switches to the Info tab on the inspector:show-info window event', () => {
@@ -56,6 +56,6 @@ describe('InspectorPanel — tab switcher', () => {
     expect(screen.getByText('Light')).toBeTruthy();
     act(() => { window.dispatchEvent(new Event(INSPECTOR_SHOW_INFO_EVENT)); });
     expect(screen.queryByText('Light')).toBeNull();
-    expect(screen.getByText('No image context yet')).toBeDefined();
+    expect(screen.getByText('Analyze this image')).toBeDefined();
   });
 });

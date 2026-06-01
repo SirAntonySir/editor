@@ -10,17 +10,27 @@ export function touchKey(layerId: string, op: string, param: string): string {
 /**
  * Pure provenance for a widget-binding value (used by canvas widgets + AI
  * accordion sections, which render the same widget bindings):
- *  - at default → `default` (grey)
+ *  - at the ENGINE neutral → `default` (grey)
  *  - user moved it → `hand` (accent)
- *  - AI-origin widget proposed this non-default value, untouched → `ai` (violet)
+ *  - AI-origin widget proposed this non-neutral value, untouched → `ai` (violet)
+ *
+ * `neutralValue` is the engine-canonical baseline (0 for bipolar params,
+ * 6500 for kelvin, 1.0 for gamma, …). For AI bindings this is DIFFERENT
+ * from `defaultValue`, which carries the AI's resolved pick — using
+ * `defaultValue` as the "at-rest" check would incorrectly grey-out AI
+ * sliders the moment they load (since their initial value equals the AI's
+ * pick). When `neutralValue` is omitted the function falls back to
+ * `defaultValue` (back-compat path for tool sliders where the two coincide).
  */
 export function bindingProvenance(
   effectiveValue: unknown,
   defaultValue: unknown,
   isAiOrigin: boolean,
   isTouched: boolean,
+  neutralValue?: unknown,
 ): SliderProvenance {
-  if (effectiveValue === defaultValue) return 'default';
+  const neutral = neutralValue !== undefined ? neutralValue : defaultValue;
+  if (effectiveValue === neutral) return 'default';
   if (isTouched) return 'hand';
   if (isAiOrigin) return 'ai';
   return 'hand';

@@ -7,6 +7,7 @@ import { useWidgetExpansion } from '@/hooks/useWidgetExpansion';
 import { useHoveredWidget } from '@/hooks/useHoveredWidget';
 import { useEditorStore } from '@/store';
 import { bindingProvenance, touchKey } from '@/hooks/useParamProvenance';
+import { engineNeutralForBinding } from '@/engine/registry';
 import { WidgetShellHeader } from './WidgetShellHeader';
 import { WidgetShellFooter } from './WidgetShellFooter';
 import { RefineInput } from './RefineInput';
@@ -145,6 +146,11 @@ export function WidgetShell({ widget }: WidgetShellProps) {
                 const isTouched = node?.layer_id
                   ? touched.has(touchKey(node.layer_id, node.type, b.target.param_key))
                   : false;
+                // Engine neutral feeds the provenance check so an AI
+                // slider reads VIOLET while still resting at the AI's
+                // resolved value (= binding.default, ≠ engine 0). User
+                // touch flips it to ACCENT (blue).
+                const neutral = engineNeutralForBinding(b);
                 return (
                   <BindingRow
                     key={b.param_key}
@@ -152,7 +158,13 @@ export function WidgetShell({ widget }: WidgetShellProps) {
                     effectiveValue={eff}
                     maskSummaries={masks}
                     onChange={(value) => setParam(b.param_key, value)}
-                    provenance={bindingProvenance(eff, b.default, widget.origin.kind !== 'tool_invoked', isTouched)}
+                    provenance={bindingProvenance(
+                      eff,
+                      b.default,
+                      widget.origin.kind !== 'tool_invoked',
+                      isTouched,
+                      neutral,
+                    )}
                   />
                 );
               })}

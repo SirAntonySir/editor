@@ -8,6 +8,7 @@ import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
 import { BindingRow } from '@/components/inspector/widget/BindingRow';
 import { WhyPopover } from '@/components/widget/WhyPopover';
 import { bindingProvenance, touchKey } from '@/hooks/useParamProvenance';
+import { engineNeutralForBinding } from '@/engine/registry';
 import type { ControlBinding, ControlValue, MaskSummary, Widget } from '@/types/widget';
 
 // Stable empty reference so the masks selector doesn't return a fresh literal
@@ -89,7 +90,9 @@ export function AiSection({ widget }: AiSectionProps) {
     const isTouched = node?.layer_id
       ? touched.has(touchKey(node.layer_id, node.type, b.target.param_key))
       : false;
-    return bindingProvenance(eff, b.default, true, isTouched);
+    // Engine neutral instead of binding.default: AI sliders stay VIOLET
+    // until the user touches them, then flip to ACCENT.
+    return bindingProvenance(eff, b.default, true, isTouched, engineNeutralForBinding(b));
   }
 
   // Group bindings by the node (operation) they target so the user can see

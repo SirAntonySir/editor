@@ -58,3 +58,23 @@ export function engineUniformValue(paramKey: string, raw: number): number {
   if (p.scale === 'deg2rad') return (raw * Math.PI) / 180;
   return raw / p.scale;
 }
+
+/** Engine-canonical neutral for a widget binding — the slider's at-rest
+ *  point. Looks up the binding's target `param_key` in the shared registry;
+ *  for legacy synthetic params (e.g. fused-template `temperature` delta)
+ *  that aren't in the registry, falls back to a range heuristic: bipolar
+ *  range → 0, unipolar → min. Returns `undefined` when nothing sensible
+ *  can be inferred (non-slider control_schema). */
+export function engineNeutralForBinding(binding: {
+  target: { param_key: string };
+  control_schema: { control_type: string; min?: number; max?: number };
+}): number | undefined {
+  const reg = engineParam(binding.target.param_key);
+  if (reg) return reg.default;
+  const s = binding.control_schema;
+  if (s.control_type !== 'slider') return undefined;
+  const min = s.min ?? 0;
+  const max = s.max ?? 0;
+  if (min < 0 && max > 0) return 0;
+  return min;
+}

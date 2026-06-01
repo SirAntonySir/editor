@@ -1,11 +1,15 @@
 import { create } from 'zustand';
-import { analyzeImage, createSession, pushSessionContext } from '@/lib/ai-client';
+import { createSession, pushSessionContext } from '@/lib/ai-client';
+import { backendTools } from '@/lib/backend-tools';
 import { downscaleForUpload } from '@/lib/downscale-for-upload';
 import { useEditorStore } from '@/store';
+import { useBackendState } from '@/store/backend-state-slice';
 import { pixelStore } from '@/core/pixel-store';
 import { maskStore } from '@/core/mask-store';
 import { maskPngBase64ToBytes } from '@/lib/sam/sam-client';
 import type { ImageContext, RegionPolygon } from '@/types/image-context';
+
+const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
 type UploadSource = ImageBitmap | HTMLCanvasElement | OffscreenCanvas;
 
@@ -193,13 +197,44 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
     }
     set({ status: 'analysing' });
     try {
-      const context = await analyzeImage(sessionId);
-      console.log('[ImageContext]', context);
-      if (get().sessionId !== sessionId) return;
+      // Use the TOOL endpoint (/api/tools/analyze_image), not the legacy
+      // REST /api/analyze. The tool path emits phase + streamed
+      // `context.updated` SSE events that progressively populate
+      // `snapshot.image_context` — the source `useImageContextFull` reads
+      // from. The legacy endpoint returns the context as a JSON body and
+      // never fires SSE, which left the InfoTab overlay stuck because
+      // `showOverlay = !ctx` kept reading null from the snapshot.
       const activeLayerId = useEditorStore.getState().activeLayerId
         ?? useEditorStore.getState().layers.find((l) => l.type === 'image')?.id;
+      const envelope = await backendTools.analyze_image(
+        sessionId,
+        activeLayerId ? { layer_id: activeLayerId } : {},
+      );
+      if (get().sessionId !== sessionId) return;
+      if (!envelope.ok || !envelope.output) {
+        console.error('[ImageContext] runAnalyse: tool error', envelope.error);
+        set({ status: 'error', error: envelope.error?.message ?? 'analyze failed' });
+        return;
+      }
+      // The tool's _Output is the EnrichedImageContext directly. Cast
+      // matches the legacy `analyzeImage` return shape so downstream
+      // (registerRegionPaths, useAiSession.context consumers) is unchanged.
+      const context = envelope.output as unknown as ImageContext;
+      console.log('[ImageContext]', context);
       if (activeLayerId) {
         await registerRegionPaths(context, activeLayerId);
+      }
+      // Belt-and-braces snapshot refetch: the SSE deltas already populated
+      // `snapshot.image_context` for the InfoTab; this picks up any widget /
+      // op_graph / masks_index state that landed alongside.
+      try {
+        const resp = await fetch(`${BASE_URL}/api/state/${sessionId}`);
+        if (resp.ok) {
+          const snap = await resp.json();
+          useBackendState.getState().setSnapshot(snap);
+        }
+      } catch {
+        // SSE merges cover the user-facing fields; this is just cleanup.
       }
       set({ context, status: 'ready' });
     } catch (err) {

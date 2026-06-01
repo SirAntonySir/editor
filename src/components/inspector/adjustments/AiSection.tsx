@@ -139,17 +139,38 @@ export function AiSection({ widget }: AiSectionProps) {
     });
   }, [widget.bindings, widget.nodes]);
 
-  // TODO(accordion): wire Refine — deferred, see plan Task 7
+  // Same header layout as ToolSection in the Adjustments accordion:
+  // chevron leads the row, then the AI icon, then the intent label, then a
+  // count badge — all in one big toggle button so clicking the icon OR the
+  // title both expand/collapse. Scope chip / open-on-canvas / close are
+  // separate trailing controls on the right.
+  // Count semantic: number of ops the AI composed (= opGroups.length),
+  // mirroring the grouped section view that follows on expansion.
+  const opCount = opGroups.length;
+
   return (
     <div className="border-b border-separator">
       <div className="w-full flex items-center gap-2 px-2.5 py-2">
-        <Sparkles
-          size={13}
-          className="shrink-0 text-ai"
-          aria-label="AI suggestion"
-        />
-        <span className="sr-only">AI suggestion</span>
-        <span className="flex-1 truncate text-xs font-medium text-text-primary">{widget.intent}</span>
+        <button
+          type="button"
+          onClick={() => toggle(widget.id)}
+          className="flex-1 flex items-center gap-2 text-left min-w-0"
+        >
+          <span className="text-text-secondary inline-flex items-center w-3">
+            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          </span>
+          <Sparkles size={14} className="shrink-0 text-ai" aria-label="AI suggestion" />
+          <span className="flex-1 truncate text-xs font-medium text-text-primary">{widget.intent}</span>
+          {opCount > 0 && (
+            <span
+              data-testid="ai-op-count"
+              title={`${opCount} op${opCount === 1 ? '' : 's'}`}
+              className="text-[9px] tabular-nums px-1.5 py-px rounded-full bg-ai/15 text-ai font-medium leading-none"
+            >
+              {opCount}
+            </span>
+          )}
+        </button>
         <span className="text-[10px] text-text-secondary">{scopeChipLabel(widget.scope)}</span>
         <button
           type="button"
@@ -160,14 +181,6 @@ export function AiSection({ widget }: AiSectionProps) {
           className="inline-flex items-center text-text-secondary hover:text-text-primary hover:bg-surface-secondary p-0.5 rounded-[3px] disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <ArrowUpRight size={13} aria-hidden />
-        </button>
-        <button
-          type="button"
-          onClick={() => toggle(widget.id)}
-          aria-label={expanded ? 'Collapse' : 'Expand'}
-          className="text-text-secondary hover:text-text-primary"
-        >
-          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </button>
         <button
           type="button"

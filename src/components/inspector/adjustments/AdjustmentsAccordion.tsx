@@ -1,8 +1,6 @@
-import { useEffect } from 'react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { ProcessingRegistry } from '@/lib/processing-registry';
-import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
 import type { ProcessingDefinition } from '@/types/processing';
 import type { Widget } from '@/types/widget';
 import { ToolSection } from './ToolSection';
@@ -44,22 +42,6 @@ export function AdjustmentsAccordion() {
   const aiWidgets = widgets.filter(
     (w) => (w.status === 'active' || w.status === 'accepted') && w.origin.kind === 'mcp_autonomous',
   );
-
-  // Auto-pop AI suggestions onto the canvas: each autonomous suggestion gets a
-  // tethered canvas shell the first time it appears (the old engage-on-click
-  // step is now automatic). Guarded by acceptedSuggestions so it tethers once.
-  const aiKey = aiWidgets.map((w) => w.id).join(',');
-  useEffect(() => {
-    if (!aiKey) return;
-    const bs = useBackendState.getState();
-    for (const id of aiKey.split(',')) {
-      if (bs.acceptedSuggestions.has(id)) continue;
-      const w = bs.snapshot?.widgets.find((x) => x.id === id);
-      if (!w) continue;
-      bs.addAcceptedSuggestion(id);
-      tetherWorkspaceWidgetOnEngage(w);
-    }
-  }, [aiKey]);
 
   // Build the ordered list of (def, isLastInGroup) tuples so the renderer can
   // decide where to drop separators. Defs not in TOOL_GROUPS are ignored —

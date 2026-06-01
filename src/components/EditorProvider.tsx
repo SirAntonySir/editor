@@ -2,6 +2,7 @@ import { createContext, useContext, useRef, useCallback, useEffect, type ReactNo
 import { useEditorStore } from '@/store';
 import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { useBackendSession } from '@/hooks/useBackendSession';
+import { useAutoTetherAiSuggestions } from '@/hooks/useAutoTetherAiSuggestions';
 import type { ToolContext, ToolDefinition } from '@/types/tool';
 
 interface EditorContextValue {
@@ -28,6 +29,10 @@ export function EditorProvider({ children }: EditorProviderProps) {
 
   // Backend SSE session — keeps snapshot in sync.
   useBackendSession();
+  // Auto-tether autonomous AI suggestions onto the canvas as soon as they
+  // arrive in the snapshot. Mounted here so it runs regardless of which
+  // inspector tab is active.
+  useAutoTetherAiSuggestions();
 
   const dispatchCommand = useCallback(
     (toolName: string, commandName: string, payload?: unknown) => {

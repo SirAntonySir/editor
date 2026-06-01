@@ -40,6 +40,10 @@ export function HslWidgetBody({ widget, effectiveValue, setParam }: HslWidgetBod
         max={s.control_type === 'slider' ? s.max : 100}
         step={s.control_type === 'slider' ? s.step : 1}
         defaultValue={Number(b.default)}
+        // Engine-canonical neutral for all HSL band params is 0; pinning
+        // here keeps the tick on the centre even when the AI seeded the
+        // binding's default to a non-zero suggestion.
+        neutralValue={0}
         provenance={bindingProvenance(eff, b.default, showAi, isTouched)}
         trackGradient={trackGradient}
         onChange={(v) => setParam(b.param_key, v)}

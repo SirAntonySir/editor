@@ -13,7 +13,15 @@ interface AdjustmentSliderProps {
   min: number;
   max: number;
   step?: number;
+  /** Used by the double-click Reset. For AI-suggestion bindings this is
+   *  the resolved AI value (so Reset returns to the AI's pick, not engine
+   *  neutral). For tool / canonical sliders it's the engine neutral. */
   defaultValue?: number;
+  /** True ENGINE-canonical neutral — the value the slider sits at when no
+   *  adjustment has been applied. Drives the tick mark. Falls back to
+   *  `defaultValue` when omitted (back-compat for callers where Reset and
+   *  neutral are the same, e.g. the toolrail sliders). */
+  neutralValue?: number;
   onChange: (value: number) => void;
   formatValue?: (value: number) => string;
   /** Colour-codes the fill; defaults to 'hand' (accent) for legacy callers. */
@@ -41,6 +49,7 @@ export function AdjustmentSlider({
   max,
   step = 1,
   defaultValue,
+  neutralValue,
   onChange,
   formatValue,
   provenance = 'hand',
@@ -128,15 +137,18 @@ export function AdjustmentSlider({
   const fillPct = ((value - min) / (max - min || 1)) * 100;
   const fillColor = fillColorFor(provenance);
 
-  // Neutral tick: render a small vertical mark on the track at the default
-  // position whenever the default sits STRICTLY between min and max — i.e.
-  // it's a bipolar slider (HSL, kelvin, contrast, etc.) where the neutral
-  // point isn't at the leftmost end. Skips sliders whose default is 0 on a
-  // [0, 100] range (sharpen amount, clarity amount) — the leftmost is
-  // already the neutral and a tick there would just collide with the rail.
-  const defaultPct =
-    defaultValue != null && defaultValue > min && defaultValue < max
-      ? ((defaultValue - min) / (max - min)) * 100
+  // Neutral tick: render a small vertical mark on the track at the ENGINE-
+  // canonical neutral whenever that point sits STRICTLY between min and
+  // max — i.e. it's a bipolar slider (HSL, kelvin, contrast, etc.) where
+  // the neutral isn't at the leftmost end. Skips sliders whose neutral is
+  // 0 on a [0, 100] range (sharpen amount, clarity amount) — the rail end
+  // already reads as neutral. `neutralValue` is the engine baseline
+  // independent of any AI suggestion; falls back to `defaultValue` only
+  // when no explicit neutral was passed (toolrail sliders).
+  const tickValue = neutralValue ?? defaultValue;
+  const tickPct =
+    tickValue != null && tickValue > min && tickValue < max
+      ? ((tickValue - min) / (max - min)) * 100
       : null;
 
   return (
@@ -192,14 +204,14 @@ export function AdjustmentSlider({
             />
           )}
         </Slider.Track>
-        {/* Neutral tick — sits on top of the track at the default position,
-            slightly taller than the track itself so it reads as an anchor
-            mark rather than a chunk of the rail. */}
-        {defaultPct !== null && (
+        {/* Neutral tick — sits on top of the track at the engine-canonical
+            neutral, slightly taller than the track itself so it reads as
+            an anchor mark rather than a chunk of the rail. */}
+        {tickPct !== null && (
           <span
             aria-hidden
             className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-px h-2 bg-text-secondary/50 rounded-full"
-            style={{ left: `${defaultPct}%` }}
+            style={{ left: `${tickPct}%` }}
           />
         )}
         {/* Default: invisible thumb (Radix needs it for keyboard / aria) and the

@@ -14,14 +14,16 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-it('renders all tool-group sections (10 tools across 3 groups)', () => {
+it('renders all tool-group sections (10 tools across 4 groups)', () => {
   render(<AdjustmentsAccordion />);
   for (const label of [
-    // Group 1: tonal/colour fundamentals
-    'Light', 'Color', 'White Balance', 'Curves', 'Levels', 'HSL',
-    // Group 2: detail
+    // Group 1: tonal / luminance
+    'Light', 'Levels', 'Curves',
+    // Group 2: colour
+    'Color', 'White Balance', 'HSL',
+    // Group 3: detail
     'Sharpen', 'Clarity', 'Blur',
-    // Group 3: filters
+    // Group 4: filters
     'Filters',
   ]) {
     expect(screen.getByText(label)).toBeTruthy();

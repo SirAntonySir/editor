@@ -22,11 +22,13 @@ const SECTION_LABELS: Record<string, string> = {
 // Tool grouping. Each inner array is a contiguous group of rows; only the
 // gaps BETWEEN groups get a separator. Within a group rows have no internal
 // dividers. Order inside a group is user-friendly (not registration order).
-//   1) Tonal / colour fundamentals
-//   2) Detail (sharpen / clarity / blur)
-//   3) Filter presets (LUTs)
+//   1) Tonal / luminance shaping
+//   2) Colour
+//   3) Detail
+//   4) Filter presets (LUTs)
 const TOOL_GROUPS: string[][] = [
-  ['light', 'color', 'kelvin', 'curves', 'levels', 'hsl'],
+  ['light', 'levels', 'curves'],
+  ['color', 'kelvin', 'hsl'],
   ['sharpen', 'clarity', 'blur'],
   ['filter'],
 ];

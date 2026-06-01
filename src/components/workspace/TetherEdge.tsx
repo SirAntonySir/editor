@@ -1,4 +1,4 @@
-import { BaseEdge, getBezierPath, type Edge, type EdgeProps } from '@xyflow/react';
+import { BaseEdge, getSmoothStepPath, type Edge, type EdgeProps } from '@xyflow/react';
 import { useChromeScale } from '@/hooks/useChromeScale';
 
 export interface TetherEdgeData extends Record<string, unknown> {
@@ -17,7 +17,13 @@ export function TetherEdge({
   targetPosition,
   data,
 }: EdgeProps<TetherEdgeType>) {
-  const [path] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
+  // Smooth step: a horizontal-vertical-horizontal staircase with a small
+  // corner radius. Reads more like a wiring diagram than a bezier swoop.
+  const [path] = getSmoothStepPath({
+    sourceX, sourceY, targetX, targetY,
+    sourcePosition, targetPosition,
+    borderRadius: 4,
+  });
   // Counter-scale stroke + endpoint dots so the edge stays visible when the
   // workspace is zoomed out (same factor used for node chrome).
   const scale = useChromeScale();

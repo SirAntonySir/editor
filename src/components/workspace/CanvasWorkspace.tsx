@@ -18,6 +18,7 @@ import { editorDocument } from '@/core/document';
 import { ImageNode, type ImageNodeData } from './ImageNode';
 import { WidgetNode, type WidgetNodeData } from './WidgetNode';
 import { TetherEdge, type TetherEdgeType } from './TetherEdge';
+import { pickTetherHandles } from './tether-handles';
 import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
 import type { Widget } from '@/types/widget';
 
@@ -193,20 +194,21 @@ export function CanvasWorkspace() {
         targetId = activeImageNodeId;
       }
       if (!targetId) continue;
-      // Pick the edge sides from store positions + known sizes. Widget width
-      // is dynamic (w-fit) but at least WIDGET_SHELL_MIN_WIDTH, which is a
-      // good-enough proxy for direction comparison. Re-picks on drag-stop
-      // (when widgetNodes updates) and on any image-node move.
+      // Route each edge to the image's nearest edge (see pickTetherHandles).
+      // Re-picks on drag-stop (widgetNodes updates) and on any image-node move.
       const target = imageNodes[targetId];
       const widgetCenterX = widgetNode.position.x + WIDGET_SHELL_MIN_WIDTH / 2;
-      const targetCenterX = target.position.x + target.size.w / 2;
-      const targetOnRight = targetCenterX > widgetCenterX;
+      const { sourceHandle, targetHandle } = pickTetherHandles(
+        widgetCenterX,
+        target.position.x,
+        target.position.x + target.size.w,
+      );
       out.push({
         id: `auto-${w.id}`,
         source: w.id,
         target: targetId,
-        sourceHandle: targetOnRight ? 'tether-out-right' : 'tether-out-left',
-        targetHandle: targetOnRight ? 'tether-in-left' : 'tether-in-right',
+        sourceHandle,
+        targetHandle,
         type: 'tether',
         data: { scopeKind },
         selectable: false,

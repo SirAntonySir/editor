@@ -54,11 +54,16 @@ void main() {
   vec4 texel = texture(u_texture, v_texCoord);
   vec3 color = texel.rgb;
 
-  // Get the RGB multiplier for the target Kelvin
+  // Convention: slider RIGHT (higher u_kelvin) → image WARMER; slider LEFT
+  // (lower u_kelvin) → image COOLER. Matches Lightroom-style WB sliders
+  // where the slider value represents the colour temperature you're
+  // correcting FOR — to add warmth you tell the editor the scene was lit
+  // by warmer light, which it then compensates back. The inverse ratio
+  // (daylight / kelvinColor) produces that direction; the prior version
+  // mapped the slider the wrong way round.
   vec3 kelvinColor = kelvinToRGB(u_kelvin);
-  // Normalize against 6500K (daylight) so 6500K = no change
   vec3 daylight = kelvinToRGB(6500.0);
-  vec3 multiplier = kelvinColor / daylight;
+  vec3 multiplier = daylight / kelvinColor;
 
   color *= multiplier;
 

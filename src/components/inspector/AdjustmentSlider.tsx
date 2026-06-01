@@ -128,6 +128,17 @@ export function AdjustmentSlider({
   const fillPct = ((value - min) / (max - min || 1)) * 100;
   const fillColor = fillColorFor(provenance);
 
+  // Neutral tick: render a small vertical mark on the track at the default
+  // position whenever the default sits STRICTLY between min and max — i.e.
+  // it's a bipolar slider (HSL, kelvin, contrast, etc.) where the neutral
+  // point isn't at the leftmost end. Skips sliders whose default is 0 on a
+  // [0, 100] range (sharpen amount, clarity amount) — the leftmost is
+  // already the neutral and a tick there would just collide with the rail.
+  const defaultPct =
+    defaultValue != null && defaultValue > min && defaultValue < max
+      ? ((defaultValue - min) / (max - min)) * 100
+      : null;
+
   return (
     <div className="flex flex-col gap-0.5" data-no-drag>
       <div className="flex items-center justify-between gap-2">
@@ -181,6 +192,16 @@ export function AdjustmentSlider({
             />
           )}
         </Slider.Track>
+        {/* Neutral tick — sits on top of the track at the default position,
+            slightly taller than the track itself so it reads as an anchor
+            mark rather than a chunk of the rail. */}
+        {defaultPct !== null && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-px h-2 bg-text-secondary/50 rounded-full"
+            style={{ left: `${defaultPct}%` }}
+          />
+        )}
         {/* Default: invisible thumb (Radix needs it for keyboard / aria) and the
             fill carries provenance. Colour track: a visible dot whose border
             carries provenance, since the track itself is now the colour. */}

@@ -12,23 +12,33 @@ interface Props {
   /** Multi-series overlay; takes precedence over bins/color. All series share a
    *  common vertical scale so channel magnitudes stay comparable. */
   series?: HistogramSeries[];
+  /** ViewBox width used for path math. The rendered SVG defaults to
+   *  `width: 100%` so it scales to its container; pass `responsive={false}`
+   *  to fall back to a fixed `width` attribute. */
   width?: number;
   height?: number;
+  /** When true (default), SVG fills its container horizontally via `width=100%`
+   *  + `preserveAspectRatio="none"`. */
+  responsive?: boolean;
 }
 
-export function Histogram({ bins, color, series, width = 120, height = 40 }: Props) {
+export function Histogram({
+  bins, color, series, width = 256, height = 40, responsive = true,
+}: Props) {
   const resolved: HistogramSeries[] =
     series ?? (bins ? [{ bins, color: color ?? 'currentColor', fill: true }] : []);
   const max = resolved.reduce(
     (m, s) => s.bins.reduce((mm, v) => (v > mm ? v : mm), m),
     0,
   );
+  const sizing = responsive
+    ? { width: '100%' as const, height, preserveAspectRatio: 'none' as const }
+    : { width, height };
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
-      width={width}
-      height={height}
       aria-hidden="true"
+      {...sizing}
     >
       {resolved.map((s, i) =>
         s.fill === false ? (
@@ -39,6 +49,7 @@ export function Histogram({ bins, color, series, width = 120, height = 40 }: Pro
             stroke={s.color}
             strokeWidth={1}
             strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
           />
         ) : (
           <path key={i} d={buildAreaPath(s.bins, width, height, max)} fill={s.color} />

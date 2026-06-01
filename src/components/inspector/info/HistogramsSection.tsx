@@ -9,20 +9,22 @@ interface Props {
 }
 
 export function HistogramsSection({ ctx }: Props) {
-  // One combined chart: faint luma fill as a backdrop, R/G/B overlaid as
-  // translucent stroked curves on a shared vertical scale.
-  const series: HistogramSeries[] = [
-    { bins: ctx.luma_histogram, color: 'rgba(115,115,115,0.18)', fill: true },
-  ];
-  if (ctx.rgb_histograms.r) series.push({ bins: ctx.rgb_histograms.r, color: 'rgba(239,68,68,0.8)', fill: false });
-  if (ctx.rgb_histograms.g) series.push({ bins: ctx.rgb_histograms.g, color: 'rgba(34,197,94,0.8)', fill: false });
-  if (ctx.rgb_histograms.b) series.push({ bins: ctx.rgb_histograms.b, color: 'rgba(59,130,246,0.8)', fill: false });
+  // Photoshop-style stack: R / G / B as filled translucent areas (they
+  // overlap-darken on the light surface, giving the high-contrast banded look
+  // you get in the Levels tool), with luma painted last on top for an overall
+  // shape silhouette. Bins are pre-binned by the backend so we just feed them
+  // through.
+  const series: HistogramSeries[] = [];
+  if (ctx.rgb_histograms.r) series.push({ bins: ctx.rgb_histograms.r, color: 'rgba(255, 68, 68, 0.35)', fill: true });
+  if (ctx.rgb_histograms.g) series.push({ bins: ctx.rgb_histograms.g, color: 'rgba(68, 187, 68, 0.35)', fill: true });
+  if (ctx.rgb_histograms.b) series.push({ bins: ctx.rgb_histograms.b, color: 'rgba(68, 136, 255, 0.35)', fill: true });
+  series.push({ bins: ctx.luma_histogram, color: 'rgba(120, 120, 120, 0.45)', fill: true });
 
   return (
     <section className="px-3 py-2.5 border-b border-separator">
       <SectionHeader icon={BarChart3} label="Histograms" />
-      <div className="mb-2 -mx-0.5 rounded-[3px] bg-surface-secondary/40 p-1">
-        <Histogram series={series} width={228} height={56} />
+      <div className="mb-2 rounded-[3px] bg-surface-secondary p-1.5 border border-separator">
+        <Histogram series={series} height={68} />
       </div>
       <div className="flex flex-col gap-1 mb-1.5">
         <PercentBar pct={ctx.clipped_shadows_pct} color="#3b82f6" label="Clipped shadows" />

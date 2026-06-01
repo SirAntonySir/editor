@@ -26,12 +26,31 @@ interface CurveEditorProps {
   onChange: (next: CurvesValue) => void;
 }
 
+/** Normalise a CurvesValue: defaults each missing channel to the identity
+ *  ramp. Defends against malformed values arriving from older fused-template
+ *  resolvers (e.g. bw_cinematic / teal_orange / sky_recovery emit a binding
+ *  whose value collapses to `0` because the framework midpoints the missing
+ *  `points` key). Without this guard, accessing `value[channel].length`
+ *  crashes the editor and takes the inspector with it. */
+function normalizeCurvesValue(v: unknown): CurvesValue {
+  const src = (v && typeof v === 'object' ? v : {}) as Partial<CurvesValue>;
+  return {
+    rgb: src.rgb ?? [...IDENTITY_CURVES.rgb],
+    red: src.red ?? [...IDENTITY_CURVES.red],
+    green: src.green ?? [...IDENTITY_CURVES.green],
+    blue: src.blue ?? [...IDENTITY_CURVES.blue],
+  };
+}
+
 export function CurveEditor({ value, onChange }: CurveEditorProps) {
   const [channel, setChannel] = useState<Channel>('rgb');
   const svgRef = useRef<SVGSVGElement>(null);
   const draggingIdx = useRef<number | null>(null);
 
-  const points = value[channel];
+  // Normalise upstream once per render so every downstream read sees the
+  // full four-channel shape.
+  const safeValue = normalizeCurvesValue(value);
+  const points = safeValue[channel];
 
   const svgToPoint = useCallback((cx: number, cy: number): CurvePoint => {
     const rect = svgRef.current!.getBoundingClientRect();
@@ -43,9 +62,12 @@ export function CurveEditor({ value, onChange }: CurveEditorProps) {
 
   const setChannelPoints = useCallback(
     (pts: CurvePoint[]) => {
-      onChange({ ...value, [channel]: pts });
+      // Spread from safeValue so a malformed upstream value (number / null /
+      // partial object) doesn't propagate forward — Apply now always writes
+      // a complete four-channel CurvesValue.
+      onChange({ ...safeValue, [channel]: pts });
     },
-    [value, channel, onChange],
+    [safeValue, channel, onChange],
   );
 
   const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -112,8 +134,8 @@ export function CurveEditor({ value, onChange }: CurveEditorProps) {
 
   const isDefault = CHANNELS.every(
     (ch) =>
-      value[ch].length === DEFAULT_POINTS[ch].length &&
-      value[ch].every((p, i) => p.x === DEFAULT_POINTS[ch][i].x && p.y === DEFAULT_POINTS[ch][i].y),
+      safeValue[ch].length === DEFAULT_POINTS[ch].length &&
+      safeValue[ch].every((p, i) => p.x === DEFAULT_POINTS[ch][i].x && p.y === DEFAULT_POINTS[ch][i].y),
   );
 
   const handleReset = () => {

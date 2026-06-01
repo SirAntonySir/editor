@@ -7,7 +7,6 @@ import type { ProcessingDefinition } from '@/types/processing';
 import type { Widget } from '@/types/widget';
 import { ToolSection } from './ToolSection';
 import { AiSection } from './AiSection';
-import { ColourBandToolRow } from './ColourBandToolRow';
 
 // Stable empty reference so the selector below doesn't return a fresh literal
 // each render (avoids useSyncExternalStore re-render churn when snapshot is null).
@@ -19,6 +18,18 @@ const EMPTY_WIDGETS: Widget[] = [];
 const SECTION_LABELS: Record<string, string> = {
   filter: 'Filters',
 };
+
+// Tool grouping. Each inner array is a contiguous group of rows; only the
+// gaps BETWEEN groups get a separator. Within a group rows have no internal
+// dividers. Order inside a group is user-friendly (not registration order).
+//   1) Tonal / colour fundamentals
+//   2) Detail (sharpen / clarity / blur)
+//   3) Filter presets (LUTs)
+const TOOL_GROUPS: string[][] = [
+  ['light', 'color', 'kelvin', 'curves', 'levels', 'hsl'],
+  ['sharpen', 'clarity', 'blur'],
+  ['filter'],
+];
 
 function sectionDef(def: ProcessingDefinition): ProcessingDefinition {
   const label = SECTION_LABELS[def.id];
@@ -48,12 +59,19 @@ export function AdjustmentsAccordion() {
     }
   }, [aiKey]);
 
-  // Toolrail tools: the 5 'adjust' defs plus the LUT 'filter' def, in
-  // registration order (light, color, kelvin, curves, levels, filters).
-  const tools = [
-    ...ProcessingRegistry.getByCategory('adjust'),
-    ...ProcessingRegistry.getByCategory('filter'),
-  ];
+  // Build the ordered list of (def, isLastInGroup) tuples so the renderer can
+  // decide where to drop separators. Defs not in TOOL_GROUPS are ignored —
+  // adding a new processing def requires adding it to a group explicitly.
+  const allDefs = new Map(
+    [
+      ...ProcessingRegistry.getByCategory('adjust'),
+      ...ProcessingRegistry.getByCategory('filter'),
+    ].map((d) => [d.id, d]),
+  );
+  const groups = TOOL_GROUPS.map((ids) =>
+    ids.map((id) => allDefs.get(id)).filter((d): d is ProcessingDefinition => Boolean(d)),
+  ).filter((g) => g.length > 0);
+
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
       {aiWidgets.length > 0 && (
@@ -69,10 +87,16 @@ export function AdjustmentsAccordion() {
       <div className="text-[9px] uppercase tracking-wide text-text-secondary px-2.5 pt-2 pb-1">
         Tools
       </div>
-      {tools.map((def) => (
-        <ToolSection key={def.id} def={sectionDef(def)} layerId={layerId} />
+      {groups.map((group, gi) => (
+        <div
+          key={gi}
+          className={gi < groups.length - 1 ? 'border-b border-separator' : ''}
+        >
+          {group.map((def) => (
+            <ToolSection key={def.id} def={sectionDef(def)} layerId={layerId} />
+          ))}
+        </div>
       ))}
-      <ColourBandToolRow />
     </div>
   );
 }

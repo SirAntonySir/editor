@@ -14,9 +14,21 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-it('renders the six tool sections in registry order', () => {
+it('renders all tool-group sections (10 tools across 3 groups)', () => {
   render(<AdjustmentsAccordion />);
-  for (const label of ['Light', 'Color', 'White Balance', 'Curves', 'Levels', 'Filters']) {
+  for (const label of [
+    // Group 1: tonal/colour fundamentals
+    'Light', 'Color', 'White Balance', 'Curves', 'Levels', 'HSL',
+    // Group 2: detail
+    'Sharpen', 'Clarity', 'Blur',
+    // Group 3: filters
+    'Filters',
+  ]) {
     expect(screen.getByText(label)).toBeTruthy();
   }
+});
+
+it('does not render the standalone Colour Band row (moved into HSL popover)', () => {
+  render(<AdjustmentsAccordion />);
+  expect(screen.queryByText('Colour band')).toBeNull();
 });

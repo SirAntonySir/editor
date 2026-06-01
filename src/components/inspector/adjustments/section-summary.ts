@@ -1,22 +1,17 @@
 import type { ParamDefinition } from '@/types/processing';
 
-function signed(n: number): string {
-  return n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : '0';
-}
-
-/** Collapsed summary text + dirty flag for a scalar section, derived from the
- * canonical params of its (layer, op) node. Non-default params only. */
+/** Collapsed summary for a section's collapsed-row badge. Counts non-default
+ * params of the (layer, op) canonical node — that's the number of sliders the
+ * user has visibly touched. `dirty` is true iff `touchedCount > 0`. */
 export function sectionSummary(
   params: ParamDefinition[],
   canonical: Record<string, unknown>,
-): { summary: string; dirty: boolean } {
-  const parts: string[] = [];
+): { touchedCount: number; dirty: boolean } {
+  let touchedCount = 0;
   for (const p of params) {
     const raw = canonical[p.key];
     const v = typeof raw === 'number' ? raw : p.default;
-    if (v !== p.default) parts.push(`${p.label} ${signed(v)}`);
+    if (v !== p.default) touchedCount += 1;
   }
-  return parts.length === 0
-    ? { summary: '—', dirty: false }
-    : { summary: parts.join(', '), dirty: true };
+  return { touchedCount, dirty: touchedCount > 0 };
 }

@@ -7,18 +7,18 @@ const params: ParamDefinition[] = [
   { key: 'contrast', label: 'Contrast', min: -100, max: 100, default: 0 },
 ];
 
-it('all-default → em-dash summary, not dirty', () => {
-  expect(sectionSummary(params, { exposure: 0, contrast: 0 })).toEqual({ summary: '—', dirty: false });
+it('all-default → touchedCount 0, not dirty', () => {
+  expect(sectionSummary(params, { exposure: 0, contrast: 0 })).toEqual({ touchedCount: 0, dirty: false });
 });
 
 it('empty canonical params → all-default', () => {
-  expect(sectionSummary(params, {})).toEqual({ summary: '—', dirty: false });
+  expect(sectionSummary(params, {})).toEqual({ touchedCount: 0, dirty: false });
 });
 
-it('one non-default → labelled summary + dirty', () => {
-  expect(sectionSummary(params, { exposure: 12, contrast: 0 })).toEqual({ summary: 'Exposure +12', dirty: true });
+it('one non-default → touchedCount 1 + dirty', () => {
+  expect(sectionSummary(params, { exposure: 12, contrast: 0 })).toEqual({ touchedCount: 1, dirty: true });
 });
 
-it('multiple non-default → comma-joined, signed', () => {
-  expect(sectionSummary(params, { exposure: 12, contrast: -10 })).toEqual({ summary: 'Exposure +12, Contrast −10', dirty: true });
+it('multiple non-default → touchedCount matches', () => {
+  expect(sectionSummary(params, { exposure: 12, contrast: -10 })).toEqual({ touchedCount: 2, dirty: true });
 });

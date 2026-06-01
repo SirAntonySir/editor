@@ -40,10 +40,28 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-it('collapsed shows the canonical summary and a dirty dot', () => {
+it('collapsed shows the touched-slider count badge (not the per-edit text)', () => {
   render(<ToolSection def={lightDef} layerId="L1" />);
-  expect(screen.getByText('Exposure +12')).toBeTruthy();
-  expect(screen.getByTestId('dirty-dot')).toBeTruthy();
+  // One non-default param → badge reads "1". No per-edit text, no dirty dot.
+  const badge = screen.getByTestId('touched-count');
+  expect(badge.textContent).toBe('1');
+  expect(screen.queryByText('Exposure +12')).toBeNull();
+  expect(screen.queryByTestId('dirty-dot')).toBeNull();
+});
+
+it('hides the badge entirely when no slider has been touched', () => {
+  useBackendState.setState({
+    snapshot: {
+      ...useBackendState.getState().snapshot!,
+      operation_graph: {
+        id: 'g', userGoal: '',
+        nodes: [{ id: 'canon:L1:basic', type: 'basic', layer_id: 'L1', params: { exposure: 0 } }],
+        panelBindings: [], metadata: {},
+      },
+    } as never,
+  } as never);
+  render(<ToolSection def={lightDef} layerId="L1" />);
+  expect(screen.queryByTestId('touched-count')).toBeNull();
 });
 
 it('clicking the header expands and renders the scalar body', () => {

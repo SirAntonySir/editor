@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useAiSession } from '@/hooks/useImageContext';
 import { useBackendState, getPersistedSessionId } from '@/store/backend-state-slice';
-import { backendTools } from '@/lib/backend-tools';
 import { openSseSubscription, type SseHandle } from '@/lib/sse-subscriber';
 import { maskStore, type Mask } from '@/core/mask-store';
 import { maskPngBase64ToBytes } from '@/lib/sam/sam-client';
@@ -87,59 +86,38 @@ export function useBackendSession(): void {
 
       (async () => {
         try {
-          // 1. Open SSE and WAIT for connection to establish before triggering
-          //    analyze. Events emitted before the connection opens are dropped
-          //    (EventBus doesn't buffer for late subscribers).
+          // 1. Open SSE and WAIT for the connection to establish — events
+          //    emitted before the subscription opens are dropped (EventBus
+          //    doesn't buffer for late subscribers).
           const handle = openSseSubscription(sessionId);
           subscriptionRef.current = handle;
           await handle.opened;
 
           if (cancelled) return;
 
-          // 2. Pre-fetch the (empty) initial snapshot before analyze so SSE
-          //    events emitted during analyze have a snapshot to merge into.
-          //    Without this, the streamed `context.updated` deltas during
-          //    analyze are dropped by the `!s.snapshot` early-out in the
-          //    reducer — the Info tab then sees all data at once when the
-          //    post-analyze snapshot fetch (step 4) finally lands.
+          // 2. Pre-fetch the initial snapshot so SSE deltas (incl. streamed
+          //    `context.updated` partials during a later analyze run) have
+          //    something to merge into. The reducer's `!s.snapshot`
+          //    early-out otherwise drops them.
           try {
             const initialResp = await fetch(`${BASE_URL}/api/state/${sessionId}`);
             if (cancelled) return;
             if (initialResp.ok) {
-              setSnapshot(await initialResp.json());
+              const snap = await initialResp.json();
+              setSnapshot(snap);
+              // Rehydrate any mask bytes from a restored session; harmless
+              // when masks_index is empty (the fresh-upload case).
+              void rehydrateMaskBytes(sessionId, snap.masks_index ?? []);
             }
           } catch (err) {
             console.warn('[backend-session] initial snapshot fetch failed:', err);
           }
 
-          // 3. Trigger analyze. Events emitted during this call now reach the
-          //    frontend because the SSE connection is already open. Pass the
-          //    real layer id so autonomous widget nodes are stamped with it
-          //    (not "legacy") — the renderer filters op_graph nodes by exact
-          //    layer_id match, so a mismatch would silently drop every
-          //    autonomous adjustment.
-          const editor = useEditorStore.getState();
-          const layerId = editor.activeLayerId ?? editor.layers[0]?.id;
-          const envelope = await backendTools.analyze_image(
-            sessionId,
-            layerId ? { layer_id: layerId } : {},
-          );
-          if (cancelled) return;
-          if (!envelope.ok) {
-            console.warn('[backend-session] analyze_image failed:', envelope.error);
-          }
-
-          // 4. Snapshot rehydrate as a safety net for anything still missed.
-          const snapshotResp = await fetch(`${BASE_URL}/api/state/${sessionId}`);
-          if (cancelled) return;
-          if (snapshotResp.ok) {
-            const snap = await snapshotResp.json();
-            setSnapshot(snap);
-            // Fix C: re-fetch any mask bytes that didn't arrive via SSE (dropped
-            // during the handshake window). Without this, hover/hit-test stays
-            // broken for those masks even after the SSE fix.
-            void rehydrateMaskBytes(sessionId, snap.masks_index ?? []);
-          }
+          // Analyze is intentionally NOT triggered here. The user opts in
+          // via the "Analyze with AI" CTA which calls `useAiSession.runAnalyse()`.
+          // Keeping analyze out of the session-bootstrap path lets the
+          // toolrail adjustments work the moment SSE opens — no AI gate
+          // for plain non-AI editing.
         } catch (err) {
           console.warn('[backend-session] boot failed:', err);
         }

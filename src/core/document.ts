@@ -212,6 +212,16 @@ async function openImage(file: File): Promise<void> {
   const seed = captureState();
   if (seed) history.initWith(seed);
 
+  // Kick off backend session bootstrap so the toolrail adjustments work
+  // immediately — analyse runs later, on explicit user click. Awaiting
+  // would block image-open on a backend round-trip, so fire-and-forget.
+  // Pass the OffscreenCanvas (not `bitmap` — closed below; not `file` —
+  // openSession's downscaleForUpload doesn't accept Blob). `openSession`
+  // is idempotent so re-opening the same image is a no-op.
+  void import('@/hooks/useImageContext').then(({ useAiSession }) => {
+    void useAiSession.getState().openSession(offscreen);
+  });
+
   bitmap.close();
 }
 

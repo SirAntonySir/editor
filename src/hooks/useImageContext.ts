@@ -14,6 +14,16 @@ interface AiSessionState {
   context: ImageContext | null;
   status: 'idle' | 'uploading' | 'analysing' | 'ready' | 'error';
   error: string | null;
+  /** Upload source pixels + create a backend session. No analyze — tools
+   *  that just need a session for `set_param` writes (the toolrail
+   *  adjustments) become usable as soon as this resolves and SSE handshakes.
+   *  Idempotent: no-op when a session is already open. */
+  openSession: (source: UploadSource) => Promise<void>;
+  /** Run the analyze pipeline on the CURRENT session. Requires a session
+   *  to already exist (call `openSession` first or use `uploadAndAnalyse`). */
+  runAnalyse: () => Promise<void>;
+  /** Convenience: `openSession` then `runAnalyse`. Equivalent to the old
+   *  monolithic upload-then-analyze call, kept for compat / one-shot use. */
   uploadAndAnalyse: (source: UploadSource) => Promise<void>;
   bindCachedSession: (source: UploadSource) => Promise<void>;
   restoreContext: (context: ImageContext) => void;
@@ -157,12 +167,32 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
   context: null,
   status: 'idle',
   error: null,
-  async uploadAndAnalyse(source) {
-    set({ status: 'uploading', error: null, context: null, sessionId: null });
+  async openSession(source) {
+    // Idempotent: if a session is already alive, do nothing. Reset() must
+    // run first when the caller wants a fresh session for a new image.
+    if (get().sessionId) return;
+    set({ status: 'uploading', error: null, context: null });
     try {
       const blob = await downscaleForUpload(source);
       const sessionId = await createSession(blob);
-      set({ sessionId, status: 'analysing' });
+      // status drops back to 'idle' — the session is alive (tools usable)
+      // but no AI context has been computed yet. Click "Analyze with AI"
+      // to call runAnalyse() and populate context.
+      set({ sessionId, status: 'idle' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[ImageContext] openSession failed:', msg, err);
+      set({ status: 'error', error: msg });
+    }
+  },
+  async runAnalyse() {
+    const sessionId = get().sessionId;
+    if (!sessionId) {
+      console.warn('[ImageContext] runAnalyse: no session — call openSession first');
+      return;
+    }
+    set({ status: 'analysing' });
+    try {
       const context = await analyzeImage(sessionId);
       console.log('[ImageContext]', context);
       if (get().sessionId !== sessionId) return;
@@ -174,9 +204,13 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
       set({ context, status: 'ready' });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('[ImageContext] uploadAndAnalyse failed:', msg, err);
+      console.error('[ImageContext] runAnalyse failed:', msg, err);
       set({ status: 'error', error: msg });
     }
+  },
+  async uploadAndAnalyse(source) {
+    await get().openSession(source);
+    if (get().sessionId) await get().runAnalyse();
   },
   /**
    * Re-upload the image to /api/session and push the locally-cached context
@@ -234,20 +268,24 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
 }));
 
 /**
- * Kick off `uploadAndAnalyse` from the first image-type layer's source pixels.
- * Used after `.edp` open and after IndexedDB session-restore, both of which
- * hydrate the canvas without going through the fresh-file upload path.
- * No-op if there is no image layer or source canvas, or a session is already
- * active.
+ * Run AI analyze for the first image layer. If a session is already alive
+ * (the normal case now — `editorDocument.openImage` opens one on image
+ * load), just call `runAnalyse`. Otherwise upload pixels first via
+ * `uploadAndAnalyse`. Used by the Info tab "Analyze with AI" CTA, by
+ * `.edp` open, and by IndexedDB session-restore.
  */
 export async function analyseFirstImageLayer(): Promise<void> {
-  if (useAiSession.getState().sessionId) return;
+  const ai = useAiSession.getState();
+  if (ai.sessionId) {
+    await ai.runAnalyse();
+    return;
+  }
   const firstImage = useEditorStore.getState().layers.find((l) => l.type === 'image');
   if (!firstImage) return;
   const source = pixelStore.getSource(firstImage.id);
   if (!source) return;
   const bitmap = await createImageBitmap(source);
-  await useAiSession.getState().uploadAndAnalyse(bitmap);
+  await ai.uploadAndAnalyse(bitmap);
 }
 
 /**

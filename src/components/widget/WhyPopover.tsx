@@ -32,9 +32,11 @@ export function WhyPopover({ open, widget, onOpenChange, children }: WhyPopoverP
                 "{widget.origin.prompt}"
               </span>
             )}
-            <span className="num bg-surface-secondary border border-separator rounded-[3px] px-1.5 py-0.5">
-              {widget.created_at.slice(0, 10)}
-            </span>
+            {widget.created_at && (
+              <span className="num bg-surface-secondary border border-separator rounded-[3px] px-1.5 py-0.5">
+                {widget.created_at.slice(0, 10)}
+              </span>
+            )}
           </div>
         </Popover.Content>
       </Popover.Portal>

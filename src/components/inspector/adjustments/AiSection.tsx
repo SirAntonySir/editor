@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
-import { ChevronRight, ChevronDown, X, HelpCircle, ArrowUpRight } from 'lucide-react';
+import { ChevronRight, ChevronDown, X, HelpCircle, ArrowUpRight, Sparkles } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
 import { BindingRow } from '@/components/inspector/widget/BindingRow';
+import { WhyPopover } from '@/components/widget/WhyPopover';
 import { bindingProvenance, touchKey } from '@/hooks/useParamProvenance';
 import type { ControlBinding, ControlValue, MaskSummary, Scope, Widget } from '@/types/widget';
 
@@ -142,9 +143,12 @@ export function AiSection({ widget }: AiSectionProps) {
   return (
     <div className="border-b border-separator">
       <div className="w-full flex items-center gap-2 px-2.5 py-2">
-        <span className="w-4 h-4 shrink-0 rounded-sm bg-ai text-white flex items-center justify-center text-[7px] font-semibold">
-          AI
-        </span>
+        <Sparkles
+          size={13}
+          className="shrink-0 text-ai"
+          aria-label="AI suggestion"
+        />
+        <span className="sr-only">AI suggestion</span>
         <span className="flex-1 truncate text-xs font-medium text-text-primary">{widget.intent}</span>
         <span className="text-[10px] text-text-secondary">{scopeChipLabel(widget.scope)}</span>
         <button
@@ -177,9 +181,6 @@ export function AiSection({ widget }: AiSectionProps) {
 
       {expanded && (
         <div className="flex flex-col gap-2 px-2.5 pb-2">
-          {showWhy && widget.reasoning && (
-            <p className="text-[10px] leading-snug text-text-secondary">{widget.reasoning}</p>
-          )}
           {opGroups.map((grp) => (
             <div key={grp.nodeId} className="flex flex-col gap-1.5">
               {grp.label && (
@@ -206,13 +207,14 @@ export function AiSection({ widget }: AiSectionProps) {
             </div>
           ))}
           <div className="flex items-center gap-px pt-1 border-t border-separator">
-            <button
-              type="button"
-              onClick={() => setShowWhy((v) => !v)}
-              className="inline-flex items-center gap-1 text-[9px] text-text-secondary hover:text-text-primary hover:bg-surface-secondary px-1.5 py-0.5 rounded-[3px]"
-            >
-              <HelpCircle size={10} aria-hidden /> Why?
-            </button>
+            <WhyPopover open={showWhy} widget={widget} onOpenChange={setShowWhy}>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-[9px] text-text-secondary hover:text-text-primary hover:bg-surface-secondary px-1.5 py-0.5 rounded-[3px]"
+              >
+                <HelpCircle size={10} aria-hidden /> Why?
+              </button>
+            </WhyPopover>
             <span className="flex-1" />
             <button
               type="button"

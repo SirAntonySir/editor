@@ -20,15 +20,16 @@ function renderEdge(scopeKind: 'layer' | 'node') {
 }
 
 describe('TetherEdge', () => {
-  it('near-solid dash pattern for layer-scope (marches via CSS animation)', () => {
+  it('near-solid dash pattern for layer-scope, sums to 6 to match march cycle', () => {
     const { container } = renderEdge('layer');
     const path = container.querySelector('path');
-    // Layer-scope uses a long dash + short gap so the marching-ants animation
-    // is visible without the line looking obviously dashed at rest.
-    expect(path?.getAttribute('stroke-dasharray')).toBe('5 2');
+    // Layer-scope: `5 1` — near-solid at rest, motion makes the dashes visible.
+    // Sum must equal the marching-ants offset shift (see index.css) so the
+    // CSS keyframe loops seamlessly.
+    expect(path?.getAttribute('stroke-dasharray')).toBe('5 1');
     expect(path?.classList.contains('tether-march')).toBe(true);
   });
-  it('dashed line for node-scope', () => {
+  it('half-half dash pattern for node-scope, sums to 6', () => {
     const { container } = renderEdge('node');
     const path = container.querySelector('path');
     expect(path?.getAttribute('stroke-dasharray')).toBe('3 3');

@@ -17,23 +17,26 @@ export function TetherEdge({
   targetPosition,
   data,
 }: EdgeProps<TetherEdgeType>) {
-  // Smooth step: a horizontal-vertical-horizontal staircase with a small
-  // corner radius. Reads more like a wiring diagram than a bezier swoop.
-  const [path] = getSmoothStepPath({
-    sourceX, sourceY, targetX, targetY,
-    sourcePosition, targetPosition,
-    borderRadius: 4,
-  });
-  // Counter-scale stroke + endpoint dots so the edge stays visible when the
-  // workspace is zoomed out (same factor used for node chrome).
+  // Counter-scale stroke + corner radius + endpoint dots so they stay
+  // readable when the workspace is zoomed out (same factor used for node
+  // chrome). Path geometry is in flow units, so radius needs the scale boost
+  // or it renders as a sharp corner at typical zooms.
   const scale = useChromeScale();
   const strokeWidth = 1.5 * scale;
   const dot = 3 * scale;
-  // Marching-ants pattern: layer-scope reads as near-solid (short gaps),
-  // node-scope as a true dashed line. Both animate via the .tether-march
-  // CSS rule (see index.css); animation respects prefers-reduced-motion.
+  const [path] = getSmoothStepPath({
+    sourceX, sourceY, targetX, targetY,
+    sourcePosition, targetPosition,
+    borderRadius: 12 * scale,
+  });
+  // Marching-ants pattern: both scopes sum to 6 path-units so the CSS
+  // animation's -6 offset shift completes a full pattern per cycle (no
+  // jump on loop). Layer-scope reads near-solid (5 on, 1 off); node-scope
+  // reads as half-half dashes (3 on, 3 off). Pattern is in flow units so
+  // it does NOT scale with chrome — that's intentional, otherwise the
+  // dash sum drifts from the animation's offset shift and the loop jumps.
   const isNodeScope = data?.scopeKind === 'node';
-  const dashArray = isNodeScope ? `${3 * scale} ${3 * scale}` : `${5 * scale} ${2 * scale}`;
+  const dashArray = isNodeScope ? '3 3' : '5 1';
   return (
     <>
       <BaseEdge

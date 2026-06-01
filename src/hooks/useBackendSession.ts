@@ -96,7 +96,23 @@ export function useBackendSession(): void {
 
           if (cancelled) return;
 
-          // 2. Trigger analyze. Events emitted during this call now reach the
+          // 2. Pre-fetch the (empty) initial snapshot before analyze so SSE
+          //    events emitted during analyze have a snapshot to merge into.
+          //    Without this, the streamed `context.updated` deltas during
+          //    analyze are dropped by the `!s.snapshot` early-out in the
+          //    reducer — the Info tab then sees all data at once when the
+          //    post-analyze snapshot fetch (step 4) finally lands.
+          try {
+            const initialResp = await fetch(`${BASE_URL}/api/state/${sessionId}`);
+            if (cancelled) return;
+            if (initialResp.ok) {
+              setSnapshot(await initialResp.json());
+            }
+          } catch (err) {
+            console.warn('[backend-session] initial snapshot fetch failed:', err);
+          }
+
+          // 3. Trigger analyze. Events emitted during this call now reach the
           //    frontend because the SSE connection is already open. Pass the
           //    real layer id so autonomous widget nodes are stamped with it
           //    (not "legacy") — the renderer filters op_graph nodes by exact
@@ -113,7 +129,7 @@ export function useBackendSession(): void {
             console.warn('[backend-session] analyze_image failed:', envelope.error);
           }
 
-          // 3. Snapshot rehydrate as a safety net for anything still missed.
+          // 4. Snapshot rehydrate as a safety net for anything still missed.
           const snapshotResp = await fetch(`${BASE_URL}/api/state/${sessionId}`);
           if (cancelled) return;
           if (snapshotResp.ok) {

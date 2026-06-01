@@ -159,6 +159,33 @@ export const useBackendState = create<BackendState>()(
             if (phase === 'widget_mint') s.mcpAnalyzeComplete = true;
             return;
           }
+          case 'context.updated': {
+            // Handled BEFORE the snapshot guard because partial deltas can
+            // race the initial REST snapshot fetch. If the snapshot isn't
+            // there yet, stash a minimal one with just the image_context so
+            // subsequent partials have something to merge into. The later
+            // snapshot fetch overlays the rest of the state (widgets,
+            // op_graph, etc.) on top; image_context survives intact.
+            const partial = payload.image_context as
+              | Partial<NonNullable<SessionStateSnapshot['image_context']>>
+              | undefined;
+            if (!partial) return;
+            if (s.snapshot) {
+              const existing = s.snapshot.image_context ?? {};
+              s.snapshot.image_context = { ...existing, ...partial } as never;
+              s.snapshot.revision = ev.revision;
+            } else {
+              s.snapshot = {
+                session_id: '',
+                revision: ev.revision,
+                widgets: [],
+                masks_index: [],
+                operation_graph: { id: '', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+                image_context: partial as never,
+              } as never;
+            }
+            return;
+          }
         }
 
         if (!s.snapshot) return;
@@ -227,22 +254,6 @@ export const useBackendState = create<BackendState>()(
             // zustand immer state.
             if (p.png_b64) {
               void registerMaskFromPng(p.mask_id, p.png_b64, p.width, p.height, p.label ?? undefined, p.source);
-            }
-            break;
-          }
-          case 'context.updated': {
-            // The backend streams `image_context` in deltas (mechanical →
-            // cheap fields, ai_context → base fields, soft → augmented +
-            // problems). MERGE each partial onto the running snapshot so
-            // each Info-tab section can flip skeleton → real the moment its
-            // fields land. The terminal `{available: true}` ping carries no
-            // image_context — leave the snapshot unchanged for that one.
-            const partial = payload.image_context as
-              | Partial<NonNullable<SessionStateSnapshot['image_context']>>
-              | undefined;
-            if (partial) {
-              const existing = s.snapshot.image_context ?? {};
-              s.snapshot.image_context = { ...existing, ...partial } as never;
             }
             break;
           }

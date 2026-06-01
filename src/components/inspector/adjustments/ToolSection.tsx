@@ -7,6 +7,7 @@ import { ScalarSectionBody } from './ScalarSectionBody';
 import { CurvesSectionBody } from './CurvesSectionBody';
 import { PromoteOnlyBody } from './PromoteOnlyBody';
 import { HslSectionBody } from './HslSectionBody';
+import { LevelsSectionBody } from './LevelsSectionBody';
 import { HslOpenOnCanvasButton } from './HslOpenOnCanvasButton';
 import { promoteToCanvas } from './promote';
 
@@ -84,6 +85,8 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
           <CurvesSectionBody layerId={layerId} />
         ) : def.adjustmentType === 'hsl' ? (
           <HslSectionBody layerId={layerId} />
+        ) : def.adjustmentType === 'levels' ? (
+          <LevelsSectionBody layerId={layerId} />
         ) : def.adjustmentType === 'lut' ? (
           <PromoteOnlyBody toolId={def.id} />
         ) : (

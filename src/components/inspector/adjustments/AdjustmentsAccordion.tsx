@@ -59,14 +59,14 @@ export function AdjustmentsAccordion() {
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
       {aiWidgets.length > 0 && (
-        <>
-          <div className="text-[9px] uppercase tracking-wide text-text-secondary px-2.5 pt-2 pb-1">
+        <div className="px-2.5 pt-2 pb-3 flex flex-col gap-2">
+          <div className="text-[9px] uppercase tracking-wide text-text-secondary">
             AI Suggestions
           </div>
           {aiWidgets.map((w) => (
             <AiSection key={w.id} widget={w} />
           ))}
-        </>
+        </div>
       )}
       <div className="text-[9px] uppercase tracking-wide text-text-secondary px-2.5 pt-2 pb-1">
         Tools

@@ -148,8 +148,13 @@ export function AiSection({ widget }: AiSectionProps) {
   // mirroring the grouped section view that follows on expansion.
   const opCount = opGroups.length;
 
+  // Card surface borrows `widget-shell-ai` from the canvas widget shell so
+  // suggestions read as the same AI affordance in both places — violet
+  // border + soft outer glow + 1px inner ring on top of the regular
+  // overlay drop shadow. Wrapped in `.overlay` to inherit the flat surface
+  // tokens (radius, base background) the modifier expects to layer onto.
   return (
-    <div className="border-b border-separator">
+    <div className="overlay widget-shell-ai">
       <div className="w-full flex items-center gap-2 px-2.5 py-2">
         <button
           type="button"
@@ -171,7 +176,10 @@ export function AiSection({ widget }: AiSectionProps) {
             </span>
           )}
         </button>
-        <span className="text-[10px] text-text-secondary">{scopeChipLabel(widget.scope)}</span>
+        {/* Scope label only when expanded — collapsed cards stay clean. */}
+        {expanded && (
+          <span className="text-[10px] text-text-secondary">{scopeChipLabel(widget.scope)}</span>
+        )}
         <button
           type="button"
           disabled={offline || onCanvas}

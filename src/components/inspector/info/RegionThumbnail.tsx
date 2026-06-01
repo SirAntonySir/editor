@@ -17,10 +17,25 @@ interface RegionThumbnailProps {
  */
 export function RegionThumbnail({ bbox, fallback, size = 36 }: RegionThumbnailProps) {
   const ref = useRef<HTMLCanvasElement>(null);
-  // Selecting the activeImageNodeId keeps the thumbnail in sync with whichever
-  // image the inspector is bound to. The layer id is derived inside the effect
-  // so we don't subscribe to layer churn.
-  const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
+  // Resolve the layer the thumbnail should crop from. Priority:
+  //   1. the currently-selected ImageNode (if the user clicked one on canvas)
+  //   2. the first ImageNode in the workspace (so thumbs paint even when
+  //      nothing is selected — the Info tab is about THE image, not a
+  //      selection)
+  //   3. the active editor layer (covers the moment between image open and
+  //      the auto-spawned ImageNode landing in the workspace state)
+  // Subscribing to the resolved id means thumbnails repaint when the user
+  // selects a different image or swaps the active layer, without churning
+  // when other store fields change.
+  const layerId = useEditorStore((s) => {
+    if (s.activeImageNodeId) {
+      const n = s.imageNodes[s.activeImageNodeId];
+      if (n?.layerIds[0]) return n.layerIds[0];
+    }
+    const firstNode = Object.values(s.imageNodes)[0];
+    if (firstNode?.layerIds[0]) return firstNode.layerIds[0];
+    return s.activeLayerId;
+  });
 
   useEffect(() => {
     const canvas = ref.current;
@@ -36,10 +51,7 @@ export function RegionThumbnail({ bbox, fallback, size = 36 }: RegionThumbnailPr
     ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
     ctx.fillRect(0, 0, size, size);
 
-    if (!bbox || !activeImageNodeId) return;
-    const imgNode = useEditorStore.getState().imageNodes[activeImageNodeId];
-    const layerId = imgNode?.layerIds[0];
-    if (!layerId) return;
+    if (!bbox || !layerId) return;
     const source = pixelStore.getSource(layerId);
     if (!source) return;
 
@@ -56,7 +68,7 @@ export function RegionThumbnail({ bbox, fallback, size = 36 }: RegionThumbnailPr
     const dx = (size - dw) / 2;
     const dy = (size - dh) / 2;
     ctx.drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh);
-  }, [bbox, activeImageNodeId, size]);
+  }, [bbox, layerId, size]);
 
   return (
     <div className="relative shrink-0">

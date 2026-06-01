@@ -334,7 +334,7 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
             break
         if problem.severity < 0.5:
             continue
-        for fused_id in problem.suggested_fused_tools:
+        for tool_index, fused_id in enumerate(problem.suggested_fused_tools):
             if fused_id not in templates:
                 continue
             if fused_id in used_fused_ids:
@@ -342,10 +342,23 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
             scope = _scope_for(problem)
             if _dismissed(fused_id, scope):
                 continue
+            # Intent text: when we use the problem's PRIMARY suggestion the
+            # tool was hand-picked to match the problem, so naming the widget
+            # after the problem reads naturally ("strong color cast"). When
+            # we fall through to a later suggestion the tool no longer
+            # matches the problem name (e.g. exposure_balance for an
+            # uneven_white_balance fall-through has only light sliders),
+            # so we label it after the TOOL instead to keep the title and
+            # the controls aligned. The problem context still lives in
+            # `widget.reasoning` / the Why popover.
+            template = templates[fused_id]
+            intent = (
+                problem.kind.replace("_", " ") if tool_index == 0 else template.label
+            )
             origin = WidgetOrigin(kind="mcp_autonomous", prompt=None)
             try:
                 widget = await run_fused_tool(
-                    templates[fused_id], intent=problem.kind.replace("_", " "),
+                    template, intent=intent,
                     scope=scope, ctx=ctx, prior=None, instruction=None,
                     anthropic=anthropic, origin=origin,
                 )

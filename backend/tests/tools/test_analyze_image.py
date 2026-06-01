@@ -411,6 +411,13 @@ def test_analyze_dedupes_tool_across_problems(monkeypatch) -> None:
     # cast_correct is used by the first problem; the second problem falls
     # through to exposure_balance. No duplicates.
     assert fused_ids == ["cast_correct", "exposure_balance"]
+    by_tool = {w.fused_tool_id: w for w in autonomous}
+    # First-pick keeps the problem-kind label.
+    assert by_tool["cast_correct"].intent == "strong color cast"
+    # Fall-through uses the tool's own label so the widget title matches
+    # its controls — "uneven white balance" + exposure_balance sliders
+    # would have been a confusing mismatch.
+    assert by_tool["exposure_balance"].intent == "Balance exposure"
 
 
 def test_analyze_skips_dismissed_topup_picks(monkeypatch) -> None:

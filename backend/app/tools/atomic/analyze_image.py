@@ -289,6 +289,20 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
 
     templates = {t.id: t for t in all_fused_templates()}
 
+    def _canonical_targets(template) -> set[tuple[str, str]]:
+        """The `(node_type, param_key)` pairs the template will write to
+        canonical. Used to detect KNOB collisions — two suggestions both
+        binding `basic.saturation` produce two sliders fighting over the
+        same canonical param, last-write-wins. Drop the later one."""
+        node_types = {n.node_type for n in template.node_skeleton}
+        result: set[tuple[str, str]] = set()
+        for b in template.bindings_skeleton:
+            node_id = b.target.node_id
+            hint = node_id[2:] if node_id.startswith("n_") else node_id
+            if hint in node_types:
+                result.add((hint, b.target.param_key))
+        return result
+
     def _scope_for(problem) -> Scope:
         if problem.region_label:
             return Scope.model_validate({"kind": "named_region", "label": problem.region_label})
@@ -321,14 +335,16 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
             if w.origin.kind == "mcp_autonomous" and w.status == "active"
         )
 
-    # Dedupe across problems: each fused_tool_id mints at most ONE widget
-    # across the entire problem-driven pass, regardless of scope. Two
-    # problems with overlapping `suggested_fused_tools` (e.g. cast_correct
-    # listed first for both "strong_color_cast" and "uneven_white_balance")
-    # would otherwise produce two near-identical widgets — the bindings are
-    # the same since the fused tool's skeleton is the same. The second
-    # problem falls through to its next-best tool instead.
+    # Two-layer dedup, tracked across problem-driven + top-up passes:
+    #   - `used_fused_ids` — no widget shares its fused_tool_id with another;
+    #     prevents two identical templates landing at different scopes.
+    #   - `used_targets`   — no two widgets bind to the same canonical
+    #     `(node_type, param_key)`. Catches the saturation-triplet case
+    #     where cast_correct, warm_grade, subject_pop, etc. all want the
+    #     same `basic.saturation` knob — only the first wins; later
+    #     candidates fall through to their next suggestion.
     used_fused_ids: set[str] = set()
+    used_targets: set[tuple[str, str]] = set()
     for problem in ctx.problems:
         if _count_autonomous_active() >= MAX_AUTONOMOUS_SUGGESTIONS:
             break
@@ -338,6 +354,10 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
             if fused_id not in templates:
                 continue
             if fused_id in used_fused_ids:
+                continue
+            template = templates[fused_id]
+            targets = _canonical_targets(template)
+            if targets & used_targets:
                 continue
             scope = _scope_for(problem)
             if _dismissed(fused_id, scope):
@@ -351,7 +371,6 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
             # so we label it after the TOOL instead to keep the title and
             # the controls aligned. The problem context still lives in
             # `widget.reasoning` / the Why popover.
-            template = templates[fused_id]
             intent = (
                 problem.kind.replace("_", " ") if tool_index == 0 else template.label
             )
@@ -367,6 +386,7 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
             _stamp(widget)
             doc.add_widget(widget)
             used_fused_ids.add(fused_id)
+            used_targets |= targets
             break  # one per problem
 
     # Top up via image-character match only when the problem-driven pass
@@ -401,13 +421,20 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
             break
         if fused_id not in templates or fused_id in already_used:
             continue
+        template = templates[fused_id]
+        # Same knob-collision check the problem-driven pass uses — a
+        # character-match pick that fights existing widgets for the same
+        # canonical params is also a dupe we don't want.
+        targets = _canonical_targets(template)
+        if targets & used_targets:
+            continue
         if _dismissed(fused_id, global_scope):
             continue
         origin = WidgetOrigin(kind="mcp_autonomous", prompt=None)
-        intent = templates[fused_id].label
+        intent = template.label
         try:
             widget = await run_fused_tool(
-                templates[fused_id], intent=intent, scope=global_scope,
+                template, intent=intent, scope=global_scope,
                 ctx=ctx, prior=None, instruction=None,
                 anthropic=anthropic, origin=origin,
             )
@@ -418,6 +445,7 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
         _stamp(widget)
         doc.add_widget(widget)
         already_used.add(fused_id)
+        used_targets |= targets
 
 
 def _compute_region_stats(

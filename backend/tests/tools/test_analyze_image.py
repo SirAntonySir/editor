@@ -260,13 +260,19 @@ def _bootstrap_session() -> str:
 
 
 def test_analyze_mints_target_when_no_problems(monkeypatch) -> None:
-    """Zero problems → top-up fills to TARGET (3)."""
+    """Zero problems → top-up fills to TARGET (3). The picks below have
+    DISJOINT canonical targets so the knob-collision dedup doesn't fire:
+      - tone_red   → hsl.red_*
+      - lift_shadows → basic.shadows + basic.blacks
+      - micro_contrast → clarity.amount
+    """
     fake = _fake_claude_for_topup(
         problems=[],
-        topup_picks=["warm_grade", "exposure_balance", "cool_grade"],
+        topup_picks=["tone_red", "lift_shadows", "micro_contrast"],
         resolve_values={
-            "temperature": 200, "highlight_warmth": 5, "saturation_lift": 2,
-            "shadows": 10, "highlights": -10, "whites": 0, "blacks": 0,
+            "red_hue": 0, "red_sat": 0, "red_lum": 0,
+            "shadows": 10, "blacks": 5,
+            "amount": 20,
         },
     )
     monkeypatch.setattr(deps, "_anthropic_client", fake)
@@ -279,21 +285,26 @@ def test_analyze_mints_target_when_no_problems(monkeypatch) -> None:
     autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
     assert len(autonomous) == 3
     fused_ids = {w.fused_tool_id for w in autonomous}
-    assert fused_ids == {"warm_grade", "exposure_balance", "cool_grade"}
+    assert fused_ids == {"tone_red", "lift_shadows", "micro_contrast"}
 
 
 def test_analyze_tops_up_when_one_problem(monkeypatch) -> None:
-    """One high-severity problem → 1 minted from problem + 2 from top-up = TARGET (3)."""
+    """One high-severity problem → 1 minted from problem + 2 from top-up = TARGET (3).
+    Picks chosen to have non-overlapping canonical targets:
+      - cast_correct (problem)  → kelvin.temperature + basic.saturation
+      - lift_shadows  (top-up)  → basic.shadows + basic.blacks
+      - micro_contrast (top-up) → clarity.amount
+    """
     fake = _fake_claude_for_topup(
         problems=[Problem(
-            kind="clipped_highlights", severity=0.8, region_label=None,
-            suggested_fused_tools=["sky_recovery"],
+            kind="strong_color_cast", severity=0.8, region_label=None,
+            suggested_fused_tools=["cast_correct"],
         )],
-        topup_picks=["exposure_balance", "warm_grade"],
+        topup_picks=["lift_shadows", "micro_contrast"],
         resolve_values={
-            "temperature": 0, "highlight_warmth": 0, "saturation_lift": 0,
-            "shadows": 5, "highlights": -15, "whites": -5, "blacks": 5,
-            "highlight_amount": 0.8, "luma_curve_strength": 0.5,
+            "corrective_kelvin": 0, "sat_correction": 0,
+            "shadows": 5, "blacks": 5,
+            "amount": 20,
         },
     )
     monkeypatch.setattr(deps, "_anthropic_client", fake)
@@ -303,28 +314,31 @@ def test_analyze_tops_up_when_one_problem(monkeypatch) -> None:
     doc = deps.get_session_store().get_document(sid)
     autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
     assert len(autonomous) == 3
-    assert {w.fused_tool_id for w in autonomous} == {"sky_recovery", "exposure_balance", "warm_grade"}
+    assert {w.fused_tool_id for w in autonomous} == {"cast_correct", "lift_shadows", "micro_contrast"}
     args, kwargs = fake.suggest_fused_tools_for_character.call_args
-    assert "sky_recovery" in kwargs["exclude"]
+    assert "cast_correct" in kwargs["exclude"]
 
 
 def test_analyze_no_topup_when_target_already_met(monkeypatch) -> None:
-    """3 high-severity problems → TARGET met → top-up not called."""
+    """3 high-severity problems with non-overlapping canonical targets →
+    TARGET met → top-up not called."""
     fake = _fake_claude_for_topup(
         problems=[
-            Problem(kind="clipped_highlights", severity=0.8, region_label=None,
-                    suggested_fused_tools=["sky_recovery"]),
-            Problem(kind="crushed_shadows", severity=0.8, region_label=None,
-                    suggested_fused_tools=["exposure_balance"]),
+            # cast_correct → kelvin.temperature + basic.saturation
             Problem(kind="strong_color_cast", severity=0.8, region_label=None,
                     suggested_fused_tools=["cast_correct"]),
+            # lift_shadows → basic.shadows + basic.blacks (disjoint with cast_correct)
+            Problem(kind="crushed_shadows", severity=0.8, region_label=None,
+                    suggested_fused_tools=["lift_shadows"]),
+            # micro_contrast → clarity.amount (disjoint with both above)
+            Problem(kind="low_contrast", severity=0.8, region_label=None,
+                    suggested_fused_tools=["micro_contrast"]),
         ],
         topup_picks=["warm_grade"],
         resolve_values={
-            "temperature": 0, "highlight_warmth": 0, "saturation_lift": 0,
-            "shadows": 30, "highlights": -20, "whites": 0, "blacks": 0,
-            "highlight_amount": 0.5, "luma_curve_strength": 0.3,
             "corrective_kelvin": 0, "sat_correction": 0,
+            "shadows": 30, "blacks": 5,
+            "amount": 20,
         },
     )
     monkeypatch.setattr(deps, "_anthropic_client", fake)
@@ -338,30 +352,32 @@ def test_analyze_no_topup_when_target_already_met(monkeypatch) -> None:
 
 
 def test_analyze_caps_at_max_for_many_problems(monkeypatch) -> None:
-    """Many high-severity problems → problem-driven minting capped at MAX (5)."""
+    """Many high-severity problems with mutually-disjoint canonical
+    targets → problem-driven minting capped at MAX (5). Uses tone_band
+    templates which are guaranteed disjoint across bands."""
     fake = _fake_claude_for_topup(
         problems=[
-            Problem(kind="clipped_highlights", severity=0.8, region_label=None,
-                    suggested_fused_tools=["sky_recovery"]),
-            Problem(kind="crushed_shadows", severity=0.8, region_label=None,
-                    suggested_fused_tools=["exposure_balance"]),
             Problem(kind="strong_color_cast", severity=0.8, region_label=None,
-                    suggested_fused_tools=["cast_correct"]),
-            Problem(kind="low_contrast", severity=0.7, region_label=None,
-                    suggested_fused_tools=["subject_pop"]),
-            Problem(kind="noisy_shadows", severity=0.7, region_label=None,
-                    suggested_fused_tools=["portrait_glow"]),
-            Problem(kind="uneven_white_balance", severity=0.6, region_label=None,
-                    suggested_fused_tools=["warm_grade"]),
+                    suggested_fused_tools=["tone_red"]),
+            Problem(kind="strong_color_cast", severity=0.8, region_label="sky",
+                    suggested_fused_tools=["tone_blue"]),
+            Problem(kind="strong_color_cast", severity=0.8, region_label="leaves",
+                    suggested_fused_tools=["tone_green"]),
+            Problem(kind="strong_color_cast", severity=0.7, region_label="oranges",
+                    suggested_fused_tools=["tone_orange"]),
+            Problem(kind="strong_color_cast", severity=0.7, region_label="yellows",
+                    suggested_fused_tools=["tone_yellow"]),
+            Problem(kind="strong_color_cast", severity=0.6, region_label="aqua",
+                    suggested_fused_tools=["tone_aqua"]),
         ],
         topup_picks=[],
         resolve_values={
-            "temperature": 0, "highlight_warmth": 0, "saturation_lift": 0,
-            "shadows": 0, "highlights": 0, "whites": 0, "blacks": 0,
-            "highlight_amount": 0.5, "luma_curve_strength": 0.3,
-            "corrective_kelvin": 0, "sat_correction": 0,
-            "exposure": 0, "contrast": 0,
-            "amount": 0.5,
+            "red_hue": 0, "red_sat": 0, "red_lum": 0,
+            "blue_hue": 0, "blue_sat": 0, "blue_lum": 0,
+            "green_hue": 0, "green_sat": 0, "green_lum": 0,
+            "orange_hue": 0, "orange_sat": 0, "orange_lum": 0,
+            "yellow_hue": 0, "yellow_sat": 0, "yellow_lum": 0,
+            "aqua_hue": 0, "aqua_sat": 0, "aqua_lum": 0,
         },
     )
     monkeypatch.setattr(deps, "_anthropic_client", fake)
@@ -418,6 +434,52 @@ def test_analyze_dedupes_tool_across_problems(monkeypatch) -> None:
     # its controls — "uneven white balance" + exposure_balance sliders
     # would have been a confusing mismatch.
     assert by_tool["exposure_balance"].intent == "Balance exposure"
+
+
+def test_analyze_dedupes_canonical_knob_collisions(monkeypatch) -> None:
+    """Two widgets that bind to the same canonical (op, param) — e.g. all
+    three of cast_correct / warm_grade / subject_pop touch `basic.saturation`
+    — create duplicate sliders fighting over the same knob. Only the first
+    minted widget for any given knob survives."""
+    fake = _fake_claude_for_topup(
+        problems=[
+            # cast_correct → kelvin.temperature + basic.saturation
+            Problem(
+                kind="strong_color_cast", severity=0.8, region_label=None,
+                suggested_fused_tools=["cast_correct"],
+            ),
+            # warm_grade → kelvin.temperature + basic.highlights +
+            # basic.saturation → overlaps on TWO knobs with cast_correct.
+            Problem(
+                kind="uneven_white_balance", severity=0.6, region_label=None,
+                suggested_fused_tools=["warm_grade"],
+            ),
+            # subject_pop → basic.contrast + basic.saturation → overlaps on
+            # basic.saturation with cast_correct.
+            Problem(
+                kind="low_contrast", severity=0.6, region_label=None,
+                suggested_fused_tools=["subject_pop"],
+            ),
+        ],
+        topup_picks=[],
+        resolve_values={
+            "corrective_kelvin": 0, "sat_correction": 0,
+            "temperature": 0, "saturation_lift": 0, "highlight_warmth": 0,
+            "contrast_pop": 0, "saturation_pop": 0,
+        },
+    )
+    monkeypatch.setattr(deps, "_anthropic_client", fake)
+    sid = _bootstrap_session()
+    client = TestClient(app)
+    client.post("/api/tools/analyze_image", json={"session_id": sid, "input": {}})
+    doc = deps.get_session_store().get_document(sid)
+    autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
+    fused_ids = sorted(w.fused_tool_id for w in autonomous)
+    # cast_correct wins; warm_grade + subject_pop both blocked by the
+    # basic.saturation knob collision.
+    assert "cast_correct" in fused_ids
+    assert "warm_grade" not in fused_ids
+    assert "subject_pop" not in fused_ids
 
 
 def test_analyze_skips_dismissed_topup_picks(monkeypatch) -> None:

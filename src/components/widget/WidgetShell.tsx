@@ -12,6 +12,7 @@ import { WidgetShellFooter } from './WidgetShellFooter';
 import { RefineInput } from './RefineInput';
 import { WhyPopover } from './WhyPopover';
 import { BindingRow } from '@/components/inspector/widget/BindingRow';
+import { HslWidgetBody, isHslWidget } from './HslWidgetBody';
 
 /**
  * Minimum WidgetShell width in CSS pixels. The shell grows past this to fit
@@ -114,7 +115,9 @@ export function WidgetShell({ widget }: WidgetShellProps) {
   return (
     <div
       // min-w-[226px] matches WIDGET_SHELL_MIN_WIDTH; width grows to fit content.
-      className={`overlay min-w-[226px] w-fit ${hovered ? 'border-accent' : ''}`}
+      // AI-composed widgets get a violet outline + glow (widget-shell-ai) so
+      // they read as distinct from tool-invoked widgets on the canvas.
+      className={`overlay min-w-[226px] w-fit ${showAiAffordances ? 'widget-shell-ai' : ''} ${hovered ? 'border-accent' : ''}`}
       onMouseEnter={() => setHoveredWidget(widget.id)}
       onMouseLeave={() => setHoveredWidget(null)}
     >
@@ -133,7 +136,12 @@ export function WidgetShell({ widget }: WidgetShellProps) {
               <span className="line-clamp-2 max-w-[200px]">{widget.reasoning}</span>
             </div>
           )}
-          {widget.bindings.length > 0 && (
+          {widget.bindings.length > 0 && isHslWidget(widget) && (
+            <div className="px-1.5 py-1">
+              <HslWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
+            </div>
+          )}
+          {widget.bindings.length > 0 && !isHslWidget(widget) && (
             <div className="flex flex-col gap-1.5 px-1.5 py-1">
               {widget.bindings.map((b) => {
                 const eff = effectiveValue(b);

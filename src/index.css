@@ -80,6 +80,18 @@ html, body, #root {
   border-radius: var(--radius-panel);
 }
 
+/* AI-composed widget shell: violet outline + soft glow so AI widgets stand
+ * apart from tool-invoked ones on the canvas. Layered shadow keeps the
+ * regular overlay drop and adds a 1px inner ring + 12px outer bloom in the
+ * violet AI accent. */
+.widget-shell-ai {
+  border-color: var(--color-ai);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-ai) 35%, transparent),
+    0 0 14px 2px color-mix(in srgb, var(--color-ai) 28%, transparent),
+    var(--shadow-overlay);
+}
+
 /* React Flow controls — ported into the flat register so the zoom/fit
  * buttons follow the theme tokens (and read well in dark mode).
  * Prefixed with `.react-flow` to outrank the library's same-specificity

@@ -136,7 +136,10 @@ export function LevelsHistogramControl({
   const gammaPct = (gammaInputValue(inBlack, inWhite, gamma) / 255) * 100;
 
   return (
-    <div className="flex flex-col gap-1">
+    // gap-3 leaves room for the triangle handles that hang below the rail
+    // (the handle wrapper is `top: calc(100% - 2px)` so it extends ~10px
+    // past the histogram box).
+    <div className="flex flex-col gap-3">
       <div
         ref={wrapRef}
         className="relative w-full select-none rounded-[3px] bg-surface-secondary border border-separator"
@@ -169,16 +172,32 @@ export function LevelsHistogramControl({
           )}
         </svg>
 
-        {/* Vertical lines marking the handle positions, drawn ON TOP of the
-            histogram so they remain visible. */}
-        <span className="pointer-events-none absolute top-0 bottom-0 w-px bg-text-primary/30" style={{ left: `${blackPct}%` }} />
-        <span className="pointer-events-none absolute top-0 bottom-0 w-px bg-text-primary/30" style={{ left: `${whitePct}%` }} />
+        {/* Subtle vertical guides at the endpoint handle positions. Dashed
+            + low-opacity so the histogram colours stay legible behind them. */}
+        <span
+          className="pointer-events-none absolute top-1 bottom-2 w-px"
+          style={{
+            left: `${blackPct}%`,
+            backgroundImage: 'linear-gradient(to bottom, var(--color-text-primary) 50%, transparent 50%)',
+            backgroundSize: '1px 3px',
+            opacity: 0.18,
+          }}
+        />
+        <span
+          className="pointer-events-none absolute top-1 bottom-2 w-px"
+          style={{
+            left: `${whitePct}%`,
+            backgroundImage: 'linear-gradient(to bottom, var(--color-text-primary) 50%, transparent 50%)',
+            backgroundSize: '1px 3px',
+            opacity: 0.18,
+          }}
+        />
 
-        {/* Bottom-edge handles: black on the left, gamma in the middle,
-            white on the right. Triangles point UP into the histogram. */}
-        <Handle pct={blackPct} colorClass="bg-text-primary" onPointerDown={(e) => onHandlePointerDown('black', e)} label="Black point" />
-        <Handle pct={gammaPct} colorClass="bg-text-secondary" onPointerDown={(e) => onHandlePointerDown('gamma', e)} label="Gamma" />
-        <Handle pct={whitePct} colorClass="bg-text-primary" hollow onPointerDown={(e) => onHandlePointerDown('white', e)} label="White point" />
+        {/* Three triangle handles sit just BELOW the rail with their apex
+            on its bottom edge. */}
+        <Handle pct={blackPct} kind="black" onPointerDown={(e) => onHandlePointerDown('black', e)} label="Black point" />
+        <Handle pct={gammaPct} kind="gamma" onPointerDown={(e) => onHandlePointerDown('gamma', e)} label="Gamma" />
+        <Handle pct={whitePct} kind="white" onPointerDown={(e) => onHandlePointerDown('white', e)} label="White point" />
       </div>
       {/* Numeric readouts below the rail — clickable to type a value via
           the standard AdjustmentSlider drag-to-scrub idiom would be a
@@ -192,34 +211,56 @@ export function LevelsHistogramControl({
   );
 }
 
+type HandleKind = 'black' | 'gamma' | 'white';
+
 function Handle({
   pct,
-  colorClass,
-  hollow,
+  kind,
   onPointerDown,
   label,
 }: {
   pct: number;
-  colorClass: string;
-  hollow?: boolean;
+  kind: HandleKind;
   onPointerDown: (e: React.PointerEvent) => void;
   label: string;
 }) {
+  // Lightroom / Photoshop convention: filled dark triangle for the black
+  // point, mid-grey filled for gamma, hollow (surface fill + dark outline)
+  // for the white point. All three are stroked so they read against the
+  // histogram colours behind them.
+  const fill =
+    kind === 'gamma' ? 'var(--color-text-secondary)'
+      : kind === 'white' ? 'var(--color-surface)'
+      : 'var(--color-text-primary)';
+  // 5×4 SVG path apex (top-centre) → base corners. Tiny but tight.
+  // Padding around the SVG gives a generous hit area without the visible
+  // triangle bloating.
   return (
     <button
       type="button"
       aria-label={label}
       onPointerDown={onPointerDown}
-      // Triangle pointing UP. Anchored on the BOTTOM edge of the rail so
-      // the apex sits exactly on the value position.
-      className="absolute bottom-0 -translate-x-1/2 translate-y-1/2 w-2.5 h-2.5
-        cursor-ew-resize touch-none focus:outline-none"
-      style={{ left: `${pct}%` }}
+      className="absolute -translate-x-1/2 cursor-ew-resize touch-none
+        focus:outline-none focus-visible:ring-1 focus-visible:ring-accent
+        rounded-sm p-1 -m-1 hover:[&_svg]:scale-110 active:[&_svg]:scale-110
+        transition-transform"
+      style={{ left: `${pct}%`, top: 'calc(100% - 2px)' }}
     >
-      <span
-        className={`block w-full h-full rotate-45 ${hollow ? 'bg-surface border border-text-primary' : colorClass}`}
+      <svg
+        width="10"
+        height="8"
+        viewBox="0 0 10 8"
+        className="block transition-transform"
         aria-hidden
-      />
+      >
+        <polygon
+          points="5,0 9,7 1,7"
+          fill={fill}
+          stroke="var(--color-text-primary)"
+          strokeWidth="1"
+          strokeLinejoin="round"
+        />
+      </svg>
     </button>
   );
 }

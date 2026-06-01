@@ -148,13 +148,14 @@ export function AiSection({ widget }: AiSectionProps) {
   // mirroring the grouped section view that follows on expansion.
   const opCount = opGroups.length;
 
-  // Card surface borrows `widget-shell-ai` from the canvas widget shell so
-  // suggestions read as the same AI affordance in both places — violet
-  // border + soft outer glow + 1px inner ring on top of the regular
-  // overlay drop shadow. Wrapped in `.overlay` to inherit the flat surface
-  // tokens (radius, base background) the modifier expects to layer onto.
+  // Card surface: violet border in the AI accent, no glow / no drop shadow
+  // (the canvas widget-shell glow was too intense for this dense inspector
+  // list). Background + radius come from token classes directly so we don't
+  // pull in `.overlay`'s shadow.
   return (
-    <div className="overlay widget-shell-ai">
+    <div
+      className="bg-surface border border-ai rounded-[var(--radius-panel)]"
+    >
       <div className="w-full flex items-center gap-2 px-2.5 py-2">
         <button
           type="button"

@@ -1,6 +1,7 @@
 import { useImageContextFull } from '@/hooks/useImageContextFull';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useAiSession } from '@/hooks/useImageContext';
+import { ScrollArea } from '@/components/ui/ScrollArea';
 import { SemanticSection } from './SemanticSection';
 import { HistogramsSection } from './HistogramsSection';
 import { ColorSection } from './ColorSection';
@@ -53,13 +54,18 @@ export function InfoTab() {
   // Empty array is a valid "no issues" result, so we don't gate on length.
   const hasProblems = !!ctx && ctx.problems !== undefined;
 
+  // Overlay sits as a SIBLING of the ScrollArea (not inside it) so the hero
+  // copy stays fixed in the viewport rather than scrolling with the
+  // skeleton content underneath.
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto relative">
-      {hasSemantic ? <SemanticSection ctx={ctx!} /> : <SemanticSkeleton />}
-      {hasHistograms ? <HistogramsSection ctx={ctx!} /> : <HistogramsSkeleton />}
-      {hasColor ? <ColorSection ctx={ctx!} /> : <ColorSkeleton />}
-      {hasRegions ? <RegionsSection ctx={ctx!} /> : <RegionsSkeleton />}
-      {hasProblems ? <ProblemsSection ctx={ctx!} /> : <ProblemsSkeleton />}
+    <div className="flex-1 min-h-0 relative">
+      <ScrollArea className="absolute inset-0">
+        {hasSemantic ? <SemanticSection ctx={ctx!} /> : <SemanticSkeleton />}
+        {hasHistograms ? <HistogramsSection ctx={ctx!} /> : <HistogramsSkeleton />}
+        {hasColor ? <ColorSection ctx={ctx!} /> : <ColorSkeleton />}
+        {hasRegions ? <RegionsSection ctx={ctx!} /> : <RegionsSkeleton />}
+        {hasProblems ? <ProblemsSection ctx={ctx!} /> : <ProblemsSkeleton />}
+      </ScrollArea>
       {showOverlay && <NoContextState analyzing={inAnalyze} />}
     </div>
   );

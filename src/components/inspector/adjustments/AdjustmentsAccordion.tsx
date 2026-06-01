@@ -1,6 +1,7 @@
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { ProcessingRegistry } from '@/lib/processing-registry';
+import { ScrollArea } from '@/components/ui/ScrollArea';
 import type { ProcessingDefinition } from '@/types/processing';
 import type { Widget } from '@/types/widget';
 import { ToolSection } from './ToolSection';
@@ -57,7 +58,7 @@ export function AdjustmentsAccordion() {
   ).filter((g) => g.length > 0);
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto">
+    <ScrollArea className="flex-1 min-h-0">
       {aiWidgets.length > 0 && (
         <div className="px-2.5 pt-2 pb-3 flex flex-col gap-2">
           <div className="text-[9px] uppercase tracking-wide text-text-secondary">
@@ -81,6 +82,6 @@ export function AdjustmentsAccordion() {
           ))}
         </div>
       ))}
-    </div>
+    </ScrollArea>
   );
 }

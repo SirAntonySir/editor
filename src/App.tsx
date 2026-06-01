@@ -24,6 +24,10 @@ import { KelvinTool } from '@/tools/kelvin-tool';
 import { CurvesTool } from '@/tools/curves-tool';
 import { LevelsTool } from '@/tools/levels-tool';
 import { FiltersTool } from '@/tools/filters-tool';
+import { HslTool } from '@/tools/hsl-tool';
+import { SharpenTool } from '@/tools/sharpen-tool';
+import { BlurTool } from '@/tools/blur-tool';
+import { ClarityTool } from '@/tools/clarity-tool';
 import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
 import { useBackendState } from '@/store/backend-state-slice';
 import { Upload } from 'lucide-react';
@@ -46,10 +50,14 @@ registerAllToolManifests();
 // Register tools (lean canvas-centric set — adjustment widget tools)
 CanvasToolRegistry.register(LightTool);
 CanvasToolRegistry.register(ColorTool);
+CanvasToolRegistry.register(HslTool);
 CanvasToolRegistry.register(KelvinTool);
 CanvasToolRegistry.register(CurvesTool);
 CanvasToolRegistry.register(LevelsTool);
 CanvasToolRegistry.register(FiltersTool);
+CanvasToolRegistry.register(SharpenTool);
+CanvasToolRegistry.register(BlurTool);
+CanvasToolRegistry.register(ClarityTool);
 
 /** Main canvas area */
 function MainLayout({

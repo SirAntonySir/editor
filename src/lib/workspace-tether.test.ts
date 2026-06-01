@@ -109,7 +109,7 @@ describe('tetherWorkspaceWidget — origin filter (regression)', () => {
     useEditorStore.getState().resetWorkspace();
   });
 
-  it('rejects AI-origin widgets (only tool_invoked passes through)', () => {
+  it('rejects autonomous AI widgets (only tool_invoked + mcp_user_prompt pass through)', () => {
     const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 0, y: 0 });
     useEditorStore.getState().setActiveImageNode(nodeId);
 
@@ -122,5 +122,20 @@ describe('tetherWorkspaceWidget — origin filter (regression)', () => {
     const editor = useEditorStore.getState();
     expect(editor.widgetNodes[w.id]).toBeUndefined();
     expect(Object.values(editor.tetherEdges)).toEqual([]);
+  });
+
+  it('tethers mcp_user_prompt widgets (Cmd+K palette)', () => {
+    const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 0, y: 0 });
+    useEditorStore.getState().setActiveImageNode(nodeId);
+
+    const w = makeWidget('w_prompt', {
+      origin: { kind: 'mcp_user_prompt', prompt: 'warmer' },
+      nodes: [{ id: 'n1', type: 'kelvin', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w_prompt', layer_id: 'layer-a' }],
+    });
+    tetherWorkspaceWidget(w);
+
+    const editor = useEditorStore.getState();
+    expect(editor.widgetNodes[w.id]?.position).toBeDefined();
+    expect(Object.values(editor.tetherEdges)).toHaveLength(1);
   });
 });

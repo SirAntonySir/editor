@@ -304,8 +304,14 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
         return result
 
     def _scope_for(problem) -> Scope:
-        if problem.region_label:
-            return Scope.model_validate({"kind": "named_region", "label": problem.region_label})
+        # Currently SAM is gated off (see _sam_enabled), so region masks
+        # are not precomputed and a `named_region` scope has nothing to
+        # apply through — the resulting widget shows on the canvas but
+        # produces no pixel change. Force everything to global scope until
+        # masks come back; the original region_label still lives in
+        # `widget.reasoning` via the augment prompt, so the user can see
+        # WHERE the problem was detected even when we can't restrict the
+        # adjustment to that area yet.
         return Scope.model_validate({"kind": "global"})
 
     def _dismissed(fused_id: str, scope: Scope) -> bool:

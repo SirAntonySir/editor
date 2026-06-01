@@ -206,7 +206,82 @@ class _ContextSoftFields(BaseModel):
 _SOFT_FIELDS_TOOL = {
     "name": "emit_context_soft_fields",
     "description": "Emit the soft fields completing the EnrichedImageContext.",
-    "input_schema": _ContextSoftFields.model_json_schema(),
+    # Hand-rolled input_schema. The previous `_ContextSoftFields.model_json_schema()`
+    # produced a pydantic-generated schema with `$defs` for the nested `Problem`
+    # model. Claude consistently returned a templated placeholder
+    # (`{"$PARAMETER_NAME": {...}}`) for that schema — `$defs` refs throw the
+    # tool-use loop. Inlining everything removes the ambiguity.
+    "input_schema": {
+        "type": "object",
+        "required": [
+            "estimated_white_point",
+            "wb_neutral_confidence",
+            "grade_character",
+            "problems",
+            "region_soft_fields",
+        ],
+        "properties": {
+            "estimated_white_point": {
+                "type": "array",
+                "description": "RGB of the most likely neutral pixels, e.g. [r, g, b] each 0-255.",
+                "items": {"type": "number"},
+                "minItems": 3,
+                "maxItems": 3,
+            },
+            "wb_neutral_confidence": {
+                "type": "number",
+                "description": "0..1 — low when no clearly-neutral region exists.",
+            },
+            "grade_character": {
+                "type": "string",
+                "description": "Short label (warm-amber / cool-cinematic / neutral / teal-orange / …).",
+            },
+            "problems": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["kind", "severity", "suggested_fused_tools"],
+                    "properties": {
+                        "kind": {
+                            "type": "string",
+                            "enum": [
+                                "clipped_highlights",
+                                "crushed_shadows",
+                                "low_contrast",
+                                "strong_color_cast",
+                                "noisy_shadows",
+                                "uneven_white_balance",
+                            ],
+                        },
+                        "severity": {"type": "number", "minimum": 0, "maximum": 1},
+                        "region_label": {"type": ["string", "null"]},
+                        "bbox": {
+                            "type": ["array", "null"],
+                            "items": {"type": "number"},
+                            "minItems": 4,
+                            "maxItems": 4,
+                        },
+                        "suggested_fused_tools": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                    },
+                },
+            },
+            "region_soft_fields": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["label", "is_skin_likely", "is_sky_likely"],
+                    "properties": {
+                        "label": {"type": "string"},
+                        "is_skin_likely": {"type": "boolean"},
+                        "is_sky_likely": {"type": "boolean"},
+                    },
+                },
+            },
+        },
+    },
 }
 
 

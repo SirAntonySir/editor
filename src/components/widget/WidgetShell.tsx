@@ -14,6 +14,7 @@ import { RefineInput } from './RefineInput';
 import { WhyPopover } from './WhyPopover';
 import { BindingRow } from '@/components/inspector/widget/BindingRow';
 import { HslWidgetBody, isHslWidget } from './HslWidgetBody';
+import { LevelsWidgetBody, isFullLevelsWidget } from './LevelsWidgetBody';
 
 /**
  * Minimum WidgetShell width in CSS pixels. The shell grows past this to fit
@@ -147,7 +148,12 @@ export function WidgetShell({ widget }: WidgetShellProps) {
               <HslWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
             </div>
           )}
-          {widget.bindings.length > 0 && !isHslWidget(widget) && (
+          {widget.bindings.length > 0 && isFullLevelsWidget(widget) && (
+            <div className="px-1.5 py-1">
+              <LevelsWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
+            </div>
+          )}
+          {widget.bindings.length > 0 && !isHslWidget(widget) && !isFullLevelsWidget(widget) && (
             <div className="flex flex-col gap-1.5 px-1.5 py-1">
               {widget.bindings.map((b) => {
                 const eff = effectiveValue(b);

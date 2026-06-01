@@ -130,12 +130,8 @@ export function WidgetShell({ widget }: WidgetShellProps) {
       />
       {isExpanded && (
         <>
-          {widget.reasoning && (
-            <div className="flex items-start gap-1.5 px-1.5 py-1 border-b border-separator bg-surface-secondary text-[10px] text-text-secondary leading-snug">
-              <span className="flex-none mt-0.5">ⓘ</span>
-              <span className="line-clamp-2 max-w-[200px]">{widget.reasoning}</span>
-            </div>
-          )}
+          {/* Inline reasoning banner removed — the footer's "Why?" button
+              already exposes the same string in a popover. */}
           {widget.bindings.length > 0 && isHslWidget(widget) && (
             <div className="px-1.5 py-1">
               <HslWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />

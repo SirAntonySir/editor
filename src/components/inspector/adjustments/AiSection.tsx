@@ -8,31 +8,11 @@ import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
 import { BindingRow } from '@/components/inspector/widget/BindingRow';
 import { WhyPopover } from '@/components/widget/WhyPopover';
 import { bindingProvenance, touchKey } from '@/hooks/useParamProvenance';
-import type { ControlBinding, ControlValue, MaskSummary, Scope, Widget } from '@/types/widget';
+import type { ControlBinding, ControlValue, MaskSummary, Widget } from '@/types/widget';
 
 // Stable empty reference so the masks selector doesn't return a fresh literal
 // each render (avoids useSyncExternalStore re-render churn when snapshot is null).
 const EMPTY_MASKS: MaskSummary[] = [];
-
-/** Human-readable chip label for a widget's scope. Defensive: the projected
- * scope shape can drift, so we read `kind`/`label` off an unknown narrowing. */
-function scopeChipLabel(scope: Scope): string {
-  const s = scope as { kind?: string; label?: string };
-  switch (s.kind) {
-    case 'global':
-      return 'global';
-    case 'named_region':
-      return s.label ?? 'region';
-    case 'mask:proposed':
-      return s.label ?? 'region';
-    case 'mask':
-      return 'mask';
-    case 'image_node':
-      return 'layer';
-    default:
-      return 'global';
-  }
-}
 
 interface AiSectionProps {
   widget: Widget;
@@ -177,10 +157,8 @@ export function AiSection({ widget }: AiSectionProps) {
             </span>
           )}
         </button>
-        {/* Scope label only when expanded — collapsed cards stay clean. */}
-        {expanded && (
-          <span className="text-[10px] text-text-secondary">{scopeChipLabel(widget.scope)}</span>
-        )}
+        {/* Scope chip removed — no meaningful scope to surface yet (single-
+            layer editor). Restore when multi-layer scopes ship. */}
         <button
           type="button"
           disabled={offline || onCanvas}

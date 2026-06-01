@@ -1,10 +1,8 @@
-import { MapPin, AlertTriangle, User, Cloud } from 'lucide-react';
+import { MapPin, User, Cloud } from 'lucide-react';
 import type {
   EnrichedImageContext,
   EnrichedCandidateRegion,
-  Problem,
 } from '@/types/enriched-context';
-import { PercentBar } from '@/components/ui/PercentBar';
 import { SectionHeader } from './SectionHeader';
 import { RegionThumbnail } from './RegionThumbnail';
 
@@ -28,16 +26,6 @@ export function RegionsSection({ ctx }: Props) {
           />
         ))}
       </div>
-      {ctx.problems.length > 0 && (
-        <div className="mt-3">
-          <SectionHeader icon={AlertTriangle} label="Problems" count={ctx.problems.length} />
-          <div className="flex flex-col gap-2">
-            {ctx.problems.map((p, i) => (
-              <ProblemRow key={i} problem={p} />
-            ))}
-          </div>
-        </div>
-      )}
     </section>
   );
 }
@@ -79,34 +67,6 @@ function RegionRow({
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function ProblemRow({ problem }: { problem: Problem }) {
-  return (
-    <div>
-      <div className="flex items-center gap-1.5 mb-0.5">
-        <span className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 bg-surface-secondary text-text-primary rounded-sm">
-          {problem.kind.replace(/_/g, ' ')}
-        </span>
-        {problem.region_label && (
-          <span className="text-[10px] text-text-secondary truncate">@ {problem.region_label}</span>
-        )}
-      </div>
-      <PercentBar pct={problem.severity * 100} color="#f59e0b" label="Severity" />
-      {problem.suggested_fused_tools.length > 0 && (
-        <div className="text-[10px] text-text-secondary mt-1 flex flex-wrap gap-1">
-          {problem.suggested_fused_tools.map((id) => (
-            <span
-              key={id}
-              className="bg-surface-secondary border border-separator rounded-[3px] px-1.5 py-px tabular-nums"
-            >
-              {id}
-            </span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

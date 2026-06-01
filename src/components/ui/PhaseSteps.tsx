@@ -32,11 +32,15 @@ function subCount(key: PhaseName, info: PhaseInfo | undefined): string | null {
     : null;
 }
 
-function StepIcon({ state }: { state: PhaseStatus }) {
+type Tone = 'accent' | 'ai';
+
+function StepIcon({ state, tone }: { state: PhaseStatus; tone: Tone }) {
+  const activeColor = tone === 'ai' ? 'text-ai' : 'text-accent';
+  const doneBg = tone === 'ai' ? 'bg-ai' : 'bg-emerald-500';
   if (state === 'done') {
     return (
       <span
-        className="flex size-4 items-center justify-center rounded-full bg-emerald-500 text-white"
+        className={`flex size-4 items-center justify-center rounded-full ${doneBg} text-white`}
         aria-hidden
       >
         <Check size={10} strokeWidth={3} />
@@ -46,7 +50,7 @@ function StepIcon({ state }: { state: PhaseStatus }) {
   if (state === 'active') {
     return (
       <span
-        className="flex size-4 items-center justify-center text-accent"
+        className={`flex size-4 items-center justify-center ${activeColor}`}
         aria-hidden
       >
         <Loader2 size={12} className="animate-spin" />
@@ -66,8 +70,12 @@ function StepIcon({ state }: { state: PhaseStatus }) {
 /**
  * Vertical list of the analyze phases with per-step status. Used by the Info
  * tab to reveal the full progress that the docked bar collapses to one line.
+ *
+ * `tone="ai"` paints active spinners + completed checkmarks in the violet
+ * AI accent — used inside the no-context overlay so the stepper visually
+ * belongs to the AI-driven flow.
  */
-export function PhaseSteps({ phases }: { phases: PhaseMap | null }) {
+export function PhaseSteps({ phases, tone = 'accent' }: { phases: PhaseMap | null; tone?: Tone }) {
   return (
     <ol className="flex flex-col gap-1.5">
       {PHASES.map((p) => {
@@ -82,7 +90,7 @@ export function PhaseSteps({ phases }: { phases: PhaseMap | null }) {
             : 'text-text-secondary/50';
         return (
           <li key={p.key} className="flex items-center gap-2 text-[11px]">
-            <StepIcon state={state} />
+            <StepIcon state={state} tone={tone} />
             <span className={`flex-1 leading-none ${labelColor}`}>{p.label}</span>
             {sub && (
               <span className="tabular-nums text-[10px] leading-none text-text-secondary">

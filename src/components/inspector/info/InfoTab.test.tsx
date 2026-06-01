@@ -52,8 +52,9 @@ describe('InfoTab', () => {
       mcpAnalyzeComplete: false,
     });
     render(<InfoTab />);
-    expect(screen.getByText('Analysis progress')).not.toBeNull();
-    expect(screen.queryByText('Analyze this image')).toBeNull();
+    // Overlay flips from CTA copy to "Analyzing image…" + the stepper phases.
+    expect(screen.getByText('Analyzing image…')).not.toBeNull();
+    expect(screen.getByText('Mechanical')).not.toBeNull();
   });
 
   it('renders an empty state when snapshot has no image_context', () => {
@@ -78,7 +79,10 @@ describe('InfoTab', () => {
     setSnapshotWithContext(makePartialContext());
     render(<InfoTab />);
     expect(screen.getByText('Semantic')).not.toBeNull();
-    expect(screen.queryByText('Problems')).toBeNull();
+    // Problems section header always renders once ctx is loaded — the body
+    // says "No issues detected." when the problems array is empty.
+    expect(screen.getByText('Problems')).not.toBeNull();
+    expect(screen.getByText('No issues detected.')).not.toBeNull();
     expect(screen.queryByText('Grade')).toBeNull();
   });
 });

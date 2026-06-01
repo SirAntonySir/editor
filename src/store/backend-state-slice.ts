@@ -231,7 +231,19 @@ export const useBackendState = create<BackendState>()(
             break;
           }
           case 'context.updated': {
-            s.snapshot.image_context = payload.image_context ?? null;
+            // The backend streams `image_context` in deltas (mechanical →
+            // cheap fields, ai_context → base fields, soft → augmented +
+            // problems). MERGE each partial onto the running snapshot so
+            // each Info-tab section can flip skeleton → real the moment its
+            // fields land. The terminal `{available: true}` ping carries no
+            // image_context — leave the snapshot unchanged for that one.
+            const partial = payload.image_context as
+              | Partial<NonNullable<SessionStateSnapshot['image_context']>>
+              | undefined;
+            if (partial) {
+              const existing = s.snapshot.image_context ?? {};
+              s.snapshot.image_context = { ...existing, ...partial } as never;
+            }
             break;
           }
           case 'selection.changed':

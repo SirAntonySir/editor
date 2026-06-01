@@ -12,7 +12,11 @@ interface Props {
 
 export function RegionsSection({ ctx }: Props) {
   // Region-stats lookup so we can surface skin/sky hints next to each region.
-  const statsByLabel = new Map(ctx.region_stats.map((s) => [s.label, s]));
+  // region_stats arrives on the SOFT delta — when candidate_regions is
+  // already in (ai_context delta) but region_stats isn't yet, the map is
+  // empty and the hint icons simply don't render. Defaults to [] to handle
+  // the partial-streaming case without crashing.
+  const statsByLabel = new Map((ctx.region_stats ?? []).map((s) => [s.label, s]));
   return (
     <section className="px-3 py-2.5 border-b border-separator">
       <SectionHeader icon={MapPin} label="Regions" count={ctx.candidate_regions.length} />

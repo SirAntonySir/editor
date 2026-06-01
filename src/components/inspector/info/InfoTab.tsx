@@ -31,31 +31,27 @@ export function InfoTab() {
 
   const preAnalyze = aiStatus === 'uploading' || aiStatus === 'analysing';
   const inAnalyze = preAnalyze || (phases !== null && !mcpComplete);
-  const livePhases = mcpComplete ? null : phases;
-  const prePhaseText =
-    livePhases
-      ? null
-      : aiStatus === 'uploading'
-      ? 'Uploading image…'
-      : aiStatus === 'analysing'
-      ? 'Connecting to backend…'
-      : null;
 
-  // Overlay is visible whenever there's no context yet. The moment ctx lands,
-  // the overlay drops out and the real sections take over the skeleton slots.
+  // Overlay shows only before the first context delta lands. The backend
+  // streams `context.updated` in pieces (mechanical / ai_context / soft), so
+  // ctx becomes non-null at the first delta and the overlay drops out
+  // immediately — leaving the per-section skeletons to communicate
+  // remaining progress as each delta swaps its slot in.
   const showOverlay = !ctx;
 
-  // Per-section real-or-skeleton. The image_context arrives as a blob via
-  // REST after analyze, so in practice all five flip together — but the
-  // per-field guard means a malformed snapshot degrades gracefully (the
-  // section that lacks its field stays as skeleton instead of crashing).
-  const hasSemantic = !!ctx && (ctx.subjects.length > 0 || !!ctx.lighting || !!ctx.mood);
-  const hasHistograms = !!ctx && ctx.luma_histogram.length > 0;
-  const hasColor = !!ctx && ctx.color_palette.length > 0;
-  const hasRegions = !!ctx && ctx.candidate_regions.length > 0;
-  // Problems is special: empty array is a valid "no issues" result, so the
-  // section's "real" view shows once ctx is present at all.
-  const hasProblems = !!ctx;
+  // Per-section real-or-skeleton, keyed by which phase produced each
+  // section's fields. With partial streaming, mechanical-only ctx has
+  // histograms + palette but not subjects/problems/etc. — those sections
+  // stay on the skeleton until their delta arrives. Optional chaining
+  // everywhere because ctx is a partial dict during streaming.
+  const hasSemantic =
+    !!ctx && ((ctx.subjects?.length ?? 0) > 0 || !!ctx.lighting || !!ctx.mood);
+  const hasHistograms = !!ctx && (ctx.luma_histogram?.length ?? 0) > 0;
+  const hasColor = !!ctx && (ctx.color_palette?.length ?? 0) > 0;
+  const hasRegions = !!ctx && (ctx.candidate_regions?.length ?? 0) > 0;
+  // Problems renders once the soft-fields delta lands (the field exists).
+  // Empty array is a valid "no issues" result, so we don't gate on length.
+  const hasProblems = !!ctx && ctx.problems !== undefined;
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto relative">
@@ -64,13 +60,7 @@ export function InfoTab() {
       {hasColor ? <ColorSection ctx={ctx!} /> : <ColorSkeleton />}
       {hasRegions ? <RegionsSection ctx={ctx!} /> : <RegionsSkeleton />}
       {hasProblems ? <ProblemsSection ctx={ctx!} /> : <ProblemsSkeleton />}
-      {showOverlay && (
-        <NoContextState
-          analyzing={inAnalyze}
-          phases={livePhases}
-          prePhaseText={prePhaseText}
-        />
-      )}
+      {showOverlay && <NoContextState analyzing={inAnalyze} />}
     </div>
   );
 }

@@ -39,7 +39,7 @@ describe('InfoTab', () => {
     expect(screen.getByRole('button', { name: /analyze with ai/i })).not.toBeNull();
   });
 
-  it('shows the analysis-progress steps while analyzing (no context yet)', () => {
+  it('keeps the overlay (with CTA in spinning state) while analyzing has no context yet', () => {
     useBackendState.setState({
       phases: {
         update: { status: 'done' },
@@ -52,9 +52,11 @@ describe('InfoTab', () => {
       mcpAnalyzeComplete: false,
     });
     render(<InfoTab />);
-    // Overlay flips from CTA copy to "Analyzing image…" + the stepper phases.
-    expect(screen.getByText('Analyzing image…')).not.toBeNull();
-    expect(screen.getByText('Mechanical')).not.toBeNull();
+    // The hero copy stays put; the CTA flips to its in-flight "Analyzing…"
+    // label. The stepper is intentionally gone — progress is communicated
+    // by the skeletons flipping to real sections as deltas land.
+    expect(screen.getByText('Analyze this image')).not.toBeNull();
+    expect(screen.getByText('Analyzing…')).not.toBeNull();
   });
 
   it('renders an empty state when snapshot has no image_context', () => {

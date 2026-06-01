@@ -13,7 +13,12 @@ const AB_RANGE = 50;
 const CAST_BOX_SIZE = 56;
 
 export function ColorSection({ ctx }: Props) {
-  const [r, g, b] = ctx.estimated_white_point;
+  // Streaming-aware: palette + cast arrive on the mechanical delta; white
+  // point + WB confidence land on the soft-fields delta. Render whatever's
+  // present, hold the rest as compact skeleton lines so the section grows
+  // into place rather than reflowing when soft arrives.
+  const hasWhitePoint = Array.isArray(ctx.estimated_white_point);
+  const [r, g, b] = hasWhitePoint ? ctx.estimated_white_point : [0, 0, 0];
   return (
     <section className="px-3 py-2.5 border-b border-separator">
       <SectionHeader icon={Palette} label="Color" />
@@ -35,14 +40,22 @@ export function ColorSection({ ctx }: Props) {
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 mb-2">
         <dt className="text-[10px] text-text-secondary">White point</dt>
         <dd className="text-[10px] text-text-primary text-right">
-          <span className="inline-flex items-center gap-1">
-            <Swatch rgb={ctx.estimated_white_point} size={10} />
-            <span className="tabular-nums">rgb({Math.round(r)}, {Math.round(g)}, {Math.round(b)})</span>
-          </span>
+          {hasWhitePoint ? (
+            <span className="inline-flex items-center gap-1">
+              <Swatch rgb={ctx.estimated_white_point} size={10} />
+              <span className="tabular-nums">rgb({Math.round(r)}, {Math.round(g)}, {Math.round(b)})</span>
+            </span>
+          ) : (
+            <span className="inline-block w-20 h-2.5 rounded-sm bg-surface-secondary" aria-hidden />
+          )}
         </dd>
         <dt className="text-[10px] text-text-secondary">WB confidence</dt>
         <dd className="text-[10px] text-text-primary text-right tabular-nums">
-          {(ctx.wb_neutral_confidence * 100).toFixed(0)}%
+          {typeof ctx.wb_neutral_confidence === 'number' ? (
+            `${(ctx.wb_neutral_confidence * 100).toFixed(0)}%`
+          ) : (
+            <span className="inline-block w-10 h-2.5 rounded-sm bg-surface-secondary" aria-hidden />
+          )}
         </dd>
       </dl>
       {ctx.cast_strength > 0 && <CastDot direction={ctx.cast_direction} strength={ctx.cast_strength} />}

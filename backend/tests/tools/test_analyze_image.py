@@ -374,6 +374,45 @@ def test_analyze_caps_at_max_for_many_problems(monkeypatch) -> None:
     fake.suggest_fused_tools_for_character.assert_not_called()
 
 
+def test_analyze_dedupes_tool_across_problems(monkeypatch) -> None:
+    """Two problems both suggesting `cast_correct` first must NOT yield two
+    near-identical `cast_correct` widgets. The second falls through to its
+    next-best suggestion (here `exposure_balance`)."""
+    fake = _fake_claude_for_topup(
+        problems=[
+            # Both list cast_correct first; if dedup is broken, both mint
+            # cast_correct widgets and the visual result is duplicate
+            # bindings at different scopes.
+            Problem(
+                kind="strong_color_cast", severity=0.8,
+                region_label="floured table surface",
+                suggested_fused_tools=["cast_correct", "cool_grade"],
+            ),
+            Problem(
+                kind="uneven_white_balance", severity=0.5, region_label=None,
+                suggested_fused_tools=["cast_correct", "exposure_balance"],
+            ),
+        ],
+        topup_picks=[],
+        resolve_values={
+            "corrective_kelvin": 0, "sat_correction": 0,
+            "temperature": 0, "saturation_lift": 0, "highlight_warmth": 0,
+            "shadows": 5, "highlights": -10, "whites": 0, "blacks": 0,
+            "highlight_amount": 0.5, "luma_curve_strength": 0.3,
+        },
+    )
+    monkeypatch.setattr(deps, "_anthropic_client", fake)
+    sid = _bootstrap_session()
+    client = TestClient(app)
+    client.post("/api/tools/analyze_image", json={"session_id": sid, "input": {}})
+    doc = deps.get_session_store().get_document(sid)
+    autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
+    fused_ids = sorted(w.fused_tool_id for w in autonomous)
+    # cast_correct is used by the first problem; the second problem falls
+    # through to exposure_balance. No duplicates.
+    assert fused_ids == ["cast_correct", "exposure_balance"]
+
+
 def test_analyze_skips_dismissed_topup_picks(monkeypatch) -> None:
     """If a dismissal rule already covers a top-up candidate, skip it."""
     from app.schemas.widget import DismissalRule

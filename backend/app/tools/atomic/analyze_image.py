@@ -321,6 +321,14 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
             if w.origin.kind == "mcp_autonomous" and w.status == "active"
         )
 
+    # Dedupe across problems: each fused_tool_id mints at most ONE widget
+    # across the entire problem-driven pass, regardless of scope. Two
+    # problems with overlapping `suggested_fused_tools` (e.g. cast_correct
+    # listed first for both "strong_color_cast" and "uneven_white_balance")
+    # would otherwise produce two near-identical widgets — the bindings are
+    # the same since the fused tool's skeleton is the same. The second
+    # problem falls through to its next-best tool instead.
+    used_fused_ids: set[str] = set()
     for problem in ctx.problems:
         if _count_autonomous_active() >= MAX_AUTONOMOUS_SUGGESTIONS:
             break
@@ -328,6 +336,8 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
             continue
         for fused_id in problem.suggested_fused_tools:
             if fused_id not in templates:
+                continue
+            if fused_id in used_fused_ids:
                 continue
             scope = _scope_for(problem)
             if _dismissed(fused_id, scope):
@@ -343,6 +353,7 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
                 continue
             _stamp(widget)
             doc.add_widget(widget)
+            used_fused_ids.add(fused_id)
             break  # one per problem
 
     # Top up via image-character match only when the problem-driven pass

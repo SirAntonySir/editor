@@ -235,22 +235,28 @@ function Handle({
   // 5×4 SVG path apex (top-centre) → base corners. Tiny but tight.
   // Padding around the SVG gives a generous hit area without the visible
   // triangle bloating.
+  // Fixed-size button (w-4 h-4 = 16×16) with flex centring instead of the
+  // earlier padding-driven sizing. The previous version offset visually
+  // because `p-1 -m-1` grew the button's bounding box asymmetrically
+  // relative to the inner SVG's flow position, so `-translate-x-1/2`
+  // ended up offset to the left. With explicit dimensions + flex, the
+  // SVG's apex centres exactly on `left: pct%`.
   return (
     <button
       type="button"
       aria-label={label}
       onPointerDown={onPointerDown}
-      className="absolute -translate-x-1/2 cursor-ew-resize touch-none
-        focus:outline-none focus-visible:ring-1 focus-visible:ring-accent
-        rounded-sm p-1 -m-1 hover:[&_svg]:scale-110 active:[&_svg]:scale-110
-        transition-transform"
+      className="absolute -translate-x-1/2 w-4 h-4 flex items-start justify-center
+        cursor-ew-resize touch-none focus:outline-none focus-visible:ring-1
+        focus-visible:ring-accent rounded-sm
+        hover:[&>svg]:scale-110 active:[&>svg]:scale-110"
       style={{ left: `${pct}%`, top: 'calc(100% - 2px)' }}
     >
       <svg
         width="10"
         height="8"
         viewBox="0 0 10 8"
-        className="block transition-transform"
+        className="block transition-transform origin-top"
         aria-hidden
       >
         <polygon

@@ -34,6 +34,11 @@ class _InvalidInput(Exception):
     pass
 
 
+class _MissingContext(Exception):
+    """Mapped to missing_context in the envelope by the registry."""
+    pass
+
+
 class _Input(BaseModel):
     intent: str = Field(min_length=1)
     scope: dict
@@ -60,7 +65,10 @@ class ProposeWidgetTool(BackendTool[_Input, _Output]):
     )
     input_schema = _Input
     output_schema = _Output
-    permissions = ToolPermissions(requires_image=True, requires_context=True)
+    # requires_context is False so the tool_invoked fast path (ships TOOL_DEFAULTS,
+    # no LLM, no image_context use) isn't blocked before analyze_image runs. The
+    # LLM path re-asserts context inside the handler (see _MissingContext).
+    permissions = ToolPermissions(requires_image=True, requires_context=False)
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         scope = Scope.model_validate(input.scope)
@@ -70,6 +78,12 @@ class ProposeWidgetTool(BackendTool[_Input, _Output]):
         # ----------------------------------------------------------------
         if input.origin == "tool_invoked":
             return self._handle_tool_invoked(doc, input, scope)
+
+        # The LLM path needs image_context; the fast path above does not. Since
+        # requires_context is now False at the permission layer, enforce it here
+        # for the LLM path only.
+        if doc.image_context is None:
+            raise _MissingContext("call analyze_image first")
 
         # ----------------------------------------------------------------
         # Normal path: LLM picks / resolves a fused tool.

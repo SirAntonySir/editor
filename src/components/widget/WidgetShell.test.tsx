@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import { WidgetShell } from './WidgetShell';
-import { makeAiWidget, makeToolWidget } from './__fixtures__/widgets';
+import { makeAiWidget, makeToolWidget, makeHslWidget } from './__fixtures__/widgets';
 import { useEditorStore } from '@/store';
 import { backendTools } from '@/lib/backend-tools';
 
@@ -114,5 +114,27 @@ describe('WidgetShell', () => {
         bindings: [expect.objectContaining({ paramKey: 'exposure', value: 40 })],
       }),
     );
+  });
+
+  const ALL_BANDS = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta'];
+
+  it('routes an all-bands HSL widget to the colour panel (By band / By channel)', () => {
+    useEditorStore.getState().toggleWidgetExpanded('w-hsl-1');
+    render(<WidgetShell widget={makeHslWidget(ALL_BANDS)} />);
+    expect(screen.getByText('By band')).toBeInTheDocument();
+    expect(screen.getByText('By channel')).toBeInTheDocument();
+  });
+
+  it('routes a single-band HSL widget to a 3-slider colour body (no view toggle)', () => {
+    useEditorStore.getState().toggleWidgetExpanded('w-hsl-1');
+    render(<WidgetShell widget={makeHslWidget(['blue'])} />);
+    expect(screen.queryByText('By band')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('slider').length).toBe(3);
+  });
+
+  it('non-HSL widget still renders binding rows, not the HSL panel', () => {
+    useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
+    render(<WidgetShell widget={makeAiWidget()} />);
+    expect(screen.queryByText('By band')).not.toBeInTheDocument();
   });
 });

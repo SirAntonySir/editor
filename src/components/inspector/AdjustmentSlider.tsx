@@ -20,6 +20,12 @@ interface AdjustmentSliderProps {
   provenance?: SliderProvenance;
   /** Called when an interaction ends (scrub/track release, text commit). */
   onCommit?: () => void;
+  /**
+   * When set, the track shows this CSS gradient instead of the fill-from-min
+   * style, and the thumb becomes a visible dot whose border carries provenance.
+   * Used by colour-meaningful bipolar controls (HSL). Omitted → unchanged.
+   */
+  trackGradient?: string;
 }
 
 function fillColorFor(provenance: SliderProvenance): string {
@@ -39,7 +45,9 @@ export function AdjustmentSlider({
   formatValue,
   provenance = 'hand',
   onCommit,
+  trackGradient,
 }: AdjustmentSliderProps) {
+  const colorTrack = trackGradient != null;
   const display = formatValue ? formatValue(value) : String(Math.round(value));
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -157,21 +165,32 @@ export function AdjustmentSlider({
         onValueCommit={handleValueCommit}
         onDoubleClick={() => { onChange(resetValue); onCommit?.(); }}
       >
-        <Slider.Track className="relative h-0.5 grow rounded-sm bg-surface-secondary overflow-hidden">
-          <Slider.Range
-            className="absolute h-full rounded-sm"
-            style={{
-              background: `linear-gradient(90deg,
-                color-mix(in srgb, ${fillColor} 55%, transparent),
-                ${fillColor})`,
-              width: `${fillPct}%`,
-            }}
-          />
+        <Slider.Track
+          className={`relative grow rounded-sm overflow-hidden ${colorTrack ? 'h-[3px]' : 'h-0.5 bg-surface-secondary'}`}
+          style={colorTrack ? { background: trackGradient } : undefined}
+        >
+          {!colorTrack && (
+            <Slider.Range
+              className="absolute h-full rounded-sm"
+              style={{
+                background: `linear-gradient(90deg,
+                  color-mix(in srgb, ${fillColor} 55%, transparent),
+                  ${fillColor})`,
+                width: `${fillPct}%`,
+              }}
+            />
+          )}
         </Slider.Track>
-        {/* Invisible thumb — Radix needs it for keyboard / aria, but we
-            hide it visually for the minimal pill look. */}
+        {/* Default: invisible thumb (Radix needs it for keyboard / aria) and the
+            fill carries provenance. Colour track: a visible dot whose border
+            carries provenance, since the track itself is now the colour. */}
         <Slider.Thumb
-          className="block w-3 h-3 -ml-1.5 opacity-0 focus:opacity-0 focus-visible:opacity-0"
+          className={
+            colorTrack
+              ? 'block w-2 h-2 -ml-1 rounded-full bg-surface border-2'
+              : 'block w-3 h-3 -ml-1.5 opacity-0 focus:opacity-0 focus-visible:opacity-0'
+          }
+          style={colorTrack ? { borderColor: fillColor } : undefined}
           aria-label={label}
         />
       </Slider.Root>

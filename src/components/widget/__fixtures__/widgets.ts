@@ -42,6 +42,35 @@ export function makeToolWidget(overrides: Partial<Widget> = {}): Widget {
   });
 }
 
+const HSL_CHANNELS = ['hue', 'sat', 'lum'] as const;
+
+/** An HSL widget over the given bands (all 3 channels each), node type 'hsl'.
+ *  One band → single-band widget; eight → all-bands. */
+export function makeHslWidget(bands: string[], overrides: Partial<Widget> = {}): Widget {
+  const nodeId = 'n-hsl';
+  const keys = bands.flatMap((b) => HSL_CHANNELS.map((c) => `${b}_${c}`));
+  return makeAiWidget({
+    id: 'w-hsl-1',
+    intent: 'HSL',
+    reasoning: undefined,
+    origin: { kind: 'tool_invoked' },
+    fused_tool_id: bands.length === 1 ? `hsl_${bands[0]}` : 'hsl',
+    scope: { kind: 'global' },
+    preview: { kind: 'none', auto_before_after: false },
+    nodes: [{
+      id: nodeId, type: 'hsl', scope: { kind: 'global' }, inputs: [], widget_id: 'w-hsl-1',
+      layer_id: 'L1', params: Object.fromEntries(keys.map((k) => [k, 0])),
+    }],
+    bindings: keys.map((k) => ({
+      param_key: k, label: k.replace('_', ' '), control_type: 'slider',
+      target: { node_id: nodeId, param_key: k },
+      control_schema: { control_type: 'slider', min: -100, max: 100, step: 1 },
+      value: 0, default: 0,
+    })),
+    ...overrides,
+  });
+}
+
 export function makeGlobalWidget(overrides: Partial<Widget> = {}): Widget {
   return makeAiWidget({
     id: 'w-global-1',

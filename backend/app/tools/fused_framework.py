@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -54,6 +54,16 @@ class BindingSkeleton(BaseModel):
     tunable_default: bool = True
 
 
+def _serialize_for_payload(value: Any) -> Any:
+    """JSON-friendly dump of a context attribute. Pydantic models → model_dump,
+    lists/tuples → recursive serialise, scalars pass through."""
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    if isinstance(value, (list, tuple)):
+        return [_serialize_for_payload(v) for v in value]
+    return value
+
+
 class FusedToolTemplate(ABC):
     id: str
     label: str
@@ -67,7 +77,6 @@ class FusedToolTemplate(ABC):
     safety: dict[str, Any]
     context_inputs: list[str]
 
-    @abstractmethod
     async def resolve(
         self,
         intent: str,
@@ -77,7 +86,50 @@ class FusedToolTemplate(ABC):
         instruction: str | None,
         anthropic: Any,
     ) -> ResolvedNumbers:
-        ...
+        """Default resolver: numeric-values-only schema generated from
+        `param_envelope`, prompt payload assembled from `context_inputs` via
+        `getattr` (missing attributes degrade to None). Subclasses override only
+        when they need a non-numeric schema (e.g. curve points) or unusual
+        prompt shaping."""
+        required_keys = list(self.param_envelope.keys())
+        response_schema = {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["values"],
+            "properties": {
+                "values": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": required_keys,
+                    "properties": {k: {"type": "number"} for k in required_keys},
+                },
+                "reasoning": {"type": "string"},
+            },
+        }
+        context_summary = {
+            k: _serialize_for_payload(getattr(ctx, k, None))
+            for k in self.context_inputs
+        }
+        prompt_payload = {
+            "intent": intent,
+            "scope": scope.model_dump(mode="json"),
+            "context_summary": context_summary,
+            "prior_widget_values": (
+                {b.param_key: b.value for b in prior_widget.bindings}
+                if prior_widget is not None else None
+            ),
+            "instruction": instruction,
+        }
+        try:
+            raw = anthropic.resolve_fused_tool(
+                template_id=self.id,
+                prompt_payload=prompt_payload,
+                response_schema=response_schema,
+                session_id=getattr(ctx, "model_version", None),
+            )
+        except Exception as exc:
+            raise ResolverError(str(exc)) from exc
+        return ResolvedNumbers.model_validate(raw)
 
 
 def _scope_is_skin_likely(scope: Scope, ctx: EnrichedImageContext | None) -> bool:

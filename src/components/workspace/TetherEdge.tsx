@@ -29,14 +29,17 @@ export function TetherEdge({
     sourcePosition, targetPosition,
     borderRadius: 12 * scale,
   });
-  // Marching-ants pattern: both scopes sum to 6 path-units so the CSS
-  // animation's -6 offset shift completes a full pattern per cycle (no
-  // jump on loop). Layer-scope reads near-solid (5 on, 1 off); node-scope
-  // reads as half-half dashes (3 on, 3 off). Pattern is in flow units so
-  // it does NOT scale with chrome — that's intentional, otherwise the
-  // dash sum drifts from the animation's offset shift and the loop jumps.
+  // Marching-ants pattern. Layer-scope reads near-solid (5 on, 1 off),
+  // node-scope reads as half-half dashes (3 on, 3 off). Pattern AND the
+  // animation's offset shift both scale with chrome — they stay in lockstep
+  // via the `--march-shift` CSS custom property, so the dash sum always
+  // equals the per-cycle offset shift and the loop stays seamless at any
+  // zoom.
   const isNodeScope = data?.scopeKind === 'node';
-  const dashArray = isNodeScope ? '3 3' : '5 1';
+  const dashSum = 6 * scale;
+  const dashArray = isNodeScope
+    ? `${3 * scale} ${3 * scale}`
+    : `${5 * scale} ${1 * scale}`;
   return (
     <>
       <BaseEdge
@@ -44,7 +47,14 @@ export function TetherEdge({
         path={path}
         strokeDasharray={dashArray}
         className="tether-march"
-        style={{ stroke: 'var(--color-accent)', strokeWidth, fill: 'none' }}
+        style={{
+          stroke: 'var(--color-accent)',
+          strokeWidth,
+          fill: 'none',
+          // Drives the keyframe's offset shift; equals the dash-pattern sum
+          // so the animation loops without snapping at any zoom level.
+          ['--march-shift' as string]: String(dashSum),
+        }}
       />
       <circle cx={sourceX} cy={sourceY} r={dot} fill="var(--color-accent)" />
       <circle cx={targetX} cy={targetY} r={dot} fill="var(--color-accent)" />

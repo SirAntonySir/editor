@@ -92,12 +92,11 @@ html, body, #root {
     var(--shadow-overlay);
 }
 
-/* Marching-ants animation for tether edges. Both tether scopes use a dash
- * pattern that sums to 6 path-units (layer `5 1`, node `3 3`), so a -6 offset
- * shift translates exactly one full pattern per cycle and the loop is
- * seamless — no visible jump at keyframe restart. */
+/* Marching-ants animation for tether edges. Each edge sets `--march-shift`
+ * inline so the offset shift always matches its own dash-pattern sum at the
+ * current viewport zoom — keeps the loop seamless as zoom changes. */
 @keyframes tether-march {
-  to { stroke-dashoffset: -6; }
+  to { stroke-dashoffset: calc(-1 * var(--march-shift, 6)); }
 }
 .tether-march {
   animation: tether-march 0.6s linear infinite;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
 import { LevelsHistogramControl } from '@/components/inspector/LevelsHistogramControl';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { PipelineManager } from '@/lib/pipeline-manager';
@@ -53,15 +54,51 @@ export function LevelsWidgetBody({
   const gammaBinding = byParam.get('gamma');
   if (!inBlackBinding || !inWhiteBinding || !gammaBinding) return null;
 
+  // Optional Output Levels — render the pair of sliders only if the
+  // widget binds them. None of today's fused templates do, but future
+  // ones (and the toolrail-spawned 'levels' tool widget) can.
+  const outBlackBinding = byParam.get('outBlack');
+  const outWhiteBinding = byParam.get('outWhite');
+
   return (
-    <LevelsHistogramControl
-      source={source}
-      inBlack={Number(effectiveValue(inBlackBinding))}
-      inWhite={Number(effectiveValue(inWhiteBinding))}
-      gamma={Number(effectiveValue(gammaBinding))}
-      onInBlackChange={(v) => setParam('inBlack', v)}
-      onInWhiteChange={(v) => setParam('inWhite', v)}
-      onGammaChange={(v) => setParam('gamma', v)}
-    />
+    <div className="flex flex-col gap-2">
+      <LevelsHistogramControl
+        source={source}
+        inBlack={Number(effectiveValue(inBlackBinding))}
+        inWhite={Number(effectiveValue(inWhiteBinding))}
+        gamma={Number(effectiveValue(gammaBinding))}
+        onInBlackChange={(v) => setParam('inBlack', v)}
+        onInWhiteChange={(v) => setParam('inWhite', v)}
+        onGammaChange={(v) => setParam('gamma', v)}
+      />
+      {(outBlackBinding || outWhiteBinding) && (
+        <>
+          <div className="h-px bg-separator" />
+          <div className="text-[9px] uppercase tracking-wide text-text-secondary">
+            Output Levels
+          </div>
+          {outBlackBinding && (
+            <AdjustmentSlider
+              label="Output Black"
+              value={Number(effectiveValue(outBlackBinding))}
+              min={0}
+              max={255}
+              defaultValue={0}
+              onChange={(v) => setParam('outBlack', v)}
+            />
+          )}
+          {outWhiteBinding && (
+            <AdjustmentSlider
+              label="Output White"
+              value={Number(effectiveValue(outWhiteBinding))}
+              min={0}
+              max={255}
+              defaultValue={255}
+              onChange={(v) => setParam('outWhite', v)}
+            />
+          )}
+        </>
+      )}
+    </div>
   );
 }

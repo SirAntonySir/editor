@@ -6,6 +6,8 @@ import { backendTools } from '@/lib/backend-tools';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
 import { BindingRow } from '@/components/inspector/widget/BindingRow';
+import { HslWidgetBody, isHslWidget } from '@/components/widget/HslWidgetBody';
+import { LevelsWidgetBody, isFullLevelsWidget } from '@/components/widget/LevelsWidgetBody';
 import { WhyPopover } from '@/components/widget/WhyPopover';
 import { bindingProvenance, touchKey } from '@/hooks/useParamProvenance';
 import { engineNeutralForBinding } from '@/engine/registry';
@@ -184,31 +186,56 @@ export function AiSection({ widget }: AiSectionProps) {
 
       {expanded && (
         <div className="flex flex-col gap-2 px-2.5 pb-2">
-          {opGroups.map((grp) => (
-            <div key={grp.nodeId} className="flex flex-col gap-1.5">
-              {grp.label && (
-                <div className="flex items-center gap-1.5 pt-0.5">
-                  <span className="text-[9px] uppercase tracking-wide text-text-secondary">
-                    {grp.label}
-                  </span>
-                  <span className="flex-1 h-px bg-separator" aria-hidden />
-                </div>
-              )}
-              {grp.bindings.map((b) => {
-                const eff = effectiveOf(b);
-                return (
-                  <BindingRow
-                    key={b.target.node_id + ':' + b.target.param_key}
-                    binding={b}
-                    effectiveValue={eff}
-                    onChange={(v) => setParam(b, v)}
-                    maskSummaries={maskSummaries}
-                    provenance={provenanceOf(b, eff)}
-                  />
-                );
-              })}
-            </div>
-          ))}
+          {/* Rich-shape detection — match the canvas WidgetShell's
+              affordance so the same widget reads the same way in both
+              places. HSL → the colour-rail panel; full Levels → the
+              histogram-with-handles. Anything else falls through to the
+              op-grouped BindingRow list below. */}
+          {isHslWidget(widget) ? (
+            <HslWidgetBody
+              widget={widget}
+              effectiveValue={effectiveOf}
+              setParam={(key, v) => {
+                const b = widget.bindings.find((x) => x.param_key === key);
+                if (b) setParam(b, v);
+              }}
+            />
+          ) : isFullLevelsWidget(widget) ? (
+            <LevelsWidgetBody
+              widget={widget}
+              effectiveValue={effectiveOf}
+              setParam={(key, v) => {
+                const b = widget.bindings.find((x) => x.param_key === key);
+                if (b) setParam(b, v);
+              }}
+            />
+          ) : (
+            opGroups.map((grp) => (
+              <div key={grp.nodeId} className="flex flex-col gap-1.5">
+                {grp.label && (
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <span className="text-[9px] uppercase tracking-wide text-text-secondary">
+                      {grp.label}
+                    </span>
+                    <span className="flex-1 h-px bg-separator" aria-hidden />
+                  </div>
+                )}
+                {grp.bindings.map((b) => {
+                  const eff = effectiveOf(b);
+                  return (
+                    <BindingRow
+                      key={b.target.node_id + ':' + b.target.param_key}
+                      binding={b}
+                      effectiveValue={eff}
+                      onChange={(v) => setParam(b, v)}
+                      maskSummaries={maskSummaries}
+                      provenance={provenanceOf(b, eff)}
+                    />
+                  );
+                })}
+              </div>
+            ))
+          )}
           <div className="flex items-center gap-px pt-1 border-t border-separator">
             <WhyPopover open={showWhy} widget={widget} onOpenChange={setShowWhy}>
               <button

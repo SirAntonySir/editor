@@ -20,14 +20,18 @@ function renderEdge(scopeKind: 'layer' | 'node') {
 }
 
 describe('TetherEdge', () => {
-  it('solid line for layer-scope', () => {
+  it('near-solid dash pattern for layer-scope (marches via CSS animation)', () => {
     const { container } = renderEdge('layer');
     const path = container.querySelector('path');
-    expect(path?.getAttribute('stroke-dasharray')).toBeFalsy();
+    // Layer-scope uses a long dash + short gap so the marching-ants animation
+    // is visible without the line looking obviously dashed at rest.
+    expect(path?.getAttribute('stroke-dasharray')).toBe('5 2');
+    expect(path?.classList.contains('tether-march')).toBe(true);
   });
   it('dashed line for node-scope', () => {
     const { container } = renderEdge('node');
     const path = container.querySelector('path');
     expect(path?.getAttribute('stroke-dasharray')).toBe('3 3');
+    expect(path?.classList.contains('tether-march')).toBe(true);
   });
 });

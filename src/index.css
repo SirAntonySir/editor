@@ -92,6 +92,20 @@ html, body, #root {
     var(--shadow-overlay);
 }
 
+/* Marching-ants animation for tether edges. The dash pattern is set inline
+ * on each edge (per-scope, scaled to viewport zoom); this rule only handles
+ * the offset shift. Magnitude is intentionally generous so the motion reads
+ * across both short and long edges without tuning per-edge. */
+@keyframes tether-march {
+  to { stroke-dashoffset: -16; }
+}
+.tether-march {
+  animation: tether-march 0.7s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tether-march { animation: none; }
+}
+
 /* React Flow controls — ported into the flat register so the zoom/fit
  * buttons follow the theme tokens (and read well in dark mode).
  * Prefixed with `.react-flow` to outrank the library's same-specificity

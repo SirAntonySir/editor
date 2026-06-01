@@ -29,13 +29,18 @@ export function TetherEdge({
   const scale = useChromeScale();
   const strokeWidth = 1.5 * scale;
   const dot = 3 * scale;
-  const dashArray = data?.scopeKind === 'node' ? `${3 * scale} ${3 * scale}` : undefined;
+  // Marching-ants pattern: layer-scope reads as near-solid (short gaps),
+  // node-scope as a true dashed line. Both animate via the .tether-march
+  // CSS rule (see index.css); animation respects prefers-reduced-motion.
+  const isNodeScope = data?.scopeKind === 'node';
+  const dashArray = isNodeScope ? `${3 * scale} ${3 * scale}` : `${5 * scale} ${2 * scale}`;
   return (
     <>
       <BaseEdge
         id={id}
         path={path}
         strokeDasharray={dashArray}
+        className="tether-march"
         style={{ stroke: 'var(--color-accent)', strokeWidth, fill: 'none' }}
       />
       <circle cx={sourceX} cy={sourceY} r={dot} fill="var(--color-accent)" />

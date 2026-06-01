@@ -56,10 +56,12 @@ export function InfoTab() {
 
   // Overlay sits as a SIBLING of the ScrollArea (not inside it) so the hero
   // copy stays fixed in the viewport rather than scrolling with the
-  // skeleton content underneath.
+  // skeleton content underneath. `relative` on the wrapper anchors the
+  // overlay's `absolute inset-0`; `flex flex-col` lets the ScrollArea
+  // claim all the remaining height via `flex-1 min-h-0`.
   return (
-    <div className="flex-1 min-h-0 relative">
-      <ScrollArea className="absolute inset-0">
+    <div className="flex-1 min-h-0 relative flex flex-col">
+      <ScrollArea className="flex-1 min-h-0">
         {hasSemantic ? <SemanticSection ctx={ctx!} /> : <SemanticSkeleton />}
         {hasHistograms ? <HistogramsSection ctx={ctx!} /> : <HistogramsSkeleton />}
         {hasColor ? <ColorSection ctx={ctx!} /> : <ColorSkeleton />}

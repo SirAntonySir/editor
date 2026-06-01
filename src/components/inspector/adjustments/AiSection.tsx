@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronRight, ChevronDown, X, HelpCircle, ArrowUpRight } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
+import { ProcessingRegistry } from '@/lib/processing-registry';
 import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
 import { BindingRow } from '@/components/inspector/widget/BindingRow';
 import { bindingProvenance, touchKey } from '@/hooks/useParamProvenance';
@@ -110,6 +111,33 @@ export function AiSection({ widget }: AiSectionProps) {
     return bindingProvenance(eff, b.default, true, isTouched);
   }
 
+  // Group bindings by the node (operation) they target so the user can see
+  // which ops the AI composed. Order preserves first-appearance of each node
+  // in the original bindings list. Bindings whose target_node_id has no
+  // matching widget node fall into a synthetic "_" bucket and render without
+  // a header (defensive — shouldn't happen in practice).
+  const opGroups = useMemo(() => {
+    const order: string[] = [];
+    const byNode = new Map<string, ControlBinding[]>();
+    for (const b of widget.bindings) {
+      const nid = b.target.node_id;
+      if (!byNode.has(nid)) {
+        byNode.set(nid, []);
+        order.push(nid);
+      }
+      byNode.get(nid)!.push(b);
+    }
+    return order.map((nid) => {
+      const node = widget.nodes.find((n) => n.id === nid);
+      return {
+        nodeId: nid,
+        nodeType: node?.type ?? '',
+        label: node ? ProcessingRegistry.getAdjustmentName(node.type) : '',
+        bindings: byNode.get(nid)!,
+      };
+    });
+  }, [widget.bindings, widget.nodes]);
+
   // TODO(accordion): wire Refine — deferred, see plan Task 7
   return (
     <div className="border-b border-separator">
@@ -152,19 +180,31 @@ export function AiSection({ widget }: AiSectionProps) {
           {showWhy && widget.reasoning && (
             <p className="text-[10px] leading-snug text-text-secondary">{widget.reasoning}</p>
           )}
-          {widget.bindings.map((b) => {
-            const eff = effectiveOf(b);
-            return (
-              <BindingRow
-                key={b.target.node_id + ':' + b.target.param_key}
-                binding={b}
-                effectiveValue={eff}
-                onChange={(v) => setParam(b, v)}
-                maskSummaries={maskSummaries}
-                provenance={provenanceOf(b, eff)}
-              />
-            );
-          })}
+          {opGroups.map((grp) => (
+            <div key={grp.nodeId} className="flex flex-col gap-1.5">
+              {grp.label && (
+                <div className="flex items-center gap-1.5 pt-0.5">
+                  <span className="text-[9px] uppercase tracking-wide text-text-secondary">
+                    {grp.label}
+                  </span>
+                  <span className="flex-1 h-px bg-separator" aria-hidden />
+                </div>
+              )}
+              {grp.bindings.map((b) => {
+                const eff = effectiveOf(b);
+                return (
+                  <BindingRow
+                    key={b.target.node_id + ':' + b.target.param_key}
+                    binding={b}
+                    effectiveValue={eff}
+                    onChange={(v) => setParam(b, v)}
+                    maskSummaries={maskSummaries}
+                    provenance={provenanceOf(b, eff)}
+                  />
+                );
+              })}
+            </div>
+          ))}
           <div className="flex items-center gap-px pt-1 border-t border-separator">
             <button
               type="button"

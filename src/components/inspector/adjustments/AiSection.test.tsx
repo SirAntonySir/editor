@@ -4,7 +4,10 @@ import { AiSection } from './AiSection';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { backendTools } from '@/lib/backend-tools';
+import { registerAllProcessing } from '@/processing';
 import type { Widget } from '@/types/widget';
+
+registerAllProcessing();
 
 vi.mock('@/lib/backend-tools', () => ({ backendTools: {
   accept_widget: vi.fn().mockResolvedValue({ ok: true }),
@@ -55,6 +58,44 @@ it('the arrow engages the suggestion onto the canvas, then disables once placed'
   cleanup();
   render(<AiSection widget={widget} />);
   expect((screen.getByLabelText('Already on canvas') as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('renders an op header for each underlying node so multi-op widgets show their composition', () => {
+  // Multi-op widget: kelvin + basic (typical of warm_grade, cast_correct, …).
+  const w = {
+    id: 'w_multi', intent: 'Warm and pop', status: 'active',
+    origin: { kind: 'mcp_autonomous' }, scope: { root: { kind: 'global' } },
+    nodes: [
+      { id: 'n_kelvin', type: 'kelvin', layer_id: 'L1', params: {} },
+      { id: 'n_basic', type: 'basic', layer_id: 'L1', params: {} },
+    ],
+    bindings: [
+      {
+        param_key: 'temperature', label: 'Warmth', control_type: 'slider',
+        control_schema: { control_type: 'slider', min: -2000, max: 2000, step: 50 },
+        target: { node_id: 'n_kelvin', param_key: 'temperature' },
+        value: 200, default: 200,
+      },
+      {
+        param_key: 'saturation', label: 'Saturation', control_type: 'slider',
+        control_schema: { control_type: 'slider', min: -100, max: 100, step: 1 },
+        target: { node_id: 'n_basic', param_key: 'saturation' },
+        value: 5, default: 5,
+      },
+    ],
+    preview: { kind: 'none' },
+  } as unknown as Widget;
+  useBackendState.setState({ snapshot: { ...useBackendState.getState().snapshot!, widgets: [w] } } as never);
+  useEditorStore.setState({ expandedSectionIds: new Set(['w_multi']) } as never);
+
+  render(<AiSection widget={w} />);
+  // Both op headers are visible alongside the bindings.
+  // kelvin processing def's label is 'White Balance' (see processing/kelvin.tsx).
+  expect(screen.getByText('White Balance')).toBeTruthy();
+  // 'basic' shaderBinding is shared by Light + Color processing defs.
+  expect(screen.getByText('Light & Color')).toBeTruthy();
+  expect(screen.getByText('Warmth')).toBeTruthy();
+  expect(screen.getByText('Saturation')).toBeTruthy();
 });
 
 it('keys AI-suggestion optimistic preview on the canonical node id, not the widget node id', () => {

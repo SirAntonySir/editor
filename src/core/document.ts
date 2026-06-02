@@ -16,6 +16,7 @@ import * as history from './history';
 import { putSource } from './pixel-source-store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
+import { clearInternalCanvasCache } from '@/lib/image-node-geometry';
 
 const DEBOUNCE_MS = 2000;
 
@@ -151,6 +152,7 @@ function closeDocument(): void {
   useBackendState.getState().reset();
   // Workspace: image nodes, widget nodes, tether edges, active selection.
   useEditorStore.getState().resetWorkspace();
+  clearInternalCanvasCache();
   if (store) {
     store.setState({
       layers: [],

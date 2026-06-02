@@ -15,6 +15,8 @@ from app.schemas.widget import (
 )
 from app.state.canonical import Canonical, clear_param_value, set_param_value
 
+ImageNodeTransform = dict[str, Any]  # {"layer_ids": list[str], "crop": dict|None, "rotate": dict|None}
+
 
 class SessionDocument(BaseModel):
     """Authoritative per-session state. Owns widgets, masks, dismissals,
@@ -31,6 +33,7 @@ class SessionDocument(BaseModel):
     active_mask_id: str | None = None
     committed_mask_id: str | None = None
     canonical: Canonical = Field(default_factory=dict)
+    image_node_transforms: dict[str, ImageNodeTransform] = Field(default_factory=dict)
     widgets: dict[str, Widget] = Field(default_factory=dict)
     widget_order: list[str] = Field(default_factory=list)
     dismissals: list[DismissalRule] = Field(default_factory=list)
@@ -174,6 +177,28 @@ class SessionDocument(BaseModel):
         set_param_value(self.canonical, layer_id, op, param, value)
         return [self._emit("canonical.updated", {
             "layer_id": layer_id, "op": op, "param": param, "value": value,
+            "operation_graph": self._op_graph_payload(),
+        })]
+
+    def set_image_node_transform(
+        self,
+        image_node_id: str,
+        layer_ids: list[str],
+        crop: dict | None,
+        rotate: dict | None,
+    ) -> list[StateEvent]:
+        """Upsert crop/rotate for an image node. If both are None, remove the
+        entry entirely so the projection emits no nodes."""
+        if crop is None and rotate is None:
+            self.image_node_transforms.pop(image_node_id, None)
+        else:
+            self.image_node_transforms[image_node_id] = {
+                "layer_ids": list(layer_ids),
+                "crop": crop,
+                "rotate": rotate,
+            }
+        return [self._emit("image_node_transform.updated", {
+            "image_node_id": image_node_id,
             "operation_graph": self._op_graph_payload(),
         })]
 

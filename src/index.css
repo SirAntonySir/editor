@@ -92,6 +92,20 @@ html, body, #root {
     var(--shadow-overlay);
 }
 
+/* Accent selection glow for workspace nodes (image node + tool-invoked
+ * widgets). AI widgets keep widget-shell-ai's violet glow on selection;
+ * this class is not applied to them. Bloom geometry uses --chrome-scale
+ * so the on-screen size stays constant at any workspace zoom. ImageNode
+ * sets --chrome-scale via useChromeScale(); WidgetShell omits the override
+ * (WidgetNode's outer transform already counter-scales the whole shell). */
+.workspace-node-selected {
+  border-color: var(--color-accent);
+  box-shadow:
+    0 0 0 var(--overlay-border-width, 1px) color-mix(in srgb, var(--color-accent) 35%, transparent),
+    0 0 calc(14px * var(--chrome-scale, 1)) calc(2px * var(--chrome-scale, 1)) color-mix(in srgb, var(--color-accent) 28%, transparent),
+    var(--overlay-shadow, var(--shadow-overlay));
+}
+
 /* Skeleton-shimmer animation for empty-state previews. A diagonal accent
  * gradient sweeps across the element, riding atop whatever surface tile it
  * sits on. Respects prefers-reduced-motion. */

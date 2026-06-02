@@ -34,12 +34,14 @@ toggleWidgetHidden(id: string): void;
 
 `toggleWidgetHidden` adds/removes the id idempotently. Initial state: empty set.
 
-**UI:** A new icon button in `WidgetShellHeader.tsx`, placed between the dirty dot and the scope chip:
+**UI:** A new icon button in `WidgetShellHeader.tsx`, placed at the right end of the header just before the expand chevron (i.e. after the scope chip, before `⌄` / `›`):
 
 - icon: `Eye` (visible) / `EyeOff` (hidden) from `lucide-react`, size 11
 - `aria-label`: `"Hide widget"` / `"Show widget"`
 - `onClick` calls `e.stopPropagation()` so the header's expand toggle doesn't fire
 - styled to match the existing footer button affordance (text-secondary → text-primary on hover, no background pill)
+
+**Drop the dirty dot.** As part of this change, remove the existing "bindings edited" indicator from `WidgetShellHeader` (the blue 5×5 dot rendered when `dirty === true`). The `dirty` computation in `WidgetShell` stays — keep it as the prop interface in case future affordances want it — but the header no longer renders it. Rationale: the slider provenance colour already shows edited-state per binding when the shell is expanded; collapsed shells don't need a separate signal once the eye becomes the action right of the scope chip.
 
 **Hidden-state styling:** `WidgetShell` receives a derived `hidden` boolean and adds `opacity-60` to its root when hidden. Sliders inside stay interactive — hide affects render only, not editing.
 
@@ -69,16 +71,15 @@ const nodeScopeNodes = nodes.filter(
 
 **State (transient, local to `ImageNode`):** `const [compareHeld, setCompareHeld] = useState(false)`. No store changes — only the one node that owns the button needs to know.
 
-**UI:** A new icon button in the top-right corner of `ImageNode`, stacked to the left of the existing Split button:
+**UI:** A new icon button placed inline in the existing top header strip of `ImageNode` (the same strip that renders the `Image` icon, the title, and the `N LAYERS` badge), positioned between the title and the badge:
 
-- icon: `Eye` from `lucide-react`, size 10
-- positioning: `absolute -top-2 -right-[26px]` (or similar), `chromeScale`-aware via the same `cornerBtnScale` transform pattern Split already uses
+- icon: `Eye` from `lucide-react`, size 11
+- styling: matches the layer-strip badge surface — small 16×16 inline button, transparent background, `text-text-secondary → text-text-primary` on hover, 3px radius
 - `aria-label`: `"Show original (hold)"`
-- visible only when `selected` (same gate as Split)
-- handlers:
-  - `onPointerDown` → `e.preventDefault()`, `setCompareHeld(true)`
-  - `onPointerUp` / `onPointerLeave` / `onPointerCancel` → `setCompareHeld(false)`
-  - `preventDefault` stops React Flow from interpreting the gesture as a node drag
+- visible whenever the ImageNode is rendered (no `selected` gate — the header strip is always on)
+- because the parent header strip carries `workspace-drag-handle` (React Flow's drag region), the button must:
+  - `onPointerDown` → `e.stopPropagation()` and `e.preventDefault()`, `setCompareHeld(true)`
+  - `onPointerUp` / `onPointerLeave` / `onPointerCancel` → `setCompareHeld(false)` (also `stopPropagation` on the down event is what prevents React Flow from starting a drag on this pointer)
 
 **Wiring:** `compareHeld` flows `ImageNode` → `ImageNodeBody` → `useImageNodeRender` → `renderImageNodeComposite` as a new `bypassAdjustments: boolean` argument.
 
@@ -98,8 +99,8 @@ const nodeScopeNodes = nodes.filter(
 |---|---|
 | `src/store/tool-slice.ts` | Add `hiddenWidgetIds`, `toggleWidgetHidden` |
 | `src/store/tool-slice.test.ts` | Toggle behavior tests |
-| `src/components/widget/WidgetShellHeader.tsx` | Eye icon button + handler |
-| `src/components/widget/WidgetShellHeader.test.tsx` | Eye click does not propagate; aria-label flips |
+| `src/components/widget/WidgetShellHeader.tsx` | Eye icon button + handler (placed right of scope chip, before chevron); remove dirty-dot render |
+| `src/components/widget/WidgetShellHeader.test.tsx` | Eye click does not propagate; aria-label flips; dirty-dot is never rendered |
 | `src/components/widget/WidgetShell.tsx` | Derive `hidden`, apply `opacity-60` |
 | `src/components/widget/WidgetShell.test.tsx` | Hidden class assertion |
 | `src/hooks/useImageNodeRender.ts` | Subscribe to `hiddenWidgetIds`; build `hiddenNodeIds`; thread `bypassAdjustments` |
@@ -116,7 +117,7 @@ No backend changes. No new files.
 ## Testing strategy (TDD)
 
 1. **`tool-slice.test.ts`** — `toggleWidgetHidden` adds an id then removes it; second toggle on a new id leaves the first present.
-2. **`WidgetShellHeader.test.tsx`** — eye button renders; clicking it does not fire the header's onToggle (assert via spy); aria-label flips between "Hide widget" and "Show widget" based on `hidden` prop.
+2. **`WidgetShellHeader.test.tsx`** — eye button renders to the right of the scope chip and before the chevron; clicking it does not fire the header's onToggle (assert via spy); aria-label flips between "Hide widget" and "Show widget" based on `hidden` prop; the previous dirty-dot element is no longer in the DOM regardless of `dirty` prop value.
 3. **`WidgetShell.test.tsx`** — when `hiddenWidgetIds` contains the widget id, the root has `opacity-60`.
 4. **`image-node-renderer.test.ts`**
    - Given a widget node n in `hiddenNodeIds`, n's adjustment is not in the `Adjustment[]` passed to `PipelineManager`.
@@ -128,4 +129,4 @@ No backend changes. No new files.
 ## Risks / open questions
 
 - **None blocking.** The renderer additions are purely subtractive (skip a node, skip a pass) and don't introduce new pipelines.
-- If users find the compare button position cramped next to Split, the corner row can become a flex container of icon-buttons in a follow-up. Not done now to keep the diff focused.
+- The ImageNode top header strip carries React Flow's `workspace-drag-handle` class. The compare button must `stopPropagation` on `pointerdown` so the press doesn't simultaneously initiate a node drag. The existing `ImageNodeSelectionPopover` wrapping the strip listens for clicks too — verify in the test that the popover does not open when the compare button is pressed.

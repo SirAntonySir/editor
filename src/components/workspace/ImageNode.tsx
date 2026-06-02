@@ -12,6 +12,18 @@ import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 
+function effectiveSize(
+  base: { w: number; h: number },
+  rotateAngle: number | null,
+): { w: number; h: number } {
+  if (rotateAngle == null) return base;
+  // Normalise to [0, 360)
+  const a = ((rotateAngle % 360) + 360) % 360;
+  // Within ~1° of 90 or 270 → swap.
+  if (Math.abs(a - 90) < 1 || Math.abs(a - 270) < 1) return { w: base.h, h: base.w };
+  return base;
+}
+
 export interface ImageNodeData extends Record<string, unknown> {
   name?: string;
   layerIds: string[];
@@ -31,6 +43,16 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   const canSplit = data.layerIds.length >= 2;
   const chromeScale = useChromeScale();
   const chromeVisible = useChromeVisible();
+
+  const rotateAngle = useBackendState((s) => {
+    const node = s.snapshot?.operation_graph.nodes.find(
+      (n) => n.id === `transform:${id}:rotate`,
+    );
+    if (!node) return null;
+    return (node.params.angle as number) ?? null;
+  });
+
+  const size = effectiveSize(data.size, rotateAngle);
 
   const updateNodeInternals = useUpdateNodeInternals();
   useEffect(() => {
@@ -155,7 +177,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   }
 
   return (
-    <div className="relative" style={{ width: data.size.w + 2 /* outer border */ }}>
+    <div className="relative" style={{ width: size.w + 2 /* outer border */ }}>
       <div
         className={`overlay overflow-hidden ${selected ? 'workspace-node-selected' : ''}`}
         style={{
@@ -181,10 +203,10 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
                   <button
                     type="button"
                     aria-label="Image node menu"
-                    className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-[3px] text-text-secondary hover:bg-surface-secondary hover:text-text-primary cursor-pointer"
+                    className="ml-0.5 inline-flex items-center justify-center w-3.5 h-3.5 rounded-[3px] text-text-secondary hover:bg-surface-secondary hover:text-text-primary cursor-pointer"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <MoreHorizontal size={12} aria-hidden />
+                    <MoreHorizontal size={10} aria-hidden />
                   </button>
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Portal>
@@ -198,7 +220,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
         )}
         <ContextMenu.Root>
           <ContextMenu.Trigger>
-            <ImageNodeBody imageNodeId={id} layerIds={data.layerIds} width={data.size.w} height={data.size.h} />
+            <ImageNodeBody imageNodeId={id} layerIds={data.layerIds} width={size.w} height={size.h} />
           </ContextMenu.Trigger>
           <ContextMenu.Portal>
             <ContextMenu.Content className="overlay p-1 min-w-[140px] z-50">
@@ -211,7 +233,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
             className="flex items-center gap-1.5 px-2 py-1 text-[9px] text-text-secondary bg-surface border-t border-separator"
             style={stripScaleBottom}
           >
-            <span className="num">{data.size.w} × {data.size.h}</span>
+            <span className="num">{size.w} × {size.h}</span>
             <span className="flex-1" />
             <span>Layer {(data.activeLayerIndex ?? 0) + 1}</span>
           </div>

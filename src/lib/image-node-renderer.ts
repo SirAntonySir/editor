@@ -155,33 +155,47 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   );
 
   if (rotateNode || cropNode) {
+    const angle = rotateNode ? ((rotateNode.params.angle as number) ?? 0) : 0;
+    const flipH = rotateNode ? ((rotateNode.params.flip_h as boolean) ?? false) : false;
+    const flipV = rotateNode ? ((rotateNode.params.flip_v as boolean) ?? false) : false;
+
+    // Effective angle in [0, 360)
+    const a = ((angle % 360) + 360) % 360;
+    const swap = Math.abs(a - 90) < 1 || Math.abs(a - 270) < 1;
+
+    // Source dims = pre-rotation. When the ImageNode passes effective (swapped)
+    // dims for 90/270, canvas.width/height are the swapped values. The
+    // per-layer compositing drew into that backing store, squashing the source
+    // pixels into the wrong aspect. We fix this by re-sampling back to the
+    // source dims in the offscreen canvas, then rotating into the effective
+    // (swapped) canvas.
+    const srcW = swap ? canvas.height : canvas.width;
+    const srcH = swap ? canvas.width  : canvas.height;
+
     const off = document.createElement('canvas');
-    off.width = canvas.width;
-    off.height = canvas.height;
+    off.width = srcW;
+    off.height = srcH;
     const offCtx = off.getContext('2d');
     if (offCtx) {
-      offCtx.drawImage(canvas, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Re-draw the composite at source dims (resamples from swapped backing
+      // store to the pre-rotation aspect ratio).
+      offCtx.drawImage(canvas, 0, 0, srcW, srcH);
 
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.save();
-      if (rotateNode) {
-        const angle = (rotateNode.params.angle as number) ?? 0;
-        const flipH = (rotateNode.params.flip_h as boolean) ?? false;
-        const flipV = (rotateNode.params.flip_v as boolean) ?? false;
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate((angle * Math.PI) / 180);
-        ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
-        ctx.translate(-canvas.width / 2, -canvas.height / 2);
-      }
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((angle * Math.PI) / 180);
+      ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+      ctx.translate(-srcW / 2, -srcH / 2);
+
       if (cropNode) {
         const cx = (cropNode.params.x as number) ?? 0;
         const cy = (cropNode.params.y as number) ?? 0;
-        const cw = (cropNode.params.w as number) ?? canvas.width;
-        const ch = (cropNode.params.h as number) ?? canvas.height;
-        // Draw only the crop region, scaled to fill the canvas.
-        ctx.drawImage(off, cx, cy, cw, ch, 0, 0, canvas.width, canvas.height);
+        const cw = (cropNode.params.w as number) ?? srcW;
+        const ch = (cropNode.params.h as number) ?? srcH;
+        ctx.drawImage(off, cx, cy, cw, ch, 0, 0, srcW, srcH);
       } else {
-        ctx.drawImage(off, 0, 0);
+        ctx.drawImage(off, 0, 0, srcW, srcH);
       }
       ctx.restore();
     }

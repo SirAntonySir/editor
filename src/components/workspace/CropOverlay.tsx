@@ -19,6 +19,22 @@ const ASPECTS: { label: string; ratio: number | null }[] = [
   { label: '16:9', ratio: 16 / 9 },
 ];
 
+function applyCornerDelta(
+  start: CropRect, corner: 'tl' | 'tr' | 'bl' | 'br',
+  dx: number, dy: number, maxW: number, maxH: number,
+): CropRect {
+  let { x, y, w, h } = start;
+  if (corner === 'tl') { x += dx; y += dy; w -= dx; h -= dy; }
+  if (corner === 'tr') { y += dy; w += dx; h -= dy; }
+  if (corner === 'bl') { x += dx; w -= dx; h += dy; }
+  if (corner === 'br') { w += dx; h += dy; }
+  x = Math.max(0, Math.min(x, maxW - 1));
+  y = Math.max(0, Math.min(y, maxH - 1));
+  w = Math.max(1, Math.min(w, maxW - x));
+  h = Math.max(1, Math.min(h, maxH - y));
+  return { x, y, w, h };
+}
+
 export function CropOverlay({ imageNodeId, layerIds, width, height }: CropOverlayProps) {
   const [crop, setCrop] = useState<CropRect>({ x: 0, y: 0, w: width, h: height });
   const [aspect, setAspect] = useState<number | null>(null);
@@ -47,8 +63,51 @@ export function CropOverlay({ imageNodeId, layerIds, width, height }: CropOverla
     useEditorStore.getState().setCropModal(null);
   }
 
+  function startDrag(e: React.PointerEvent, corner: 'tl' | 'tr' | 'bl' | 'br') {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const start = crop;
+    function onMove(ev: PointerEvent) {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      setCrop(applyCornerDelta(start, corner, dx, dy, width, height));
+    }
+    function onUp() {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
   return (
     <div className="absolute inset-0 pointer-events-none" data-testid="crop-overlay">
+      <div
+        data-testid="crop-mask"
+        className="absolute pointer-events-none border border-accent"
+        style={{
+          left: crop.x, top: crop.y, width: crop.w, height: crop.h,
+          boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)',
+          ['--crop-w' as string]: String(crop.w),
+          ['--crop-h' as string]: String(crop.h),
+        }}
+      >
+        {(['tl', 'tr', 'bl', 'br'] as const).map((corner) => (
+          <div
+            key={corner}
+            data-handle={corner}
+            className="absolute w-2.5 h-2.5 bg-surface border-[1.5px] border-accent pointer-events-auto cursor-nwse-resize"
+            style={{
+              left:   corner.endsWith('l') ? -5 : undefined,
+              right:  corner.endsWith('r') ? -5 : undefined,
+              top:    corner.startsWith('t') ? -5 : undefined,
+              bottom: corner.startsWith('b') ? -5 : undefined,
+            }}
+            onPointerDown={(e) => startDrag(e, corner)}
+          />
+        ))}
+      </div>
       <div className="overlay absolute left-1/2 -top-10 -translate-x-1/2 px-2 py-1 flex items-center gap-1 pointer-events-auto text-[10px]">
         {ASPECTS.map((a) => (
           <button

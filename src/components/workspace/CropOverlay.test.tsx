@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CropOverlay } from './CropOverlay';
 import { useEditorStore } from '@/store';
@@ -50,5 +50,23 @@ describe('CropOverlay skeleton', () => {
     }));
     expect(useEditorStore.getState().cropModalImageNodeId).toBeNull();
     spy.mockRestore();
+  });
+});
+
+describe('CropOverlay corner handles', () => {
+  it('renders four corner handles', () => {
+    render(<CropOverlay {...baseProps} />);
+    expect(document.querySelectorAll('[data-handle]')).toHaveLength(4);
+  });
+
+  it('dragging the bottom-right handle resizes the crop rect', () => {
+    render(<CropOverlay {...baseProps} />);
+    const handle = document.querySelector('[data-handle="br"]') as HTMLElement;
+    fireEvent.pointerDown(handle, { clientX: 800, clientY: 600, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 700, clientY: 500, pointerId: 1 });
+    fireEvent.pointerUp(window, { pointerId: 1 });
+    const mask = document.querySelector('[data-testid="crop-mask"]') as HTMLElement;
+    expect(mask.style.getPropertyValue('--crop-w')).toBe('700');
+    expect(mask.style.getPropertyValue('--crop-h')).toBe('500');
   });
 });

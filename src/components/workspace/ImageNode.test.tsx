@@ -108,6 +108,21 @@ describe('ImageNode', () => {
   });
 });
 
+describe('selection glow', () => {
+  it('applies .workspace-node-selected when selected and removes the old outline class', () => {
+    renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected />);
+    const overlay = document.querySelector('.overlay') as HTMLElement;
+    expect(overlay.classList.contains('workspace-node-selected')).toBe(true);
+    expect(overlay.classList.contains('outline-2')).toBe(false);
+  });
+
+  it('omits .workspace-node-selected when not selected', () => {
+    renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected={false} />);
+    const overlay = document.querySelector('.overlay') as HTMLElement;
+    expect(overlay.classList.contains('workspace-node-selected')).toBe(false);
+  });
+});
+
 describe('zoom-invariant chrome', () => {
   it('writes --chrome-scale, --overlay-border-width, --overlay-radius, --overlay-shadow on the .overlay root', () => {
     renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected={false} />);

@@ -60,7 +60,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   return (
     <div className="relative" style={{ width: data.size.w + 2 /* outer border */ }}>
       <div
-        className={`overlay overflow-hidden ${selected ? 'outline-2 outline outline-accent -outline-offset-1' : ''}`}
+        className={`overlay overflow-hidden ${selected ? 'workspace-node-selected' : ''}`}
         style={{
           ['--chrome-scale' as string]: String(chromeScale),
           ['--overlay-border-width' as string]: `${chromeScale}px`,

@@ -70,3 +70,29 @@ describe('CropOverlay corner handles', () => {
     expect(mask.style.getPropertyValue('--crop-h')).toBe('500');
   });
 });
+
+describe('CropOverlay keyboard', () => {
+  it('Enter applies', async () => {
+    const spy = vi.spyOn(backendTools, 'set_image_node_transform').mockResolvedValue(
+      { ok: true, output: { ok: true } } as never,
+    );
+    useBackendState.setState({ sessionId: 'sess-1' } as never);
+    useEditorStore.setState({ cropModalImageNodeId: 'in-1' } as never);
+    render(<CropOverlay {...baseProps} />);
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it('Escape cancels without calling the backend tool', () => {
+    const spy = vi.spyOn(backendTools, 'set_image_node_transform').mockResolvedValue(
+      { ok: true, output: { ok: true } } as never,
+    );
+    useEditorStore.setState({ cropModalImageNodeId: 'in-1' } as never);
+    render(<CropOverlay {...baseProps} />);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(spy).not.toHaveBeenCalled();
+    expect(useEditorStore.getState().cropModalImageNodeId).toBeNull();
+    spy.mockRestore();
+  });
+});

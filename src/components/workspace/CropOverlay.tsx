@@ -73,6 +73,31 @@ export function CropOverlay({ imageNodeId, layerIds, width, height }: CropOverla
     useEditorStore.getState().setCropModal(null);
   }
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const sessionId = useBackendState.getState().sessionId;
+        if (!sessionId) return;
+        void backendTools.set_image_node_transform(sessionId, {
+          image_node_id: imageNodeId,
+          layer_ids: layerIds,
+          crop,
+          rotate: angle !== 0 ? { angle, flip_h: false, flip_v: false } : null,
+        });
+        useEditorStore.getState().setCropPreview(null);
+        useEditorStore.getState().setCropModal(null);
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        useEditorStore.getState().setCropPreview(null);
+        useEditorStore.getState().setCropModal(null);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [crop, angle, imageNodeId, layerIds]);
+
   function startDrag(e: React.PointerEvent, corner: 'tl' | 'tr' | 'bl' | 'br') {
     e.preventDefault();
     const startX = e.clientX;

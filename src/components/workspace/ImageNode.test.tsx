@@ -34,19 +34,19 @@ describe('ImageNode', () => {
     expect(screen.getByLabelText('Layer strip')).toBeInTheDocument();
   });
 
-  it('shows the split/merge affordance ONLY when selected', () => {
+  it('shows the image node menu button regardless of selection state', () => {
     const { rerender } = renderInFlow(<ImageNode id="in-1" data={{ ...baseData, name: 'Sky' }} selected={false} />);
-    expect(screen.queryByLabelText('Split or merge')).not.toBeInTheDocument();
+    // The 3-dot button is always visible (not gated on selected).
+    expect(screen.getByLabelText('Image node menu')).toBeInTheDocument();
     rerender(<ReactFlowProvider><ImageNode id="in-1" data={{ ...baseData, name: 'Sky' }} selected={true} /></ReactFlowProvider>);
-    expect(screen.getByLabelText('Split or merge')).toBeInTheDocument();
+    expect(screen.getByLabelText('Image node menu')).toBeInTheDocument();
   });
 
-  it('renders the split affordance outside the overflow-hidden card', () => {
+  it('renders the 3-dot menu button inside the workspace-drag-handle element', () => {
     renderInFlow(<ImageNode id="in-1" data={{ ...baseData, name: 'Sky' }} selected />);
-    const btn = screen.getByLabelText('Split or merge');
-    // Walk up to find the nearest .overlay ancestor and assert the button is NOT inside it.
-    const overlay = btn.closest('.overlay');
-    expect(overlay).toBeNull();
+    const btn = screen.getByLabelText('Image node menu');
+    const handle = btn.closest('.workspace-drag-handle');
+    expect(handle).not.toBeNull();
   });
 
   describe('dropdown menu', () => {
@@ -58,18 +58,18 @@ describe('ImageNode', () => {
       renderInFlow(
         <ImageNode id="in-1" data={{ ...baseData, layerIds: ['l-1', 'l-2'], name: 'Sky' }} selected />,
       );
-      const trigger = screen.getByLabelText('Split or merge');
+      const trigger = screen.getByLabelText('Image node menu');
       // Radix DropdownMenu.Trigger sets these.
       expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
       expect(trigger).toHaveAttribute('aria-expanded', 'false');
     });
 
-    it('opens the menu when the Split-or-merge trigger is keyboard-activated', async () => {
+    it('opens the menu when the Image-node-menu trigger is keyboard-activated', async () => {
       const user = userEvent.setup();
       renderInFlow(
         <ImageNode id="in-1" data={{ ...baseData, layerIds: ['l-1', 'l-2'], name: 'Sky' }} selected />,
       );
-      const trigger = screen.getByLabelText('Split or merge');
+      const trigger = screen.getByLabelText('Image node menu');
       // Radix DropdownMenu's Trigger reliably opens via keyboard activation under jsdom.
       trigger.focus();
       await user.keyboard('{Enter}');
@@ -84,7 +84,7 @@ describe('ImageNode', () => {
       renderInFlow(
         <ImageNode id={id} data={{ ...baseData, layerIds: ['l-1'], name: 'Sky' }} selected />,
       );
-      const trigger = screen.getByLabelText('Split or merge');
+      const trigger = screen.getByLabelText('Image node menu');
       trigger.focus();
       await user.keyboard('{Enter}');
       const deleteItem = screen.getByRole('menuitem', { name: /^Delete$/i });
@@ -99,7 +99,7 @@ describe('ImageNode', () => {
       renderInFlow(
         <ImageNode id={id} data={{ ...baseData, layerIds: ['L1', 'L2', 'L3'], name: 'Sky' }} selected />,
       );
-      const trigger = screen.getByLabelText('Split or merge');
+      const trigger = screen.getByLabelText('Image node menu');
       trigger.focus();
       await user.keyboard('{Enter}');
       const splitItem = screen.getByRole('menuitem', { name: /Split last layer/i });
@@ -161,7 +161,7 @@ describe('header dropdown transform items', () => {
     useBackendState.setState({ sessionId: 'sess-1' } as never);
 
     renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected />);
-    await userEvent.click(screen.getByLabelText('Split or merge'));
+    await userEvent.click(screen.getByLabelText('Image node menu'));
     await userEvent.click(screen.getByText('Rotate 90° CW'));
 
     expect(spy).toHaveBeenCalledWith('sess-1', expect.objectContaining({
@@ -177,9 +177,20 @@ describe('Crop… menu item', () => {
   it('sets cropModalImageNodeId on the store', async () => {
     useEditorStore.setState({ cropModalImageNodeId: null } as never);
     renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected />);
-    await userEvent.click(screen.getByLabelText('Split or merge'));
+    await userEvent.click(screen.getByLabelText('Image node menu'));
     await userEvent.click(screen.getByText('Crop…'));
     expect(useEditorStore.getState().cropModalImageNodeId).toBe('in-1');
   });
 });
 
+describe('right-click context menu', () => {
+  it('right-clicking the image body opens the context menu with the same items', async () => {
+    const user = userEvent.setup();
+    renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected />);
+    const body = screen.getByLabelText('Image node body');
+    await user.pointer({ target: body, keys: '[MouseRight]' });
+    expect(await screen.findByText('Crop…')).toBeInTheDocument();
+    expect(screen.getByText('Rotate 90° CW')).toBeInTheDocument();
+    expect(screen.getByText('Delete')).toBeInTheDocument();
+  });
+});

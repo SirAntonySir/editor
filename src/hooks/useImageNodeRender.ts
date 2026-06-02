@@ -101,6 +101,8 @@ export function useImageNodeRender({
       canvas,
       imageNodeId,
       layerIds,
+      sourceWidth: backingW,
+      sourceHeight: backingH,
       opGraph,
       widgets,
       optimistic,

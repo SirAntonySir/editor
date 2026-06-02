@@ -9,10 +9,16 @@
  * After per-layer adjustments are composited, node-scope adjustments
  * (operation_graph nodes whose `layer_ids` cover layers in this image node)
  * are applied to the composite via composite-then-apply.
+ *
+ * Two-canvas split: per-layer composite is painted into an INTERNAL cache
+ * canvas (via getInternalCanvas). The geometry pass (applyGeometry) then
+ * draws the internal canvas onto the VISIBLE canvas, applying any rotate/crop
+ * transforms. Overlays are finally painted on the visible canvas.
  */
 
 import { CanvasRegistry } from './canvas-registry';
 import { PipelineManager } from './pipeline-manager';
+import { applyGeometry, getInternalCanvas, type Crop, type Rotate } from './image-node-geometry';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { nodeToAdjustment } from './node-to-adjustment';
@@ -42,12 +48,15 @@ const BLEND_MODE_MAP: Record<BlendMode, GlobalCompositeOperation> = {
 };
 
 export interface RenderImageNodeCompositeArgs {
-  /** Target canvas to paint into. */
+  /** The visible canvas, pre-sized to effective output dims by the caller. */
   canvas: HTMLCanvasElement;
   /** Image-node id (reserved for future widget-scope routing — T17–T19). */
   imageNodeId: string;
   /** Layer ids that belong to this image node, ordered bottom → top. */
   layerIds: string[];
+  /** Source dims — what the per-layer pipeline composites into the internal cache. */
+  sourceWidth: number;
+  sourceHeight: number;
   /** Backend operation graph; per-layer adjustments are filtered by layer_id. */
   opGraph: OperationGraph | undefined;
   /**
@@ -85,19 +94,38 @@ function withOptimistic(node: OperationNode, optimistic: Map<string, OptimisticP
   return { ...node, params };
 }
 
+function readTransforms(
+  opGraph: OperationGraph | undefined,
+  imageNodeId: string,
+): { rotate?: Rotate; crop?: Crop } {
+  const nodes = opGraph?.nodes ?? [];
+  const r = nodes.find((n) => n.id === `transform:${imageNodeId}:rotate`);
+  const c = nodes.find((n) => n.id === `transform:${imageNodeId}:crop`);
+  const rotate = r ? (r.params as unknown as Rotate) : undefined;
+  const crop = c ? (c.params as unknown as Crop) : undefined;
+  return { rotate, crop };
+}
+
 /**
  * Apply each layer's adjustments and composite the results into `canvas`.
  * No-op when the operation can't proceed (missing pixels, missing 2d context, …).
  */
 export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): void {
-  const { canvas, layerIds, opGraph, widgets, optimistic } = args;
+  const { canvas: visible, layerIds, opGraph, widgets, optimistic } = args;
   const hiddenNodeIds = args.hiddenNodeIds ?? new Set<string>();
   const bypassAdjustments = args.bypassAdjustments ?? false;
-  const ctx = canvas.getContext('2d');
+  const visibleCtx = visible.getContext('2d');
+  if (!visibleCtx) return;
+
+  const internal = getInternalCanvas(args.imageNodeId, args.sourceWidth, args.sourceHeight);
+  const ctx = internal.getContext('2d');
   if (!ctx) return;
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (layerIds.length === 0) return;
+  ctx.clearRect(0, 0, internal.width, internal.height);
+  if (layerIds.length === 0) {
+    visibleCtx.clearRect(0, 0, visible.width, visible.height);
+    return;
+  }
 
   const allLayers = useEditorStore.getState().layers;
   const layersById = new Map(allLayers.map((l) => [l.id, l] as const));
@@ -131,7 +159,7 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
     ctx.save();
     ctx.globalAlpha = layer.opacity;
     ctx.globalCompositeOperation = BLEND_MODE_MAP[layer.blendMode] ?? 'source-over';
-    ctx.drawImage(rendered, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(rendered, 0, 0, internal.width, internal.height);
     ctx.restore();
   }
 
@@ -139,8 +167,8 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   // Backend stamps `node.layer_ids: string[]` for adjustments that target the
   // composite of multiple layers rather than a single layer. Filter to nodes
   // whose layer_ids are a subset of this image node's layers, then run their
-  // shader pass against the composite. We pipe the 2D composite canvas into
-  // the WebGL pipeline, render, and blit the result back over the canvas.
+  // shader pass against the composite. We pipe the internal canvas into the
+  // WebGL pipeline, render, and blit the result back into the internal canvas.
   const layerSetForComposite = new Set(layerIds);
   const nodeScopeNodes = nodes.filter((n) => {
     if (hiddenNodeIds.has(n.id)) return false;
@@ -156,76 +184,23 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
       .filter((a) => a.enabled);
 
     if (nodeAdjustments.length > 0) {
-      PipelineManager.setSourceCanvas(canvas);
+      PipelineManager.setSourceCanvas(internal);
       const final = PipelineManager.renderSync(nodeAdjustments);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(final, 0, 0, canvas.width, canvas.height);
-    }
-  }
-
-  // ---- Transform pass: image-node-scope rotate + crop ---------------------
-  // Skipped above the WebGL pipeline because they're geometric, not shaders.
-  // Applied here as plain 2D-canvas operations on the composited bitmap.
-  const rotateNode = nodes.find(
-    (n) => n.type === 'rotate' && n.id === `transform:${args.imageNodeId}:rotate`,
-  );
-  const cropNode = nodes.find(
-    (n) => n.type === 'crop' && n.id === `transform:${args.imageNodeId}:crop`,
-  );
-
-  if (rotateNode || cropNode) {
-    const angle = rotateNode ? ((rotateNode.params.angle as number) ?? 0) : 0;
-    const flipH = rotateNode ? ((rotateNode.params.flip_h as boolean) ?? false) : false;
-    const flipV = rotateNode ? ((rotateNode.params.flip_v as boolean) ?? false) : false;
-
-    // Effective angle in [0, 360)
-    const a = ((angle % 360) + 360) % 360;
-    const swap = Math.abs(a - 90) < 1 || Math.abs(a - 270) < 1;
-
-    // Source dims = pre-rotation. When the ImageNode passes effective (swapped)
-    // dims for 90/270, canvas.width/height are the swapped values. The
-    // per-layer compositing drew into that backing store, squashing the source
-    // pixels into the wrong aspect. We fix this by re-sampling back to the
-    // source dims in the offscreen canvas, then rotating into the effective
-    // (swapped) canvas.
-    const srcW = swap ? canvas.height : canvas.width;
-    const srcH = swap ? canvas.width  : canvas.height;
-
-    const off = document.createElement('canvas');
-    off.width = srcW;
-    off.height = srcH;
-    const offCtx = off.getContext('2d');
-    if (offCtx) {
-      // Re-draw the composite at source dims (resamples from swapped backing
-      // store to the pre-rotation aspect ratio).
-      offCtx.drawImage(canvas, 0, 0, srcW, srcH);
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.save();
-      ctx.translate(canvas.width / 2, canvas.height / 2);
-      ctx.rotate((angle * Math.PI) / 180);
-      ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
-      ctx.translate(-srcW / 2, -srcH / 2);
-
-      if (cropNode) {
-        const cx = (cropNode.params.x as number) ?? 0;
-        const cy = (cropNode.params.y as number) ?? 0;
-        const cw = (cropNode.params.w as number) ?? srcW;
-        const ch = (cropNode.params.h as number) ?? srcH;
-        ctx.drawImage(off, cx, cy, cw, ch, 0, 0, srcW, srcH);
-      } else {
-        ctx.drawImage(off, 0, 0, srcW, srcH);
-      }
-      ctx.restore();
+      ctx.clearRect(0, 0, internal.width, internal.height);
+      ctx.drawImage(final, 0, 0, internal.width, internal.height);
     }
   }
 
   void widgets; // widgets still passed through for future use
 
-  // ---- Overlay pass --------------------------------------------------------
+  // ---- Geometry pass: internal → visible at effective dims ----------------
+  const transforms = readTransforms(opGraph, args.imageNodeId);
+  applyGeometry(internal, visible, transforms);
+
+  // ---- Overlay pass on the visible (post-transform) canvas ----------------
   // Painted on top of the composite so chrome is always visible. State source:
   // maskStore + selection slice.
-  paintOverlays({ ctx, canvas, imageNodeId: args.imageNodeId, layerIds });
+  paintOverlays({ ctx: visibleCtx, canvas: visible, imageNodeId: args.imageNodeId, layerIds });
 }
 
 interface PaintOverlaysArgs {

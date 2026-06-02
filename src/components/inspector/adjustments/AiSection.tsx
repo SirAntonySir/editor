@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronRight, ChevronDown, X, HelpCircle, ArrowUpRight, Sparkles } from 'lucide-react';
+import { ChevronRight, ChevronDown, X, HelpCircle, ArrowUpRight, Sparkles, Eye, EyeOff } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
@@ -37,6 +37,8 @@ export function AiSection({ widget }: AiSectionProps) {
   const maskSummaries = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
   const touched = useEditorStore((s) => s.touchedParams);
   const onCanvas = useEditorStore((s) => Boolean(s.widgetNodes[widget.id]));
+  const hidden = useEditorStore((s) => s.hiddenWidgetIds.has(widget.id));
+  const toggleHidden = useEditorStore((s) => s.toggleWidgetHidden);
   const [showWhy, setShowWhy] = useState(false);
 
   function canWrite(): boolean {
@@ -139,7 +141,7 @@ export function AiSection({ widget }: AiSectionProps) {
   // pull in `.overlay`'s shadow.
   return (
     <div
-      className="bg-surface border border-ai rounded-[var(--radius-panel)]"
+      className={`bg-surface border border-ai rounded-[var(--radius-panel)]${hidden ? ' opacity-60' : ''}`}
     >
       <div className="w-full flex items-center gap-2 px-2.5 py-2">
         <button
@@ -173,6 +175,14 @@ export function AiSection({ widget }: AiSectionProps) {
           className="inline-flex items-center text-text-secondary hover:text-text-primary hover:bg-surface-secondary p-0.5 rounded-[3px] disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <ArrowUpRight size={13} aria-hidden />
+        </button>
+        <button
+          type="button"
+          aria-label={hidden ? 'Show widget' : 'Hide widget'}
+          onClick={() => toggleHidden(widget.id)}
+          className="inline-flex items-center text-text-secondary hover:text-text-primary hover:bg-surface-secondary p-0.5 rounded-[3px]"
+        >
+          {hidden ? <Eye size={13} aria-hidden /> : <EyeOff size={13} aria-hidden />}
         </button>
         <button
           type="button"

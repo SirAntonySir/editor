@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { it, describe, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AiSection } from './AiSection';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
@@ -96,6 +96,32 @@ it('renders an op header for each underlying node so multi-op widgets show their
   expect(screen.getByText('Light & Color')).toBeTruthy();
   expect(screen.getByText('Warmth')).toBeTruthy();
   expect(screen.getByText('Saturation')).toBeTruthy();
+});
+
+describe('eye visibility toggle', () => {
+  beforeEach(() => {
+    const ids = Array.from(useEditorStore.getState().hiddenWidgetIds);
+    for (const id of ids) useEditorStore.getState().toggleWidgetHidden(id);
+  });
+
+  it('renders an Eye button labelled "Hide widget" when not hidden', () => {
+    render(<AiSection widget={widget} />);
+    expect(screen.getByRole('button', { name: /hide widget/i })).toBeInTheDocument();
+  });
+
+  it('clicking the eye toggles hiddenWidgetIds on the store and flips the aria-label', () => {
+    render(<AiSection widget={widget} />);
+    expect(useEditorStore.getState().hiddenWidgetIds.has(widget.id)).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: /hide widget/i }));
+    expect(useEditorStore.getState().hiddenWidgetIds.has(widget.id)).toBe(true);
+    expect(screen.getByRole('button', { name: /show widget/i })).toBeInTheDocument();
+  });
+
+  it('adds opacity-60 to the section root when hidden', () => {
+    useEditorStore.getState().toggleWidgetHidden(widget.id);
+    const { container } = render(<AiSection widget={widget} />);
+    expect(container.firstChild as HTMLElement).toHaveClass('opacity-60');
+  });
 });
 
 it('keys AI-suggestion optimistic preview on the canonical node id, not the widget node id', () => {

@@ -23,8 +23,8 @@ function Consumer({ widgetId: _widgetId }: { widgetId: string }) {
   const { canvasRef } = useImageNodeRender({
     imageNodeId: 'in-1',
     layerIds: ['L1'],
-    width: 100,
-    height: 100,
+    sourceWidth: 100,
+    sourceHeight: 100,
   });
   return <canvas ref={canvasRef} data-testid="c" />;
 }

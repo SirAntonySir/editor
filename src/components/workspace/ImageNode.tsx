@@ -1,5 +1,6 @@
 import { Image, Split } from 'lucide-react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
+import { useEffect } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { ImageNodeBody } from './ImageNodeBody';
 import { ImageNodeSelectionPopover } from './ImageNodeSelectionPopover';
@@ -26,6 +27,11 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   const canSplit = data.layerIds.length >= 2;
   const chromeScale = useChromeScale();
   const chromeVisible = useChromeVisible();
+
+  const updateNodeInternals = useUpdateNodeInternals();
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [id, chromeScale, updateNodeInternals]);
 
   // Strips are CSS-transform-scaled around the appropriate corner so their
   // on-screen height stays readable at low workspace zoom. Compensate width

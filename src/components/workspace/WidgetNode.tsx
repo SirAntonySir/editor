@@ -1,4 +1,4 @@
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
 import { useEffect, useRef, useState } from 'react';
 import { WidgetShell } from '@/components/widget/WidgetShell';
 import { useChromeScale } from '@/hooks/useChromeScale';
@@ -15,7 +15,7 @@ interface WidgetNodeProps {
   selected: boolean;
 }
 
-export function WidgetNode({ data, selected }: WidgetNodeProps) {
+export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
   const scale = useChromeScale();
   const chromeVisible = useChromeVisible();
   // Anchor edge handles to the visual centre of the shell header so tethers
@@ -43,6 +43,11 @@ export function WidgetNode({ data, selected }: WidgetNodeProps) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  const updateNodeInternals = useUpdateNodeInternals();
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [id, scale, naturalSize.w, naturalSize.h, updateNodeInternals]);
 
   const scaledH = naturalSize.h * scale;
   const scaledW = naturalSize.w * scale;

@@ -13,7 +13,7 @@
 
 import { useStore } from '@xyflow/react';
 
-const QUANTUM = 0.05;
+const QUANTUM = 0.01;
 
 export function useChromeScale(): number {
   return useStore((s) => {

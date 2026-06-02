@@ -6,6 +6,8 @@ describe('tool-slice · widget shell state', () => {
     const s = useEditorStore.getState();
     s.collapseAllWidgets();
     s.setHoveredWidget(null);
+    // Clear hidden ids between tests so order-independence holds.
+    for (const id of Array.from(s.hiddenWidgetIds)) s.toggleWidgetHidden(id);
   });
 
   it('toggleWidgetExpanded toggles a widget id in expandedWidgetIds', () => {
@@ -48,5 +50,23 @@ describe('tool-slice · widget shell state', () => {
     expect(useEditorStore.getState().expandedSectionIds.has('light')).toBe(true);
     toggleSectionExpanded('light');
     expect(useEditorStore.getState().expandedSectionIds.has('light')).toBe(false);
+  });
+
+  it('toggleWidgetHidden adds then removes a widget id in hiddenWidgetIds', () => {
+    const s = useEditorStore.getState();
+    expect(s.hiddenWidgetIds.has('w-1')).toBe(false);
+    s.toggleWidgetHidden('w-1');
+    expect(useEditorStore.getState().hiddenWidgetIds.has('w-1')).toBe(true);
+    s.toggleWidgetHidden('w-1');
+    expect(useEditorStore.getState().hiddenWidgetIds.has('w-1')).toBe(false);
+  });
+
+  it('toggleWidgetHidden is independent per id', () => {
+    const s = useEditorStore.getState();
+    s.toggleWidgetHidden('w-1');
+    s.toggleWidgetHidden('w-2');
+    const ids = useEditorStore.getState().hiddenWidgetIds;
+    expect(ids.has('w-1')).toBe(true);
+    expect(ids.has('w-2')).toBe(true);
   });
 });

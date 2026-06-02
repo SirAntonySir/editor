@@ -17,6 +17,8 @@ export interface ToolSlice {
     p: { crop: { x: number; y: number; w: number; h: number } | null;
          rotate: { angle: number; flip_h: boolean; flip_v: boolean } | null } | null
   ) => void;
+  hiddenWidgetIds: Set<string>;
+  toggleWidgetHidden: (widgetId: string) => void;
   /** Canonical `${layer}:${op}:${param}` keys the USER has moved by hand.
    * Drives slider provenance colour (hand = accent vs AI = violet). */
   touchedParams: Set<string>;
@@ -40,6 +42,7 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   toolConfigs: {},
   expandedWidgetIds: new Set<string>(),
   expandedSectionIds: new Set<string>(),
+  hiddenWidgetIds: new Set<string>(),
   hoveredWidgetId: null,
   cropModalImageNodeId: null,
   cropPreview: null,
@@ -71,6 +74,15 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
         state.expandedWidgetIds.delete(widgetId);
       } else {
         state.expandedWidgetIds.add(widgetId);
+      }
+    }),
+
+  toggleWidgetHidden: (widgetId) =>
+    set((state) => {
+      if (state.hiddenWidgetIds.has(widgetId)) {
+        state.hiddenWidgetIds.delete(widgetId);
+      } else {
+        state.hiddenWidgetIds.add(widgetId);
       }
     }),
 

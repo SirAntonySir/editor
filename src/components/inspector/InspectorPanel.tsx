@@ -1,30 +1,21 @@
-import { useEffect, useState } from 'react';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
+import { usePreferencesStore, type InspectorTab } from '@/store/preferences-store';
 import { AdjustmentsAccordion } from './adjustments/AdjustmentsAccordion';
 import { InfoTab } from './info/InfoTab';
 
-type Tab = 'adjustments' | 'info';
-
-// Cross-component signal: the BackendStatusBar "Show context" button dispatches
-// this to flip the inspector to the Info tab. Matches the codebase's existing
-// window-event convention (e.g. 'spawn-palette:open').
-export const INSPECTOR_SHOW_INFO_EVENT = 'inspector:show-info';
-
+// The active inner tab is store-driven (preferences-store.inspectorTab) so other
+// chrome — e.g. the BackendStatusBar "Show context" button via showImageContext()
+// — can select it AND open the sidebar, even while this panel is unmounted.
 export function InspectorPanel() {
-  const [tab, setTab] = useState<Tab>('adjustments');
-
-  useEffect(() => {
-    const onShowInfo = () => setTab('info');
-    window.addEventListener(INSPECTOR_SHOW_INFO_EVENT, onShowInfo);
-    return () => window.removeEventListener(INSPECTOR_SHOW_INFO_EVENT, onShowInfo);
-  }, []);
+  const tab = usePreferencesStore((s) => s.inspectorTab);
+  const setTab = usePreferencesStore((s) => s.setInspectorTab);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       <ToggleGroup.Root
         type="single"
         value={tab}
-        onValueChange={(v) => v && setTab(v as Tab)}
+        onValueChange={(v) => v && setTab(v as InspectorTab)}
         className="flex-none flex border-b border-separator"
       >
         <TabButton value="adjustments" label="Adjustments" active={tab === 'adjustments'} />

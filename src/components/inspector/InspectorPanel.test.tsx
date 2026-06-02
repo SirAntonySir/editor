@@ -1,15 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { InspectorPanel, INSPECTOR_SHOW_INFO_EVENT } from './InspectorPanel';
+import { InspectorPanel } from './InspectorPanel';
 import { registerAllProcessing } from '@/processing';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
+import { usePreferencesStore } from '@/store/preferences-store';
 
 beforeEach(() => {
   registerAllProcessing();
   useBackendState.getState().reset();
   useEditorStore.getState().clearSelection();
+  usePreferencesStore.setState({ inspectorTab: 'adjustments', rightSidebarCollapsed: false });
   useBackendState.setState({
     sessionId: 's1',
     sseStatus: 'open',
@@ -51,10 +53,10 @@ describe('InspectorPanel — tab switcher', () => {
     expect(screen.getByText('Analyze this image')).toBeDefined();
   });
 
-  it('switches to the Info tab on the inspector:show-info window event', () => {
+  it('switches to the Info tab when the store selects it (showImageContext)', () => {
     render(<InspectorPanel />);
     expect(screen.getByText('Light')).toBeTruthy();
-    act(() => { window.dispatchEvent(new Event(INSPECTOR_SHOW_INFO_EVENT)); });
+    act(() => { usePreferencesStore.getState().showImageContext(); });
     expect(screen.queryByText('Light')).toBeNull();
     expect(screen.getByText('Analyze this image')).toBeDefined();
   });

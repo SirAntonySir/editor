@@ -15,11 +15,10 @@ import {
 import { useBackendState } from '@/store/backend-state-slice';
 import { representativePhaseLabel } from '@/components/ui/PhaseSteps';
 import { useAiSession } from '@/hooks/useImageContext';
+import { usePreferencesStore } from '@/store/preferences-store';
 
-// Cross-component signal handled by InspectorPanel — flips it to the Info tab.
-// A bare literal (not an import) keeps this docked-chrome primitive decoupled
-// from the inspector tier; the string is the contract.
-const INSPECTOR_SHOW_INFO_EVENT = 'inspector:show-info';
+/** The "Image context ready" line auto-dismisses this long after it appears. */
+const READY_AUTODISMISS_MS = 4000;
 
 const COLORS: Record<BackendStatusKind, string> = {
   progress: 'text-text-secondary',
@@ -62,7 +61,7 @@ function AnalyzingLine({ text }: { text: string }) {
       <span className="truncate">{text}</span>
       <button
         type="button"
-        onClick={() => window.dispatchEvent(new Event(INSPECTOR_SHOW_INFO_EVENT))}
+        onClick={() => usePreferencesStore.getState().showImageContext()}
         className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm px-2 py-1 text-[10px] font-medium text-accent transition-colors hover:bg-surface hover:text-accent-hover"
       >
         More info
@@ -140,6 +139,13 @@ export function BackendStatusBar() {
   const showReady =
     !inAnalyze && !readyDismissed && (mcpComplete || aiStatus === 'ready');
 
+  // Auto-dismiss the "ready" line a beat after it appears, so it doesn't linger.
+  useEffect(() => {
+    if (!showReady) return;
+    const t = setTimeout(() => setReadyDismissed(true), READY_AUTODISMISS_MS);
+    return () => clearTimeout(t);
+  }, [showReady]);
+
   // While mcpComplete is true the map holds a finished run's all-done state. A
   // re-upload re-enters the pre-phase window before its first event arrives, so
   // suppress the stale map until the new run's phase.started(update) resets it.
@@ -160,9 +166,10 @@ export function BackendStatusBar() {
     status && !(showReady && status.kind === 'success') ? status : null;
 
   const handleShowContext = () => {
-    // Flip the inspector to its Info tab. Uses a window event to avoid coupling
-    // this docked-chrome component to the inspector's local tab state.
-    window.dispatchEvent(new Event(INSPECTOR_SHOW_INFO_EVENT));
+    // Open the sidebar + select the Info tab, then clear this banner — its job
+    // is done once the user has gone to view the context.
+    usePreferencesStore.getState().showImageContext();
+    setReadyDismissed(true);
   };
 
   return (

@@ -31,6 +31,8 @@ const RADIUS_VALUES: Record<RadiusScale, { panel: string; button: string; sm: st
 };
 
 export type RightSidebarTab = 'inspector' | 'ai';
+/** Inner tab of the inspector panel (Adjustments vs Info/context). */
+export type InspectorTab = 'adjustments' | 'info';
 
 export interface PreferencesState {
   themeMode: ThemeMode;
@@ -40,6 +42,7 @@ export interface PreferencesState {
   rightSidebarCollapsed: boolean;
   rightSidebarWidth: number;
   rightSidebarTab: RightSidebarTab;
+  inspectorTab: InspectorTab;
 
   setThemeMode: (mode: ThemeMode) => void;
   setAccentColor: (color: string) => void;
@@ -48,6 +51,9 @@ export interface PreferencesState {
   toggleRightSidebar: () => void;
   setRightSidebarWidth: (w: number) => void;
   setRightSidebarTab: (tab: RightSidebarTab) => void;
+  setInspectorTab: (tab: InspectorTab) => void;
+  /** Reveal the image context: open the sidebar and select the Info tab. */
+  showImageContext: () => void;
 }
 
 export const SIDEBAR_MIN_WIDTH = 200;
@@ -67,6 +73,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       rightSidebarCollapsed: false,
       rightSidebarWidth: 264,
       rightSidebarTab: 'inspector',
+      inspectorTab: 'adjustments',
 
       setThemeMode: (mode) => set({ themeMode: mode }),
       setAccentColor: (color) => set({ accentColor: color }),
@@ -77,6 +84,9 @@ export const usePreferencesStore = create<PreferencesState>()(
       setRightSidebarWidth: (w) =>
         set({ rightSidebarWidth: clampSidebarWidth(w) }),
       setRightSidebarTab: (tab) => set({ rightSidebarTab: tab }),
+      setInspectorTab: (tab) => set({ inspectorTab: tab }),
+      // Reveal context: ensure the sidebar is open and the Info tab is active.
+      showImageContext: () => set({ rightSidebarCollapsed: false, inspectorTab: 'info' }),
     }),
     {
       name: 'editor-preferences',

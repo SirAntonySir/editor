@@ -67,6 +67,7 @@ export function useImageNodeRender({
   const committedMaskRef = useEditorStore((s) => s.committedMaskRef);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   const hiddenWidgetIds = useEditorStore((s) => s.hiddenWidgetIds);
+  const hiddenCanonNodeIds = useEditorStore((s) => s.hiddenCanonNodeIds);
 
   // Subscribe to the RF viewport zoom, quantized so the hook only re-runs
   // when we cross a render-scale octave (not on every wheel tick).
@@ -94,6 +95,7 @@ export function useImageNodeRender({
         }
       }
     }
+    for (const id of hiddenCanonNodeIds) hiddenNodeIds.add(id);
 
     renderImageNodeComposite({
       canvas,
@@ -121,6 +123,7 @@ export function useImageNodeRender({
     committedMaskRef,
     activeImageNodeId,
     hiddenWidgetIds,
+    hiddenCanonNodeIds,
     bypassAdjustments,
   ]);
 

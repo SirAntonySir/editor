@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { it, expect, beforeEach, afterEach } from 'vitest';
+import { it, expect, describe, beforeEach, afterEach } from 'vitest';
 import { ToolSection } from './ToolSection';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
@@ -69,4 +69,41 @@ it('clicking the header expands and renders the scalar body', () => {
   fireEvent.click(screen.getByText('Light'));
   expect(useEditorStore.getState().expandedSectionIds.has('light')).toBe(true);
   expect(screen.getByRole('slider')).toBeTruthy();
+});
+
+describe('eye visibility toggle', () => {
+  function renderToolSection({ layerId }: { layerId: string | null }) {
+    return render(<ToolSection def={lightDef} layerId={layerId} />);
+  }
+
+  beforeEach(() => {
+    const ids = Array.from(useEditorStore.getState().hiddenCanonNodeIds);
+    for (const id of ids) useEditorStore.getState().toggleCanonNodeHidden(id);
+  });
+
+  it('renders an Eye button labelled "Hide tool adjustment" when the layer is set', () => {
+    renderToolSection({ layerId: 'L1' });
+    expect(screen.getByRole('button', { name: /hide tool adjustment/i })).toBeInTheDocument();
+  });
+
+  it('disables the eye when there is no active layer', () => {
+    renderToolSection({ layerId: null });
+    const btn = screen.getByRole('button', { name: /hide tool adjustment/i });
+    expect(btn).toBeDisabled();
+  });
+
+  it('clicking the eye toggles the canon id in hiddenCanonNodeIds', () => {
+    renderToolSection({ layerId: 'L1' });
+    const canonExpected = 'canon:L1:basic';
+    expect(useEditorStore.getState().hiddenCanonNodeIds.has(canonExpected)).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: /hide tool adjustment/i }));
+    expect(useEditorStore.getState().hiddenCanonNodeIds.has(canonExpected)).toBe(true);
+    expect(screen.getByRole('button', { name: /show tool adjustment/i })).toBeInTheDocument();
+  });
+
+  it('adds opacity-60 to the section root when hidden', () => {
+    useEditorStore.getState().toggleCanonNodeHidden('canon:L1:basic');
+    const { container } = renderToolSection({ layerId: 'L1' });
+    expect(container.firstChild as HTMLElement).toHaveClass('opacity-60');
+  });
 });

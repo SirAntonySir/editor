@@ -8,6 +8,7 @@ describe('tool-slice · widget shell state', () => {
     s.setHoveredWidget(null);
     // Clear hidden ids between tests so order-independence holds.
     for (const id of Array.from(s.hiddenWidgetIds)) s.toggleWidgetHidden(id);
+    for (const id of Array.from(s.hiddenCanonNodeIds)) s.toggleCanonNodeHidden(id);
   });
 
   it('toggleWidgetExpanded toggles a widget id in expandedWidgetIds', () => {
@@ -68,5 +69,24 @@ describe('tool-slice · widget shell state', () => {
     const ids = useEditorStore.getState().hiddenWidgetIds;
     expect(ids.has('w-1')).toBe(true);
     expect(ids.has('w-2')).toBe(true);
+  });
+
+  it('toggleCanonNodeHidden adds then removes a canon id', () => {
+    const s = useEditorStore.getState();
+    expect(s.hiddenCanonNodeIds.has('canon:L1:basic')).toBe(false);
+    s.toggleCanonNodeHidden('canon:L1:basic');
+    expect(useEditorStore.getState().hiddenCanonNodeIds.has('canon:L1:basic')).toBe(true);
+    s.toggleCanonNodeHidden('canon:L1:basic');
+    expect(useEditorStore.getState().hiddenCanonNodeIds.has('canon:L1:basic')).toBe(false);
+  });
+
+  it('hiddenCanonNodeIds and hiddenWidgetIds are independent sets', () => {
+    const s = useEditorStore.getState();
+    s.toggleCanonNodeHidden('canon:L1:basic');
+    s.toggleWidgetHidden('w-1');
+    expect(useEditorStore.getState().hiddenCanonNodeIds.has('canon:L1:basic')).toBe(true);
+    expect(useEditorStore.getState().hiddenWidgetIds.has('w-1')).toBe(true);
+    expect(useEditorStore.getState().hiddenCanonNodeIds.has('w-1')).toBe(false);
+    expect(useEditorStore.getState().hiddenWidgetIds.has('canon:L1:basic')).toBe(false);
   });
 });

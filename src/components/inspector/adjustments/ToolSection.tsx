@@ -1,4 +1,4 @@
-import { ChevronRight, ChevronDown, ArrowUpRight } from 'lucide-react';
+import { ChevronRight, ChevronDown, ArrowUpRight, Eye, EyeOff } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import type { ProcessingDefinition } from '@/types/processing';
@@ -31,11 +31,14 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
   const Icon = def.icon;
   const isHsl = def.adjustmentType === 'hsl';
   const promoteDisabled = offline || !layerId;
+  const canonId = layerId ? `canon:${layerId}:${def.adjustmentType}` : null;
+  const hidden = useEditorStore((s) => (canonId ? s.hiddenCanonNodeIds.has(canonId) : false));
+  const toggleCanonHidden = useEditorStore((s) => s.toggleCanonNodeHidden);
 
   // No `border-b` here anymore — separators are owned by the accordion as
   // group dividers, not per-tool. See AdjustmentsAccordion.
   return (
-    <div>
+    <div className={hidden ? 'opacity-60' : undefined}>
       <div className="w-full flex items-center gap-2 px-2.5 py-2">
         <button
           type="button"
@@ -60,6 +63,15 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
               {touchedCount}
             </span>
           )}
+        </button>
+        <button
+          type="button"
+          disabled={!canonId}
+          aria-label={hidden ? 'Show tool adjustment' : 'Hide tool adjustment'}
+          onClick={() => { if (canonId) toggleCanonHidden(canonId); }}
+          className="inline-flex items-center text-text-secondary hover:text-text-primary hover:bg-surface-secondary p-0.5 rounded-[3px] disabled:opacity-40"
+        >
+          {hidden ? <EyeOff size={13} aria-hidden /> : <Eye size={13} aria-hidden />}
         </button>
         {isHsl ? (
           <HslOpenOnCanvasButton

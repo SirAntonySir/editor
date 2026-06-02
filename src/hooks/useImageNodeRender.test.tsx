@@ -54,6 +54,8 @@ describe('useImageNodeRender · hiddenNodeIds derivation', () => {
     renderImageNodeCompositeMock.mockClear();
     const ids = Array.from(useEditorStore.getState().hiddenWidgetIds);
     for (const id of ids) useEditorStore.getState().toggleWidgetHidden(id);
+    const cids = Array.from(useEditorStore.getState().hiddenCanonNodeIds);
+    for (const id of cids) useEditorStore.getState().toggleCanonNodeHidden(id);
     useBackendState.setState({ snapshot: null });
   });
 
@@ -95,5 +97,17 @@ describe('useImageNodeRender · hiddenNodeIds derivation', () => {
 
     const lastArgs = renderImageNodeCompositeMock.mock.calls.slice(-1)[0][0] as { hiddenNodeIds: Set<string> };
     expect(lastArgs.hiddenNodeIds.size).toBe(0);
+  });
+
+  it('also unions hiddenCanonNodeIds directly into the derived set', () => {
+    useBackendState.setState({
+      snapshot: { widgets: [], operation_graph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, masks_index: [], revision: 1 } as never,
+    });
+    useEditorStore.getState().toggleCanonNodeHidden('canon:L9:hsl');
+
+    render(<Consumer widgetId="x" />);
+
+    const lastArgs = renderImageNodeCompositeMock.mock.calls.slice(-1)[0][0] as { hiddenNodeIds: Set<string> };
+    expect(lastArgs.hiddenNodeIds.has('canon:L9:hsl')).toBe(true);
   });
 });

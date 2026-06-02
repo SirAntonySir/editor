@@ -385,4 +385,76 @@ describe('renderImageNodeComposite', () => {
     // No per-layer nodes and the only node-scope node is hidden ⇒ no shader pass.
     expect(pipelineRenderSync).not.toHaveBeenCalled();
   });
+
+  it('bypassAdjustments=true skips the WebGL pipeline entirely', () => {
+    setLayers([{ id: 'L1', visible: true, opacity: 1, blendMode: 'normal', order: 0 }]);
+    const canvas = makeCanvas();
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('expected a 2d context from jsdom');
+    const drawSpy = vi.spyOn(ctx, 'drawImage');
+
+    renderImageNodeComposite({
+      canvas,
+      imageNodeId: 'in-1',
+      layerIds: ['L1'],
+      opGraph: {
+        id: 'g',
+        userGoal: '',
+        nodes: [
+          {
+            id: 'n1',
+            type: 'basic',
+            params: { exposure: 0.5 },
+            scope: { kind: 'global' },
+            inputs: [],
+            layer_id: 'L1',
+          },
+        ],
+        panelBindings: [],
+        metadata: {},
+      },
+      widgets: [],
+      bypassAdjustments: true,
+    });
+
+    expect(pipelineSetSourceCanvas).not.toHaveBeenCalled();
+    expect(pipelineRenderSync).not.toHaveBeenCalled();
+    // Source bitmap is still painted onto the target canvas.
+    expect(drawSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('bypassAdjustments=true skips the node-scope composite pass even when nodes exist', () => {
+    setLayers([
+      { id: 'L1', visible: true, opacity: 1, blendMode: 'normal', order: 0 },
+      { id: 'L2', visible: true, opacity: 1, blendMode: 'normal', order: 1 },
+    ]);
+    const canvas = makeCanvas();
+
+    renderImageNodeComposite({
+      canvas,
+      imageNodeId: 'in-1',
+      layerIds: ['L1', 'L2'],
+      opGraph: {
+        id: 'g',
+        userGoal: '',
+        nodes: [
+          {
+            id: 'n-composite',
+            type: 'basic',
+            params: { exposure: 0.25 },
+            scope: { kind: 'global' },
+            inputs: [],
+            layer_ids: ['L1', 'L2'],
+          },
+        ],
+        panelBindings: [],
+        metadata: {},
+      },
+      widgets: [],
+      bypassAdjustments: true,
+    });
+
+    expect(pipelineSetSourceCanvas).not.toHaveBeenCalled();
+    expect(pipelineRenderSync).not.toHaveBeenCalled();
+  });
 });

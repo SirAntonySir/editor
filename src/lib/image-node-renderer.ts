@@ -67,6 +67,12 @@ export interface RenderImageNodeCompositeArgs {
    * hidden, all of its `widget.nodes[].id` go in this set.
    */
   hiddenNodeIds?: Set<string>;
+  /**
+   * Press-and-hold compare on an ImageNode. When true, skip every shader pass
+   * and just composite the source bitmaps with blend modes and opacities. The
+   * overlay pass still runs so selection chrome stays visible.
+   */
+  bypassAdjustments?: boolean;
 }
 
 /** Apply any optimistic patch to a node's params; returns the node unchanged when no patch matches. */
@@ -86,6 +92,7 @@ function withOptimistic(node: OperationNode, optimistic: Map<string, OptimisticP
 export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): void {
   const { canvas, layerIds, opGraph, widgets, optimistic } = args;
   const hiddenNodeIds = args.hiddenNodeIds ?? new Set<string>();
+  const bypassAdjustments = args.bypassAdjustments ?? false;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
@@ -106,10 +113,12 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
     const layerNodes = nodes.filter(
       (n) => n.layer_id === layerId && !hiddenNodeIds.has(n.id),
     );
-    const adjustments: Adjustment[] = layerNodes
-      .map((n) => withOptimistic(n, optimistic))
-      .map(nodeToAdjustment)
-      .filter((a) => a.enabled);
+    const adjustments: Adjustment[] = bypassAdjustments
+      ? []
+      : layerNodes
+          .map((n) => withOptimistic(n, optimistic))
+          .map(nodeToAdjustment)
+          .filter((a) => a.enabled);
 
     let rendered: HTMLCanvasElement | OffscreenCanvas;
     if (adjustments.length === 0) {
@@ -140,7 +149,7 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
     return Array.isArray(ids) && ids.length > 0 && ids.every((lid) => layerSetForComposite.has(lid));
   });
 
-  if (nodeScopeNodes.length > 0) {
+  if (!bypassAdjustments && nodeScopeNodes.length > 0) {
     const nodeAdjustments: Adjustment[] = nodeScopeNodes
       .map((n) => withOptimistic(n, optimistic))
       .map(nodeToAdjustment)

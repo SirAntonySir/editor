@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { ImageNode } from './ImageNode';
 import { ReactFlowProvider } from '@xyflow/react';
 import { useEditorStore } from '@/store';
+import { useBackendState } from '@/store/backend-state-slice';
 
 afterEach(cleanup);
 
@@ -144,5 +145,28 @@ describe('zoom-invariant chrome', () => {
     expect(style.getPropertyValue('--overlay-border-width')).toBe('1px');
     expect(style.getPropertyValue('--overlay-radius')).toBe('8px');
     expect(style.getPropertyValue('--overlay-shadow')).toContain('var(--shadow-overlay-color)');
+  });
+});
+
+describe('crop & rotate from snapshot', () => {
+  it('applies CSS rotate when a rotate node is present for the image node', async () => {
+    useBackendState.setState({
+      snapshot: {
+        revision: 1,
+        operation_graph: {
+          id: 'g', user_goal: '', reasoning: null, panel_bindings: [],
+          metadata: {},
+          nodes: [{
+            id: 'transform:in-1:rotate', type: 'rotate',
+            scope: { kind: 'global' }, params: { angle: 90, flip_h: false, flip_v: false },
+            inputs: [], layer_id: 'l-1', layer_ids: ['l-1'], widget_id: null,
+          }],
+        },
+        masks_index: [], widgets: [], image_context: null,
+      } as never,
+    });
+    renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected={false} />);
+    const canvas = document.querySelector('canvas') as HTMLCanvasElement;
+    expect(canvas.style.transform).toContain('rotate(90deg)');
   });
 });

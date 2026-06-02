@@ -182,7 +182,7 @@ export function AiSection({ widget }: AiSectionProps) {
           onClick={() => toggleHidden(widget.id)}
           className="inline-flex items-center text-text-secondary hover:text-text-primary hover:bg-surface-secondary p-0.5 rounded-[3px]"
         >
-          {hidden ? <Eye size={13} aria-hidden /> : <EyeOff size={13} aria-hidden />}
+          {hidden ? <EyeOff size={13} aria-hidden /> : <Eye size={13} aria-hidden />}
         </button>
         <button
           type="button"

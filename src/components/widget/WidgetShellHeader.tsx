@@ -91,7 +91,7 @@ export function WidgetShellHeader({
         onClick={(e) => { e.stopPropagation(); onToggleHidden(); }}
         className="inline-flex items-center justify-center text-text-secondary hover:text-text-primary px-0.5"
       >
-        {hidden ? <Eye size={11} aria-hidden /> : <EyeOff size={11} aria-hidden />}
+        {hidden ? <EyeOff size={11} aria-hidden /> : <Eye size={11} aria-hidden />}
       </button>
       <span className="text-text-secondary text-[11px] leading-none px-0.5" aria-hidden>{expanded ? '⌄' : '›'}</span>
       {expanded && (

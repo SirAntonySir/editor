@@ -19,6 +19,7 @@ import { ImageNode, type ImageNodeData } from './ImageNode';
 import { WidgetNode, type WidgetNodeData } from './WidgetNode';
 import { TetherEdge, type TetherEdgeType } from './TetherEdge';
 import { pickTetherHandles } from './tether-handles';
+import { CropOverlay } from './CropOverlay';
 import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
 import type { Widget } from '@/types/widget';
 
@@ -103,6 +104,7 @@ export function CanvasWorkspace() {
   const documentMeta = useEditorStore((s) => s.documentMeta);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   const snapshotWidgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
+  const cropModalId = useEditorStore((s) => s.cropModalImageNodeId);
   const setActiveImageNode = useEditorStore((s) => s.setActiveImageNode);
   const addImageNode = useEditorStore((s) => s.addImageNode);
 
@@ -293,6 +295,24 @@ export function CanvasWorkspace() {
         <Background color="var(--color-separator)" gap={16} size={1} />
         <Controls showInteractive={false} />
         <WorkspaceKeyHandler />
+        {cropModalId && imageNodes[cropModalId] && (
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left:   imageNodes[cropModalId].position.x,
+              top:    imageNodes[cropModalId].position.y,
+              width:  imageNodes[cropModalId].size.w,
+              height: imageNodes[cropModalId].size.h,
+            }}
+          >
+            <CropOverlay
+              imageNodeId={cropModalId}
+              layerIds={imageNodes[cropModalId].layerIds}
+              width={imageNodes[cropModalId].size.w}
+              height={imageNodes[cropModalId].size.h}
+            />
+          </div>
+        )}
       </ReactFlow>
     </div>
   );

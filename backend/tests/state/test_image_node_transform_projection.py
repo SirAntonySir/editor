@@ -16,6 +16,9 @@ def test_crop_emits_image_node_scope_node() -> None:
     assert n.params == {"x": 10, "y": 20, "w": 100, "h": 80}
     assert n.layer_ids == ["l-1", "l-2"]
     assert n.layer_id == "l-1"  # legacy required field — first layer.
+    assert n.id == "transform:in-1:crop"
+    assert n.scope.kind == "global"
+    assert n.widget_id is None
 
 
 def test_rotate_emits_image_node_scope_node() -> None:
@@ -29,6 +32,9 @@ def test_rotate_emits_image_node_scope_node() -> None:
     rotate_nodes = [n for n in g.nodes if n.type == "rotate"]
     assert len(rotate_nodes) == 1
     assert rotate_nodes[0].params == {"angle": 90.0, "flip_h": False, "flip_v": False}
+    assert rotate_nodes[0].id == "transform:in-1:rotate"
+    assert rotate_nodes[0].scope.kind == "global"
+    assert rotate_nodes[0].widget_id is None
 
 
 def test_both_crop_and_rotate_emit_two_nodes() -> None:

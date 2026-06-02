@@ -16,6 +16,7 @@ import { useStore } from '@xyflow/react';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { renderImageNodeComposite } from '@/lib/image-node-renderer';
+import { computeEffectiveSize } from '@/lib/image-node-geometry';
 import type { Widget } from '@/types/widget';
 
 const EMPTY_WIDGETS: Widget[] = [];
@@ -37,8 +38,8 @@ function quantizeRenderScale(zoom: number, dpr: number): number {
 export interface ImageNodeRenderInput {
   imageNodeId: string;
   layerIds: string[];
-  width: number;
-  height: number;
+  sourceWidth: number;
+  sourceHeight: number;
   /** When true, the renderer skips every shader pass (press-and-hold compare). */
   bypassAdjustments?: boolean;
 }
@@ -46,8 +47,8 @@ export interface ImageNodeRenderInput {
 export function useImageNodeRender({
   imageNodeId,
   layerIds,
-  width,
-  height,
+  sourceWidth,
+  sourceHeight,
   bypassAdjustments = false,
 }: ImageNodeRenderInput) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -74,11 +75,36 @@ export function useImageNodeRender({
   const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
   const renderScale = useStore((s) => quantizeRenderScale(s.transform[2], dpr));
 
+  // Effective output dims derived from the snapshot's rotate + crop nodes for
+  // this image-node. The visible canvas is sized to these; `applyGeometry`
+  // inside the renderer then maps the internal (source-dims) composite onto it.
+  const rotateAngle = useBackendState((s) => {
+    const node = s.snapshot?.operation_graph.nodes.find(
+      (n) => n.id === `transform:${imageNodeId}:rotate`,
+    );
+    if (!node) return null;
+    return (node.params.angle as number) ?? null;
+  });
+  const cropRect = useBackendState((s) => {
+    const node = s.snapshot?.operation_graph.nodes.find(
+      (n) => n.id === `transform:${imageNodeId}:crop`,
+    );
+    if (!node) return null;
+    const p = node.params as { x?: number; y?: number; w?: number; h?: number };
+    if (p.w == null || p.h == null) return null;
+    return { x: p.x ?? 0, y: p.y ?? 0, w: p.w, h: p.h };
+  });
+  const eff = computeEffectiveSize(
+    { w: sourceWidth, h: sourceHeight },
+    rotateAngle,
+    cropRect,
+  );
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const backingW = Math.max(1, Math.round(width * renderScale));
-    const backingH = Math.max(1, Math.round(height * renderScale));
+    const backingW = Math.max(1, Math.round(eff.w * renderScale));
+    const backingH = Math.max(1, Math.round(eff.h * renderScale));
     if (canvas.width !== backingW) canvas.width = backingW;
     if (canvas.height !== backingH) canvas.height = backingH;
 
@@ -101,8 +127,8 @@ export function useImageNodeRender({
       canvas,
       imageNodeId,
       layerIds,
-      sourceWidth: backingW,
-      sourceHeight: backingH,
+      sourceWidth,
+      sourceHeight,
       opGraph,
       widgets,
       optimistic,
@@ -112,8 +138,10 @@ export function useImageNodeRender({
   }, [
     imageNodeId,
     layerIds,
-    width,
-    height,
+    sourceWidth,
+    sourceHeight,
+    eff.w,
+    eff.h,
     renderScale,
     opGraph,
     widgets,

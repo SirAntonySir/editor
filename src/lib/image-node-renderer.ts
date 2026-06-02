@@ -125,6 +125,7 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   // the WebGL pipeline, render, and blit the result back over the canvas.
   const layerSetForComposite = new Set(layerIds);
   const nodeScopeNodes = nodes.filter((n) => {
+    if (n.type === 'crop' || n.type === 'rotate') return false;
     const ids = n.layer_ids;
     return Array.isArray(ids) && ids.length > 0 && ids.every((lid) => layerSetForComposite.has(lid));
   });
@@ -140,6 +141,49 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
       const final = PipelineManager.renderSync(nodeAdjustments);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(final, 0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  // ---- Transform pass: image-node-scope rotate + crop ---------------------
+  // Skipped above the WebGL pipeline because they're geometric, not shaders.
+  // Applied here as plain 2D-canvas operations on the composited bitmap.
+  const rotateNode = nodes.find(
+    (n) => n.type === 'rotate' && n.id === `transform:${args.imageNodeId}:rotate`,
+  );
+  const cropNode = nodes.find(
+    (n) => n.type === 'crop' && n.id === `transform:${args.imageNodeId}:crop`,
+  );
+
+  if (rotateNode || cropNode) {
+    const off = document.createElement('canvas');
+    off.width = canvas.width;
+    off.height = canvas.height;
+    const offCtx = off.getContext('2d');
+    if (offCtx) {
+      offCtx.drawImage(canvas, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      if (rotateNode) {
+        const angle = (rotateNode.params.angle as number) ?? 0;
+        const flipH = (rotateNode.params.flip_h as boolean) ?? false;
+        const flipV = (rotateNode.params.flip_v as boolean) ?? false;
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((angle * Math.PI) / 180);
+        ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+        ctx.translate(-canvas.width / 2, -canvas.height / 2);
+      }
+      if (cropNode) {
+        const cx = (cropNode.params.x as number) ?? 0;
+        const cy = (cropNode.params.y as number) ?? 0;
+        const cw = (cropNode.params.w as number) ?? canvas.width;
+        const ch = (cropNode.params.h as number) ?? canvas.height;
+        // Draw only the crop region, scaled to fill the canvas.
+        ctx.drawImage(off, cx, cy, cw, ch, 0, 0, canvas.width, canvas.height);
+      } else {
+        ctx.drawImage(off, 0, 0);
+      }
+      ctx.restore();
     }
   }
 

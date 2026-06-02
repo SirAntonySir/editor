@@ -192,6 +192,11 @@ describe('WidgetShell', () => {
 });
 
 describe('selection glow', () => {
+  beforeEach(() => {
+    const ids = Array.from(useEditorStore.getState().hiddenWidgetIds);
+    for (const id of ids) useEditorStore.getState().toggleWidgetHidden(id);
+  });
+
   it('applies .workspace-node-selected when selected and NOT AI', () => {
     render(<WidgetShell widget={makeToolWidget()} selected />);
     const overlay = document.querySelector('.overlay') as HTMLElement;

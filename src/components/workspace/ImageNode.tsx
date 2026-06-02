@@ -57,7 +57,11 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
     if (!el) return;
     el.addEventListener('pointerdown', stopPointerDownNative);
     return () => el.removeEventListener('pointerdown', stopPointerDownNative);
-  }, []);
+  }, [chromeVisible]);
+
+  useEffect(() => {
+    if (!chromeVisible) setCompareHeld(false);
+  }, [chromeVisible]);
 
   const rotateAngle = useBackendState((s) => {
     const node = s.snapshot?.operation_graph.nodes.find(

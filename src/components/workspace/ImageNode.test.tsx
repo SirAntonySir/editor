@@ -1,10 +1,14 @@
-import { describe, it, expect, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ImageNode } from './ImageNode';
 import { ReactFlowProvider } from '@xyflow/react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
+
+vi.mock('@/hooks/useImageNodeRender', () => ({
+  useImageNodeRender: () => ({ canvasRef: { current: null } }),
+}));
 
 afterEach(cleanup);
 

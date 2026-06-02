@@ -76,18 +76,14 @@ export function useImageNodeRender({
     const backingH = Math.max(1, Math.round(height * renderScale));
     if (canvas.width !== backingW) canvas.width = backingW;
     if (canvas.height !== backingH) canvas.height = backingH;
-    try {
-      renderImageNodeComposite({
-        canvas,
-        imageNodeId,
-        layerIds,
-        opGraph,
-        widgets,
-        optimistic,
-      });
-    } catch {
-      // Silently ignore render errors (e.g. WebGL not available in test envs).
-    }
+    renderImageNodeComposite({
+      canvas,
+      imageNodeId,
+      layerIds,
+      opGraph,
+      widgets,
+      optimistic,
+    });
   }, [
     imageNodeId,
     layerIds,

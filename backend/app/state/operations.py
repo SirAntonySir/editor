@@ -82,6 +82,37 @@ def project_to_graph(doc: SessionDocument) -> OperationGraph:
         )
         for nd in canonical_to_nodes(doc.canonical)
     ]
+    # Image-node-scope structural transforms (crop / rotate).
+    for image_node_id, t in doc.image_node_transforms.items():
+        layer_ids = list(t.get("layer_ids") or [])
+        if not layer_ids:
+            continue
+        primary = layer_ids[0]
+        crop = t.get("crop")
+        if crop is not None:
+            nodes.append(Node(
+                id=f"transform:{image_node_id}:crop",
+                type="crop",
+                scope=global_scope,
+                params=dict(crop),
+                inputs=[],
+                layer_id=primary,
+                layer_ids=layer_ids,
+                widget_id=None,
+            ))
+        rotate = t.get("rotate")
+        if rotate is not None:
+            nodes.append(Node(
+                id=f"transform:{image_node_id}:rotate",
+                type="rotate",
+                scope=global_scope,
+                params=dict(rotate),
+                inputs=[],
+                layer_id=primary,
+                layer_ids=layer_ids,
+                widget_id=None,
+            ))
+
     return OperationGraph(
         id=f"projected-{uuid.uuid4().hex[:8]}",
         user_goal="; ".join(user_goal_parts),

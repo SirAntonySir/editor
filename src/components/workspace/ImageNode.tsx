@@ -9,6 +9,7 @@ import { useChromeScale } from '@/hooks/useChromeScale';
 import { useChromeVisible } from '@/hooks/useChromeVisible';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useEditorStore } from '@/store';
 
 export interface ImageNodeData extends Record<string, unknown> {
   name?: string;
@@ -164,6 +165,13 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
                 onSelect={handleSplit}
               >
                 Split last layer
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none
+                  text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary"
+                onSelect={() => useEditorStore.getState().setCropModal(id)}
+              >
+                Crop…
               </DropdownMenu.Item>
               <DropdownMenu.Item
                 className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none

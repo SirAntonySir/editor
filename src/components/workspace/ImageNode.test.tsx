@@ -173,6 +173,16 @@ describe('header dropdown transform items', () => {
   });
 });
 
+describe('Crop… menu item', () => {
+  it('sets cropModalImageNodeId on the store', async () => {
+    useEditorStore.setState({ cropModalImageNodeId: null } as never);
+    renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected />);
+    await userEvent.click(screen.getByLabelText('Split or merge'));
+    await userEvent.click(screen.getByText('Crop…'));
+    expect(useEditorStore.getState().cropModalImageNodeId).toBe('in-1');
+  });
+});
+
 describe('crop & rotate from snapshot', () => {
   it('applies CSS rotate when a rotate node is present for the image node', async () => {
     useBackendState.setState({

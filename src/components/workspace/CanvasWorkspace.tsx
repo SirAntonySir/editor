@@ -170,10 +170,30 @@ export function CanvasWorkspace() {
   // fall back to the active image node.
   const edges = useMemo<TetherEdgeType[]>(() => {
     const out: TetherEdgeType[] = [];
+
+    // Build a quick lookup of React Flow's current node positions + measured dims.
+    // Using the local `nodes` state (vs the Zustand store) keeps the picker
+    // in sync with React Flow's rendered positions, especially right after a drag.
+    const rfLookup = new Map<string, { position: { x: number; y: number }; size: { w: number; h: number } }>();
+    for (const n of nodes) {
+      const w =
+        n.type === 'widget'
+          ? (n.measured?.width ?? WIDGET_SHELL_MIN_WIDTH)
+          : (n.measured?.width ?? (n.data as ImageNodeData).size.w);
+      const h =
+        n.type === 'widget'
+          ? (n.measured?.height ?? 80) // ~collapsed widget; will be replaced once measured
+          : (n.measured?.height ?? (n.data as ImageNodeData).size.h);
+      rfLookup.set(n.id, { position: n.position, size: { w, h } });
+    }
+
     for (const w of snapshotWidgets) {
       if (w.status !== 'active') continue;
       const widgetNode = widgetNodes[w.id];
       if (!widgetNode) continue; // no canvas footprint without a tether
+      const rfWidget = rfLookup.get(w.id);
+      if (!rfWidget) continue;
+
       let targetId: string | null = null;
       let scopeKind: 'layer' | 'node' = 'layer';
       if (w.scope.kind === 'image_node') {
@@ -194,19 +214,26 @@ export function CanvasWorkspace() {
         targetId = activeImageNodeId;
       }
       if (!targetId) continue;
+
+      const rfTarget = rfLookup.get(targetId);
+      if (!rfTarget) continue;
+
       // Route each edge to the image's nearest edge (see pickTetherHandles).
-      // Re-picks on drag-stop (widgetNodes updates) and on any image-node move.
-      const target = imageNodes[targetId];
-      // Widget header height ≈ 28px → approximate centre y at +14 from the node origin.
+      // Re-picks whenever local `nodes` state changes (drag, resize, mount).
+      // Use the widget's full bounding box centre, not a header-band approximation —
+      // otherwise the picker treats a widget that is visually below the image as if
+      // it were inside the image's vertical band (because the header centre is
+      // still inside the image bbox) and routes to a left/right handle instead of
+      // top/bottom.
       const widgetCenter = {
-        x: widgetNode.position.x + WIDGET_SHELL_MIN_WIDTH / 2,
-        y: widgetNode.position.y + 14,
+        x: rfWidget.position.x + rfWidget.size.w / 2,
+        y: rfWidget.position.y + rfWidget.size.h / 2,
       };
       const imageBounds = {
-        x0: target.position.x,
-        y0: target.position.y,
-        x1: target.position.x + target.size.w,
-        y1: target.position.y + target.size.h,
+        x0: rfTarget.position.x,
+        y0: rfTarget.position.y,
+        x1: rfTarget.position.x + rfTarget.size.w,
+        y1: rfTarget.position.y + rfTarget.size.h,
       };
       const { sourceHandle, targetHandle } = pickTetherHandles(widgetCenter, imageBounds);
       out.push({
@@ -221,7 +248,7 @@ export function CanvasWorkspace() {
       });
     }
     return out;
-  }, [snapshotWidgets, imageNodes, widgetNodes, activeImageNodeId]);
+  }, [snapshotWidgets, imageNodes, widgetNodes, activeImageNodeId, nodes]);
 
   const onNodeDragStop = useCallback(
     (_: unknown, node: Node) => {

@@ -75,9 +75,9 @@ html, body, #root {
  * context menus, tooltips, dialogs, and the selection-actions bar. */
 .overlay {
   background: var(--color-surface);
-  border: 1px solid var(--color-border-strong);
-  box-shadow: var(--shadow-overlay);
-  border-radius: var(--radius-panel);
+  border: var(--overlay-border-width, 1px) solid var(--color-border-strong);
+  border-radius: var(--overlay-radius, var(--radius-panel));
+  box-shadow: var(--overlay-shadow, var(--shadow-overlay));
 }
 
 /* AI-composed widget shell: violet outline + soft glow so AI widgets stand

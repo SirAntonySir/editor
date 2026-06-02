@@ -35,6 +35,8 @@ afterEach(cleanup);
 describe('WidgetShell', () => {
   beforeEach(() => {
     useEditorStore.getState().collapseAllWidgets();
+    const ids = Array.from(useEditorStore.getState().hiddenWidgetIds);
+    for (const id of ids) useEditorStore.getState().toggleWidgetHidden(id);
     vi.clearAllMocks();
   });
 
@@ -173,6 +175,19 @@ describe('WidgetShell', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
     render(<WidgetShell widget={makeAiWidget()} />);
     expect(screen.queryByText('By band')).not.toBeInTheDocument();
+  });
+
+  it('applies opacity-60 to the shell root when the widget id is in hiddenWidgetIds', () => {
+    useEditorStore.getState().toggleWidgetHidden('w-ai-1');
+    const { container } = render(<WidgetShell widget={makeAiWidget()} />);
+    expect(container.firstChild as HTMLElement).toHaveClass('opacity-60');
+  });
+
+  it('clicking the eye button calls toggleWidgetHidden on the store', () => {
+    render(<WidgetShell widget={makeAiWidget()} />);
+    expect(useEditorStore.getState().hiddenWidgetIds.has('w-ai-1')).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: /hide widget/i }));
+    expect(useEditorStore.getState().hiddenWidgetIds.has('w-ai-1')).toBe(true);
   });
 });
 

@@ -39,6 +39,9 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
   const offline = useBackendState((s) => s.sseStatus !== 'open');
   const touched = useEditorStore((s) => s.touchedParams);
 
+  const hidden = useEditorStore((s) => s.hiddenWidgetIds.has(widget.id));
+  const toggleHidden = useEditorStore((s) => s.toggleWidgetHidden);
+
   const showAiAffordances = widget.origin.kind !== 'tool_invoked';
 
   const [whyOpen, setWhyOpen] = useState(false);
@@ -129,7 +132,7 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
       // min-w-[226px] matches WIDGET_SHELL_MIN_WIDTH; width grows to fit content.
       // AI-composed widgets get a violet outline + glow (widget-shell-ai) so
       // they read as distinct from tool-invoked widgets on the canvas.
-      className={`overlay min-w-[226px] w-fit ${showAiAffordances ? 'widget-shell-ai' : ''} ${selected && !showAiAffordances ? 'workspace-node-selected' : ''} ${hovered ? 'border-accent' : ''}`}
+      className={`overlay min-w-[226px] w-fit ${showAiAffordances ? 'widget-shell-ai' : ''} ${selected && !showAiAffordances ? 'workspace-node-selected' : ''} ${hovered ? 'border-accent' : ''} ${hidden ? 'opacity-60' : ''}`}
       onMouseEnter={() => setHoveredWidget(widget.id)}
       onMouseLeave={() => setHoveredWidget(null)}
     >
@@ -137,8 +140,10 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
         widget={widget}
         expanded={isExpanded}
         dirty={dirty}
+        hidden={hidden}
         onToggle={toggle}
         onClose={handleClose}
+        onToggleHidden={() => toggleHidden(widget.id)}
       />
       {isExpanded && (
         <>

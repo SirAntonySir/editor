@@ -121,15 +121,7 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   const ctx = internal.getContext('2d');
   if (!ctx) return;
 
-  console.log('[renderer] enter', {
-    imageNodeId: args.imageNodeId,
-    layerIds: args.layerIds,
-    sourceWidth: args.sourceWidth,
-    sourceHeight: args.sourceHeight,
-    visibleW: visible.width,
-    visibleH: visible.height,
-    bypassAdjustments,
-  });
+  console.log(`[renderer] enter id=${args.imageNodeId} layers=${args.layerIds.length} srcW=${args.sourceWidth} srcH=${args.sourceHeight} visW=${visible.width} visH=${visible.height} bypass=${bypassAdjustments}`);
 
   ctx.clearRect(0, 0, internal.width, internal.height);
   if (layerIds.length === 0) {
@@ -147,17 +139,25 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
 
     const source = CanvasRegistry.get(layerId);
 
-    console.log('[renderer] layer', {
-      layerId,
-      visible: layer?.visible,
-      hasSource: !!source,
-      sourceDims: source ? { w: source.width, h: source.height } : null,
-      internalW: internal.width,
-      internalH: internal.height,
-      adjustmentsCount: nodes.filter((n) => n.layer_id === layerId && !hiddenNodeIds.has(n.id)).length,
-    });
-
     if (!source) continue;
+
+    const srcW = (source as { width: number }).width;
+    const srcH = (source as { height: number }).height;
+    console.log(`[renderer] layer id=${layerId} visible=${layer.visible} hasSource=true srcDims=${srcW}x${srcH} internalDims=${internal.width}x${internal.height} adjustments=${nodes.filter((n) => n.layer_id === layerId && !hiddenNodeIds.has(n.id)).length}`);
+    // Sample the source bitmap directly to verify it actually has pixels.
+    try {
+      const srcCtx = (source as unknown as { getContext: (type: '2d') => { getImageData: (x: number, y: number, w: number, h: number) => { data: Uint8ClampedArray } } | null }).getContext('2d');
+      if (srcCtx) {
+        const sx = Math.floor(srcW / 2);
+        const sy = Math.floor(srcH / 2);
+        const p = srcCtx.getImageData(sx, sy, 1, 1).data;
+        console.log(`[renderer] source pixel (mid) rgba=[${p[0]},${p[1]},${p[2]},${p[3]}]`);
+      } else {
+        console.log(`[renderer] source has NO 2d context — likely an OffscreenCanvas or transferred`);
+      }
+    } catch (e) {
+      console.log(`[renderer] source sample failed: ${(e as Error).message}`);
+    }
 
     const layerNodes = nodes.filter(
       (n) => n.layer_id === layerId && !hiddenNodeIds.has(n.id),
@@ -182,6 +182,16 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
     ctx.globalCompositeOperation = BLEND_MODE_MAP[layer.blendMode] ?? 'source-over';
     ctx.drawImage(rendered, 0, 0, internal.width, internal.height);
     ctx.restore();
+    // Re-sample internal AFTER the per-layer drawImage to see whether the paint
+    // actually reached the internal canvas.
+    try {
+      const ix = Math.floor(internal.width / 2);
+      const iy = Math.floor(internal.height / 2);
+      const ip = ctx.getImageData(ix, iy, 1, 1).data;
+      console.log(`[renderer] post-layer internal pixel (mid) rgba=[${ip[0]},${ip[1]},${ip[2]},${ip[3]}]`);
+    } catch (e) {
+      console.log(`[renderer] post-layer internal sample failed: ${(e as Error).message}`);
+    }
   }
 
   // ---- Composite-then-apply pass: node-scope adjustments ------------------
@@ -217,38 +227,21 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   // ---- Geometry pass: internal → visible at effective dims ----------------
   const transforms = readTransforms(opGraph, args.imageNodeId);
 
-  console.log('[renderer] before geometry', {
-    internalW: internal.width,
-    internalH: internal.height,
-    visibleW: visible.width,
-    visibleH: visible.height,
-    transforms,
-  });
-  // Sample a few internal pixels to see if anything got painted.
+  console.log(`[renderer] before geometry internalDims=${internal.width}x${internal.height} visDims=${visible.width}x${visible.height} angle=${transforms.rotate?.angle ?? 0} flipH=${transforms.rotate?.flip_h ?? false} flipV=${transforms.rotate?.flip_v ?? false} crop=${JSON.stringify(transforms.crop ?? null)}`);
   try {
-    const sample = internal.getContext('2d')?.getImageData(0, 0, 1, 1);
-    console.log('[renderer] internal pixel (0,0)', sample?.data);
-    const mid = internal.getContext('2d')?.getImageData(
-      Math.floor(internal.width / 2),
-      Math.floor(internal.height / 2),
-      1, 1,
-    );
-    console.log('[renderer] internal pixel (mid)', mid?.data);
+    const ip = internal.getContext('2d')?.getImageData(Math.floor(internal.width / 2), Math.floor(internal.height / 2), 1, 1).data;
+    console.log(`[renderer] internal pixel pre-geom rgba=[${ip?.[0]},${ip?.[1]},${ip?.[2]},${ip?.[3]}]`);
   } catch (e) {
-    console.log('[renderer] internal sample failed', e);
+    console.log(`[renderer] internal sample failed: ${(e as Error).message}`);
   }
 
   applyGeometry(internal, visible, transforms);
 
   try {
-    const vSample = visibleCtx.getImageData(
-      Math.floor(visible.width / 2),
-      Math.floor(visible.height / 2),
-      1, 1,
-    );
-    console.log('[renderer] visible pixel (mid)', vSample.data);
+    const vp = visibleCtx.getImageData(Math.floor(visible.width / 2), Math.floor(visible.height / 2), 1, 1).data;
+    console.log(`[renderer] visible pixel post-geom rgba=[${vp[0]},${vp[1]},${vp[2]},${vp[3]}]`);
   } catch (e) {
-    console.log('[renderer] visible sample failed', e);
+    console.log(`[renderer] visible sample failed: ${(e as Error).message}`);
   }
 
   // ---- Overlay pass on the visible (post-transform) canvas ----------------

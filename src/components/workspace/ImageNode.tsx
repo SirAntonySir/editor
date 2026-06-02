@@ -220,7 +220,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
         )}
         <ContextMenu.Root>
           <ContextMenu.Trigger>
-            <ImageNodeBody imageNodeId={id} layerIds={data.layerIds} width={size.w} height={size.h} />
+            <ImageNodeBody imageNodeId={id} layerIds={data.layerIds} sourceWidth={data.size.w} sourceHeight={data.size.h} />
           </ContextMenu.Trigger>
           <ContextMenu.Portal>
             <ContextMenu.Content className="overlay p-1 min-w-[140px] z-50">

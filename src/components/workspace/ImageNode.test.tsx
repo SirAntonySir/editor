@@ -107,3 +107,17 @@ describe('ImageNode', () => {
     });
   });
 });
+
+describe('zoom-invariant chrome', () => {
+  it('writes --chrome-scale, --overlay-border-width, --overlay-radius, --overlay-shadow on the .overlay root', () => {
+    renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected={false} />);
+    const overlay = document.querySelector('.overlay') as HTMLElement;
+    expect(overlay).toBeTruthy();
+    // useChromeScale defaults to 1 at workspace zoom >= 1 (the test env's default).
+    const style = overlay.style;
+    expect(style.getPropertyValue('--chrome-scale')).toBe('1');
+    expect(style.getPropertyValue('--overlay-border-width')).toBe('1px');
+    expect(style.getPropertyValue('--overlay-radius')).toBe('8px');
+    expect(style.getPropertyValue('--overlay-shadow')).toContain('rgba(0, 0, 0, 0.1)');
+  });
+});

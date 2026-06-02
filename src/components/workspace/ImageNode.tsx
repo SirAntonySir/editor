@@ -61,6 +61,12 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
     <div className="relative" style={{ width: data.size.w + 2 /* outer border */ }}>
       <div
         className={`overlay overflow-hidden ${selected ? 'outline-2 outline outline-accent -outline-offset-1' : ''}`}
+        style={{
+          ['--chrome-scale' as string]: String(chromeScale),
+          ['--overlay-border-width' as string]: `${chromeScale}px`,
+          ['--overlay-radius' as string]: `${8 * chromeScale}px`,
+          ['--overlay-shadow' as string]: `0 ${4 * chromeScale}px ${14 * chromeScale}px rgba(0, 0, 0, 0.1)`,
+        }}
       >
         <ImageNodeSelectionPopover layerIds={data.layerIds}>
           <div

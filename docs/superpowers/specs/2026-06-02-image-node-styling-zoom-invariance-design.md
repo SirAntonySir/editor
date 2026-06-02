@@ -7,16 +7,18 @@
 
 Two related visual issues with workspace nodes:
 
-1. **Styling mismatch.** `ImageNode` and `WidgetShell` both use the `.overlay` class, so their base treatment is identical. But selected `ImageNode` shows a harsh 2px accent outline (`outline-2 outline outline-accent -outline-offset-1`), while widgets only change border colour on hover. AI widgets get a violet bloom (`widget-shell-ai`); image nodes have no equivalent "active" glow. The result reads as two different visual languages on the same canvas.
+1. **Styling mismatch.** `ImageNode` and `WidgetShell` both use the `.overlay` class, so their base treatment is identical. But selected `ImageNode` shows a harsh 2px accent outline (`outline-2 outline outline-accent -outline-offset-1`), while widgets only change border color on hover. AI widgets get a violet bloom (`widget-shell-ai`); image nodes have no equivalent "active" glow. The result reads as two different visual languages on the same canvas.
 2. **Zoom shrinks the frame.** React Flow zoom is CSS-transform-based, so the entire DOM scales with the viewport. `useChromeScale` already counter-scales the header/footer strips and the corner button, but the `.overlay` container's 1px border, 8px radius, and box-shadow all shrink with zoom. Tether edges already solve this by multiplying their geometry by `useChromeScale`; nothing else does.
 
 ## Decisions (from brainstorm)
 
 - **Full-frame zoom invariance.** The outer container's border thickness, corner radius, and shadow geometry must also counter-scale. Only the bitmap inside scales. Apply to both `ImageNode` *and* `WidgetShell` (they share `.overlay`, so they stay in lockstep).
-- **Selection-driven accent glow on the image node.** Replace the 2px outline with the same layered-shadow technique as `widget-shell-ai`, in the blue accent.
-- **AI widgets keep violet only** when selected — violet is identity, not state.
-- **Tool-invoked widgets get the same accent glow** when selected — so "selected" reads identically across non-AI nodes.
+- **One color rule for the whole canvas:**
+  - **Violet (`--color-ai`) is reserved for AI identity.** Only AI-composed widgets (`widget-shell-ai`) ever use violet.
+  - **Accent (`--color-accent`) carries selection state for everything else.** Image node and tool-invoked widgets gain the same accent glow on selection. AI widgets stay violet — selection does not layer accent on top.
+- **Selection glow shape.** Replace the image node's 2px outline with the same layered-shadow technique as `widget-shell-ai` (1px ring + soft bloom), in accent. Same rule applies to selected tool widgets.
 - **Hover treatment unchanged** — `border-accent` only; keep hover lighter than selection.
+- **Tethers enter from the nearest side.** Image-node connection handles exist on top, bottom, left, and right; `pickTetherHandles` picks the side closest to the widget so tethers never have to cross the image-node body to reach the widget.
 
 ## Architecture
 
@@ -96,12 +98,46 @@ Workspace nodes already call `useChromeScale()`. They now also write it to `--ch
 
 The hook itself doesn't change.
 
+### 6. Four-sided tether handles on the image node
+
+Today `ImageNode` only mounts left/right target handles. When a widget spawns above or below the image, the tether path zig-zags around the node and frequently crosses the image body.
+
+Change `ImageNode.tsx` to mount four target handles:
+
+```tsx
+<Handle type="target" position={Position.Top}    id="tether-in-top"    style={{ left: '50%', opacity: 0 }} />
+<Handle type="target" position={Position.Bottom} id="tether-in-bottom" style={{ left: '50%', opacity: 0 }} />
+<Handle type="target" position={Position.Left}   id="tether-in-left"   style={{ top:  `${10 * chromeScale}px`, opacity: 0 }} />
+<Handle type="target" position={Position.Right}  id="tether-in-right"  style={{ top:  `${10 * chromeScale}px`, opacity: 0 }} />
+```
+
+Extend `WidgetNode` symmetrically with `tether-out-top` / `tether-out-bottom` source handles.
+
+Update `pickTetherHandles` in `src/components/workspace/tether-handles.ts` from a two-way (left/right only) decision to a four-way one:
+
+```ts
+export function pickTetherHandles(
+  widgetCenter: { x: number; y: number },
+  imageBounds: { x0: number; y0: number; x1: number; y1: number },
+): TetherHandlePick {
+  // For each axis, compute distance from widget center to the nearer image edge.
+  // Pick the axis that is closer; on that axis, pick the nearer side.
+  // …
+}
+```
+
+The picked side determines the matching widget exit handle (top widget exit pairs with bottom image entry, etc.).
+
+`tether-handles.test.ts` is extended to cover all four quadrants, including widgets that overlap the image bounding box on one axis.
+
 ## Files Touched
 
 - `src/index.css` — variable-driven `.overlay` rule + new `.workspace-node-selected` rule.
-- `src/components/workspace/ImageNode.tsx` — set CSS vars on root, replace outline class.
+- `src/components/workspace/ImageNode.tsx` — set CSS vars on root, replace outline class, add top/bottom target handles.
 - `src/components/widget/WidgetShell.tsx` — set CSS vars on root, accept `selected`, apply class.
-- `src/components/workspace/WidgetNode.tsx` — forward React Flow `selected` to `WidgetShell`.
+- `src/components/workspace/WidgetNode.tsx` — forward React Flow `selected` to `WidgetShell`, add top/bottom source handles.
+- `src/components/workspace/tether-handles.ts` — four-way handle picker.
+- `src/components/workspace/tether-handles.test.ts` — coverage for all four quadrants.
 
 No new files. No backend changes.
 

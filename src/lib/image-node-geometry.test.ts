@@ -71,3 +71,152 @@ describe('applyGeometry — identity', () => {
     expect(drawSpy).toHaveBeenCalledWith(internal, 0, 0, 800, 600, 0, 0, 800, 600);
   });
 });
+
+describe('applyGeometry — rotation', () => {
+  it('rotate-90 issues rotate(π/2) and draws full internal at source dims', () => {
+    const internal = makeCanvas(800, 600);
+    const visible = makeCanvas(600, 800);
+    const ctx = visible.getContext('2d');
+    if (!ctx) throw new Error('expected a 2d context');
+    const rotateSpy = vi.spyOn(ctx, 'rotate');
+    const drawSpy = vi.spyOn(ctx, 'drawImage');
+
+    applyGeometry(internal, visible, { rotate: { angle: 90, flip_h: false, flip_v: false } });
+
+    expect(rotateSpy).toHaveBeenCalledWith(Math.PI / 2);
+    expect(drawSpy).toHaveBeenCalledWith(internal, 0, 0, 800, 600, 0, 0, 800, 600);
+  });
+
+  it('rotate-180 leaves visible dims at source (caller pre-sized to source)', () => {
+    const internal = makeCanvas(800, 600);
+    const visible = makeCanvas(800, 600);
+    const ctx = visible.getContext('2d');
+    if (!ctx) throw new Error('expected a 2d context');
+    const rotateSpy = vi.spyOn(ctx, 'rotate');
+
+    applyGeometry(internal, visible, { rotate: { angle: 180, flip_h: false, flip_v: false } });
+
+    expect(rotateSpy).toHaveBeenCalledWith(Math.PI);
+  });
+
+  it('rotate-270 issues rotate(3π/2)', () => {
+    const internal = makeCanvas(800, 600);
+    const visible = makeCanvas(600, 800);
+    const ctx = visible.getContext('2d');
+    if (!ctx) throw new Error('expected a 2d context');
+    const rotateSpy = vi.spyOn(ctx, 'rotate');
+
+    applyGeometry(internal, visible, { rotate: { angle: 270, flip_h: false, flip_v: false } });
+
+    expect(rotateSpy).toHaveBeenCalledWith((270 * Math.PI) / 180);
+  });
+});
+
+describe('applyGeometry — flip', () => {
+  it('flip-h calls scale(-1, 1)', () => {
+    const internal = makeCanvas(800, 600);
+    const visible = makeCanvas(800, 600);
+    const ctx = visible.getContext('2d');
+    if (!ctx) throw new Error('expected a 2d context');
+    const scaleSpy = vi.spyOn(ctx, 'scale');
+
+    applyGeometry(internal, visible, { rotate: { angle: 0, flip_h: true, flip_v: false } });
+
+    expect(scaleSpy).toHaveBeenCalledWith(-1, 1);
+  });
+
+  it('flip-v calls scale(1, -1)', () => {
+    const internal = makeCanvas(800, 600);
+    const visible = makeCanvas(800, 600);
+    const ctx = visible.getContext('2d');
+    if (!ctx) throw new Error('expected a 2d context');
+    const scaleSpy = vi.spyOn(ctx, 'scale');
+
+    applyGeometry(internal, visible, { rotate: { angle: 0, flip_h: false, flip_v: true } });
+
+    expect(scaleSpy).toHaveBeenCalledWith(1, -1);
+  });
+
+  it('flip-both calls scale(-1, -1)', () => {
+    const internal = makeCanvas(800, 600);
+    const visible = makeCanvas(800, 600);
+    const ctx = visible.getContext('2d');
+    if (!ctx) throw new Error('expected a 2d context');
+    const scaleSpy = vi.spyOn(ctx, 'scale');
+
+    applyGeometry(internal, visible, { rotate: { angle: 0, flip_h: true, flip_v: true } });
+
+    expect(scaleSpy).toHaveBeenCalledWith(-1, -1);
+  });
+});
+
+describe('applyGeometry — crop', () => {
+  it('crop-only samples the crop rect into a same-sized visible canvas', () => {
+    const internal = makeCanvas(800, 600);
+    const visible = makeCanvas(600, 400);
+    const ctx = visible.getContext('2d');
+    if (!ctx) throw new Error('expected a 2d context');
+    const drawSpy = vi.spyOn(ctx, 'drawImage');
+
+    applyGeometry(internal, visible, { crop: { x: 100, y: 50, w: 600, h: 400 } });
+
+    expect(drawSpy).toHaveBeenCalledWith(internal, 100, 50, 600, 400, 0, 0, 600, 400);
+  });
+
+  it('crop-plus-rotate-90 keeps crop in source coords, rotates after', () => {
+    const internal = makeCanvas(800, 600);
+    const visible = makeCanvas(400, 600);
+    const ctx = visible.getContext('2d');
+    if (!ctx) throw new Error('expected a 2d context');
+    const drawSpy = vi.spyOn(ctx, 'drawImage');
+    const rotateSpy = vi.spyOn(ctx, 'rotate');
+
+    applyGeometry(internal, visible, {
+      crop: { x: 100, y: 50, w: 600, h: 400 },
+      rotate: { angle: 90, flip_h: false, flip_v: false },
+    });
+
+    expect(rotateSpy).toHaveBeenCalledWith(Math.PI / 2);
+    expect(drawSpy).toHaveBeenCalledWith(internal, 100, 50, 600, 400, 0, 0, 600, 400);
+  });
+
+  it('crop-plus-flip-h samples crop, scales(-1, 1)', () => {
+    const internal = makeCanvas(800, 600);
+    const visible = makeCanvas(600, 400);
+    const ctx = visible.getContext('2d');
+    if (!ctx) throw new Error('expected a 2d context');
+    const scaleSpy = vi.spyOn(ctx, 'scale');
+    const drawSpy = vi.spyOn(ctx, 'drawImage');
+
+    applyGeometry(internal, visible, {
+      crop: { x: 100, y: 50, w: 600, h: 400 },
+      rotate: { angle: 0, flip_h: true, flip_v: false },
+    });
+
+    expect(scaleSpy).toHaveBeenCalledWith(-1, 1);
+    expect(drawSpy).toHaveBeenCalledWith(internal, 100, 50, 600, 400, 0, 0, 600, 400);
+  });
+});
+
+describe('applyGeometry — order of operations', () => {
+  it('translate-rotate-scale-translate-drawImage in that sequence', () => {
+    const internal = makeCanvas(800, 600);
+    const visible = makeCanvas(800, 600);
+    const ctx = visible.getContext('2d');
+    if (!ctx) throw new Error('expected a 2d context');
+    const calls: string[] = [];
+    vi.spyOn(ctx, 'setTransform').mockImplementation(() => { calls.push('setTransform'); });
+    vi.spyOn(ctx, 'translate').mockImplementation(() => { calls.push('translate'); });
+    vi.spyOn(ctx, 'rotate').mockImplementation(() => { calls.push('rotate'); });
+    vi.spyOn(ctx, 'scale').mockImplementation(() => { calls.push('scale'); });
+    vi.spyOn(ctx, 'drawImage').mockImplementation(() => { calls.push('drawImage'); });
+
+    applyGeometry(internal, visible, {
+      rotate: { angle: 90, flip_h: true, flip_v: false },
+    });
+
+    expect(calls).toEqual([
+      'setTransform', 'translate', 'rotate', 'scale', 'translate', 'drawImage', 'setTransform',
+    ]);
+  });
+});

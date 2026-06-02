@@ -5,6 +5,7 @@ import { ImageNodeBody } from './ImageNodeBody';
 import { ImageNodeSelectionPopover } from './ImageNodeSelectionPopover';
 import { editorDocument } from '@/core/document';
 import { useChromeScale } from '@/hooks/useChromeScale';
+import { useChromeVisible } from '@/hooks/useChromeVisible';
 
 export interface ImageNodeData extends Record<string, unknown> {
   name?: string;
@@ -24,6 +25,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   const showStrip = stacked && selected;
   const canSplit = data.layerIds.length >= 2;
   const chromeScale = useChromeScale();
+  const chromeVisible = useChromeVisible();
 
   // Strips are CSS-transform-scaled around the appropriate corner so their
   // on-screen height stays readable at low workspace zoom. Compensate width
@@ -68,28 +70,32 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
           ['--overlay-shadow' as string]: `0 ${4 * chromeScale}px ${14 * chromeScale}px var(--shadow-overlay-color)`,
         }}
       >
-        <ImageNodeSelectionPopover layerIds={data.layerIds}>
-          <div
-            className="workspace-drag-handle flex items-center gap-1.5 px-2 py-1 bg-surface border-b border-separator cursor-grab active:cursor-grabbing"
-            style={stripScaleTop}
-          >
-            <Image size={11} className="text-text-secondary" aria-hidden />
-            <span className="text-[10px] font-medium flex-1 truncate">{data.name ?? 'Image'}</span>
-            <span className="text-[8px] font-semibold bg-surface-secondary border border-separator rounded-full px-1.5 py-px text-text-secondary uppercase">
-              {data.layerIds.length} LAYER{data.layerIds.length === 1 ? '' : 'S'}
-            </span>
-          </div>
-        </ImageNodeSelectionPopover>
+        {chromeVisible && (
+          <ImageNodeSelectionPopover layerIds={data.layerIds}>
+            <div
+              className="workspace-drag-handle flex items-center gap-1.5 px-2 py-1 bg-surface border-b border-separator cursor-grab active:cursor-grabbing"
+              style={stripScaleTop}
+            >
+              <Image size={11} className="text-text-secondary" aria-hidden />
+              <span className="text-[10px] font-medium flex-1 truncate">{data.name ?? 'Image'}</span>
+              <span className="text-[8px] font-semibold bg-surface-secondary border border-separator rounded-full px-1.5 py-px text-text-secondary uppercase">
+                {data.layerIds.length} LAYER{data.layerIds.length === 1 ? '' : 'S'}
+              </span>
+            </div>
+          </ImageNodeSelectionPopover>
+        )}
         <ImageNodeBody imageNodeId={id} layerIds={data.layerIds} width={data.size.w} height={data.size.h} />
-        <div
-          className="flex items-center gap-1.5 px-2 py-1 text-[9px] text-text-secondary bg-surface border-t border-separator"
-          style={stripScaleBottom}
-        >
-          <span className="num">{data.size.w} × {data.size.h}</span>
-          <span className="flex-1" />
-          <span>Layer {(data.activeLayerIndex ?? 0) + 1}</span>
-        </div>
-        {showStrip && (
+        {chromeVisible && (
+          <div
+            className="flex items-center gap-1.5 px-2 py-1 text-[9px] text-text-secondary bg-surface border-t border-separator"
+            style={stripScaleBottom}
+          >
+            <span className="num">{data.size.w} × {data.size.h}</span>
+            <span className="flex-1" />
+            <span>Layer {(data.activeLayerIndex ?? 0) + 1}</span>
+          </div>
+        )}
+        {chromeVisible && showStrip && (
           <div
             aria-label="Layer strip"
             className="flex gap-1 px-2 py-1 bg-surface-secondary border-t border-separator"
@@ -104,7 +110,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
           </div>
         )}
       </div>
-      {selected && (
+      {chromeVisible && selected && (
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <button

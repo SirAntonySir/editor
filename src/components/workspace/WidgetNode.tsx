@@ -2,6 +2,7 @@ import { Handle, Position } from '@xyflow/react';
 import { useEffect, useRef, useState } from 'react';
 import { WidgetShell } from '@/components/widget/WidgetShell';
 import { useChromeScale } from '@/hooks/useChromeScale';
+import { useChromeVisible } from '@/hooks/useChromeVisible';
 import type { Widget } from '@/types/widget';
 
 export interface WidgetNodeData extends Record<string, unknown> {
@@ -16,6 +17,7 @@ interface WidgetNodeProps {
 
 export function WidgetNode({ data, selected }: WidgetNodeProps) {
   const scale = useChromeScale();
+  const chromeVisible = useChromeVisible();
   // Anchor edge handles to the visual centre of the shell header so tethers
   // connect at the header band. Two source handles (left + right) let edges
   // exit on the side facing the connected image node.
@@ -71,12 +73,14 @@ export function WidgetNode({ data, selected }: WidgetNodeProps) {
         id="tether-out-right"
         style={{ top: headerY, left: `${scaledW}px`, opacity: 0 }}
       />
-      <div
-        ref={innerRef}
-        style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}
-      >
-        <WidgetShell widget={data.widget} selected={selected} />
-      </div>
+      {chromeVisible && (
+        <div
+          ref={innerRef}
+          style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}
+        >
+          <WidgetShell widget={data.widget} selected={selected} />
+        </div>
+      )}
     </>
   );
 }

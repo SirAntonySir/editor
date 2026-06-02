@@ -309,4 +309,80 @@ describe('renderImageNodeComposite', () => {
     expect(drawSpy).not.toHaveBeenCalled();
     expect(pipelineRenderSync).not.toHaveBeenCalled();
   });
+
+  it('skips adjustment nodes whose ids are in hiddenNodeIds', () => {
+    setLayers([{ id: 'L1', visible: true, opacity: 1, blendMode: 'normal', order: 0 }]);
+    const canvas = makeCanvas();
+
+    renderImageNodeComposite({
+      canvas,
+      imageNodeId: 'in-1',
+      layerIds: ['L1'],
+      opGraph: {
+        id: 'g',
+        userGoal: '',
+        nodes: [
+          {
+            id: 'n-keep',
+            type: 'basic',
+            params: { exposure: 0.5 },
+            scope: { kind: 'global' },
+            inputs: [],
+            layer_id: 'L1',
+          },
+          {
+            id: 'n-hide',
+            type: 'basic',
+            params: { contrast: 0.5 },
+            scope: { kind: 'global' },
+            inputs: [],
+            layer_id: 'L1',
+          },
+        ],
+        panelBindings: [],
+        metadata: {},
+      },
+      widgets: [],
+      hiddenNodeIds: new Set(['n-hide']),
+    });
+
+    expect(pipelineRenderSync).toHaveBeenCalledTimes(1);
+    const adjustments = pipelineRenderSync.mock.calls[0][0] as unknown as { id: string }[];
+    expect(adjustments.map((a) => a.id)).toEqual(['n-keep']);
+  });
+
+  it('hiddenNodeIds also filters node-scope (composite-then-apply) nodes', () => {
+    setLayers([
+      { id: 'L1', visible: true, opacity: 1, blendMode: 'normal', order: 0 },
+      { id: 'L2', visible: true, opacity: 1, blendMode: 'normal', order: 1 },
+    ]);
+    const canvas = makeCanvas();
+
+    renderImageNodeComposite({
+      canvas,
+      imageNodeId: 'in-1',
+      layerIds: ['L1', 'L2'],
+      opGraph: {
+        id: 'g',
+        userGoal: '',
+        nodes: [
+          {
+            id: 'n-composite-hidden',
+            type: 'basic',
+            params: { exposure: 0.25 },
+            scope: { kind: 'global' },
+            inputs: [],
+            layer_ids: ['L1', 'L2'],
+          },
+        ],
+        panelBindings: [],
+        metadata: {},
+      },
+      widgets: [],
+      hiddenNodeIds: new Set(['n-composite-hidden']),
+    });
+
+    // No per-layer nodes and the only node-scope node is hidden ⇒ no shader pass.
+    expect(pipelineRenderSync).not.toHaveBeenCalled();
+  });
 });

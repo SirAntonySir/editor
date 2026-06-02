@@ -61,6 +61,12 @@ export interface RenderImageNodeCompositeArgs {
    * sliders a live preview before the backend SSE roundtrip completes.
    */
   optimistic?: Map<string, OptimisticPatch>;
+  /**
+   * Adjustment-node ids to omit from both the per-layer pass and the
+   * composite-then-apply pass. Used by widget visibility — when a widget is
+   * hidden, all of its `widget.nodes[].id` go in this set.
+   */
+  hiddenNodeIds?: Set<string>;
 }
 
 /** Apply any optimistic patch to a node's params; returns the node unchanged when no patch matches. */
@@ -79,6 +85,7 @@ function withOptimistic(node: OperationNode, optimistic: Map<string, OptimisticP
  */
 export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): void {
   const { canvas, layerIds, opGraph, widgets, optimistic } = args;
+  const hiddenNodeIds = args.hiddenNodeIds ?? new Set<string>();
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
@@ -96,7 +103,9 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
     const source = CanvasRegistry.get(layerId);
     if (!source) continue;
 
-    const layerNodes = nodes.filter((n) => n.layer_id === layerId);
+    const layerNodes = nodes.filter(
+      (n) => n.layer_id === layerId && !hiddenNodeIds.has(n.id),
+    );
     const adjustments: Adjustment[] = layerNodes
       .map((n) => withOptimistic(n, optimistic))
       .map(nodeToAdjustment)
@@ -125,6 +134,7 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   // the WebGL pipeline, render, and blit the result back over the canvas.
   const layerSetForComposite = new Set(layerIds);
   const nodeScopeNodes = nodes.filter((n) => {
+    if (hiddenNodeIds.has(n.id)) return false;
     if (n.type === 'crop' || n.type === 'rotate') return false;
     const ids = n.layer_ids;
     return Array.isArray(ids) && ids.length > 0 && ids.every((lid) => layerSetForComposite.has(lid));

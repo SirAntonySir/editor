@@ -1,6 +1,6 @@
 import { Eye, Image, MoreHorizontal } from 'lucide-react';
 import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { ImageNodeBody } from './ImageNodeBody';
@@ -37,6 +37,10 @@ interface ImageNodeProps {
   selected: boolean;
 }
 
+function stopPointerDownNative(e: PointerEvent) {
+  e.stopPropagation();
+}
+
 export function ImageNode({ id, data, selected }: ImageNodeProps) {
   const stacked = data.layerIds.length > 1;
   const showStrip = stacked && selected;
@@ -46,9 +50,13 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   const [compareHeld, setCompareHeld] = useState(false);
 
   // Stop native pointerdown bubbling so React Flow's drag-handle never sees it.
-  const compareButtonCallbackRef = useCallback((el: HTMLButtonElement | null) => {
+  // Named handler at module scope ensures removeEventListener can find the same reference.
+  const compareBtnRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    const el = compareBtnRef.current;
     if (!el) return;
-    el.addEventListener('pointerdown', (e: PointerEvent) => e.stopPropagation());
+    el.addEventListener('pointerdown', stopPointerDownNative);
+    return () => el.removeEventListener('pointerdown', stopPointerDownNative);
   }, []);
 
   const rotateAngle = useBackendState((s) => {
@@ -203,10 +211,10 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
               <Image size={11} className="text-text-secondary" aria-hidden />
               <span className="text-[10px] font-medium flex-1 truncate">{data.name ?? 'Image'}</span>
               <button
-                ref={compareButtonCallbackRef}
+                ref={compareBtnRef}
                 type="button"
                 aria-label="Show original (hold)"
-                onPointerDownCapture={(e) => { e.stopPropagation(); e.preventDefault(); setCompareHeld(true); }}
+                onPointerDownCapture={(e) => { e.stopPropagation(); setCompareHeld(true); }}
                 onPointerUp={() => setCompareHeld(false)}
                 onPointerLeave={() => setCompareHeld(false)}
                 onPointerCancel={() => setCompareHeld(false)}

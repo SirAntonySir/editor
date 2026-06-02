@@ -5,6 +5,7 @@ import { ImageNode } from './ImageNode';
 import { ReactFlowProvider } from '@xyflow/react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
+import { backendTools } from '@/lib/backend-tools';
 
 vi.mock('@/hooks/useImageNodeRender', () => ({
   useImageNodeRender: () => ({ canvasRef: { current: null } }),
@@ -149,6 +150,26 @@ describe('zoom-invariant chrome', () => {
     expect(style.getPropertyValue('--overlay-border-width')).toBe('1px');
     expect(style.getPropertyValue('--overlay-radius')).toBe('8px');
     expect(style.getPropertyValue('--overlay-shadow')).toContain('var(--shadow-overlay-color)');
+  });
+});
+
+describe('header dropdown transform items', () => {
+  it('Rotate 90° CW calls set_image_node_transform with angle +90 delta', async () => {
+    const spy = vi.spyOn(backendTools, 'set_image_node_transform').mockResolvedValue(
+      { ok: true, output: { ok: true } } as never,
+    );
+    useBackendState.setState({ sessionId: 'sess-1' } as never);
+
+    renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected />);
+    await userEvent.click(screen.getByLabelText('Split or merge'));
+    await userEvent.click(screen.getByText('Rotate 90° CW'));
+
+    expect(spy).toHaveBeenCalledWith('sess-1', expect.objectContaining({
+      image_node_id: 'in-1',
+      layer_ids: ['l-1'],
+      rotate: expect.objectContaining({ angle: 90 }),
+    }));
+    spy.mockRestore();
   });
 });
 

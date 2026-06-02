@@ -7,6 +7,8 @@ import { ImageNodeSelectionPopover } from './ImageNodeSelectionPopover';
 import { editorDocument } from '@/core/document';
 import { useChromeScale } from '@/hooks/useChromeScale';
 import { useChromeVisible } from '@/hooks/useChromeVisible';
+import { backendTools } from '@/lib/backend-tools';
+import { useBackendState } from '@/store/backend-state-slice';
 
 export interface ImageNodeData extends Record<string, unknown> {
   name?: string;
@@ -50,6 +52,28 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
     transform: `scale(${chromeScale})`,
     transformOrigin: 'top right',
   };
+
+  function handleTransformDelta(delta: { angle?: number; flip_h?: boolean; flip_v?: boolean }) {
+    const sessionId = useBackendState.getState().sessionId;
+    if (!sessionId) return;
+    const nodes = useBackendState.getState().snapshot?.operation_graph.nodes ?? [];
+    const prevRotate = nodes.find((n) => n.id === `transform:${id}:rotate`)?.params as
+      | { angle: number; flip_h: boolean; flip_v: boolean } | undefined;
+    const prevCrop = nodes.find((n) => n.id === `transform:${id}:crop`)?.params as
+      | { x: number; y: number; w: number; h: number } | undefined;
+    const base = prevRotate ?? { angle: 0, flip_h: false, flip_v: false };
+    const next = {
+      angle: ((base.angle + (delta.angle ?? 0)) % 360 + 360) % 360,
+      flip_h: delta.flip_h ? !base.flip_h : base.flip_h,
+      flip_v: delta.flip_v ? !base.flip_v : base.flip_v,
+    };
+    void backendTools.set_image_node_transform(sessionId, {
+      image_node_id: id,
+      layer_ids: data.layerIds,
+      crop: prevCrop ?? null,
+      rotate: next,
+    });
+  }
 
   function handleSplit() {
     if (!canSplit) return;
@@ -140,6 +164,34 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
                 onSelect={handleSplit}
               >
                 Split last layer
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none
+                  text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary"
+                onSelect={() => handleTransformDelta({ angle: +90 })}
+              >
+                Rotate 90° CW
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none
+                  text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary"
+                onSelect={() => handleTransformDelta({ angle: -90 })}
+              >
+                Rotate 90° CCW
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none
+                  text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary"
+                onSelect={() => handleTransformDelta({ flip_h: true })}
+              >
+                Flip Horizontal
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none
+                  text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary"
+                onSelect={() => handleTransformDelta({ flip_v: true })}
+              >
+                Flip Vertical
               </DropdownMenu.Item>
               <DropdownMenu.Item
                 className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none

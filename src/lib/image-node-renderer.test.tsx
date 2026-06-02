@@ -309,32 +309,4 @@ describe('renderImageNodeComposite', () => {
     expect(drawSpy).not.toHaveBeenCalled();
     expect(pipelineRenderSync).not.toHaveBeenCalled();
   });
-
-  it('does NOT apply canvas-level rotate/scale when a rotate node is present (CSS does it)', () => {
-    setLayers([{ id: 'L1', visible: true, opacity: 1, blendMode: 'normal', order: 0 }]);
-    const canvas = makeCanvas();
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('expected a 2d context from jsdom');
-    const rotateSpy = vi.spyOn(ctx, 'rotate');
-    const scaleSpy = vi.spyOn(ctx, 'scale');
-
-    renderImageNodeComposite({
-      canvas,
-      imageNodeId: 'in-1',
-      layerIds: ['L1'],
-      opGraph: {
-        id: 'g', userGoal: '',
-        nodes: [{
-          id: 'transform:in-1:rotate', type: 'rotate',
-          params: { angle: 90, flip_h: false, flip_v: false },
-          scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'],
-        }],
-        panelBindings: [], metadata: {},
-      },
-      widgets: [],
-    });
-
-    expect(rotateSpy).not.toHaveBeenCalled();
-    expect(scaleSpy).not.toHaveBeenCalled();
-  });
 });

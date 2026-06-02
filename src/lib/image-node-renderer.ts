@@ -144,6 +144,63 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
     }
   }
 
+  // ---- Transform pass: image-node-scope rotate + crop ---------------------
+  // Skipped above the WebGL pipeline because they're geometric, not shaders.
+  // Applied here as plain 2D-canvas operations on the composited bitmap.
+  const rotateNode = nodes.find(
+    (n) => n.type === 'rotate' && n.id === `transform:${args.imageNodeId}:rotate`,
+  );
+  const cropNode = nodes.find(
+    (n) => n.type === 'crop' && n.id === `transform:${args.imageNodeId}:crop`,
+  );
+
+  if (rotateNode || cropNode) {
+    const angle = rotateNode ? ((rotateNode.params.angle as number) ?? 0) : 0;
+    const flipH = rotateNode ? ((rotateNode.params.flip_h as boolean) ?? false) : false;
+    const flipV = rotateNode ? ((rotateNode.params.flip_v as boolean) ?? false) : false;
+
+    // Effective angle in [0, 360)
+    const a = ((angle % 360) + 360) % 360;
+    const swap = Math.abs(a - 90) < 1 || Math.abs(a - 270) < 1;
+
+    // Source dims = pre-rotation. When the ImageNode passes effective (swapped)
+    // dims for 90/270, canvas.width/height are the swapped values. The
+    // per-layer compositing drew into that backing store, squashing the source
+    // pixels into the wrong aspect. We fix this by re-sampling back to the
+    // source dims in the offscreen canvas, then rotating into the effective
+    // (swapped) canvas.
+    const srcW = swap ? canvas.height : canvas.width;
+    const srcH = swap ? canvas.width  : canvas.height;
+
+    const off = document.createElement('canvas');
+    off.width = srcW;
+    off.height = srcH;
+    const offCtx = off.getContext('2d');
+    if (offCtx) {
+      // Re-draw the composite at source dims (resamples from swapped backing
+      // store to the pre-rotation aspect ratio).
+      offCtx.drawImage(canvas, 0, 0, srcW, srcH);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((angle * Math.PI) / 180);
+      ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+      ctx.translate(-srcW / 2, -srcH / 2);
+
+      if (cropNode) {
+        const cx = (cropNode.params.x as number) ?? 0;
+        const cy = (cropNode.params.y as number) ?? 0;
+        const cw = (cropNode.params.w as number) ?? srcW;
+        const ch = (cropNode.params.h as number) ?? srcH;
+        ctx.drawImage(off, cx, cy, cw, ch, 0, 0, srcW, srcH);
+      } else {
+        ctx.drawImage(off, 0, 0, srcW, srcH);
+      }
+      ctx.restore();
+    }
+  }
+
   void widgets; // widgets still passed through for future use
 
   // ---- Overlay pass --------------------------------------------------------

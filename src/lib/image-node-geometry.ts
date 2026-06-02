@@ -24,13 +24,26 @@ export function applyGeometry(
   const flipH = transforms.rotate?.flip_h ?? false;
   const flipV = transforms.rotate?.flip_v ?? false;
 
+  // The visible canvas's backing-store dims may be smaller than the source
+  // crop (callers commonly down-scale for performance). Compute the scale
+  // factor between the SOURCE crop dims and the EFFECTIVE OUTPUT dims (the
+  // crop's post-rotation footprint matches visible.width × visible.height).
+  // The destination rect drawn in the rotated drawing space is then crop.w ×
+  // crop.h scaled by that factor.
+  const a = ((angle % 360) + 360) % 360;
+  const swap = Math.abs(a - 90) < 1 || Math.abs(a - 270) < 1;
+  const effW = swap ? crop.h : crop.w;
+  const scaleFactor = effW === 0 ? 1 : visible.width / effW;
+  const dstW = crop.w * scaleFactor;
+  const dstH = crop.h * scaleFactor;
+
   ctx.clearRect(0, 0, visible.width, visible.height);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.translate(visible.width / 2, visible.height / 2);
   ctx.rotate((angle * Math.PI) / 180);
   ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
-  ctx.translate(-crop.w / 2, -crop.h / 2);
-  ctx.drawImage(internal, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
+  ctx.translate(-dstW / 2, -dstH / 2);
+  ctx.drawImage(internal, crop.x, crop.y, crop.w, crop.h, 0, 0, dstW, dstH);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 

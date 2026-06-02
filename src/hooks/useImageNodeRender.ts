@@ -107,6 +107,10 @@ export function useImageNodeRender({
     const backingH = Math.max(1, Math.round(eff.h * renderScale));
     if (canvas.width !== backingW) canvas.width = backingW;
     if (canvas.height !== backingH) canvas.height = backingH;
+    // Set CSS dims to effective size so layout matches the wrapper, regardless of
+    // backing-store quantisation. Browser scales backing → CSS at display time.
+    if (canvas.style.width !== `${eff.w}px`) canvas.style.width = `${eff.w}px`;
+    if (canvas.style.height !== `${eff.h}px`) canvas.style.height = `${eff.h}px`;
 
     const hiddenNodeIds = new Set<string>();
     for (const w of widgets) {

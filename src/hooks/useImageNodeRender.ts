@@ -84,7 +84,15 @@ export function useImageNodeRender({
     const hiddenNodeIds = new Set<string>();
     for (const w of widgets) {
       if (!hiddenWidgetIds.has(w.id)) continue;
-      for (const n of w.nodes) hiddenNodeIds.add(n.id);
+      for (const n of w.nodes) {
+        if (n.layer_id) {
+          hiddenNodeIds.add(`canon:${n.layer_id}:${n.type}`);
+        } else {
+          // Node-scope or layerless nodes — fall back to the widget-internal id;
+          // matches the snapshot's id when layer_id isn't set.
+          hiddenNodeIds.add(n.id);
+        }
+      }
     }
 
     renderImageNodeComposite({

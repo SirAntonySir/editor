@@ -1,0 +1,99 @@
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { render, cleanup } from '@testing-library/react';
+
+const renderImageNodeCompositeMock = vi.hoisted(() => vi.fn());
+
+vi.mock('@/lib/image-node-renderer', () => ({
+  renderImageNodeComposite: renderImageNodeCompositeMock,
+}));
+
+vi.mock('@xyflow/react', () => ({
+  useStore: (selector: (s: { transform: [number, number, number] }) => unknown) =>
+    selector({ transform: [0, 0, 1] }),
+}));
+
+import { useImageNodeRender } from './useImageNodeRender';
+import { useEditorStore } from '@/store';
+import { useBackendState } from '@/store/backend-state-slice';
+import type { Widget } from '@/types/widget';
+
+afterEach(cleanup);
+
+function Consumer({ widgetId: _widgetId }: { widgetId: string }) {
+  const { canvasRef } = useImageNodeRender({
+    imageNodeId: 'in-1',
+    layerIds: ['L1'],
+    width: 100,
+    height: 100,
+  });
+  return <canvas ref={canvasRef} data-testid="c" />;
+}
+
+function widgetWithNode(opts: { id: string; nodeId: string; layerId?: string; type?: string }): Widget {
+  return {
+    id: opts.id,
+    intent: 'x',
+    scope: { kind: 'global' },
+    origin: { kind: 'tool_invoked' },
+    composed: true,
+    nodes: [
+      { id: opts.nodeId, type: opts.type ?? 'basic', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: opts.id, layer_id: opts.layerId },
+    ],
+    bindings: [],
+    preview: { kind: 'none', auto_before_after: false },
+    rejected_attempts: [],
+    status: 'active',
+    revision: 1,
+    created_at: '',
+    updated_at: '',
+  } as Widget;
+}
+
+describe('useImageNodeRender · hiddenNodeIds derivation', () => {
+  beforeEach(() => {
+    renderImageNodeCompositeMock.mockClear();
+    const ids = Array.from(useEditorStore.getState().hiddenWidgetIds);
+    for (const id of ids) useEditorStore.getState().toggleWidgetHidden(id);
+    useBackendState.setState({ snapshot: null });
+  });
+
+  it('derives hiddenNodeIds as canon:<layer>:<type> when widget node has layer_id', () => {
+    const w = widgetWithNode({ id: 'w1', nodeId: 'n_abc', layerId: 'L1', type: 'basic' });
+    useBackendState.setState({
+      snapshot: { widgets: [w], operation_graph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, masks_index: [], revision: 1 } as never,
+    });
+    useEditorStore.getState().toggleWidgetHidden('w1');
+
+    render(<Consumer widgetId="w1" />);
+
+    const calls = renderImageNodeCompositeMock.mock.calls;
+    const lastArgs = calls[calls.length - 1][0] as { hiddenNodeIds: Set<string> };
+    expect(lastArgs.hiddenNodeIds.has('canon:L1:basic')).toBe(true);
+    expect(lastArgs.hiddenNodeIds.has('n_abc')).toBe(false);
+  });
+
+  it('falls back to the widget-internal node id when layer_id is undefined', () => {
+    const w = widgetWithNode({ id: 'w2', nodeId: 'n_xyz' });
+    useBackendState.setState({
+      snapshot: { widgets: [w], operation_graph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, masks_index: [], revision: 1 } as never,
+    });
+    useEditorStore.getState().toggleWidgetHidden('w2');
+
+    render(<Consumer widgetId="w2" />);
+
+    const lastArgs = renderImageNodeCompositeMock.mock.calls.slice(-1)[0][0] as { hiddenNodeIds: Set<string> };
+    expect(lastArgs.hiddenNodeIds.has('n_xyz')).toBe(true);
+  });
+
+  it('does not add any node ids for widgets that are NOT hidden', () => {
+    const w = widgetWithNode({ id: 'w3', nodeId: 'n_def', layerId: 'L1', type: 'kelvin' });
+    useBackendState.setState({
+      snapshot: { widgets: [w], operation_graph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, masks_index: [], revision: 1 } as never,
+    });
+
+    render(<Consumer widgetId="w3" />);
+
+    const lastArgs = renderImageNodeCompositeMock.mock.calls.slice(-1)[0][0] as { hiddenNodeIds: Set<string> };
+    expect(lastArgs.hiddenNodeIds.size).toBe(0);
+  });
+});

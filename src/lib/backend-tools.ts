@@ -72,6 +72,14 @@ export const backendTools = {
   set_param(sessionId: string, args: { layer_id: string; op: string; param: string; value: ControlValue }) {
     return invokeTool<{ ok: boolean }>('set_param', sessionId, args);
   },
+  set_image_node_transform(sessionId: string, args: {
+    image_node_id: string;
+    layer_ids: string[];
+    crop: { x: number; y: number; w: number; h: number } | null;
+    rotate: { angle: number; flip_h: boolean; flip_v: boolean } | null;
+  }) {
+    return invokeTool<{ ok: boolean }>('set_image_node_transform', sessionId, args);
+  },
   preview_widget(sessionId: string, args: { widget_id: string; max_dim?: number }) {
     return invokeTool<{ mime_type: string; image_b64: string | null; reason?: string }>(
       'preview_widget', sessionId, args,

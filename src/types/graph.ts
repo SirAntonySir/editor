@@ -7,7 +7,7 @@ import type { BlendMode } from '@/types/adjustment';
 export type ProcessingNodeType = string;
 
 /** Built-in structural node types (not from the ProcessingRegistry). */
-export const STRUCTURAL_NODE_TYPES = ['source', 'blend', 'crop', 'output'] as const;
+export const STRUCTURAL_NODE_TYPES = ['source', 'blend', 'crop', 'rotate', 'output'] as const;
 
 // ─── Data structures ─────────────────────────────────────────────────
 export interface NodePosition {

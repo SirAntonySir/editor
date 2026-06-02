@@ -39,6 +39,8 @@ export interface ImageNodeRenderInput {
   layerIds: string[];
   width: number;
   height: number;
+  /** When true, the renderer skips every shader pass (press-and-hold compare). */
+  bypassAdjustments?: boolean;
 }
 
 export function useImageNodeRender({
@@ -46,6 +48,7 @@ export function useImageNodeRender({
   layerIds,
   width,
   height,
+  bypassAdjustments = false,
 }: ImageNodeRenderInput) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const opGraph = useBackendState((s) => s.snapshot?.operation_graph);
@@ -63,6 +66,7 @@ export function useImageNodeRender({
   const activeMaskRef = useEditorStore((s) => s.activeMaskRef);
   const committedMaskRef = useEditorStore((s) => s.committedMaskRef);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
+  const hiddenWidgetIds = useEditorStore((s) => s.hiddenWidgetIds);
 
   // Subscribe to the RF viewport zoom, quantized so the hook only re-runs
   // when we cross a render-scale octave (not on every wheel tick).
@@ -76,6 +80,13 @@ export function useImageNodeRender({
     const backingH = Math.max(1, Math.round(height * renderScale));
     if (canvas.width !== backingW) canvas.width = backingW;
     if (canvas.height !== backingH) canvas.height = backingH;
+
+    const hiddenNodeIds = new Set<string>();
+    for (const w of widgets) {
+      if (!hiddenWidgetIds.has(w.id)) continue;
+      for (const n of w.nodes) hiddenNodeIds.add(n.id);
+    }
+
     renderImageNodeComposite({
       canvas,
       imageNodeId,
@@ -83,6 +94,8 @@ export function useImageNodeRender({
       opGraph,
       widgets,
       optimistic,
+      hiddenNodeIds,
+      bypassAdjustments,
     });
   }, [
     imageNodeId,
@@ -99,6 +112,8 @@ export function useImageNodeRender({
     activeMaskRef,
     committedMaskRef,
     activeImageNodeId,
+    hiddenWidgetIds,
+    bypassAdjustments,
   ]);
 
   return { canvasRef };

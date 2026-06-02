@@ -123,6 +123,16 @@ describe('selection glow', () => {
   });
 });
 
+describe('tether handles', () => {
+  it('mounts target handles on all four sides', () => {
+    renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected={false} />);
+    expect(document.querySelector('[data-handleid="tether-in-left"]')).toBeTruthy();
+    expect(document.querySelector('[data-handleid="tether-in-right"]')).toBeTruthy();
+    expect(document.querySelector('[data-handleid="tether-in-top"]')).toBeTruthy();
+    expect(document.querySelector('[data-handleid="tether-in-bottom"]')).toBeTruthy();
+  });
+});
+
 describe('zoom-invariant chrome', () => {
   it('writes --chrome-scale, --overlay-border-width, --overlay-radius, --overlay-shadow on the .overlay root', () => {
     renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected={false} />);

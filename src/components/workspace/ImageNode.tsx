@@ -140,18 +140,14 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
       )}
-      <Handle
-        type="target"
-        position={Position.Left}
-        id="tether-in-left"
-        style={{ top: `${10 * chromeScale}px`, opacity: 0 }}
-      />
-      <Handle
-        type="target"
-        position={Position.Right}
-        id="tether-in-right"
-        style={{ top: `${10 * chromeScale}px`, opacity: 0 }}
-      />
+      <Handle type="target" position={Position.Top}
+        id="tether-in-top"    style={{ left: '50%', opacity: 0 }} />
+      <Handle type="target" position={Position.Bottom}
+        id="tether-in-bottom" style={{ left: '50%', opacity: 0 }} />
+      <Handle type="target" position={Position.Left}
+        id="tether-in-left"   style={{ top: `${10 * chromeScale}px`, opacity: 0 }} />
+      <Handle type="target" position={Position.Right}
+        id="tether-in-right"  style={{ top: `${10 * chromeScale}px`, opacity: 0 }} />
     </div>
   );
 }

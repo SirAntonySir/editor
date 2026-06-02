@@ -5,10 +5,11 @@ interface ImageNodeBodyProps {
   layerIds: string[];
   width: number;
   height: number;
+  bypassAdjustments?: boolean;
 }
 
-export function ImageNodeBody({ imageNodeId, layerIds, width, height }: ImageNodeBodyProps) {
-  const { canvasRef } = useImageNodeRender({ imageNodeId, layerIds, width, height });
+export function ImageNodeBody({ imageNodeId, layerIds, width, height, bypassAdjustments }: ImageNodeBodyProps) {
+  const { canvasRef } = useImageNodeRender({ imageNodeId, layerIds, width, height, bypassAdjustments });
 
   return (
     <canvas

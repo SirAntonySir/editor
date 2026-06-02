@@ -1,6 +1,6 @@
-import { Image, MoreHorizontal } from 'lucide-react';
+import { Eye, Image, MoreHorizontal } from 'lucide-react';
 import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { ImageNodeBody } from './ImageNodeBody';
@@ -43,6 +43,13 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   const canSplit = data.layerIds.length >= 2;
   const chromeScale = useChromeScale();
   const chromeVisible = useChromeVisible();
+  const [compareHeld, setCompareHeld] = useState(false);
+
+  // Stop native pointerdown bubbling so React Flow's drag-handle never sees it.
+  const compareButtonCallbackRef = useCallback((el: HTMLButtonElement | null) => {
+    if (!el) return;
+    el.addEventListener('pointerdown', (e: PointerEvent) => e.stopPropagation());
+  }, []);
 
   const rotateAngle = useBackendState((s) => {
     const node = s.snapshot?.operation_graph.nodes.find(
@@ -195,6 +202,19 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
             >
               <Image size={11} className="text-text-secondary" aria-hidden />
               <span className="text-[10px] font-medium flex-1 truncate">{data.name ?? 'Image'}</span>
+              <button
+                ref={compareButtonCallbackRef}
+                type="button"
+                aria-label="Show original (hold)"
+                onPointerDownCapture={(e) => { e.stopPropagation(); e.preventDefault(); setCompareHeld(true); }}
+                onPointerUp={() => setCompareHeld(false)}
+                onPointerLeave={() => setCompareHeld(false)}
+                onPointerCancel={() => setCompareHeld(false)}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-[3px] text-text-secondary hover:bg-surface-secondary hover:text-text-primary cursor-pointer"
+              >
+                <Eye size={10} aria-hidden />
+              </button>
               <span className="text-[8px] font-semibold bg-surface-secondary border border-separator rounded-full px-1.5 py-px text-text-secondary uppercase">
                 {data.layerIds.length} LAYER{data.layerIds.length === 1 ? '' : 'S'}
               </span>
@@ -220,7 +240,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
         )}
         <ContextMenu.Root>
           <ContextMenu.Trigger>
-            <ImageNodeBody imageNodeId={id} layerIds={data.layerIds} width={size.w} height={size.h} />
+            <ImageNodeBody imageNodeId={id} layerIds={data.layerIds} width={size.w} height={size.h} bypassAdjustments={compareHeld} />
           </ContextMenu.Trigger>
           <ContextMenu.Portal>
             <ContextMenu.Content className="overlay p-1 min-w-[140px] z-50">

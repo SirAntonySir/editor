@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ImageNode } from './ImageNode';
 import { ReactFlowProvider } from '@xyflow/react';
@@ -7,8 +7,12 @@ import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 
+const { useImageNodeRenderMock } = vi.hoisted(() => ({
+  useImageNodeRenderMock: vi.fn<(args: { bypassAdjustments?: boolean }) => { canvasRef: { current: HTMLCanvasElement | null } }>(),
+}));
+useImageNodeRenderMock.mockImplementation(() => ({ canvasRef: { current: null } }));
 vi.mock('@/hooks/useImageNodeRender', () => ({
-  useImageNodeRender: () => ({ canvasRef: { current: null } }),
+  useImageNodeRender: useImageNodeRenderMock,
 }));
 
 afterEach(cleanup);
@@ -192,5 +196,51 @@ describe('right-click context menu', () => {
     expect(await screen.findByText('Crop…')).toBeInTheDocument();
     expect(screen.getByText('Rotate 90° CW')).toBeInTheDocument();
     expect(screen.getByText('Delete')).toBeInTheDocument();
+  });
+});
+
+describe('ImageNode · compare button', () => {
+  beforeEach(() => {
+    useImageNodeRenderMock.mockClear();
+  });
+
+  function lastBypass(): boolean | undefined {
+    const calls = useImageNodeRenderMock.mock.calls;
+    if (calls.length === 0) return undefined;
+    return calls[calls.length - 1][0].bypassAdjustments;
+  }
+
+  it('renders the compare button inline in the header strip regardless of selection', () => {
+    renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected={false} />);
+    expect(screen.getByRole('button', { name: /show original/i })).toBeInTheDocument();
+  });
+
+  it('pointerdown on the compare button flips bypassAdjustments to true; pointerup clears it', () => {
+    renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected />);
+    expect(lastBypass()).toBe(false);
+    const btn = screen.getByRole('button', { name: /show original/i });
+    fireEvent.pointerDown(btn);
+    expect(lastBypass()).toBe(true);
+    fireEvent.pointerUp(btn);
+    expect(lastBypass()).toBe(false);
+  });
+
+  it('pointerleave on the button also clears bypassAdjustments', () => {
+    renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected />);
+    const btn = screen.getByRole('button', { name: /show original/i });
+    fireEvent.pointerDown(btn);
+    expect(lastBypass()).toBe(true);
+    fireEvent.pointerLeave(btn);
+    expect(lastBypass()).toBe(false);
+  });
+
+  it('compare button stops pointerdown propagation (does not bubble to drag-handle strip)', () => {
+    renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected />);
+    const btn = screen.getByRole('button', { name: /show original/i });
+    const handle = btn.closest('.workspace-drag-handle') as HTMLElement;
+    const handleSpy = vi.fn();
+    handle.addEventListener('pointerdown', handleSpy);
+    fireEvent.pointerDown(btn);
+    expect(handleSpy).not.toHaveBeenCalled();
   });
 });

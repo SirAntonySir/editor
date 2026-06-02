@@ -197,12 +197,18 @@ export function CanvasWorkspace() {
       // Route each edge to the image's nearest edge (see pickTetherHandles).
       // Re-picks on drag-stop (widgetNodes updates) and on any image-node move.
       const target = imageNodes[targetId];
-      const widgetCenterX = widgetNode.position.x + WIDGET_SHELL_MIN_WIDTH / 2;
-      const { sourceHandle, targetHandle } = pickTetherHandles(
-        widgetCenterX,
-        target.position.x,
-        target.position.x + target.size.w,
-      );
+      // Widget header height ≈ 28px → approximate centre y at +14 from the node origin.
+      const widgetCenter = {
+        x: widgetNode.position.x + WIDGET_SHELL_MIN_WIDTH / 2,
+        y: widgetNode.position.y + 14,
+      };
+      const imageBounds = {
+        x0: target.position.x,
+        y0: target.position.y,
+        x1: target.position.x + target.size.w,
+        y1: target.position.y + target.size.h,
+      };
+      const { sourceHandle, targetHandle } = pickTetherHandles(widgetCenter, imageBounds);
       out.push({
         id: `auto-${w.id}`,
         source: w.id,

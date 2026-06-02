@@ -25,11 +25,12 @@ export const WIDGET_SHELL_MIN_WIDTH = 226;
 
 interface WidgetShellProps {
   widget: Widget;
+  selected?: boolean;
 }
 
 const EMPTY_MASKS: MaskSummary[] = [];
 
-export function WidgetShell({ widget }: WidgetShellProps) {
+export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
   const { isExpanded, toggle } = useWidgetExpansion(widget.id);
   const { hoveredWidgetId, setHoveredWidget } = useHoveredWidget();
   const sessionId = useBackendState((s) => s.sessionId);
@@ -128,7 +129,7 @@ export function WidgetShell({ widget }: WidgetShellProps) {
       // min-w-[226px] matches WIDGET_SHELL_MIN_WIDTH; width grows to fit content.
       // AI-composed widgets get a violet outline + glow (widget-shell-ai) so
       // they read as distinct from tool-invoked widgets on the canvas.
-      className={`overlay min-w-[226px] w-fit ${showAiAffordances ? 'widget-shell-ai' : ''} ${hovered ? 'border-accent' : ''}`}
+      className={`overlay min-w-[226px] w-fit ${showAiAffordances ? 'widget-shell-ai' : ''} ${selected && !showAiAffordances ? 'workspace-node-selected' : ''} ${hovered ? 'border-accent' : ''}`}
       onMouseEnter={() => setHoveredWidget(widget.id)}
       onMouseLeave={() => setHoveredWidget(null)}
     >

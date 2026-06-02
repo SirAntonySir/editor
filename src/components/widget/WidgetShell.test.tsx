@@ -175,3 +175,26 @@ describe('WidgetShell', () => {
     expect(screen.queryByText('By band')).not.toBeInTheDocument();
   });
 });
+
+describe('selection glow', () => {
+  it('applies .workspace-node-selected when selected and NOT AI', () => {
+    render(<WidgetShell widget={makeToolWidget()} selected />);
+    const overlay = document.querySelector('.overlay') as HTMLElement;
+    expect(overlay.classList.contains('workspace-node-selected')).toBe(true);
+    expect(overlay.classList.contains('widget-shell-ai')).toBe(false);
+  });
+
+  it('keeps violet (widget-shell-ai) when selected AND AI — does not add accent glow', () => {
+    render(<WidgetShell widget={makeAiWidget()} selected />);
+    const overlay = document.querySelector('.overlay') as HTMLElement;
+    expect(overlay.classList.contains('widget-shell-ai')).toBe(true);
+    expect(overlay.classList.contains('workspace-node-selected')).toBe(false);
+  });
+
+  it('omits both glow classes when not selected and tool-invoked', () => {
+    render(<WidgetShell widget={makeToolWidget()} selected={false} />);
+    const overlay = document.querySelector('.overlay') as HTMLElement;
+    expect(overlay.classList.contains('workspace-node-selected')).toBe(false);
+    expect(overlay.classList.contains('widget-shell-ai')).toBe(false);
+  });
+});

@@ -13,7 +13,7 @@ interface WidgetNodeProps {
   selected: boolean;
 }
 
-export function WidgetNode({ data, selected: _selected }: WidgetNodeProps) {
+export function WidgetNode({ data, selected }: WidgetNodeProps) {
   const scale = useChromeScale();
   // Anchor edge handles to the visual centre of the shell header so tethers
   // connect at the header band. Two source handles (left + right) let edges
@@ -34,7 +34,7 @@ export function WidgetNode({ data, selected: _selected }: WidgetNodeProps) {
         style={{ top: headerY, opacity: 0 }}
       />
       <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
-        <WidgetShell widget={data.widget} />
+        <WidgetShell widget={data.widget} selected={selected} />
       </div>
     </>
   );

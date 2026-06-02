@@ -11,18 +11,7 @@ import { useChromeVisible } from '@/hooks/useChromeVisible';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
-
-function effectiveSize(
-  base: { w: number; h: number },
-  rotateAngle: number | null,
-): { w: number; h: number } {
-  if (rotateAngle == null) return base;
-  // Normalise to [0, 360)
-  const a = ((rotateAngle % 360) + 360) % 360;
-  // Within ~1° of 90 or 270 → swap.
-  if (Math.abs(a - 90) < 1 || Math.abs(a - 270) < 1) return { w: base.h, h: base.w };
-  return base;
-}
+import { computeEffectiveSize, type Crop } from '@/lib/image-node-geometry';
 
 export interface ImageNodeData extends Record<string, unknown> {
   name?: string;
@@ -70,8 +59,17 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
     if (!node) return null;
     return (node.params.angle as number) ?? null;
   });
+  const cropRect = useBackendState((s): Crop | null => {
+    const node = s.snapshot?.operation_graph.nodes.find(
+      (n) => n.id === `transform:${id}:crop`,
+    );
+    if (!node) return null;
+    const p = node.params as { x?: number; y?: number; w?: number; h?: number };
+    if (p.w == null || p.h == null) return null;
+    return { x: p.x ?? 0, y: p.y ?? 0, w: p.w, h: p.h };
+  });
 
-  const size = effectiveSize(data.size, rotateAngle);
+  const size = computeEffectiveSize(data.size, rotateAngle, cropRect);
 
   const updateNodeInternals = useUpdateNodeInternals();
   useEffect(() => {
@@ -252,7 +250,13 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
         )}
         <ContextMenu.Root>
           <ContextMenu.Trigger>
-            <ImageNodeBody imageNodeId={id} layerIds={data.layerIds} width={size.w} height={size.h} bypassAdjustments={compareHeld} />
+            <ImageNodeBody
+                imageNodeId={id}
+                layerIds={data.layerIds}
+                sourceWidth={data.size.w}
+                sourceHeight={data.size.h}
+                bypassAdjustments={compareHeld}
+              />
           </ContextMenu.Trigger>
           <ContextMenu.Portal>
             <ContextMenu.Content className="overlay p-1 min-w-[140px] z-50">

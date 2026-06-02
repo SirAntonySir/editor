@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from 'vitest';
-import { computeEffectiveSize, applyGeometry } from './image-node-geometry';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { computeEffectiveSize, applyGeometry, getInternalCanvas, clearInternalCanvasCache } from './image-node-geometry';
 
 describe('computeEffectiveSize', () => {
   const source = { w: 800, h: 600 };
@@ -218,5 +218,48 @@ describe('applyGeometry — order of operations', () => {
     expect(calls).toEqual([
       'setTransform', 'translate', 'rotate', 'scale', 'translate', 'drawImage', 'setTransform',
     ]);
+  });
+});
+
+describe('internal-canvas cache', () => {
+  beforeEach(() => {
+    clearInternalCanvasCache();
+  });
+
+  it('returns the same canvas instance for the same imageNodeId', () => {
+    const a = getInternalCanvas('in-1', 800, 600);
+    const b = getInternalCanvas('in-1', 800, 600);
+    expect(a).toBe(b);
+  });
+
+  it('resizes the cached canvas when dims change but keeps the same instance', () => {
+    const a = getInternalCanvas('in-1', 800, 600);
+    const b = getInternalCanvas('in-1', 1024, 768);
+    expect(a).toBe(b);
+    expect(b.width).toBe(1024);
+    expect(b.height).toBe(768);
+  });
+
+  it('returns different instances for different imageNodeIds', () => {
+    const a = getInternalCanvas('in-1', 800, 600);
+    const b = getInternalCanvas('in-2', 800, 600);
+    expect(a).not.toBe(b);
+  });
+
+  it('clearInternalCanvasCache() drops all entries', () => {
+    const a = getInternalCanvas('in-1', 800, 600);
+    clearInternalCanvasCache();
+    const b = getInternalCanvas('in-1', 800, 600);
+    expect(a).not.toBe(b);
+  });
+
+  it('clearInternalCanvasCache(id) drops only that entry', () => {
+    const a1 = getInternalCanvas('in-1', 800, 600);
+    const a2 = getInternalCanvas('in-2', 800, 600);
+    clearInternalCanvasCache('in-1');
+    const b1 = getInternalCanvas('in-1', 800, 600);
+    const b2 = getInternalCanvas('in-2', 800, 600);
+    expect(b1).not.toBe(a1);
+    expect(b2).toBe(a2);
   });
 });

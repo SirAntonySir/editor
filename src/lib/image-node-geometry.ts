@@ -34,6 +34,28 @@ export function applyGeometry(
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
+const internalCache = new Map<string, HTMLCanvasElement>();
+
+/** Returns a cached internal canvas for the given image-node id, sized at
+ *  `w × h`. Reuses the same canvas instance across calls; resizes if dims
+ *  changed. */
+export function getInternalCanvas(imageNodeId: string, w: number, h: number): HTMLCanvasElement {
+  let canvas = internalCache.get(imageNodeId);
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    internalCache.set(imageNodeId, canvas);
+  }
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
+  return canvas;
+}
+
+/** Drop one entry or the whole cache. Called by `editorDocument.closeDocument()`. */
+export function clearInternalCanvasCache(imageNodeId?: string): void {
+  if (imageNodeId) internalCache.delete(imageNodeId);
+  else internalCache.clear();
+}
+
 /** Effective output dimensions for the visible canvas given source dims,
  *  rotation angle, and an optional source-coords crop. Rotation by 90°/270°
  *  swaps the effective width and height; 0° / 180° do not. Flip never swaps.

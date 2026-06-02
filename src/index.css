@@ -25,7 +25,8 @@
   --radius-sm: 4px;
 
   /* Shadows */
-  --shadow-overlay: 0 4px 14px rgba(0, 0, 0, 0.10);
+  --shadow-overlay-color: rgba(0, 0, 0, 0.10);
+  --shadow-overlay: 0 4px 14px var(--shadow-overlay-color);
 
   /* Animation — restrained */
   --ease-apple: cubic-bezier(0.2, 0, 0, 1);
@@ -46,7 +47,8 @@
   --color-border-strong: rgba(255, 255, 255, 0.20);
   --color-ai: #8b6dff;
   --color-canvas-bg: #000000;
-  --shadow-overlay: 0 4px 14px rgba(0, 0, 0, 0.50);
+  --shadow-overlay-color: rgba(0, 0, 0, 0.50);
+  --shadow-overlay: 0 4px 14px var(--shadow-overlay-color);
 }
 
 /* Base styles */

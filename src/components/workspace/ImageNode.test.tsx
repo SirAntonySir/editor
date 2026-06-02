@@ -118,6 +118,6 @@ describe('zoom-invariant chrome', () => {
     expect(style.getPropertyValue('--chrome-scale')).toBe('1');
     expect(style.getPropertyValue('--overlay-border-width')).toBe('1px');
     expect(style.getPropertyValue('--overlay-radius')).toBe('8px');
-    expect(style.getPropertyValue('--overlay-shadow')).toContain('rgba(0, 0, 0, 0.1)');
+    expect(style.getPropertyValue('--overlay-shadow')).toContain('var(--shadow-overlay-color)');
   });
 });

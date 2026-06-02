@@ -65,7 +65,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
           ['--chrome-scale' as string]: String(chromeScale),
           ['--overlay-border-width' as string]: `${chromeScale}px`,
           ['--overlay-radius' as string]: `${8 * chromeScale}px`,
-          ['--overlay-shadow' as string]: `0 ${4 * chromeScale}px ${14 * chromeScale}px rgba(0, 0, 0, 0.1)`,
+          ['--overlay-shadow' as string]: `0 ${4 * chromeScale}px ${14 * chromeScale}px var(--shadow-overlay-color)`,
         }}
       >
         <ImageNodeSelectionPopover layerIds={data.layerIds}>

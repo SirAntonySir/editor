@@ -28,3 +28,17 @@ describe('WidgetNode', () => {
     expect(screen.getByText('Warm up shadows')).toBeInTheDocument();
   });
 });
+
+describe('WidgetNode tether handles', () => {
+  it('mounts source handles on all four sides', () => {
+    render(
+      <ReactFlowProvider>
+        <WidgetNode id="w-1" data={{ widget: makeAiWidget() }} selected={false} />
+      </ReactFlowProvider>,
+    );
+    expect(document.querySelector('[data-handleid="tether-out-left"]')).toBeTruthy();
+    expect(document.querySelector('[data-handleid="tether-out-right"]')).toBeTruthy();
+    expect(document.querySelector('[data-handleid="tether-out-top"]')).toBeTruthy();
+    expect(document.querySelector('[data-handleid="tether-out-bottom"]')).toBeTruthy();
+  });
+});

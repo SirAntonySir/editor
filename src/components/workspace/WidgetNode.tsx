@@ -21,6 +21,10 @@ export function WidgetNode({ data, selected }: WidgetNodeProps) {
   const headerY = `${10 * scale}px`;
   return (
     <>
+      <Handle type="source" position={Position.Top}
+        id="tether-out-top"    style={{ left: '50%', opacity: 0 }} />
+      <Handle type="source" position={Position.Bottom}
+        id="tether-out-bottom" style={{ left: '50%', opacity: 0 }} />
       <Handle
         type="source"
         position={Position.Left}

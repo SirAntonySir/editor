@@ -1,12 +1,14 @@
-import { Sparkles } from 'lucide-react';
+import { Eye, EyeOff, Sparkles } from 'lucide-react';
 import type { Widget } from '@/types/widget';
 
 interface WidgetShellHeaderProps {
   widget: Widget;
   expanded: boolean;
   dirty: boolean;
+  hidden: boolean;
   onToggle: () => void;
   onClose: () => void;
+  onToggleHidden: () => void;
 }
 
 function isAiVariant(widget: Widget): boolean {
@@ -28,7 +30,19 @@ function scopeDotClass(widget: Widget): string {
   return widget.scope.kind === 'global' ? 'bg-text-secondary' : 'bg-orange-500';
 }
 
-export function WidgetShellHeader({ widget, expanded, dirty, onToggle, onClose }: WidgetShellHeaderProps) {
+export function WidgetShellHeader({
+  widget,
+  expanded,
+  dirty,
+  hidden,
+  onToggle,
+  onClose,
+  onToggleHidden,
+}: WidgetShellHeaderProps) {
+  // `dirty` is kept in the prop interface as a hook for future affordances;
+  // the legacy edit-state dot has been removed in favour of slider-level
+  // provenance colour.
+  void dirty;
   const ai = isAiVariant(widget);
   return (
     <div
@@ -67,13 +81,18 @@ export function WidgetShellHeader({ widget, expanded, dirty, onToggle, onClose }
         </span>
       )}
       <span className="text-[11px] font-medium flex-1 min-w-0 truncate text-text-primary">{widget.intent}</span>
-      {dirty && (
-        <span aria-label="Bindings edited" className="w-[5px] h-[5px] rounded-full bg-accent" />
-      )}
       <span className="inline-flex items-center gap-1 text-[9px] text-text-secondary bg-surface-secondary border border-separator rounded-[3px] px-1.5 py-px leading-[1.4]">
         <span className={`w-[5px] h-[5px] rounded-full ${scopeDotClass(widget)}`} />
         {scopeLabel(widget)}
       </span>
+      <button
+        type="button"
+        aria-label={hidden ? 'Show widget' : 'Hide widget'}
+        onClick={(e) => { e.stopPropagation(); onToggleHidden(); }}
+        className="inline-flex items-center justify-center text-text-secondary hover:text-text-primary px-0.5"
+      >
+        {hidden ? <Eye size={11} aria-hidden /> : <EyeOff size={11} aria-hidden />}
+      </button>
       <span className="text-text-secondary text-[11px] leading-none px-0.5" aria-hidden>{expanded ? '⌄' : '›'}</span>
       {expanded && (
         <button

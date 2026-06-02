@@ -18,6 +18,7 @@ from .select_by_box import SelectByBoxTool
 from .select_by_point import SelectByPointTool
 from .list_fused_tools import ListFusedToolsTool
 from .select_named_region import SelectNamedRegionTool
+from .set_image_node_transform import SetImageNodeTransformTool
 
 
 def register_all_atomic_tools(registry: BackendToolRegistry) -> None:
@@ -39,3 +40,4 @@ def register_all_atomic_tools(registry: BackendToolRegistry) -> None:
     registry.register(AnalyzeImageTool())
     registry.register(ListFusedToolsTool())
     registry.register(PreviewWidgetTool())
+    registry.register(SetImageNodeTransformTool())

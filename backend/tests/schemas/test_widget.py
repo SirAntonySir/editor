@@ -258,5 +258,6 @@ def test_state_event_kinds() -> None:
         "note.created",
         "phase.started", "phase.progress", "phase.completed",
         "canonical.updated",
+        "image_node_transform.updated",
     }
     assert set(StateEventKind.__args__) == expected

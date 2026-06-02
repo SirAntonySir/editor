@@ -347,6 +347,7 @@ StateEventKind = Literal[
     "note.created",
     "phase.started", "phase.progress", "phase.completed",
     "canonical.updated",
+    "image_node_transform.updated",
 ]
 
 

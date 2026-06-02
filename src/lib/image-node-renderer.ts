@@ -121,6 +121,16 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   const ctx = internal.getContext('2d');
   if (!ctx) return;
 
+  console.log('[renderer] enter', {
+    imageNodeId: args.imageNodeId,
+    layerIds: args.layerIds,
+    sourceWidth: args.sourceWidth,
+    sourceHeight: args.sourceHeight,
+    visibleW: visible.width,
+    visibleH: visible.height,
+    bypassAdjustments,
+  });
+
   ctx.clearRect(0, 0, internal.width, internal.height);
   if (layerIds.length === 0) {
     visibleCtx.clearRect(0, 0, visible.width, visible.height);
@@ -136,6 +146,17 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
     if (!layer || !layer.visible) continue;
 
     const source = CanvasRegistry.get(layerId);
+
+    console.log('[renderer] layer', {
+      layerId,
+      visible: layer?.visible,
+      hasSource: !!source,
+      sourceDims: source ? { w: source.width, h: source.height } : null,
+      internalW: internal.width,
+      internalH: internal.height,
+      adjustmentsCount: nodes.filter((n) => n.layer_id === layerId && !hiddenNodeIds.has(n.id)).length,
+    });
+
     if (!source) continue;
 
     const layerNodes = nodes.filter(
@@ -195,7 +216,40 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
 
   // ---- Geometry pass: internal → visible at effective dims ----------------
   const transforms = readTransforms(opGraph, args.imageNodeId);
+
+  console.log('[renderer] before geometry', {
+    internalW: internal.width,
+    internalH: internal.height,
+    visibleW: visible.width,
+    visibleH: visible.height,
+    transforms,
+  });
+  // Sample a few internal pixels to see if anything got painted.
+  try {
+    const sample = internal.getContext('2d')?.getImageData(0, 0, 1, 1);
+    console.log('[renderer] internal pixel (0,0)', sample?.data);
+    const mid = internal.getContext('2d')?.getImageData(
+      Math.floor(internal.width / 2),
+      Math.floor(internal.height / 2),
+      1, 1,
+    );
+    console.log('[renderer] internal pixel (mid)', mid?.data);
+  } catch (e) {
+    console.log('[renderer] internal sample failed', e);
+  }
+
   applyGeometry(internal, visible, transforms);
+
+  try {
+    const vSample = visibleCtx.getImageData(
+      Math.floor(visible.width / 2),
+      Math.floor(visible.height / 2),
+      1, 1,
+    );
+    console.log('[renderer] visible pixel (mid)', vSample.data);
+  } catch (e) {
+    console.log('[renderer] visible sample failed', e);
+  }
 
   // ---- Overlay pass on the visible (post-transform) canvas ----------------
   // Painted on top of the composite so chrome is always visible. State source:

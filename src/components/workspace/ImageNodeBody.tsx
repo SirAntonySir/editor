@@ -1,5 +1,7 @@
 import { useImageNodeRender } from '@/hooks/useImageNodeRender';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useEditorStore } from '@/store';
+import { useShallow } from 'zustand/react/shallow';
 
 interface ImageNodeBodyProps {
   imageNodeId: string;
@@ -21,26 +23,35 @@ interface CropParams {
   h: number;
 }
 
-function useRotateParams(imageNodeId: string): RotateParams | null {
-  return useBackendState((s) => {
-    const nodes = s.snapshot?.operation_graph.nodes ?? [];
-    const node = nodes.find((n) => n.id === `transform:${imageNodeId}:rotate`);
-    return node ? (node.params as unknown as RotateParams) : null;
-  });
+interface ImageNodeTransforms {
+  rotate: RotateParams | null;
+  crop: CropParams | null;
 }
 
-function useCropParams(imageNodeId: string): CropParams | null {
-  return useBackendState((s) => {
-    const nodes = s.snapshot?.operation_graph.nodes ?? [];
-    const node = nodes.find((n) => n.id === `transform:${imageNodeId}:crop`);
-    return node ? (node.params as unknown as CropParams) : null;
-  });
+function useImageNodeTransforms(imageNodeId: string): ImageNodeTransforms {
+  const fromSnapshot = useBackendState(
+    useShallow((s) => {
+      const nodes = s.snapshot?.operation_graph.nodes ?? [];
+      const rotateNode = nodes.find((n) => n.id === `transform:${imageNodeId}:rotate`);
+      const cropNode = nodes.find((n) => n.id === `transform:${imageNodeId}:crop`);
+      return {
+        rotate: rotateNode ? (rotateNode.params as unknown as RotateParams) : null,
+        crop: cropNode ? (cropNode.params as unknown as CropParams) : null,
+      };
+    }),
+  );
+  const previewActive = useEditorStore((s) => s.cropModalImageNodeId === imageNodeId);
+  const preview = useEditorStore((s) => s.cropPreview);
+  if (!previewActive || !preview) return fromSnapshot;
+  return {
+    rotate: preview.rotate ?? fromSnapshot.rotate,
+    crop:   preview.crop   ?? fromSnapshot.crop,
+  };
 }
 
 export function ImageNodeBody({ imageNodeId, layerIds, width, height }: ImageNodeBodyProps) {
   const { canvasRef } = useImageNodeRender({ imageNodeId, layerIds, width, height });
-  const rotate = useRotateParams(imageNodeId);
-  const crop = useCropParams(imageNodeId);
+  const { rotate, crop } = useImageNodeTransforms(imageNodeId);
 
   const cssTransform = (() => {
     const parts: string[] = [];

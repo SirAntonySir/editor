@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
@@ -40,6 +40,14 @@ export function CropOverlay({ imageNodeId, layerIds, width, height }: CropOverla
   const [aspect, setAspect] = useState<number | null>(null);
   const [angle, setAngle] = useState(0);
 
+  useEffect(() => {
+    useEditorStore.getState().setCropPreview({
+      crop,
+      rotate: angle !== 0 ? { angle, flip_h: false, flip_v: false } : null,
+    });
+    return () => { useEditorStore.getState().setCropPreview(null); };
+  }, [crop, angle]);
+
   function handleAspect(ratio: number | null) {
     setAspect(ratio);
     if (ratio === null) return;
@@ -56,10 +64,12 @@ export function CropOverlay({ imageNodeId, layerIds, width, height }: CropOverla
       crop,
       rotate: angle !== 0 ? { angle, flip_h: false, flip_v: false } : null,
     });
+    useEditorStore.getState().setCropPreview(null);
     useEditorStore.getState().setCropModal(null);
   }
 
   function handleCancel() {
+    useEditorStore.getState().setCropPreview(null);
     useEditorStore.getState().setCropModal(null);
   }
 

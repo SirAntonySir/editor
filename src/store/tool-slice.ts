@@ -11,6 +11,12 @@ export interface ToolSlice {
   hoveredWidgetId: string | null;
   cropModalImageNodeId: string | null;
   setCropModal: (id: string | null) => void;
+  cropPreview: { crop: { x: number; y: number; w: number; h: number } | null;
+                 rotate: { angle: number; flip_h: boolean; flip_v: boolean } | null } | null;
+  setCropPreview: (
+    p: { crop: { x: number; y: number; w: number; h: number } | null;
+         rotate: { angle: number; flip_h: boolean; flip_v: boolean } | null } | null
+  ) => void;
   /** Canonical `${layer}:${op}:${param}` keys the USER has moved by hand.
    * Drives slider provenance colour (hand = accent vs AI = violet). */
   touchedParams: Set<string>;
@@ -36,6 +42,7 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   expandedSectionIds: new Set<string>(),
   hoveredWidgetId: null,
   cropModalImageNodeId: null,
+  cropPreview: null,
   touchedParams: new Set<string>(),
 
   setActiveTool: (name) =>
@@ -99,5 +106,10 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   setCropModal: (id) =>
     set((state) => {
       state.cropModalImageNodeId = id;
+    }),
+
+  setCropPreview: (p) =>
+    set((state) => {
+      state.cropPreview = p;
     }),
 });

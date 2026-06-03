@@ -82,6 +82,14 @@ export function CropTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeImageNodeId, sw, sh, snapshotCropX, snapshotCropY, snapshotCropW, snapshotCropH, snapshotAngle]);
 
+  useEffect(() => {
+    useEditorStore.getState().setCropPreview({
+      crop,
+      rotate: angle !== 0 ? { angle, flip_h: false, flip_v: false } : null,
+    });
+    return () => { useEditorStore.getState().setCropPreview(null); };
+  }, [crop, angle]);
+
   const source = imageNode ? CanvasRegistry.get(imageNode.layerIds[0] ?? '') : undefined;
 
   if (!imageNode || !source || sw === 0 || sh === 0) {

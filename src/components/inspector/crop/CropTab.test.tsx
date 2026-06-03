@@ -95,3 +95,44 @@ describe('CropTab initial state', () => {
     expect(parseFloat(slider.value)).toBeCloseTo(5.0);
   });
 });
+
+describe('CropTab cropPreview wiring', () => {
+  it('writes cropPreview on mount with the initial rect', () => {
+    seedActive();
+    render(<CropTab />);
+    const preview = useEditorStore.getState().cropPreview;
+    expect(preview).not.toBeNull();
+    expect(preview!.crop).toEqual({ x: 0, y: 0, w: 800, h: 600 });
+    expect(preview!.rotate).toBeNull();
+  });
+
+  it('writes cropPreview with rotate when angle is non-zero', () => {
+    seedActive();
+    useBackendState.setState({
+      sessionId: 'sess-1',
+      snapshot: {
+        revision: 1,
+        operation_graph: {
+          id: 'g', user_goal: '', reasoning: null, panel_bindings: [], metadata: {},
+          nodes: [{
+            id: 'transform:in-1:rotate', type: 'rotate',
+            params: { angle: 12.5, flip_h: false, flip_v: false },
+            scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'], widget_id: null,
+          }],
+        },
+        masks_index: [], widgets: [], image_context: null,
+      } as never,
+    });
+    render(<CropTab />);
+    const preview = useEditorStore.getState().cropPreview;
+    expect(preview!.rotate).toEqual({ angle: 12.5, flip_h: false, flip_v: false });
+  });
+
+  it('clears cropPreview on unmount', () => {
+    seedActive();
+    const { unmount } = render(<CropTab />);
+    expect(useEditorStore.getState().cropPreview).not.toBeNull();
+    unmount();
+    expect(useEditorStore.getState().cropPreview).toBeNull();
+  });
+});

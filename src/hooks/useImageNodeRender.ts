@@ -96,10 +96,8 @@ export function useImageNodeRender({
     return { x: p.x ?? 0, y: p.y ?? 0, w: p.w, h: p.h };
   });
   const cropPreview = useEditorStore((s) => s.cropPreview);
-  const previewActive = useEditorStore((s) => {
-    const tabIsCrop = usePreferencesStore.getState().inspectorTab === 'crop';
-    return tabIsCrop && s.activeImageNodeId === imageNodeId;
-  });
+  const inspectorTab = usePreferencesStore((s) => s.inspectorTab);
+  const previewActive = inspectorTab === 'crop' && activeImageNodeId === imageNodeId;
 
   const effectiveRotateAngle =
     previewActive && cropPreview && cropPreview.rotate

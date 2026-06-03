@@ -10,6 +10,7 @@ import { useChromeScale } from '@/hooks/useChromeScale';
 import { useChromeVisible } from '@/hooks/useChromeVisible';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { computeEffectiveSize, type Crop } from '@/lib/image-node-geometry';
 
@@ -52,24 +53,66 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
     if (!chromeVisible) setCompareHeld(false);
   }, [chromeVisible]);
 
-  const rotateAngle = useBackendState((s) => {
+  const snapshotRotateAngle = useBackendState((s) => {
     const node = s.snapshot?.operation_graph.nodes.find(
       (n) => n.id === `transform:${id}:rotate`,
     );
     if (!node) return null;
     return (node.params.angle as number) ?? null;
   });
-  const cropRect = useBackendState((s): Crop | null => {
+  // Split crop into primitive selectors to avoid Zustand object-identity churn.
+  const snapshotCropX = useBackendState((s) => {
     const node = s.snapshot?.operation_graph.nodes.find(
       (n) => n.id === `transform:${id}:crop`,
     );
     if (!node) return null;
-    const p = node.params as { x?: number; y?: number; w?: number; h?: number };
-    if (p.w == null || p.h == null) return null;
-    return { x: p.x ?? 0, y: p.y ?? 0, w: p.w, h: p.h };
+    const p = node.params as { x?: number; w?: number; h?: number };
+    return p.w != null && p.h != null ? (p.x ?? 0) : null;
+  });
+  const snapshotCropY = useBackendState((s) => {
+    const node = s.snapshot?.operation_graph.nodes.find(
+      (n) => n.id === `transform:${id}:crop`,
+    );
+    if (!node) return null;
+    const p = node.params as { y?: number; w?: number; h?: number };
+    return p.w != null && p.h != null ? (p.y ?? 0) : null;
+  });
+  const snapshotCropW = useBackendState((s) => {
+    const node = s.snapshot?.operation_graph.nodes.find(
+      (n) => n.id === `transform:${id}:crop`,
+    );
+    if (!node) return null;
+    return (node.params as { w?: number }).w ?? null;
+  });
+  const snapshotCropH = useBackendState((s) => {
+    const node = s.snapshot?.operation_graph.nodes.find(
+      (n) => n.id === `transform:${id}:crop`,
+    );
+    if (!node) return null;
+    return (node.params as { h?: number }).h ?? null;
   });
 
-  const size = computeEffectiveSize(data.size, rotateAngle, cropRect);
+  const snapshotCrop: Crop | null =
+    snapshotCropW != null && snapshotCropH != null
+      ? { x: snapshotCropX ?? 0, y: snapshotCropY ?? 0, w: snapshotCropW, h: snapshotCropH }
+      : null;
+
+  // Merge with cropPreview when this node is the crop-tab target.
+  const inspectorTab = usePreferencesStore((s) => s.inspectorTab);
+  const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
+  const cropPreview = useEditorStore((s) => s.cropPreview);
+  const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
+
+  const effectiveRotateAngle =
+    previewActive && cropPreview && cropPreview.rotate
+      ? cropPreview.rotate.angle
+      : snapshotRotateAngle;
+  const effectiveCropRect: Crop | null =
+    previewActive && cropPreview && cropPreview.crop
+      ? cropPreview.crop
+      : snapshotCrop;
+
+  const size = computeEffectiveSize(data.size, effectiveRotateAngle, effectiveCropRect);
 
   const updateNodeInternals = useUpdateNodeInternals();
   useEffect(() => {

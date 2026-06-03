@@ -91,8 +91,8 @@ describe('CropTab initial state', () => {
       } as never,
     });
     render(<CropTab />);
-    const slider = screen.getByRole('slider', { name: /straighten/i }) as HTMLInputElement;
-    expect(parseFloat(slider.value)).toBeCloseTo(5.0);
+    const slider = screen.getByRole('slider', { name: /straighten/i });
+    expect(parseFloat(slider.getAttribute('aria-valuenow') ?? '0')).toBeCloseTo(5.0);
   });
 });
 
@@ -199,9 +199,15 @@ describe('CropTab straighten auto-fit', () => {
   it('shrinks crop to the largest source-aspect rect when angle changes', async () => {
     seedActive();
     render(<CropTab />);
-    // Move the straighten slider to 15°.
-    const slider = screen.getByRole('slider', { name: /straighten/i }) as HTMLInputElement;
-    fireEvent.change(slider, { target: { value: '15' } });
+    // Move the straighten ruler to 15°.
+    // angleFromPointer: angle = min + ratio * (max - min); for angle=15, ratio = (15-(-45))/90 = 60/90 = 2/3
+    const slider = screen.getByRole('slider', { name: /straighten/i });
+    // In jsdom, getBoundingClientRect returns zeros; mock it so angleFromPointer works.
+    slider.getBoundingClientRect = () => ({
+      left: 0, top: 0, right: 300, bottom: 28, width: 300, height: 28, x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect);
+    fireEvent.pointerDown(slider, { clientX: 300 * (60 / 90), clientY: 14, pointerId: 1 });
+    fireEvent.pointerUp(window, { pointerId: 1 });
     // Read the cropPreview to confirm the crop shrunk to the inscribed rect.
     const preview = useEditorStore.getState().cropPreview;
     expect(preview).not.toBeNull();

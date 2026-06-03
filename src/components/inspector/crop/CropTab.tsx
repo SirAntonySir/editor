@@ -6,6 +6,7 @@ import { backendTools } from '@/lib/backend-tools';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { CropPreview, type CropRect } from './CropPreview';
 import { largestInsetRect } from '@/lib/largest-inset-rect';
+import { StraightenRuler } from './StraightenRuler';
 
 const ASPECTS: { label: string; ratio: number | null }[] = [
   { label: 'Free', ratio: null },
@@ -178,25 +179,30 @@ export function CropTab() {
   const aspectLabel = aspect == null ? 'Free' : aspect === 1 ? '1:1' : aspect === 1.5 ? '3:2' : aspect === 16 / 9 ? '16:9' : 'Original';
 
   return (
-    <div data-testid="crop-tab" className="p-3 flex flex-col gap-2 text-[11px]">
-      <CropPreview
-        sourceBitmap={source}
-        crop={crop}
-        aspectRatio={aspect}
-        previewWidth={previewWidth}
-        previewHeight={previewHeight}
-        rotateAngle={angle}
-        onCropChange={setCrop}
-      />
-      <div className="flex gap-1">
+    <div data-testid="crop-tab" className="p-3 flex flex-col gap-3 text-[11px]">
+      <div className="flex justify-center">
+        <CropPreview
+          sourceBitmap={source}
+          crop={crop}
+          aspectRatio={aspect}
+          previewWidth={previewWidth}
+          previewHeight={previewHeight}
+          rotateAngle={angle}
+          onCropChange={setCrop}
+        />
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-1">
         {ASPECTS.map((a) => (
           <button
             key={a.label}
             type="button"
             aria-pressed={aspect === a.ratio}
             onClick={() => setAspect(a.ratio)}
-            className={`px-1.5 py-0.5 rounded-[3px] ${
-              aspect === a.ratio ? 'bg-accent text-white' : 'bg-surface-secondary text-text-secondary'
+            className={`px-2 py-1 text-[10px] rounded-[4px] border ${
+              aspect === a.ratio
+                ? 'bg-accent text-white border-accent'
+                : 'bg-surface-secondary text-text-secondary border-separator hover:text-text-primary'
             }`}
           >
             {a.label}
@@ -206,44 +212,38 @@ export function CropTab() {
           type="button"
           aria-pressed={aspect === sw / sh}
           onClick={() => setAspect(sw / sh)}
-          className={`px-1.5 py-0.5 rounded-[3px] ${
-            aspect === sw / sh ? 'bg-accent text-white' : 'bg-surface-secondary text-text-secondary'
+          className={`px-2 py-1 text-[10px] rounded-[4px] border ${
+            aspect === sw / sh
+              ? 'bg-accent text-white border-accent'
+              : 'bg-surface-secondary text-text-secondary border-separator hover:text-text-primary'
           }`}
         >
           Original
         </button>
       </div>
-      <label className="flex items-center gap-1 text-text-secondary">
-        Straighten
-        <input
-          type="range"
-          aria-label="Straighten"
-          min={-45}
-          max={45}
-          step={0.1}
-          value={angle}
-          onChange={(e) => setAngle(parseFloat(e.target.value))}
-          className="flex-1"
-        />
-        <span className="num w-10 text-right">{angle.toFixed(1)}°</span>
-      </label>
-      <div data-testid="crop-readout" className="text-text-secondary">
-        {sw} × {sh} → {Math.round(crop.w)} × {Math.round(crop.h)} ({aspectLabel})
+
+      <StraightenRuler value={angle} onChange={setAngle} />
+
+      <div data-testid="crop-readout" className="text-center text-[10px] text-text-tertiary tabular-nums">
+        {sw} × {sh} <span className="px-1 text-text-secondary">→</span>
+        <span className="text-text-primary">{Math.round(crop.w)} × {Math.round(crop.h)}</span>
+        <span className="ml-1">({aspectLabel})</span>
       </div>
+
       <div className="flex gap-1 mt-1">
         <button
           type="button"
-          onClick={handleApply}
-          className="flex-1 px-2 py-0.5 rounded-[3px] bg-accent text-white"
+          onClick={handleCancel}
+          className="flex-1 px-2 py-1.5 text-[11px] rounded-[5px] bg-surface-secondary text-text-secondary border border-separator hover:text-text-primary"
         >
-          Apply
+          Cancel
         </button>
         <button
           type="button"
-          onClick={handleCancel}
-          className="flex-1 px-2 py-0.5 rounded-[3px] bg-surface-secondary text-text-secondary"
+          onClick={handleApply}
+          className="flex-1 px-2 py-1.5 text-[11px] rounded-[5px] bg-accent text-white hover:bg-accent-hover"
         >
-          Cancel
+          Apply
         </button>
       </div>
     </div>

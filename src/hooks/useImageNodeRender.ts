@@ -86,15 +86,41 @@ export function useImageNodeRender({
     if (!node) return null;
     return (node.params.angle as number) ?? null;
   });
-  const cropRect = useBackendState((s) => {
+  const cropRectX = useBackendState((s) => {
     const node = s.snapshot?.operation_graph.nodes.find(
       (n) => n.id === `transform:${imageNodeId}:crop`,
     );
     if (!node) return null;
-    const p = node.params as { x?: number; y?: number; w?: number; h?: number };
-    if (p.w == null || p.h == null) return null;
-    return { x: p.x ?? 0, y: p.y ?? 0, w: p.w, h: p.h };
+    const p = node.params as { x?: number; w?: number; h?: number };
+    return p.w != null && p.h != null ? (p.x ?? 0) : null;
   });
+  const cropRectY = useBackendState((s) => {
+    const node = s.snapshot?.operation_graph.nodes.find(
+      (n) => n.id === `transform:${imageNodeId}:crop`,
+    );
+    if (!node) return null;
+    const p = node.params as { y?: number; w?: number; h?: number };
+    return p.w != null && p.h != null ? (p.y ?? 0) : null;
+  });
+  const cropRectW = useBackendState((s) => {
+    const node = s.snapshot?.operation_graph.nodes.find(
+      (n) => n.id === `transform:${imageNodeId}:crop`,
+    );
+    if (!node) return null;
+    return (node.params as { w?: number }).w ?? null;
+  });
+  const cropRectH = useBackendState((s) => {
+    const node = s.snapshot?.operation_graph.nodes.find(
+      (n) => n.id === `transform:${imageNodeId}:crop`,
+    );
+    if (!node) return null;
+    return (node.params as { h?: number }).h ?? null;
+  });
+
+  const cropRect: { x: number; y: number; w: number; h: number } | null =
+    cropRectW != null && cropRectH != null
+      ? { x: cropRectX ?? 0, y: cropRectY ?? 0, w: cropRectW, h: cropRectH }
+      : null;
   const cropPreview = useEditorStore((s) => s.cropPreview);
   const inspectorTab = usePreferencesStore((s) => s.inspectorTab);
   const previewActive = inspectorTab === 'crop' && activeImageNodeId === imageNodeId;

@@ -141,7 +141,7 @@ export function CropTab() {
   return (
     <div data-testid="crop-tab" className="p-3 flex flex-col gap-2 text-[11px]">
       <CropPreview
-        sourceBitmap={source as HTMLCanvasElement}
+        sourceBitmap={source}
         crop={crop}
         aspectRatio={aspect}
         previewWidth={previewWidth}

@@ -10,7 +10,6 @@ import { useChromeScale } from '@/hooks/useChromeScale';
 import { useChromeVisible } from '@/hooks/useChromeVisible';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
-import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { computeEffectiveSize, type Crop } from '@/lib/image-node-geometry';
 

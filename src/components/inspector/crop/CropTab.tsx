@@ -132,11 +132,11 @@ export function CropTab() {
     return () => { useEditorStore.getState().setCropPreview(null); };
   }, [crop, angle]);
 
-  function handleApply() {
+  async function handleApply() {
     if (!imageNode) return;
     const sessionId = useBackendState.getState().sessionId;
     if (!sessionId) return;
-    void backendTools.set_image_node_transform(sessionId, {
+    await backendTools.set_image_node_transform(sessionId, {
       image_node_id: imageNode.id,
       layer_ids: imageNode.layerIds,
       crop,
@@ -156,7 +156,7 @@ export function CropTab() {
       if (usePreferencesStore.getState().inspectorTab !== 'crop') return;
       if (e.key === 'Enter') {
         e.preventDefault();
-        handleApply();
+        void handleApply();
       }
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -179,7 +179,7 @@ export function CropTab() {
   const aspectLabel = aspect == null ? 'Free' : aspect === 1 ? '1:1' : aspect === 1.5 ? '3:2' : aspect === 16 / 9 ? '16:9' : 'Original';
 
   return (
-    <div data-testid="crop-tab" className="p-3 flex flex-col gap-3 text-[11px]">
+    <div data-testid="crop-tab" className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-3 text-[11px]">
       <div className="flex justify-center">
         <CropPreview
           sourceBitmap={source}
@@ -240,7 +240,7 @@ export function CropTab() {
         </button>
         <button
           type="button"
-          onClick={handleApply}
+          onClick={() => void handleApply()}
           className="flex-1 px-2 py-1.5 text-[11px] rounded-[5px] bg-accent text-white hover:bg-accent-hover"
         >
           Apply

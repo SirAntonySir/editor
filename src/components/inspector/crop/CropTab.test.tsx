@@ -151,6 +151,8 @@ describe('CropTab Apply / Cancel', () => {
     usePreferencesStore.setState({ inspectorTab: 'crop' });
     render(<CropTab />);
     await userEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    // Wait for the await inside handleApply to resolve.
+    await new Promise((r) => setTimeout(r, 0));
     expect(spy).toHaveBeenCalledWith('sess-1', expect.objectContaining({
       image_node_id: 'in-1',
       layer_ids: ['L1'],
@@ -184,6 +186,8 @@ describe('CropTab Apply / Cancel', () => {
     usePreferencesStore.setState({ inspectorTab: 'crop' });
     render(<CropTab />);
     fireEvent.keyDown(window, { key: 'Enter' });
+    // Wait for the await inside handleApply to resolve.
+    await new Promise((r) => setTimeout(r, 0));
     expect(spy).toHaveBeenCalledTimes(1);
     spy.mockClear();
     usePreferencesStore.setState({ inspectorTab: 'crop' });

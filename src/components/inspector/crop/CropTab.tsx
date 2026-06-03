@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { backendTools } from '@/lib/backend-tools';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { CropPreview, type CropRect } from './CropPreview';
+import { largestInsetRect } from '@/lib/largest-inset-rect';
 
 const ASPECTS: { label: string; ratio: number | null }[] = [
   { label: 'Free', ratio: null },
@@ -75,6 +76,39 @@ export function CropTab() {
   const [crop, setCrop] = useState<CropRect>(initialCrop);
   const [aspect, setAspect] = useState<number | null>(null);
   const [angle, setAngle] = useState(snapshotAngle);
+
+  // Ref-based guard: skip the very first run of the auto-fit effect so we
+  // don't disturb a saved crop when the user opens the Crop tab.
+  const autoFitRanOnce = useRef(false);
+
+  // Reset the guard whenever the active image-node changes so a fresh image
+  // also gets its first render skipped (the re-seed effect below handles it).
+  useEffect(() => {
+    autoFitRanOnce.current = false;
+  }, [activeImageNodeId]);
+
+  // Auto-fit crop to the largest aspect-correct rect that fits inside the
+  // rotated source. Triggers whenever angle or aspect changes (NOT on free
+  // drag — that branch is gated by aspect ratio being null below).
+  useEffect(() => {
+    if (!autoFitRanOnce.current) {
+      autoFitRanOnce.current = true;
+      return;
+    }
+    if (!imageNode) return;
+    if (sw === 0 || sh === 0) return;
+    const ratio = aspect ?? crop.w / crop.h;
+    if (!isFinite(ratio) || ratio <= 0) return;
+    const max = largestInsetRect(sw, sh, angle, ratio);
+    setCrop({
+      x: (sw - max.w) / 2,
+      y: (sh - max.h) / 2,
+      w: max.w,
+      h: max.h,
+    });
+    // Intentional: depend on angle + aspect only. Including `crop` would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [angle, aspect, sw, sh, imageNode?.id]);
 
   // Re-seed local state whenever the active image-node changes.
   useEffect(() => {

@@ -309,7 +309,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
             className="flex items-center gap-1.5 px-2 py-1 text-[9px] text-text-secondary bg-surface border-t border-separator"
             style={stripScaleBottom}
           >
-            <span className="num">{size.w} × {size.h}</span>
+            <span className="num">{Math.round(size.w)} × {Math.round(size.h)}</span>
             <span className="flex-1" />
             <span>Layer {(data.activeLayerIndex ?? 0) + 1}/{data.layerIds.length}</span>
           </div>

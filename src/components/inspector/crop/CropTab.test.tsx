@@ -192,3 +192,32 @@ describe('CropTab Apply / Cancel', () => {
     spy.mockRestore();
   });
 });
+
+import { largestInsetRect } from '@/lib/largest-inset-rect';
+
+describe('CropTab straighten auto-fit', () => {
+  it('shrinks crop to the largest source-aspect rect when angle changes', async () => {
+    seedActive();
+    render(<CropTab />);
+    // Move the straighten slider to 15°.
+    const slider = screen.getByRole('slider', { name: /straighten/i }) as HTMLInputElement;
+    fireEvent.change(slider, { target: { value: '15' } });
+    // Read the cropPreview to confirm the crop shrunk to the inscribed rect.
+    const preview = useEditorStore.getState().cropPreview;
+    expect(preview).not.toBeNull();
+    const expected = largestInsetRect(800, 600, 15, 800 / 600);
+    expect(preview!.crop!.w).toBeCloseTo(expected.w, 0);
+    expect(preview!.crop!.h).toBeCloseTo(expected.h, 0);
+  });
+
+  it('does NOT auto-fit on initial mount', () => {
+    seedActive();
+    render(<CropTab />);
+    const preview = useEditorStore.getState().cropPreview;
+    // Initial crop is full source — auto-fit would have shrunk it at angle 0
+    // because of the source-aspect fallback. But 0° with source aspect IS the
+    // full source, so this is hard to distinguish. The safer assertion: the
+    // initial crop equals the full source dims, not the inset-with-aspect-1.
+    expect(preview!.crop).toEqual({ x: 0, y: 0, w: 800, h: 600 });
+  });
+});

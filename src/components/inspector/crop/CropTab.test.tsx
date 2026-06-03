@@ -136,3 +136,59 @@ describe('CropTab cropPreview wiring', () => {
     expect(useEditorStore.getState().cropPreview).toBeNull();
   });
 });
+
+import userEvent from '@testing-library/user-event';
+import { fireEvent } from '@testing-library/react';
+import { backendTools } from '@/lib/backend-tools';
+import { usePreferencesStore } from '@/store/preferences-store';
+
+describe('CropTab Apply / Cancel', () => {
+  it('Apply calls set_image_node_transform with the staged crop + null rotate', async () => {
+    const spy = vi.spyOn(backendTools, 'set_image_node_transform').mockResolvedValue(
+      { ok: true, output: { ok: true } } as never,
+    );
+    seedActive();
+    usePreferencesStore.setState({ inspectorTab: 'crop' });
+    render(<CropTab />);
+    await userEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    expect(spy).toHaveBeenCalledWith('sess-1', expect.objectContaining({
+      image_node_id: 'in-1',
+      layer_ids: ['L1'],
+      crop: { x: 0, y: 0, w: 800, h: 600 },
+      rotate: null,
+    }));
+    expect(usePreferencesStore.getState().inspectorTab).toBe('adjustments');
+    expect(useEditorStore.getState().cropPreview).toBeNull();
+    spy.mockRestore();
+  });
+
+  it('Cancel does not call set_image_node_transform; resets state', async () => {
+    const spy = vi.spyOn(backendTools, 'set_image_node_transform').mockResolvedValue(
+      { ok: true, output: { ok: true } } as never,
+    );
+    seedActive();
+    usePreferencesStore.setState({ inspectorTab: 'crop' });
+    render(<CropTab />);
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(spy).not.toHaveBeenCalled();
+    expect(usePreferencesStore.getState().inspectorTab).toBe('adjustments');
+    expect(useEditorStore.getState().cropPreview).toBeNull();
+    spy.mockRestore();
+  });
+
+  it('Enter applies; Escape cancels', async () => {
+    const spy = vi.spyOn(backendTools, 'set_image_node_transform').mockResolvedValue(
+      { ok: true, output: { ok: true } } as never,
+    );
+    seedActive();
+    usePreferencesStore.setState({ inspectorTab: 'crop' });
+    render(<CropTab />);
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockClear();
+    usePreferencesStore.setState({ inspectorTab: 'crop' });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});

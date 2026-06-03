@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { CanvasRegistry } from '@/lib/canvas-registry';
+import { backendTools } from '@/lib/backend-tools';
+import { usePreferencesStore } from '@/store/preferences-store';
 import { CropPreview, type CropRect } from './CropPreview';
 
 const ASPECTS: { label: string; ratio: number | null }[] = [
@@ -90,6 +92,42 @@ export function CropTab() {
     return () => { useEditorStore.getState().setCropPreview(null); };
   }, [crop, angle]);
 
+  function handleApply() {
+    if (!imageNode) return;
+    const sessionId = useBackendState.getState().sessionId;
+    if (!sessionId) return;
+    void backendTools.set_image_node_transform(sessionId, {
+      image_node_id: imageNode.id,
+      layer_ids: imageNode.layerIds,
+      crop,
+      rotate: angle !== 0 ? { angle, flip_h: false, flip_v: false } : null,
+    });
+    useEditorStore.getState().setCropPreview(null);
+    usePreferencesStore.setState({ inspectorTab: 'adjustments' });
+  }
+
+  function handleCancel() {
+    useEditorStore.getState().setCropPreview(null);
+    usePreferencesStore.setState({ inspectorTab: 'adjustments' });
+  }
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (usePreferencesStore.getState().inspectorTab !== 'crop') return;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleApply();
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleCancel();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crop, angle, imageNode?.id, imageNode?.layerIds]);
+
   const source = imageNode ? CanvasRegistry.get(imageNode.layerIds[0] ?? '') : undefined;
 
   if (!imageNode || !source || sw === 0 || sh === 0) {
@@ -155,12 +193,14 @@ export function CropTab() {
       <div className="flex gap-1 mt-1">
         <button
           type="button"
+          onClick={handleApply}
           className="flex-1 px-2 py-0.5 rounded-[3px] bg-accent text-white"
         >
           Apply
         </button>
         <button
           type="button"
+          onClick={handleCancel}
           className="flex-1 px-2 py-0.5 rounded-[3px] bg-surface-secondary text-text-secondary"
         >
           Cancel

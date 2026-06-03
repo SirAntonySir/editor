@@ -61,3 +61,34 @@ describe('InspectorPanel — tab switcher', () => {
     expect(screen.getByText('Analyze this image')).toBeDefined();
   });
 });
+
+describe('Crop tab', () => {
+  beforeEach(() => {
+    usePreferencesStore.setState({ inspectorTab: 'adjustments', rightSidebarCollapsed: false });
+    useEditorStore.setState({ activeImageNodeId: null } as never);
+  });
+
+  it('renders a Crop button next to Adjustments and Info', () => {
+    render(<InspectorPanel />);
+    expect(screen.getByRole('radio', { name: 'Crop' })).toBeInTheDocument();
+  });
+
+  it('disables the Crop tab when no active image-node', () => {
+    render(<InspectorPanel />);
+    expect(screen.getByRole('radio', { name: 'Crop' })).toBeDisabled();
+  });
+
+  it('enables the Crop tab when an image-node is active', () => {
+    useEditorStore.setState({ activeImageNodeId: 'in-1' } as never);
+    render(<InspectorPanel />);
+    expect(screen.getByRole('radio', { name: 'Crop' })).not.toBeDisabled();
+  });
+
+  it('switches to crop tab on click and renders the CropTab placeholder', async () => {
+    useEditorStore.setState({ activeImageNodeId: 'in-1' } as never);
+    render(<InspectorPanel />);
+    await userEvent.click(screen.getByRole('radio', { name: 'Crop' }));
+    expect(usePreferencesStore.getState().inspectorTab).toBe('crop');
+    expect(screen.getByTestId('crop-tab')).toBeInTheDocument();
+  });
+});

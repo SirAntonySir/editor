@@ -1,7 +1,9 @@
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import { usePreferencesStore, type InspectorTab } from '@/store/preferences-store';
+import { useEditorStore } from '@/store';
 import { AdjustmentsAccordion } from './adjustments/AdjustmentsAccordion';
 import { InfoTab } from './info/InfoTab';
+import { CropTab } from './crop/CropTab';
 
 // The active inner tab is store-driven (preferences-store.inspectorTab) so other
 // chrome — e.g. the BackendStatusBar "Show context" button via showImageContext()
@@ -9,6 +11,8 @@ import { InfoTab } from './info/InfoTab';
 export function InspectorPanel() {
   const tab = usePreferencesStore((s) => s.inspectorTab);
   const setTab = usePreferencesStore((s) => s.setInspectorTab);
+  const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
+  const cropDisabled = activeImageNodeId === null;
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -20,23 +24,29 @@ export function InspectorPanel() {
       >
         <TabButton value="adjustments" label="Adjustments" active={tab === 'adjustments'} />
         <TabButton value="info" label="Info" active={tab === 'info'} />
+        <TabButton value="crop" label="Crop" active={tab === 'crop'} disabled={cropDisabled} />
       </ToggleGroup.Root>
-      {tab === 'adjustments' ? (
-        <AdjustmentsAccordion />
-      ) : (
-        <InfoTab />
-      )}
+      {tab === 'adjustments' && <AdjustmentsAccordion />}
+      {tab === 'info' && <InfoTab />}
+      {tab === 'crop' && <CropTab />}
     </div>
   );
 }
 
-function TabButton({ value, label, active }: { value: string; label: string; active: boolean }) {
+function TabButton({
+  value, label, active, disabled = false,
+}: { value: string; label: string; active: boolean; disabled?: boolean }) {
   return (
-    <ToggleGroup.Item value={value} asChild>
+    <ToggleGroup.Item value={value} asChild disabled={disabled}>
       <button
         type="button"
+        disabled={disabled}
         className={`relative flex-1 text-[11px] py-1.5 transition-colors duration-150 ${
-          active ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'
+          disabled
+            ? 'text-text-tertiary cursor-not-allowed'
+            : active
+              ? 'text-text-primary'
+              : 'text-text-secondary hover:text-text-primary'
         }`}
       >
         {label}

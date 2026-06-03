@@ -9,8 +9,6 @@ export interface ToolSlice {
   expandedWidgetIds: Set<string>;
   expandedSectionIds: Set<string>;
   hoveredWidgetId: string | null;
-  cropModalImageNodeId: string | null;
-  setCropModal: (id: string | null) => void;
   cropPreview: { crop: { x: number; y: number; w: number; h: number } | null;
                  rotate: { angle: number; flip_h: boolean; flip_v: boolean } | null } | null;
   setCropPreview: (
@@ -47,7 +45,6 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   hiddenWidgetIds: new Set<string>(),
   hiddenCanonNodeIds: new Set<string>(),
   hoveredWidgetId: null,
-  cropModalImageNodeId: null,
   cropPreview: null,
   touchedParams: new Set<string>(),
 
@@ -125,11 +122,6 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   setHoveredWidget: (widgetId) =>
     set((state) => {
       state.hoveredWidgetId = widgetId;
-    }),
-
-  setCropModal: (id) =>
-    set((state) => {
-      state.cropModalImageNodeId = id;
     }),
 
   setCropPreview: (p) =>

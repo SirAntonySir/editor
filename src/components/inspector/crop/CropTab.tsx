@@ -136,12 +136,36 @@ export function CropTab() {
     if (!imageNode) return;
     const sessionId = useBackendState.getState().sessionId;
     if (!sessionId) return;
+    const startRev = useBackendState.getState().snapshot?.revision ?? 0;
+
     await backendTools.set_image_node_transform(sessionId, {
       image_node_id: imageNode.id,
       layer_ids: imageNode.layerIds,
       crop,
       rotate: angle !== 0 ? { angle, flip_h: false, flip_v: false } : null,
     });
+
+    // Wait (max 2s) for the SSE event to bring the new crop node into the
+    // snapshot. Without this hold, clearing cropPreview here would briefly leave
+    // the renderer with neither preview nor snapshot crop, flashing the
+    // uncropped image.
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        unsubscribe();
+        resolve();
+      }, 2000);
+      const unsubscribe = useBackendState.subscribe((s, prev) => {
+        const newer = (s.snapshot?.revision ?? 0) > startRev;
+        if (newer) {
+          unsubscribe();
+          clearTimeout(timeout);
+          resolve();
+        }
+        // Touch prev so the unused-var lint stays happy.
+        void prev;
+      });
+    });
+
     useEditorStore.getState().setCropPreview(null);
     usePreferencesStore.setState({ inspectorTab: 'adjustments' });
   }

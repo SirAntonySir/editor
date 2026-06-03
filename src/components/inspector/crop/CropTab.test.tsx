@@ -149,10 +149,28 @@ describe('CropTab Apply / Cancel', () => {
     );
     seedActive();
     usePreferencesStore.setState({ inspectorTab: 'crop' });
-    render(<CropTab />);
+    const { unmount } = render(<CropTab />);
     await userEvent.click(screen.getByRole('button', { name: 'Apply' }));
-    // Wait for the await inside handleApply to resolve.
+    // Wait for the HTTP mock to resolve before simulating the SSE update.
     await new Promise((r) => setTimeout(r, 0));
+    // Simulate the SSE-driven snapshot update so the wait resolves.
+    useBackendState.setState((s) => ({
+      snapshot: {
+        ...(s.snapshot ?? {} as never),
+        revision: 999,
+        operation_graph: {
+          id: 'g', user_goal: '', reasoning: null, panel_bindings: [], metadata: {},
+          nodes: [{
+            id: 'transform:in-1:crop', type: 'crop',
+            params: { x: 0, y: 0, w: 800, h: 600 },
+            scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'], widget_id: null,
+          }],
+        },
+      } as never,
+    }));
+    // Let the wait promise resolve and handleApply finish.
+    await new Promise((r) => setTimeout(r, 10));
+
     expect(spy).toHaveBeenCalledWith('sess-1', expect.objectContaining({
       image_node_id: 'in-1',
       layer_ids: ['L1'],
@@ -160,6 +178,9 @@ describe('CropTab Apply / Cancel', () => {
       rotate: null,
     }));
     expect(usePreferencesStore.getState().inspectorTab).toBe('adjustments');
+    // Unmount mirrors what InspectorPanel does when switching away from the crop
+    // tab; the cleanup effect clears cropPreview.
+    unmount();
     expect(useEditorStore.getState().cropPreview).toBeNull();
     spy.mockRestore();
   });
@@ -186,8 +207,26 @@ describe('CropTab Apply / Cancel', () => {
     usePreferencesStore.setState({ inspectorTab: 'crop' });
     render(<CropTab />);
     fireEvent.keyDown(window, { key: 'Enter' });
-    // Wait for the await inside handleApply to resolve.
+    // Wait for the HTTP mock to resolve before simulating the SSE update.
     await new Promise((r) => setTimeout(r, 0));
+    // Simulate the SSE-driven snapshot update so the wait resolves.
+    useBackendState.setState((s) => ({
+      snapshot: {
+        ...(s.snapshot ?? {} as never),
+        revision: 999,
+        operation_graph: {
+          id: 'g', user_goal: '', reasoning: null, panel_bindings: [], metadata: {},
+          nodes: [{
+            id: 'transform:in-1:crop', type: 'crop',
+            params: { x: 0, y: 0, w: 800, h: 600 },
+            scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'], widget_id: null,
+          }],
+        },
+      } as never,
+    }));
+    // Let the wait promise resolve.
+    await new Promise((r) => setTimeout(r, 10));
+
     expect(spy).toHaveBeenCalledTimes(1);
     spy.mockClear();
     usePreferencesStore.setState({ inspectorTab: 'crop' });

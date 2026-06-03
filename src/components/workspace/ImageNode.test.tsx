@@ -6,6 +6,7 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
+import { usePreferencesStore } from '@/store/preferences-store';
 
 const { useImageNodeRenderMock } = vi.hoisted(() => ({
   useImageNodeRenderMock: vi.fn<(args: { bypassAdjustments?: boolean }) => { canvasRef: { current: HTMLCanvasElement | null } }>(),
@@ -24,10 +25,10 @@ function renderInFlow(ui: React.ReactNode) {
 const baseData = { layerIds: ['l-1'], size: { w: 240, h: 180 } };
 
 describe('ImageNode', () => {
-  it('renders header with name and layer-count badge', () => {
+  it('renders header with name and footer with layer counter', () => {
     renderInFlow(<ImageNode id="in-1" data={{ ...baseData, name: 'Sky.jpg' }} selected={false} />);
     expect(screen.getByText('Sky.jpg')).toBeInTheDocument();
-    expect(screen.getByText('1 LAYER')).toBeInTheDocument();
+    expect(screen.getByText('Layer 1/1')).toBeInTheDocument();
   });
 
   it('shows the stack strip ONLY when stacked AND selected', () => {
@@ -178,12 +179,13 @@ describe('header dropdown transform items', () => {
 });
 
 describe('Crop… menu item', () => {
-  it('sets cropModalImageNodeId on the store', async () => {
-    useEditorStore.setState({ cropModalImageNodeId: null } as never);
+  it('routes Crop… through showCrop() — opens sidebar and selects crop tab', async () => {
+    usePreferencesStore.setState({ inspectorTab: 'adjustments', rightSidebarCollapsed: true });
     renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected />);
     await userEvent.click(screen.getByLabelText('Image node menu'));
     await userEvent.click(screen.getByText('Crop…'));
-    expect(useEditorStore.getState().cropModalImageNodeId).toBe('in-1');
+    expect(usePreferencesStore.getState().inspectorTab).toBe('crop');
+    expect(usePreferencesStore.getState().rightSidebarCollapsed).toBe(false);
   });
 });
 

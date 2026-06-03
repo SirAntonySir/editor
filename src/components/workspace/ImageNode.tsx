@@ -11,6 +11,7 @@ import { useChromeVisible } from '@/hooks/useChromeVisible';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
+import { usePreferencesStore } from '@/store/preferences-store';
 import { computeEffectiveSize, type Crop } from '@/lib/image-node-geometry';
 
 export interface ImageNodeData extends Record<string, unknown> {
@@ -139,7 +140,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
         <MenuItem
           className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none
             text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary"
-          onSelect={() => useEditorStore.getState().setCropModal(id)}
+          onSelect={() => usePreferencesStore.getState().showCrop()}
         >
           Crop…
         </MenuItem>
@@ -225,9 +226,6 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
               >
                 <Eye size={10} aria-hidden />
               </button>
-              <span className="text-[8px] font-semibold bg-surface-secondary border border-separator rounded-full px-1.5 py-px text-text-secondary uppercase">
-                {data.layerIds.length} LAYER{data.layerIds.length === 1 ? '' : 'S'}
-              </span>
               <DropdownMenu.Root>
                 <DropdownMenu.Trigger asChild>
                   <button
@@ -271,7 +269,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
           >
             <span className="num">{size.w} × {size.h}</span>
             <span className="flex-1" />
-            <span>Layer {(data.activeLayerIndex ?? 0) + 1}</span>
+            <span>Layer {(data.activeLayerIndex ?? 0) + 1}/{data.layerIds.length}</span>
           </div>
         )}
         {chromeVisible && showStrip && (

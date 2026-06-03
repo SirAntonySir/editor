@@ -31,8 +31,8 @@ const RADIUS_VALUES: Record<RadiusScale, { panel: string; button: string; sm: st
 };
 
 export type RightSidebarTab = 'inspector' | 'ai';
-/** Inner tab of the inspector panel (Adjustments vs Info/context). */
-export type InspectorTab = 'adjustments' | 'info';
+/** Inner tab of the inspector panel (Adjustments vs Info/context vs Crop). */
+export type InspectorTab = 'adjustments' | 'info' | 'crop';
 
 export interface PreferencesState {
   themeMode: ThemeMode;
@@ -54,6 +54,8 @@ export interface PreferencesState {
   setInspectorTab: (tab: InspectorTab) => void;
   /** Reveal the image context: open the sidebar and select the Info tab. */
   showImageContext: () => void;
+  /** Open the sidebar and select the Crop tab. */
+  showCrop: () => void;
 }
 
 export const SIDEBAR_MIN_WIDTH = 200;
@@ -87,6 +89,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       setInspectorTab: (tab) => set({ inspectorTab: tab }),
       // Reveal context: ensure the sidebar is open and the Info tab is active.
       showImageContext: () => set({ rightSidebarCollapsed: false, inspectorTab: 'info' }),
+      showCrop: () => set({ rightSidebarCollapsed: false, inspectorTab: 'crop' }),
     }),
     {
       name: 'editor-preferences',

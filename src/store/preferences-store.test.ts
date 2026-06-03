@@ -1,4 +1,4 @@
-import { it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { usePreferencesStore } from './preferences-store';
 
 beforeEach(() => {
@@ -15,4 +15,16 @@ it('showImageContext opens the sidebar and selects the Info tab', () => {
 it('setInspectorTab updates the inspector tab', () => {
   usePreferencesStore.getState().setInspectorTab('info');
   expect(usePreferencesStore.getState().inspectorTab).toBe('info');
+});
+
+describe('showCrop', () => {
+  beforeEach(() => {
+    usePreferencesStore.setState({ rightSidebarCollapsed: true, inspectorTab: 'adjustments' });
+  });
+
+  it('opens the sidebar and selects the crop tab', () => {
+    usePreferencesStore.getState().showCrop();
+    expect(usePreferencesStore.getState().rightSidebarCollapsed).toBe(false);
+    expect(usePreferencesStore.getState().inspectorTab).toBe('crop');
+  });
 });

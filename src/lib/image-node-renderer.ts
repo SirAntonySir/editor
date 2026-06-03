@@ -82,6 +82,16 @@ export interface RenderImageNodeCompositeArgs {
    * overlay pass still runs so selection chrome stays visible.
    */
   bypassAdjustments?: boolean;
+  /**
+   * Live crop-tab preview overrides for rotate transform. `undefined` means
+   * "use snapshot"; `null` suppresses the snapshot value; a value replaces it.
+   */
+  overrideRotate?: { angle: number; flip_h: boolean; flip_v: boolean } | null;
+  /**
+   * Live crop-tab preview overrides for crop transform. `undefined` means
+   * "use snapshot"; `null` suppresses the snapshot value; a value replaces it.
+   */
+  overrideCrop?: { x: number; y: number; w: number; h: number } | null;
 }
 
 /** Apply any optimistic patch to a node's params; returns the node unchanged when no patch matches. */
@@ -199,7 +209,11 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   void widgets; // widgets still passed through for future use
 
   // ---- Geometry pass: internal → visible at effective dims ----------------
-  const transforms = readTransforms(opGraph, args.imageNodeId);
+  const fromSnapshot = readTransforms(opGraph, args.imageNodeId);
+  const transforms = {
+    rotate: args.overrideRotate !== undefined ? args.overrideRotate ?? undefined : fromSnapshot.rotate,
+    crop:   args.overrideCrop   !== undefined ? args.overrideCrop   ?? undefined : fromSnapshot.crop,
+  };
 
   applyGeometry(internal, visible, transforms);
 

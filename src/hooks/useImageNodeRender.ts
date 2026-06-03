@@ -15,6 +15,7 @@ import { useEffect, useRef } from 'react';
 import { useStore } from '@xyflow/react';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
+import { usePreferencesStore } from '@/store/preferences-store';
 import { renderImageNodeComposite } from '@/lib/image-node-renderer';
 import { computeEffectiveSize } from '@/lib/image-node-geometry';
 import type { Widget } from '@/types/widget';
@@ -94,10 +95,25 @@ export function useImageNodeRender({
     if (p.w == null || p.h == null) return null;
     return { x: p.x ?? 0, y: p.y ?? 0, w: p.w, h: p.h };
   });
+  const cropPreview = useEditorStore((s) => s.cropPreview);
+  const previewActive = useEditorStore((s) => {
+    const tabIsCrop = usePreferencesStore.getState().inspectorTab === 'crop';
+    return tabIsCrop && s.activeImageNodeId === imageNodeId;
+  });
+
+  const effectiveRotateAngle =
+    previewActive && cropPreview && cropPreview.rotate
+      ? cropPreview.rotate.angle
+      : rotateAngle;
+  const effectiveCropRect =
+    previewActive && cropPreview && cropPreview.crop
+      ? cropPreview.crop
+      : cropRect;
+
   const eff = computeEffectiveSize(
     { w: sourceWidth, h: sourceHeight },
-    rotateAngle,
-    cropRect,
+    effectiveRotateAngle,
+    effectiveCropRect,
   );
 
   useEffect(() => {
@@ -138,6 +154,8 @@ export function useImageNodeRender({
       optimistic,
       hiddenNodeIds,
       bypassAdjustments,
+      overrideRotate: previewActive && cropPreview ? cropPreview.rotate : undefined,
+      overrideCrop:   previewActive && cropPreview ? cropPreview.crop   : undefined,
     });
   }, [
     imageNodeId,
@@ -159,6 +177,8 @@ export function useImageNodeRender({
     hiddenWidgetIds,
     hiddenCanonNodeIds,
     bypassAdjustments,
+    previewActive,
+    cropPreview,
   ]);
 
   return { canvasRef };

@@ -8,6 +8,7 @@ export interface CropPreviewProps {
   aspectRatio: number | null;
   previewWidth: number;
   previewHeight: number;
+  rotateAngle?: number;
   onCropChange: (crop: CropRect) => void;
 }
 
@@ -72,13 +73,21 @@ export function applyEdgeDelta(
 }
 
 export function CropPreview({
-  sourceBitmap, crop, aspectRatio, previewWidth, previewHeight, onCropChange,
+  sourceBitmap, crop, aspectRatio, previewWidth, previewHeight, rotateAngle = 0, onCropChange,
 }: CropPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const sw = sourceBitmap.width;
-  const sh = sourceBitmap.height;
-  const scaleX = sw / previewWidth;
-  const scaleY = sh / previewHeight;
+  const W = sourceBitmap.width;
+  const H = sourceBitmap.height;
+  const θ = rotateAngle * Math.PI / 180;
+  const absCos = Math.abs(Math.cos(θ));
+  const absSin = Math.abs(Math.sin(θ));
+  const bbW = W * absCos + H * absSin;
+  const bbH = W * absSin + H * absCos;
+  // Scale factor: how many preview pixels correspond to one bbox pixel.
+  const previewScale = Math.min(previewWidth / bbW, previewHeight / bbH);
+  // Inverse: one source/bbox pixel = previewScale preview pixels → scaleX = 1/previewScale
+  const scaleX = 1 / previewScale;
+  const scaleY = 1 / previewScale;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -88,8 +97,16 @@ export function CropPreview({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.clearRect(0, 0, previewWidth, previewHeight);
-    ctx.drawImage(sourceBitmap, 0, 0, sw, sh, 0, 0, previewWidth, previewHeight);
-  }, [sourceBitmap, previewWidth, previewHeight, sw, sh]);
+    ctx.save();
+    // Render the rotated source centered in the preview. The source rotates
+    // around its own centre, and the result fills a bbW × bbH bbox. We scale
+    // the bbox to fit inside the preview, then center the bbox in the preview.
+    ctx.translate(previewWidth / 2, previewHeight / 2);
+    ctx.scale(previewScale, previewScale);
+    ctx.rotate(θ);
+    ctx.drawImage(sourceBitmap, -W / 2, -H / 2);
+    ctx.restore();
+  }, [sourceBitmap, previewWidth, previewHeight, previewScale, θ, W, H]);
 
   function startCornerDrag(e: React.PointerEvent, corner: Corner) {
     e.preventDefault();
@@ -101,7 +118,7 @@ export function CropPreview({
       const dyScreen = ev.clientY - startY;
       const dsx = dxScreen * scaleX;
       const dsy = dyScreen * scaleY;
-      onCropChange(applyCornerDelta(start, corner, dsx, dsy, sw, sh, aspectRatio));
+      onCropChange(applyCornerDelta(start, corner, dsx, dsy, bbW, bbH, aspectRatio));
     }
     function onUp() {
       window.removeEventListener('pointermove', onMove);
@@ -119,7 +136,7 @@ export function CropPreview({
     function onMove(ev: PointerEvent) {
       const dxScreen = ev.clientX - startX;
       const dyScreen = ev.clientY - startY;
-      onCropChange(applyEdgeDelta(start, edge, dxScreen * scaleX, dyScreen * scaleY, sw, sh));
+      onCropChange(applyEdgeDelta(start, edge, dxScreen * scaleX, dyScreen * scaleY, bbW, bbH));
     }
     function onUp() {
       window.removeEventListener('pointermove', onMove);
@@ -129,10 +146,14 @@ export function CropPreview({
     window.addEventListener('pointerup', onUp);
   }
 
-  const rectLeftPx = crop.x / scaleX;
-  const rectTopPx = crop.y / scaleY;
-  const rectWPx = crop.w / scaleX;
-  const rectHPx = crop.h / scaleY;
+  // Crop rect is in bbox coords. Map to preview pixels.
+  // The bbox is centered in the preview canvas with offset (bbOffsetX, bbOffsetY).
+  const bbOffsetX = (previewWidth - bbW * previewScale) / 2;
+  const bbOffsetY = (previewHeight - bbH * previewScale) / 2;
+  const rectLeftPx = bbOffsetX + crop.x * previewScale;
+  const rectTopPx = bbOffsetY + crop.y * previewScale;
+  const rectWPx = crop.w * previewScale;
+  const rectHPx = crop.h * previewScale;
 
   return (
     <div className="relative" style={{ width: previewWidth, height: previewHeight }} data-testid="crop-preview">

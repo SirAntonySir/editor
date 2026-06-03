@@ -99,10 +99,15 @@ export function CropTab() {
     if (sw === 0 || sh === 0) return;
     const ratio = aspect ?? crop.w / crop.h;
     if (!isFinite(ratio) || ratio <= 0) return;
+    const θ = Math.abs(angle) * Math.PI / 180;
+    const absCos = Math.abs(Math.cos(θ));
+    const absSin = Math.abs(Math.sin(θ));
+    const bbW = sw * absCos + sh * absSin;
+    const bbH = sw * absSin + sh * absCos;
     const max = largestInsetRect(sw, sh, angle, ratio);
     setCrop({
-      x: (sw - max.w) / 2,
-      y: (sh - max.h) / 2,
+      x: (bbW - max.w) / 2,
+      y: (bbH - max.h) / 2,
       w: max.w,
       h: max.h,
     });
@@ -180,6 +185,7 @@ export function CropTab() {
         aspectRatio={aspect}
         previewWidth={previewWidth}
         previewHeight={previewHeight}
+        rotateAngle={angle}
         onCropChange={setCrop}
       />
       <div className="flex gap-1">

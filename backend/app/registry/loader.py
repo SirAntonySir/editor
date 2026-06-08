@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -10,6 +11,14 @@ from app.registry.schema import RegistryOp, RegistryPreset
 def _default_registry_root() -> Path:
     # backend/app/registry/loader.py → repo root → shared/registry
     return Path(__file__).resolve().parents[3] / "shared" / "registry"
+
+
+def _user_presets_dir() -> Path | None:
+    raw = os.environ.get("EDITOR_USER_PRESETS_DIR")
+    if raw:
+        return Path(raw)
+    home = Path.home() / ".editor" / "presets"
+    return home if home.exists() else None
 
 
 @dataclass
@@ -25,6 +34,7 @@ def load_registry(root: Path | None = None) -> Registry:
 
     reg = Registry()
 
+    # --- ops (unchanged) ---
     ops_dir = root / "ops"
     if ops_dir.exists():
         for path in sorted(ops_dir.glob("*.json")):
@@ -34,14 +44,24 @@ def load_registry(root: Path | None = None) -> Registry:
                 raise ValueError(f"duplicate op id {op.id!r} in {path}")
             reg.ops[op.id] = op
 
-    presets_dir = root / "presets"
-    if presets_dir.exists():
-        for path in sorted(presets_dir.glob("*.json")):
+    # --- presets: multi-source ---
+    sources: list[tuple[str, Path]] = []
+    builtin = root / "presets"
+    if builtin.exists():
+        sources.append(("builtin", builtin))
+    user = _user_presets_dir()
+    if user and user.exists():
+        sources.append(("user", user))
+    # Project source hook: callers may extend `sources` before invoking
+    # _load_presets directly; deferred until .edp embedding spec lands.
+
+    for source_label, source_dir in sources:
+        for path in sorted(source_dir.glob("*.json")):
             data = json.loads(path.read_text())
+            data.setdefault("source", source_label)
             preset = RegistryPreset.model_validate(data)
             if preset.id in reg.presets:
                 raise ValueError(f"duplicate preset id {preset.id!r} in {path}")
-            # Validate each preset op references a known op id.
             for pop in preset.ops:
                 if pop.op_id not in reg.ops:
                     raise ValueError(

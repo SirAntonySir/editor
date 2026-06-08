@@ -155,16 +155,19 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
     async def _handle_llm_path(
         self, doc: SessionDocument, input: _Input, scope: Scope,
     ) -> _Output:
+        import asyncio
+
         from app.api import deps
         from app.registry.loader import get_registry
 
         reg = get_registry()
         anthropic = deps.get_anthropic_client()
+        image_context = doc.image_context.model_dump(mode="json")
 
         plan_result = anthropic.plan_widget_stack(
             intent=input.intent,
             scope=input.scope,
-            image_context=doc.image_context.model_dump(mode="json"),
+            image_context=image_context,
             existing_widgets=[
                 {"op_id": w.fused_tool_id or "unknown"} for w in doc.widgets.values()
             ],
@@ -172,13 +175,35 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             session_id=doc.session_id,
         )
 
-        planned_ops = plan_result.get("plan", [])
-        if not planned_ops:
-            # Fallback: keyword-matched preset, else first preset.
-            planned_ops = self._fallback_plan(input.intent, reg)
+        planned_ops = plan_result.get("plan") or self._fallback_plan(input.intent, reg)
 
-        # Phase 2 resolve lands in Task 10. For now, use registry defaults +
-        # starting_params if provided.
+        # Phase 2: resolve each op's params in parallel.
+        async def _resolve_one(entry: dict) -> tuple[str, dict] | None:
+            op_id = entry.get("op_id")
+            if op_id not in reg.ops:
+                return None
+            op = reg.ops[op_id]
+            try:
+                params = await asyncio.to_thread(
+                    anthropic.resolve_widget_params,
+                    op=op,
+                    intent=input.intent,
+                    rationale=entry.get("rationale", ""),
+                    starting_params=entry.get("starting_params") or {},
+                    image_context=image_context,
+                    session_id=doc.session_id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                # Drop this op; others still spawn.
+                print(f"[propose_stack] resolve failed for {op_id}: {exc}")
+                return None
+            return (op_id, params)
+
+        resolved = [
+            r for r in await asyncio.gather(*(_resolve_one(e) for e in planned_ops))
+            if r is not None
+        ]
+
         image_node_layer_ids = None
         if scope.root.kind == "image_node":
             image_node_layer_ids = list(scope.root.layer_ids)
@@ -190,14 +215,10 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
         )
 
         widgets: list[Widget] = []
-        for entry in planned_ops:
-            op_id = entry.get("op_id")
-            if op_id not in reg.ops:
-                continue
-            starting = entry.get("starting_params") or {}
+        for op_id, params in resolved:
             widget = _build_widget(
                 op_id=op_id,
-                params=starting,
+                params=params,
                 intent=input.intent,
                 scope=scope,
                 origin=origin,

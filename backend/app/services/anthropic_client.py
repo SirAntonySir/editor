@@ -856,6 +856,80 @@ class AnthropicClient:
         text = response.content[0].text
         return json.loads(text)
 
+    # ------------------------------------------------------------------
+    # Phase 2 resolver: per-op numeric param resolution
+    # ------------------------------------------------------------------
+
+    _RESOLVE_SYSTEM_PROMPT = """You are resolving numeric parameter values for a single
+photo-editing operation, given the user's intent and image context.
+
+Return strict JSON matching the op's param schema. Use the starting_params as
+a strong prior if provided. Do not include markdown fences."""
+
+    def resolve_widget_params(
+        self,
+        *,
+        op,
+        intent: str,
+        rationale: str,
+        starting_params: dict,
+        image_context: dict,
+        session_id: str | None = None,
+    ) -> dict:
+        import json
+
+        params_spec = {
+            k: {
+                "type": p.type,
+                **({"range": list(p.range)} if p.range else {}),
+                **({"unit": p.unit} if p.unit else {}),
+                **({"values": p.values} if p.values else {}),
+                "default": p.default,
+            }
+            for k, p in op.params.items()
+        }
+        user_text = (
+            f"OP: {op.id} ({op.llm.description})\n"
+            f"PARAM SCHEMA: {params_spec}\n"
+            f"INTENT: {intent}\n"
+            f"RATIONALE FROM PLANNER: {rationale}\n"
+            f"STARTING PARAMS (priors): {starting_params}\n"
+            f"IMAGE CONTEXT: {image_context}\n\n"
+            "Return JSON object with one key per param, values within the schema range."
+        )
+        response = self._client.messages.create(
+            model=self._model,
+            max_tokens=1024,
+            system=[{
+                "type": "text",
+                "text": self._RESOLVE_SYSTEM_PROMPT + f"\n\nOP-TYPE: {op.id}",
+                "cache_control": {"type": "ephemeral"},
+            }],
+            messages=[{
+                "role": "user",
+                "content": [{"type": "text", "text": user_text}],
+            }],
+        )
+        _log_cache_stats(f"resolve_widget_params/{op.id}", session_id, response)
+        raw = json.loads(response.content[0].text)
+
+        # Clamp scalars to range, fall back to default on missing/invalid.
+        resolved: dict = {}
+        for key, param in op.params.items():
+            if key not in raw:
+                resolved[key] = param.default
+                continue
+            val = raw[key]
+            if param.type == "scalar" and param.range:
+                lo, hi = param.range
+                try:
+                    resolved[key] = max(lo, min(hi, float(val)))
+                except (TypeError, ValueError):
+                    resolved[key] = param.default
+            else:
+                resolved[key] = val
+        return resolved
+
     def augment_context_soft_fields(
         self,
         image_bytes: bytes,

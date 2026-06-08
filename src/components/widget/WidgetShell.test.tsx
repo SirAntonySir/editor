@@ -1,9 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, render, screen, fireEvent } from '@testing-library/react';
+import { ReactFlowProvider } from '@xyflow/react';
+import type { ReactNode } from 'react';
 import { WidgetShell, WIDGET_COLLAPSED_WIDTH } from './WidgetShell';
 import { makeAiWidget, makeToolWidget, makeHslWidget } from './__fixtures__/widgets';
 import { useEditorStore } from '@/store';
 import { backendTools } from '@/lib/backend-tools';
+
+function flowWrapper({ children }: { children: ReactNode }) {
+  return <ReactFlowProvider>{children}</ReactFlowProvider>;
+}
+
+function renderInFlow(ui: ReactNode) {
+  return render(ui, { wrapper: flowWrapper });
+}
 
 vi.mock('@/lib/backend-tools', () => ({
   backendTools: {
@@ -41,41 +51,41 @@ describe('WidgetShell', () => {
   });
 
   it('renders as collapsed strip by default', () => {
-    render(<WidgetShell widget={makeAiWidget()} />);
+    renderInFlow(<WidgetShell widget={makeAiWidget()} />);
     expect(screen.getByText('Warm up shadows')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^apply$/i })).not.toBeInTheDocument();
   });
 
   it('expands on header click', () => {
-    render(<WidgetShell widget={makeAiWidget()} />);
+    renderInFlow(<WidgetShell widget={makeAiWidget()} />);
     fireEvent.click(screen.getByRole('button', { name: /toggle widget/i }));
     expect(screen.getByRole('button', { name: /^apply$/i })).toBeInTheDocument();
   });
 
   it('Apply calls backendTools.accept_widget', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
-    render(<WidgetShell widget={makeAiWidget()} />);
+    renderInFlow(<WidgetShell widget={makeAiWidget()} />);
     fireEvent.click(screen.getByRole('button', { name: /^apply$/i }));
     expect(backendTools.accept_widget).toHaveBeenCalledWith('s-1', { widget_id: 'w-ai-1' });
   });
 
   it('Close (×) calls backendTools.delete_widget', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
-    render(<WidgetShell widget={makeAiWidget()} />);
+    renderInFlow(<WidgetShell widget={makeAiWidget()} />);
     fireEvent.click(screen.getByRole('button', { name: /close widget/i }));
     expect(backendTools.delete_widget).toHaveBeenCalledWith('s-1', { widget_id: 'w-ai-1', suppress_similar: false });
   });
 
   it('tool_invoked widget shows NO Refine and NO Why when expanded', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-tool-1');
-    render(<WidgetShell widget={makeToolWidget()} />);
+    renderInFlow(<WidgetShell widget={makeToolWidget()} />);
     expect(screen.queryByText(/refine/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/why\?/i)).not.toBeInTheDocument();
   });
 
   it('mcp_autonomous widget shows Refine when expanded', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
-    render(<WidgetShell widget={makeAiWidget()} />);
+    renderInFlow(<WidgetShell widget={makeAiWidget()} />);
     expect(screen.getByText(/refine/i)).toBeInTheDocument();
   });
 
@@ -97,7 +107,7 @@ describe('WidgetShell', () => {
 
     // Expand the shell so the slider is rendered
     useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
-    render(<WidgetShell widget={widget} />);
+    renderInFlow(<WidgetShell widget={widget} />);
 
     // Drive the slider's onChange via the minimal AdjustmentSlider's number
     // field: a plain click (pointer down+up, no movement) opens the text input;
@@ -140,7 +150,7 @@ describe('WidgetShell', () => {
       ],
     });
     useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
-    render(<WidgetShell widget={widget} />);
+    renderInFlow(<WidgetShell widget={widget} />);
     const num = screen.getByTitle('Drag to scrub · click to type');
     fireEvent.pointerDown(num, { clientX: 0, pointerId: 1 });
     fireEvent.pointerUp(num, { clientX: 0, pointerId: 1 });
@@ -159,32 +169,32 @@ describe('WidgetShell', () => {
 
   it('routes an all-bands HSL widget to the colour panel (By band / By channel)', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-hsl-1');
-    render(<WidgetShell widget={makeHslWidget(ALL_BANDS)} />);
+    renderInFlow(<WidgetShell widget={makeHslWidget(ALL_BANDS)} />);
     expect(screen.getByText('By band')).toBeInTheDocument();
     expect(screen.getByText('By channel')).toBeInTheDocument();
   });
 
   it('routes a single-band HSL widget to a 3-slider colour body (no view toggle)', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-hsl-1');
-    render(<WidgetShell widget={makeHslWidget(['blue'])} />);
+    renderInFlow(<WidgetShell widget={makeHslWidget(['blue'])} />);
     expect(screen.queryByText('By band')).not.toBeInTheDocument();
     expect(screen.getAllByRole('slider').length).toBe(3);
   });
 
   it('non-HSL widget still renders binding rows, not the HSL panel', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
-    render(<WidgetShell widget={makeAiWidget()} />);
+    renderInFlow(<WidgetShell widget={makeAiWidget()} />);
     expect(screen.queryByText('By band')).not.toBeInTheDocument();
   });
 
   it('applies opacity-60 to the shell root when the widget id is in hiddenWidgetIds', () => {
     useEditorStore.getState().toggleWidgetHidden('w-ai-1');
-    const { container } = render(<WidgetShell widget={makeAiWidget()} />);
+    const { container } = renderInFlow(<WidgetShell widget={makeAiWidget()} />);
     expect(container.firstChild as HTMLElement).toHaveClass('opacity-60');
   });
 
   it('clicking the eye button calls toggleWidgetHidden on the store', () => {
-    render(<WidgetShell widget={makeAiWidget()} />);
+    renderInFlow(<WidgetShell widget={makeAiWidget()} />);
     expect(useEditorStore.getState().hiddenWidgetIds.has('w-ai-1')).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: /hide widget/i }));
     expect(useEditorStore.getState().hiddenWidgetIds.has('w-ai-1')).toBe(true);
@@ -198,21 +208,21 @@ describe('selection glow', () => {
   });
 
   it('applies .workspace-node-selected when selected and NOT AI', () => {
-    render(<WidgetShell widget={makeToolWidget()} selected />);
+    renderInFlow(<WidgetShell widget={makeToolWidget()} selected />);
     const overlay = document.querySelector('.overlay') as HTMLElement;
     expect(overlay.classList.contains('workspace-node-selected')).toBe(true);
     expect(overlay.classList.contains('widget-shell-ai')).toBe(false);
   });
 
   it('keeps violet (widget-shell-ai) when selected AND AI — does not add accent glow', () => {
-    render(<WidgetShell widget={makeAiWidget()} selected />);
+    renderInFlow(<WidgetShell widget={makeAiWidget()} selected />);
     const overlay = document.querySelector('.overlay') as HTMLElement;
     expect(overlay.classList.contains('widget-shell-ai')).toBe(true);
     expect(overlay.classList.contains('workspace-node-selected')).toBe(false);
   });
 
   it('omits both glow classes when not selected and tool-invoked', () => {
-    render(<WidgetShell widget={makeToolWidget()} selected={false} />);
+    renderInFlow(<WidgetShell widget={makeToolWidget()} selected={false} />);
     const overlay = document.querySelector('.overlay') as HTMLElement;
     expect(overlay.classList.contains('workspace-node-selected')).toBe(false);
     expect(overlay.classList.contains('widget-shell-ai')).toBe(false);
@@ -225,6 +235,15 @@ describe('WidgetShell collapsed pill width', () => {
   });
 });
 
+describe('WidgetShell zoom-invariant scale', () => {
+  it('applies a transform-scale style derived from React Flow zoom', () => {
+    const widget = makeAiWidget();
+    const { container } = renderInFlow(<WidgetShell widget={widget} />);
+    const shell = container.querySelector('.overlay') ?? container.firstElementChild;
+    expect(shell?.getAttribute('style') ?? '').toMatch(/scale\(1\)/);
+  });
+});
+
 describe('WidgetShell ellipsis title', () => {
   beforeEach(() => {
     useEditorStore.getState().collapseAllWidgets();
@@ -234,7 +253,7 @@ describe('WidgetShell ellipsis title', () => {
     const widget = makeAiWidget({
       display_name: 'A very long widget name that should not stretch the pill wider',
     });
-    const { container } = render(<WidgetShell widget={widget} />);
+    const { container } = renderInFlow(<WidgetShell widget={widget} />);
     const titleEl = container.querySelector('.widget-title-ellipsis');
     expect(titleEl).not.toBeNull();
   });

@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { loadRegistry } from '../loader';
 
 describe('loadRegistry', () => {
-  it('finds all 12 ops', () => {
+  it('finds all 13 ops', () => {
     const reg = loadRegistry();
     const expected = new Set([
       'light', 'color', 'kelvin', 'levels', 'hsl', 'sharpen',
       'blur', 'clarity', 'grain', 'vignette', 'splitTone', 'curves',
+      'time-of-day',
     ]);
     expect(new Set(Object.keys(reg.ops))).toEqual(expected);
   });

@@ -1,0 +1,46 @@
+{
+  "id": "time-of-day",
+  "display_name": "Time of Day",
+  "category": "tone",
+  "llm": {
+    "description": "1-D dial that re-lights the image across the day arc — dawn, noon, golden hour, blue hour, night. Compiles to coordinated white balance, exposure, contrast, saturation, and vignette.",
+    "typical_use": "User says 'make it night', 'golden hour', 'dawn light', 'blue hour', 'sunset'.",
+    "semantic_tags": ["mood", "lighting", "atmosphere", "time"]
+  },
+  "params": {
+    "position":                  { "type": "scalar", "range": [0, 1],         "default": 0.30, "step": 0.001 },
+    "kelvin.kelvin":             { "type": "scalar", "range": [2000, 12000],  "default": 7500, "step": 50, "unit": "K" },
+    "light.exposure":            { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "light.contrast":            { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "light.highlights":          { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "light.shadows":             { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "color.vibrance":            { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "hsl.orange_sat":            { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "hsl.blue_sat":              { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "filters.vignette_amount":   { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 }
+  },
+  "bindings": [
+    { "param_key": "position",                "control_type": "slider", "label": "Time" },
+    { "param_key": "kelvin.kelvin",           "control_type": "slider", "label": "WB" },
+    { "param_key": "light.exposure",          "control_type": "slider", "label": "Exposure" },
+    { "param_key": "light.contrast",          "control_type": "slider", "label": "Contrast" },
+    { "param_key": "light.highlights",        "control_type": "slider", "label": "Highlights" },
+    { "param_key": "light.shadows",           "control_type": "slider", "label": "Shadows" },
+    { "param_key": "color.vibrance",          "control_type": "slider", "label": "Vibrance" },
+    { "param_key": "hsl.orange_sat",          "control_type": "slider", "label": "Orange Sat" },
+    { "param_key": "hsl.blue_sat",            "control_type": "slider", "label": "Blue Sat" },
+    { "param_key": "filters.vignette_amount", "control_type": "slider", "label": "Vignette" }
+  ],
+  "engine": { "shader": "compound", "render_order": 5, "node_type": "compound" },
+  "compound": {
+    "driver": "position",
+    "interpolation": "catmull_rom_1d",
+    "anchors": [
+      { "position": 0.10, "name": "dawn",   "values": { "kelvin.kelvin": 9800, "light.exposure": -30,  "light.contrast": -8, "light.highlights": -15, "light.shadows":  20, "color.vibrance":  5, "hsl.orange_sat":  10, "hsl.blue_sat":  15, "filters.vignette_amount": -10 } },
+      { "position": 0.30, "name": "noon",   "values": { "kelvin.kelvin": 7500, "light.exposure":   0,  "light.contrast": 10, "light.highlights":   0, "light.shadows":   0, "color.vibrance":  0, "hsl.orange_sat":   0, "hsl.blue_sat":  15, "filters.vignette_amount":   0 } },
+      { "position": 0.55, "name": "golden", "values": { "kelvin.kelvin": 9600, "light.exposure":  20,  "light.contrast":  5, "light.highlights": -20, "light.shadows":  10, "color.vibrance": 12, "hsl.orange_sat":  25, "hsl.blue_sat":  -5, "filters.vignette_amount":  -8 } },
+      { "position": 0.80, "name": "blue",   "values": { "kelvin.kelvin": 4500, "light.exposure": -50,  "light.contrast": 15, "light.highlights": -10, "light.shadows":   5, "color.vibrance":  5, "hsl.orange_sat": -25, "hsl.blue_sat":  20, "filters.vignette_amount": -15 } },
+      { "position": 1.00, "name": "night",  "values": { "kelvin.kelvin": 8800, "light.exposure": -120, "light.contrast": 25, "light.highlights": -40, "light.shadows": -10, "color.vibrance":  8, "hsl.orange_sat": -10, "hsl.blue_sat":  15, "filters.vignette_amount": -30 } }
+    ]
+  }
+}

@@ -5,7 +5,7 @@ def test_registry_loads_all_ops():
     """ENGINE_OPS should contain exactly the ops defined in shared/registry/ops/."""
     assert set(ENGINE_OPS) == {
         "light", "color", "kelvin", "levels", "hsl", "sharpen", "blur", "clarity",
-        "curves", "grain", "vignette", "splitTone",
+        "curves", "grain", "vignette", "splitTone", "time-of-day",
     }
 
 

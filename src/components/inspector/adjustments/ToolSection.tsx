@@ -12,6 +12,7 @@ import { HslSectionBody } from './HslSectionBody';
 import { LevelsSectionBody } from './LevelsSectionBody';
 import { HslOpenOnCanvasButton } from './HslOpenOnCanvasButton';
 import { promoteToCanvas } from './promote';
+import { CompoundWidgetBody } from '@/components/widget/CompoundWidgetBody';
 
 interface ToolSectionProps {
   def: ProcessingDefinition;
@@ -28,6 +29,19 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
   const canonical = useBackendState((s) => {
     const id = layerId ? `canon:${layerId}:${def.adjustmentType}` : '';
     return (s.snapshot?.operation_graph.nodes.find((n) => n.id === id)?.params ?? EMPTY_PARAMS) as Record<string, unknown>;
+  });
+  // For compound ops: locate the active widget from the snapshot so the generic
+  // CompoundWidgetBody can drive the dial + anchor cards. Only used when the
+  // registry op has a `compound` block AND a matching widget exists.
+  const compoundWidget = useBackendState((s) => {
+    if (!layerId) return null;
+    const op = loadRegistry().ops[def.id];
+    if (!op?.compound) return null;
+    return s.snapshot?.widgets.find(
+      (w) => w.op_id === def.id &&
+        w.status === 'active' &&
+        w.nodes.some((n) => n.layer_id === layerId),
+    ) ?? null;
   });
   const { touchedCount } = sectionSummary(def.params, canonical);
   const Icon = def.icon;
@@ -103,6 +117,12 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
           <LevelsSectionBody layerId={layerId} />
         ) : def.adjustmentType === 'lut' ? (
           <PromoteOnlyBody toolId={def.id} />
+        ) : compoundWidget ? (
+          // Generic compound body — fires for future compound ops that are
+          // registered as a ProcessingDefinition AND have an active widget.
+          // The bespoke time-of-day branch (TimeOfDayWidgetBody) precedes this
+          // via the workspace WidgetNode path and is unaffected.
+          <CompoundWidgetBody widget={compoundWidget} />
         ) : loadRegistry().ops[def.id] ? (
           <RegistryDrivenSectionBody
             defId={def.id}

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useReactFlow } from '@xyflow/react';
 import { useBackendState } from '@/store/backend-state-slice';
 import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
 
@@ -16,6 +17,7 @@ import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
  * Guarded by `acceptedSuggestions` so each widget is tethered exactly once.
  */
 export function useAutoTetherAiSuggestions(): void {
+  const rf = useReactFlow();
   const aiKey = useBackendState((s) =>
     (s.snapshot?.widgets ?? [])
       .filter(
@@ -30,12 +32,15 @@ export function useAutoTetherAiSuggestions(): void {
   useEffect(() => {
     if (!aiKey) return;
     const bs = useBackendState.getState();
+    const { x, y, zoom } = rf.getViewport();
+    const screen = { w: window.innerWidth, h: window.innerHeight };
+    const viewport = { pan: { x, y }, zoom, screen };
     for (const id of aiKey.split(',')) {
       if (bs.acceptedSuggestions.has(id)) continue;
       const w = bs.snapshot?.widgets.find((x) => x.id === id);
       if (!w) continue;
       bs.addAcceptedSuggestion(id);
-      tetherWorkspaceWidgetOnEngage(w);
+      tetherWorkspaceWidgetOnEngage(w, viewport);
     }
-  }, [aiKey]);
+  }, [aiKey, rf]);
 }

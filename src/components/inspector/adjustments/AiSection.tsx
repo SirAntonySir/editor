@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ChevronRight, ChevronDown, X, HelpCircle, ArrowUpRight, Sparkles, Eye, EyeOff } from 'lucide-react';
+import { useReactFlow } from '@xyflow/react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
@@ -29,6 +30,7 @@ interface AiSectionProps {
  * contrast, are the canonical view of the active layer.)
  */
 export function AiSection({ widget }: AiSectionProps) {
+  const rf = useReactFlow();
   const expanded = useEditorStore((s) => s.expandedSectionIds.has(widget.id));
   const toggle = useEditorStore((s) => s.toggleSectionExpanded);
   const sessionId = useBackendState((s) => s.sessionId);
@@ -169,7 +171,11 @@ export function AiSection({ widget }: AiSectionProps) {
         <button
           type="button"
           disabled={offline || onCanvas}
-          onClick={() => tetherWorkspaceWidgetOnEngage(widget)}
+          onClick={() => {
+            const { x, y, zoom } = rf.getViewport();
+            const screen = { w: window.innerWidth, h: window.innerHeight };
+            tetherWorkspaceWidgetOnEngage(widget, { pan: { x, y }, zoom, screen });
+          }}
           aria-label={onCanvas ? 'Already on canvas' : 'Open on canvas'}
           title={onCanvas ? 'Already on canvas' : 'Open on canvas'}
           className="inline-flex items-center text-text-secondary hover:text-text-primary hover:bg-surface-secondary p-0.5 rounded-[3px] disabled:opacity-40 disabled:hover:bg-transparent"

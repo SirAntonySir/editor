@@ -7,6 +7,16 @@ import { backendTools } from '@/lib/backend-tools';
 import { registerAllProcessing } from '@/processing';
 import type { Widget } from '@/types/widget';
 
+vi.mock('@xyflow/react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@xyflow/react')>();
+  return {
+    ...actual,
+    useReactFlow: () => ({
+      getViewport: () => ({ x: 0, y: 0, zoom: 1 }),
+    }),
+  };
+});
+
 registerAllProcessing();
 
 vi.mock('@/lib/backend-tools', () => ({ backendTools: {

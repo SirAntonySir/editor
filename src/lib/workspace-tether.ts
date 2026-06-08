@@ -1,6 +1,6 @@
 import type { Widget } from '@/types/widget';
 import { useEditorStore } from '@/store';
-import { nextSpawnPositionFor, type PlacedRect } from '@/components/workspace/workspace-layout';
+import { nextSpawnPositionFor, pickSpawnSide, type PlacedRect, type Viewport } from '@/components/workspace/workspace-layout';
 import type { TetherEdgeState } from '@/types/workspace';
 import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
 import { editorDocument } from '@/core/document';
@@ -19,7 +19,7 @@ const WIDGET_SPAWN_SIZE = { w: WIDGET_SHELL_MIN_WIDTH, h: 52 } as const;
  * No-op when no ImageNode can be resolved (workspace empty or no active
  * selection); caller is responsible for the workspace-mode gate.
  */
-function buildTetherForWidget(widget: Widget): void {
+function buildTetherForWidget(widget: Widget, viewport?: Viewport): void {
   const editor = useEditorStore.getState();
   const imageNodes = editor.imageNodes;
 
@@ -53,11 +53,18 @@ function buildTetherForWidget(widget: Widget): void {
     })),
   ];
 
+  // Pick side based on viewport. Default to LEFT when viewport unavailable.
+  const targetRect: PlacedRect = { position: targetNode.position, size: targetNode.size };
+  const side: 'left' | 'right' = viewport
+    ? pickSpawnSide(targetRect, viewport)
+    : 'left';
+
   const pos = nextSpawnPositionFor(
-    { position: targetNode.position, size: targetNode.size },
+    targetRect,
     WIDGET_SPAWN_SIZE,
     'widget',
     occupied,
+    side,
   );
 
   // Build edge scope from the widget's WidgetNode.layer_id. Widgets without
@@ -91,10 +98,10 @@ function buildTetherForWidget(widget: Widget): void {
  * panel and acquire a footprint only when engaged via
  * {@link tetherWorkspaceWidgetOnEngage}.
  */
-export function tetherWorkspaceWidget(widget: Widget): void {
+export function tetherWorkspaceWidget(widget: Widget, viewport?: Viewport): void {
   const k = widget.origin.kind;
   if (k !== 'tool_invoked' && k !== 'mcp_user_prompt') return;
-  buildTetherForWidget(widget);
+  buildTetherForWidget(widget, viewport);
 }
 
 /**
@@ -103,6 +110,6 @@ export function tetherWorkspaceWidget(widget: Widget): void {
  * footprint when the user explicitly engages — at which point we tether
  * them next to the active ImageNode.
  */
-export function tetherWorkspaceWidgetOnEngage(widget: Widget): void {
-  buildTetherForWidget(widget);
+export function tetherWorkspaceWidgetOnEngage(widget: Widget, viewport?: Viewport): void {
+  buildTetherForWidget(widget, viewport);
 }

@@ -40,7 +40,18 @@ export function mergeOptimistic(
     if (!widget) continue;
     for (const bp of patch.bindings) {
       const binding = widget.bindings.find((b) => b.param_key === bp.paramKey);
-      if (!binding) continue;
+      if (!binding) {
+        // Compound-widget fallback: a compound node's optimistic patches use
+        // `${op}.${param}` keys that won't match the (typically minimal) widget
+        // bindings list. Route them directly into the compound node's params
+        // bag so `expandCompoundNodes` (run downstream) picks them up.
+        const compoundNode = widget.nodes.find((n) => n.type === 'compound');
+        if (!compoundNode) continue;
+        let entry = overrides.get(compoundNode.id);
+        if (!entry) { entry = {}; overrides.set(compoundNode.id, entry); }
+        entry[bp.paramKey] = bp.value;
+        continue;
+      }
       const nodeId = binding.target.node_id;
       const paramKey = binding.target.param_key;
       let entry = overrides.get(nodeId);

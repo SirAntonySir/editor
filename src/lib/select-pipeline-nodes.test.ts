@@ -137,3 +137,73 @@ describe('selectPipelineNodes (compound expansion)', () => {
     expect(out.find((n) => n.type === 'kelvin')?.params).toEqual({ kelvin: 3400 });
   });
 });
+
+describe('selectPipelineNodes (compound optimistic patches)', () => {
+  beforeEach(() => {
+    if (!ProcessingRegistry.has('light')) registerAllProcessing();
+    useBackendState.setState({
+      snapshot: {
+        session_id: 's1',
+        image_context: null,
+        widgets: [{
+          id: 'w_tod',
+          intent: 'Time of Day',
+          scope: { kind: 'global' as const },
+          origin: { kind: 'tool_invoked' as const },
+          fused_tool_id: 'time-of-day',
+          composed: false,
+          status: 'active' as const,
+          revision: 1,
+          created_at: '',
+          updated_at: '',
+          preview: { kind: 'none' as const, auto_before_after: false },
+          rejected_attempts: [],
+          nodes: [{
+            id: 'c1', type: 'compound', scope: { kind: 'global' as const },
+            inputs: [], widget_id: 'w_tod', layer_id: 'L1', params: {},
+          }],
+          bindings: [{
+            param_key: 'time_of_day.position',
+            label: 'Time',
+            control_type: 'slider' as const,
+            target: { node_id: 'c1', param_key: 'time_of_day.position' },
+            control_schema: { control_type: 'slider' as const, min: 0, max: 1, step: 0.001 },
+            value: 0.30,
+            default: 0.30,
+          }],
+        }],
+        masks_index: [],
+        operation_graph: {
+          id: 'g1',
+          userGoal: '',
+          nodes: [{
+            id: 'c1', type: 'compound', layer_id: 'L1', inputs: [],
+            params: { 'time_of_day.position': 0.30 },
+            scope: { kind: 'global' as const },
+          }],
+          panelBindings: [],
+          metadata: {},
+        },
+        revision: 1,
+      },
+      optimistic: new Map([[
+        'w_tod',
+        {
+          baseRevision: 1,
+          bindings: [
+            { paramKey: 'light.exposure', value: 0.5 },
+            { paramKey: 'kelvin.kelvin', value: 3400 },
+          ],
+        },
+      ]]),
+    });
+  });
+
+  it('routes optimistic compound patches into virtual nodes via the compound node', () => {
+    const out = selectPipelineNodes();
+    const basic = out.find((n) => n.type === 'basic');
+    const kelvin = out.find((n) => n.type === 'kelvin');
+    expect(basic?.params).toEqual({ exposure: 0.5 });
+    expect(kelvin?.params).toEqual({ kelvin: 3400 });
+  });
+});

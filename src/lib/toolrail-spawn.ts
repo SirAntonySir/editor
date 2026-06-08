@@ -1,8 +1,9 @@
 // Toolrail tool click handler.
 //
-// Workspace canvas: the toolrail click is a direct `propose_widget` call.
-// A widget can only be spawned when the user has an active ImageNode
-// selected (T13 gate).
+// Workspace canvas: the toolrail click routes through `proposeStack` with
+// `forced_ops: [processingId]`, which bypasses the LLM and uses registry
+// defaults (origin: tool_invoked). A widget can only be spawned when the user
+// has an active ImageNode selected (T13 gate).
 
 import { backendTools } from '@/lib/backend-tools';
 import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
@@ -42,10 +43,10 @@ export function spawnToolWidget(toolName: string): boolean {
       : node.layerIds[0];
   if (!layerId) return true;
 
-  void backendTools.propose_widget(sid, {
+  void backendTools.proposeStack(sid, {
     intent: tool.label ?? tool.processingId,
     scope: editor.activeScope ?? { kind: 'global' },
-    fused_tool_id: tool.processingId,
+    forced_ops: [tool.processingId],
     layer_id: layerId,
     origin: 'tool_invoked',
   });

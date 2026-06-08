@@ -15,10 +15,10 @@ export type ProposeResult =
       };
     };
 
-/** New propose-widget palette flow. The created widget appears in the
- *  inspector via the SSE `widget.created` event — no client-side layer
- *  materialization needed. Returns a structured result so the caller can
- *  surface success / failure to the user. */
+/** Palette propose flow via `propose_stack`. The backend resolves the intent
+ *  into 1–6 widgets; each appears in the inspector via the SSE `widget.created`
+ *  event — no client-side layer materialization needed. Returns a structured
+ *  result so the caller can surface success / failure to the user. */
 export async function proposeFromPalette(
   text: string,
   scope: Scope = { kind: 'global' },
@@ -35,13 +35,16 @@ export async function proposeFromPalette(
     };
   }
   try {
-    const env = await backendTools.propose_widget(sid, {
+    const env = await backendTools.proposeStack(sid, {
       intent: text,
       scope,
       prompt: text,
       layer_id: layerId,
       origin: 'mcp_user_prompt',
     });
+    // Each widget in the stack is delivered via SSE widget.created events;
+    // the HTTP response confirms the call succeeded but the frontend does not
+    // need to manually place the returned widgets.
     if (env.ok) return { ok: true };
     return {
       ok: false,

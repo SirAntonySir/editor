@@ -46,6 +46,16 @@ export const backendTools = {
   }) {
     return invokeTool<{ widget: Widget }>('propose_widget', sessionId, args);
   },
+  proposeStack(sessionId: string, args: {
+    intent: string;
+    scope: Scope;
+    origin: 'mcp_user_prompt' | 'mcp_autonomous' | 'tool_invoked';
+    forced_ops?: string[];
+    prompt?: string;
+    layer_id?: string;
+  }) {
+    return invokeTool<{ widgets: Widget[] }>('propose_stack', sessionId, args);
+  },
   refine_widget(sessionId: string, args: {
     widget_id: string;
     edits: { param_key: string; instruction: string }[];

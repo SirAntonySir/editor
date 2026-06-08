@@ -8,11 +8,16 @@ import { RegistryDrivenPanel } from '../RegistryDrivenPanel';
 import { ScalarSectionBody } from './ScalarSectionBody';
 import { touchKey } from '@/hooks/useParamProvenance';
 import type { ParamDefinition } from '@/types/processing';
+import type { Widget, ControlBinding } from '@/types/widget';
+import type { RegistryOp } from '../../../../shared/registry/schema';
 
 const DEBOUNCE_MS = 300;
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-interface RegistryDrivenSectionBodyProps {
+// ---------------------------------------------------------------------------
+// Toolrail (canonical) props — used by ToolSection for per-def sliders.
+// ---------------------------------------------------------------------------
+interface ToolrailProps {
   /** ProcessingDefinition.id — used to look up the registry op. */
   defId: string;
   /** ProcessingDefinition.adjustmentType — used as `op` for canonical node id. */
@@ -20,18 +25,130 @@ interface RegistryDrivenSectionBodyProps {
   layerId: string;
   /** Fallback params from ProcessingDefinition if no registry entry (should not happen). */
   params: ParamDefinition[];
+  widget?: never;
+  disabled?: never;
 }
 
-/**
- * Wires RegistryDrivenPanel to the backend store for canonical (toolrail)
- * ops. Falls back to ScalarSectionBody if the op isn't in the registry yet.
- */
-export function RegistryDrivenSectionBody({
+// ---------------------------------------------------------------------------
+// Widget props — used when rendering a Widget's bindings directly (e.g.
+// future widget-section renderers). Supports multi-op widgets by slicing
+// bindings per node and rendering a section header per op.
+// ---------------------------------------------------------------------------
+interface WidgetProps {
+  widget: Widget;
+  disabled: boolean;
+  defId?: never;
+  opType?: never;
+  layerId?: never;
+  params?: never;
+}
+
+type RegistryDrivenSectionBodyProps = ToolrailProps | WidgetProps;
+
+// ---------------------------------------------------------------------------
+// Multi-op slicing helpers
+// ---------------------------------------------------------------------------
+
+interface OpSlice {
+  op: RegistryOp;
+  bindings: ControlBinding[];
+  values: Record<string, unknown>;
+  nodeId: string;
+}
+
+function sliceWidgetByOp(widget: Widget): OpSlice[] {
+  const reg = loadRegistry();
+  const slices: OpSlice[] = [];
+  for (const node of widget.nodes) {
+    const op = Object.values(reg.ops).find((o) => o.engine.node_type === node.type);
+    if (!op) {
+      console.warn(`RegistryDrivenSectionBody: no registry op for node.type=${node.type}`);
+      continue;
+    }
+    const bindings = widget.bindings.filter((b) => b.target?.node_id === node.id);
+    const values: Record<string, unknown> = {};
+    for (const b of bindings) values[b.param_key] = b.value;
+    slices.push({ op, bindings, values, nodeId: node.id });
+  }
+  return slices;
+}
+
+// ---------------------------------------------------------------------------
+// Widget-based multi-op renderer (stateless — parent owns onParamChange).
+// ---------------------------------------------------------------------------
+
+interface WidgetSectionBodyInnerProps {
+  widget: Widget;
+  disabled: boolean;
+}
+
+function WidgetSectionBodyInner({ widget, disabled }: WidgetSectionBodyInnerProps) {
+  const sessionId = useBackendState((s) => s.sessionId);
+  const offline = useBackendState((s) => s.sseStatus !== 'open');
+  const isDisabled = disabled || offline;
+
+  const onParamChange = useCallback(
+    (paramKey: string, value: unknown) => {
+      if (!sessionId || offline) return;
+      void backendTools.set_widget_param(sessionId, {
+        widget_id: widget.id,
+        param_key: paramKey,
+        value: value as number,
+      });
+    },
+    [sessionId, offline, widget.id],
+  );
+
+  const slices = sliceWidgetByOp(widget);
+
+  if (slices.length === 0) return null;
+
+  if (slices.length === 1) {
+    const s = slices[0];
+    return (
+      <RegistryDrivenPanel
+        op={s.op}
+        values={s.values}
+        onParamChange={onParamChange}
+        disabled={isDisabled}
+      />
+    );
+  }
+
+  return (
+    <>
+      {slices.map((s) => (
+        <div key={s.nodeId}>
+          <div className="registry-panel-section-title">{s.op.display_name}</div>
+          <RegistryDrivenPanel
+            op={s.op}
+            values={s.values}
+            onParamChange={onParamChange}
+            disabled={isDisabled}
+          />
+        </div>
+      ))}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Toolrail-based canonical renderer (original implementation).
+// ---------------------------------------------------------------------------
+
+interface ToolrailSectionBodyInnerProps {
+  defId: string;
+  opType: string;
+  layerId: string;
+  params: ParamDefinition[];
+}
+
+function ToolrailSectionBodyInner({
   defId,
   opType,
   layerId,
   params,
-}: RegistryDrivenSectionBodyProps) {
+}: ToolrailSectionBodyInnerProps) {
   const reg = loadRegistry();
   const registryOp = reg.ops[defId];
 
@@ -106,6 +223,34 @@ export function RegistryDrivenSectionBody({
       values={values}
       onParamChange={onParamChange}
       disabled={offline}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Public component — dispatches to toolrail or widget path based on props.
+// ---------------------------------------------------------------------------
+
+/**
+ * Wires RegistryDrivenPanel to the backend store.
+ *
+ * Two call patterns:
+ *  - Toolrail (canonical): pass `defId`, `opType`, `layerId`, `params`.
+ *    Falls back to ScalarSectionBody if the op isn't in the registry yet.
+ *  - Widget-based: pass `widget` + `disabled`.
+ *    For single-op widgets renders flat (no header).
+ *    For multi-op widgets renders one section header + panel per op.
+ */
+export function RegistryDrivenSectionBody(props: RegistryDrivenSectionBodyProps) {
+  if (props.widget !== undefined) {
+    return <WidgetSectionBodyInner widget={props.widget} disabled={props.disabled} />;
+  }
+  return (
+    <ToolrailSectionBodyInner
+      defId={props.defId}
+      opType={props.opType}
+      layerId={props.layerId}
+      params={props.params}
     />
   );
 }

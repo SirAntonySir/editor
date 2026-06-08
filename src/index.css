@@ -222,6 +222,16 @@ html, body, #root {
   font-variant-numeric: tabular-nums;
 }
 
+/* Section divider title used by RegistryDrivenSectionBody when a multi-op
+ * widget has more than one node — one header per op separates the sliders. */
+.registry-panel-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin: calc(var(--spacing) * 3) 0 var(--spacing) 0;
+  letter-spacing: 0.02em;
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 0.55; }
   50% { opacity: 1; }

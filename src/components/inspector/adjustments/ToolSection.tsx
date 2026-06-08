@@ -2,8 +2,10 @@ import { ChevronRight, ChevronDown, ArrowUpRight, Eye, EyeOff } from 'lucide-rea
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import type { ProcessingDefinition } from '@/types/processing';
+import { loadRegistry } from '@/lib/registry/loader';
 import { sectionSummary } from './section-summary';
 import { ScalarSectionBody } from './ScalarSectionBody';
+import { RegistryDrivenSectionBody } from './RegistryDrivenSectionBody';
 import { CurvesSectionBody } from './CurvesSectionBody';
 import { PromoteOnlyBody } from './PromoteOnlyBody';
 import { HslSectionBody } from './HslSectionBody';
@@ -101,6 +103,13 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
           <LevelsSectionBody layerId={layerId} />
         ) : def.adjustmentType === 'lut' ? (
           <PromoteOnlyBody toolId={def.id} />
+        ) : loadRegistry().ops[def.id] ? (
+          <RegistryDrivenSectionBody
+            defId={def.id}
+            opType={def.adjustmentType}
+            layerId={layerId}
+            params={def.params}
+          />
         ) : (
           <ScalarSectionBody layerId={layerId} op={def.adjustmentType} params={def.params} />
         )

@@ -68,7 +68,8 @@ it('clicking the header expands and renders the scalar body', () => {
   render(<ToolSection def={lightDef} layerId="L1" />);
   fireEvent.click(screen.getByText('Light'));
   expect(useEditorStore.getState().expandedSectionIds.has('light')).toBe(true);
-  expect(screen.getByRole('slider')).toBeTruthy();
+  // RegistryDrivenPanel renders all 7 bindings from the light registry op.
+  expect(screen.getAllByRole('slider').length).toBeGreaterThanOrEqual(1);
 });
 
 describe('eye visibility toggle', () => {

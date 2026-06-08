@@ -2,6 +2,7 @@ from app.tools.registry import BackendToolRegistry
 
 from .accept_widget import AcceptWidgetTool
 from .delete_widget import DeleteWidgetTool
+from .propose_stack import ProposeStackTool
 from .propose_widget import ProposeWidgetTool
 from .refine_widget import RefineWidgetTool
 from .repeat_widget import RepeatWidgetTool
@@ -13,6 +14,7 @@ from .unlock_widget_param import UnlockWidgetParamTool
 
 def register_all_widget_tools(registry: BackendToolRegistry) -> None:
     registry.register(ProposeWidgetTool())
+    registry.register(ProposeStackTool())
     registry.register(RefineWidgetTool())
     registry.register(RepeatWidgetTool())
     registry.register(DeleteWidgetTool())

@@ -2,6 +2,22 @@ import pytest
 
 
 @pytest.fixture
+def make_doc():
+    """Factory that returns a fresh SessionDocument for unit tests that call
+    tool handlers directly (without the HTTP/registry layer)."""
+    from app.state.document import SessionDocument
+
+    def _factory(session_id: str = "test-session") -> SessionDocument:
+        return SessionDocument(
+            session_id=session_id,
+            image_bytes=b"\xff\xd8\xff",  # minimal non-empty bytes
+            mime_type="image/jpeg",
+        )
+
+    return _factory
+
+
+@pytest.fixture
 def sample_operation_graph() -> dict:
     return {
         "id": "graph_01",

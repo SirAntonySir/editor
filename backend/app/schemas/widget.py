@@ -65,9 +65,14 @@ class NodeParamTarget(BaseModel):
 
 
 ControlType = Literal[
+    # Legacy widget-schema values (kept for backwards compatibility with
+    # serialised state that pre-dates the SSoT registry alignment).
     "slider", "numeric_pair", "toggle", "choice", "color", "curve",
     "curve_point", "mask_thumbnail", "region_picker",
     "before_after_toggle", "histogram_marker", "text",
+    # Registry-vocab additions (aligned with CONTROL_TYPE in registry/schema.py).
+    "swatch", "hue_wheel", "curve_editor", "point_list",
+    "enum_select", "bool_toggle", "kelvin_strip",
 ]
 
 
@@ -176,11 +181,79 @@ class TextSchema(BaseModel):
     placeholder: str = ""
 
 
+# ------------------------------------------------------------------
+# Registry-vocab control schemas (aligned with SSoT registry/schema.py)
+# ------------------------------------------------------------------
+
+
+class SwatchSchema(BaseModel):
+    """Colour swatch picker — mirrors ColorSchema but uses registry vocab."""
+    model_config = ConfigDict(extra="forbid")
+    control_type: Literal["swatch"]
+    space: Literal["rgb", "lab", "hsl"] = "rgb"
+    show_alpha: bool = False
+    presets: list[list[int]] = Field(default_factory=list)
+
+
+class HueWheelSchema(BaseModel):
+    """Hue wheel — degree range [min, max]."""
+    model_config = ConfigDict(extra="forbid")
+    control_type: Literal["hue_wheel"]
+    min: float = 0.0
+    max: float = 360.0
+
+
+class CurveEditorSchema(BaseModel):
+    """Full curve editor — mirrors CurveSchema but uses registry vocab."""
+    model_config = ConfigDict(extra="forbid")
+    control_type: Literal["curve_editor"]
+    channel: Literal["luma", "r", "g", "b"] | None = None
+    min_points: int = 2
+    max_points: int = 16
+
+
+class PointListSchema(BaseModel):
+    """Editable list of curve/spline points (debug / advanced editor)."""
+    model_config = ConfigDict(extra="forbid")
+    control_type: Literal["point_list"]
+    min_points: int = 2
+    max_points: int = 16
+
+
+class EnumSelectSchema(BaseModel):
+    """Drop-down / segmented enum selector — mirrors ChoiceSchema."""
+    model_config = ConfigDict(extra="forbid")
+    control_type: Literal["enum_select"]
+    options: list[ChoiceOption] = Field(min_length=1)
+    allow_custom: bool = False
+
+
+class BoolToggleSchema(BaseModel):
+    """Boolean toggle — mirrors ToggleSchema."""
+    model_config = ConfigDict(extra="forbid")
+    control_type: Literal["bool_toggle"]
+    on_label: str = "On"
+    off_label: str = "Off"
+
+
+class KelvinStripSchema(BaseModel):
+    """Kelvin temperature strip — same fields as SliderSchema."""
+    model_config = ConfigDict(extra="forbid")
+    control_type: Literal["kelvin_strip"]
+    min: float
+    max: float
+    step: float
+    unit: str = "K"
+
+
 _ControlSchemaAny = Annotated[
     Union[
         SliderSchema, NumericPairSchema, ToggleSchema, ChoiceSchema, ColorSchema,
         CurveSchema, CurvePointSchema, MaskThumbnailSchema, RegionPickerSchema,
         BeforeAfterToggleSchema, HistogramMarkerSchema, TextSchema,
+        # Registry-vocab additions:
+        SwatchSchema, HueWheelSchema, CurveEditorSchema, PointListSchema,
+        EnumSelectSchema, BoolToggleSchema, KelvinStripSchema,
     ],
     Field(discriminator="control_type"),
 ]

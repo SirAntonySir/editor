@@ -4,13 +4,22 @@ import type { Scope } from './scope';
 export type { Scope } from './scope';
 
 export type ControlType =
+  // Legacy widget-schema values (kept for backwards compat with old serialised state).
   | 'slider'
   | 'toggle'
   | 'choice'
   | 'color'
   | 'region_picker'
   | 'mask_thumbnail'
-  | 'curve';
+  | 'curve'
+  // Registry-vocab additions (aligned with shared/registry/schema.ts CONTROL_TYPE).
+  | 'swatch'
+  | 'hue_wheel'
+  | 'curve_editor'
+  | 'point_list'
+  | 'enum_select'
+  | 'bool_toggle'
+  | 'kelvin_strip';
 
 export interface SliderSchema {
   control_type: 'slider';
@@ -50,6 +59,54 @@ export interface CurveSchema {
   max_points?: number;
 }
 
+// Registry-vocab schema interfaces (aligned with backend registry-vocab additions).
+
+export interface SwatchSchema {
+  control_type: 'swatch';
+  space?: 'rgb' | 'lab' | 'hsl';
+  show_alpha?: boolean;
+  presets?: number[][];
+}
+
+export interface HueWheelSchema {
+  control_type: 'hue_wheel';
+  min: number;
+  max: number;
+}
+
+export interface CurveEditorSchema {
+  control_type: 'curve_editor';
+  channel?: 'luma' | 'r' | 'g' | 'b' | null;
+  min_points?: number;
+  max_points?: number;
+}
+
+export interface PointListSchema {
+  control_type: 'point_list';
+  min_points?: number;
+  max_points?: number;
+}
+
+export interface EnumSelectSchema {
+  control_type: 'enum_select';
+  options: { value: string; label: string }[];
+  allow_custom?: boolean;
+}
+
+export interface BoolToggleSchema {
+  control_type: 'bool_toggle';
+  on_label?: string;
+  off_label?: string;
+}
+
+export interface KelvinStripSchema {
+  control_type: 'kelvin_strip';
+  min: number;
+  max: number;
+  step: number;
+  unit?: string;
+}
+
 export type ControlSchema =
   | SliderSchema
   | ToggleSchema
@@ -57,7 +114,14 @@ export type ControlSchema =
   | ColorSchema
   | RegionPickerSchema
   | MaskThumbnailSchema
-  | CurveSchema;
+  | CurveSchema
+  | SwatchSchema
+  | HueWheelSchema
+  | CurveEditorSchema
+  | PointListSchema
+  | EnumSelectSchema
+  | BoolToggleSchema
+  | KelvinStripSchema;
 
 // Curve value model lives in its own leaf module (cycle-free); re-exported here
 // so existing `@/types/widget` imports keep working.

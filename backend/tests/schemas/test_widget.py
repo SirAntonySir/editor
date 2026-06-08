@@ -3,17 +3,22 @@ from pydantic import ValidationError
 
 from app.schemas.widget import (
     BeforeAfterToggleSchema,
+    BoolToggleSchema,
     ChoiceSchema,
     ColorSchema,
     ControlBinding,
     ControlSchema,
     ControlType,
+    CurveEditorSchema,
     CurvePointSchema,
     CurveSchema,
     DismissalRule,
+    EnumSelectSchema,
     GlobalScope,
     HistogramMarkerSchema,
+    HueWheelSchema,
     ImageNodeScope,
+    KelvinStripSchema,
     MaskRecord,
     MaskScope,
     MaskThumbnailSchema,
@@ -25,11 +30,13 @@ from app.schemas.widget import (
     NoteAnchorPoint,
     NoteAnchorRegion,
     NumericPairSchema,
+    PointListSchema,
     RegionPickerSchema,
     Scope,
     SliderSchema,
     StateEvent,
     StateEventKind,
+    SwatchSchema,
     TextSchema,
     ToggleSchema,
     Widget,
@@ -141,9 +148,13 @@ def test_control_binding_color_value_is_rgb_tuple() -> None:
 
 def test_control_type_set() -> None:
     expected = {
+        # Legacy widget-schema values.
         "slider", "numeric_pair", "toggle", "choice", "color", "curve",
         "curve_point", "mask_thumbnail", "region_picker",
         "before_after_toggle", "histogram_marker", "text",
+        # Registry-vocab additions.
+        "swatch", "hue_wheel", "curve_editor", "point_list",
+        "enum_select", "bool_toggle", "kelvin_strip",
     }
     assert set(ControlType.__args__) == expected
 
@@ -153,9 +164,13 @@ def test_control_type_matches_union_members() -> None:
     across the schemas in the discriminated union. Catches drift when adding
     a new control type but forgetting to register it (or vice versa)."""
     schemas = [
+        # Legacy schemas.
         SliderSchema, NumericPairSchema, ToggleSchema, ChoiceSchema, ColorSchema,
         CurveSchema, CurvePointSchema, MaskThumbnailSchema, RegionPickerSchema,
         BeforeAfterToggleSchema, HistogramMarkerSchema, TextSchema,
+        # Registry-vocab schemas.
+        SwatchSchema, HueWheelSchema, CurveEditorSchema, PointListSchema,
+        EnumSelectSchema, BoolToggleSchema, KelvinStripSchema,
     ]
     # Each control_type field is Literal["..."] with a single value — pull it out.
     union_literals = {s.model_fields["control_type"].annotation.__args__[0] for s in schemas}

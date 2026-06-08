@@ -8,7 +8,6 @@ from app.registry.loader import get_registry
 from app.schemas.widget import (
     ControlBinding,
     ControlSchema,
-    ControlType,
     NodeParamTarget,
     Scope,
     Widget,
@@ -19,29 +18,6 @@ from app.schemas.widget import (
 )
 from app.state.document import SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
-
-# ---------------------------------------------------------------------------
-# Registry CONTROL_TYPE → widget ControlType mapping
-# The SSoT registry uses its own control_type vocabulary; ControlBinding.control_type
-# uses the widget schema vocabulary. Map the mismatches here.
-# ---------------------------------------------------------------------------
-_CONTROL_TYPE_MAP: dict[str, ControlType] = {
-    "slider": "slider",
-    "swatch": "color",
-    "hue_wheel": "color",
-    "curve_editor": "curve",
-    "point_list": "curve",
-    "enum_select": "choice",
-    "bool_toggle": "toggle",
-    "kelvin_strip": "slider",
-}
-
-
-def _map_control_type(registry_ct: str) -> ControlType:
-    mapped = _CONTROL_TYPE_MAP.get(registry_ct)
-    if mapped is None:
-        raise ValueError(f"unknown registry control_type: {registry_ct!r}")
-    return mapped
 
 
 class _Input(BaseModel):
@@ -58,24 +34,37 @@ class _Output(BaseModel):
 
 
 def _control_schema_for(op_id: str, param_key: str) -> ControlSchema:
-    """Build a ControlSchema from a registry op param + binding."""
+    """Build a ControlSchema from a registry op param + binding.
+
+    Uses the registry's control_type vocabulary verbatim — no mapping needed
+    now that ControlType includes all registry-vocab values.
+    """
     reg = get_registry()
     op = reg.ops[op_id]
     param = op.params[param_key]
     binding = next(b for b in op.bindings if b.param_key == param_key)
-    payload: dict = {"control_type": _map_control_type(binding.control_type)}
-    mapped_ct = payload["control_type"]
-    if param.type == "scalar" and mapped_ct == "slider":
+    ct = binding.control_type
+    payload: dict = {"control_type": ct}
+
+    if ct in ("slider", "kelvin_strip") and param.type == "scalar":
         assert param.range is not None
         payload["min"], payload["max"] = param.range
         payload["step"] = param.step if param.step is not None else 1
         if param.unit:
             payload["unit"] = param.unit
-    elif param.type == "curve_points":
+    elif ct == "hue_wheel" and param.type == "scalar":
+        assert param.range is not None
+        payload["min"], payload["max"] = param.range
+    elif ct == "swatch":
+        pass  # SwatchSchema has no required extra fields
+    elif ct in ("curve_editor", "point_list") and param.type == "curve_points":
         payload["min_points"] = param.min_points or 2
         payload["max_points"] = param.max_points or 16
-    elif param.type == "enum" and param.values:
+    elif ct == "enum_select" and param.type == "enum" and param.values:
         payload["options"] = [{"value": v, "label": v} for v in param.values]
+    elif ct == "bool_toggle":
+        pass  # BoolToggleSchema has on_label/off_label defaults
+
     return ControlSchema.model_validate(payload)
 
 
@@ -109,7 +98,7 @@ def _build_widget(
         bindings.append(ControlBinding(
             param_key=b.param_key,
             label=b.label,
-            control_type=_map_control_type(b.control_type),
+            control_type=b.control_type,
             control_schema=_control_schema_for(op_id, b.param_key),
             value=full_params[b.param_key],
             default=op.params[b.param_key].default,

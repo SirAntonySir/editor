@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { expandCompoundNodes, DEFAULT_COMPOUND_ORDER } from './expand-compound';
+import { expandCompoundNodes } from './expand-compound';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { registerAllProcessing } from '@/processing';
 import type { Node } from '@/types/operation-graph';
@@ -107,6 +107,3 @@ describe('expandCompoundNodes', () => {
     expect(types).toEqual(['kelvin', 'basic']);
   });
 });
-
-// Reference DEFAULT_COMPOUND_ORDER so the import isn't tree-shaken from tests.
-void DEFAULT_COMPOUND_ORDER;

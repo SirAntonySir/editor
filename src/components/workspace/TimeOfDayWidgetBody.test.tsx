@@ -52,19 +52,21 @@ describe('TimeOfDayWidgetBody', () => {
     expect(screen.getByText('Blue Sat')).toBeTruthy();
   });
 
-  it('writes an optimistic patch with compiled bindings when the slider moves', () => {
+  it('writes an optimistic patch keyed by the canonical compound node id when the slider moves', () => {
     render(<TimeOfDayWidgetBody widget={makeTimeOfDayWidget()} />);
     const slider = screen.getByRole('slider') as HTMLInputElement;
     fireEvent.change(slider, { target: { value: '550' } }); // → 0.55 (Golden)
     // handleChange calls setPosition (which itself optimistically patches
-    // time_of_day.position) AND then applyOptimistic with the compiled bundle.
-    // The last call is the explicit compiled patch — it must include compound keys.
+    // time_of_day.position keyed by widget id) AND then applyOptimistic with
+    // the compiled bundle keyed by `canon:<layer>:compound`. The renderer
+    // reads the compound patch via that key.
     expect(mockApplyOptimistic).toHaveBeenCalled();
     const lastCall = mockApplyOptimistic.mock.calls.at(-1)!;
-    const [widgetId, patch] = lastCall;
-    expect(widgetId).toBe('w-tod-1');
+    const [key, patch] = lastCall;
+    expect(key).toBe('canon:L1:compound');
     const keys = patch.bindings.map((b: { paramKey: string }) => b.paramKey);
+    expect(keys).toContain('time_of_day.position');
     expect(keys).toContain('kelvin.kelvin');
-    expect(keys.length).toBeGreaterThan(1);
+    expect(keys).toContain('light.exposure');
   });
 });

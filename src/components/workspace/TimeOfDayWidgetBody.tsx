@@ -23,17 +23,26 @@ export function TimeOfDayWidgetBody({ widget }: TimeOfDayWidgetBodyProps) {
 
   const handleChange = useCallback((t: number) => {
     setPosition(t);
-    // Interpolate and write each compiled param to the widget's compound node
-    // via a single optimistic patch keyed on the widget id. This makes the
-    // canvas update live; backend-side recomputation arrives on the next
-    // mechanical delta (see plan §"Backend prerequisite").
+    // Interpolate the compound bundle and patch the canonical compound node
+    // optimistically so the renderer sees live values mid-drag.
+    //
+    // Key is the canonical node id `canon:<layer>:compound` — matches what
+    // `image-node-renderer` uses for its compound-node merge step. Includes
+    // `time_of_day.position` so the snapshot stays internally consistent
+    // when the patch lands.
     const compiled = interpolate1D(TIME_OF_DAY_ANCHORS, t);
     const snapshot = useBackendState.getState().snapshot;
     if (!snapshot || !sessionId) return;
     const baseRevision = snapshot.revision;
-    const bindings = Object.entries(compiled).map(([paramKey, value]) => ({ paramKey, value }));
-    useBackendState.getState().applyOptimistic(widget.id, { bindings, baseRevision });
-  }, [setPosition, sessionId, widget.id]);
+    const bindings = [
+      { paramKey: 'time_of_day.position', value: t },
+      ...Object.entries(compiled).map(([paramKey, value]) => ({ paramKey, value })),
+    ];
+    useBackendState.getState().applyOptimistic(
+      `canon:${layerId}:compound`,
+      { bindings, baseRevision },
+    );
+  }, [setPosition, sessionId, layerId]);
 
   const compiled = interpolate1D(TIME_OF_DAY_ANCHORS, position);
   const entries = compiledToReadoutEntries(compiled);

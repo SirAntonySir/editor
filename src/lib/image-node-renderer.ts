@@ -142,9 +142,21 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   const layersById = new Map(allLayers.map((l) => [l.id, l] as const));
   // Compound nodes (e.g. Time-of-Day) split here into one virtual node per
   // adjustmentType ('basic', 'kelvin', 'hsl', …) so the WebGL pipeline can
-  // dispatch them to the existing per-op shaders. Non-compound nodes pass
-  // through unchanged.
-  const nodes = expandCompoundNodes(opGraph?.nodes ?? []);
+  // dispatch them to the existing per-op shaders.
+  //
+  // Optimistic patches keyed by the compound node id (canon:<layer>:compound)
+  // merge into the compound node's params *before* expansion so live drags
+  // on the dial flow through to the virtual nodes' params. Per-node
+  // `withOptimistic` below still handles non-compound widget patches.
+  const compoundMerged = (opGraph?.nodes ?? []).map((n) => {
+    if (n.type !== 'compound') return n;
+    const patch = optimistic.get(n.id);
+    if (!patch) return n;
+    const params = { ...n.params };
+    for (const b of patch.bindings) params[b.paramKey] = b.value;
+    return { ...n, params };
+  });
+  const nodes = expandCompoundNodes(compoundMerged);
 
   for (const layerId of layerIds) {
     const layer = layersById.get(layerId);

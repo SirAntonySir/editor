@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RegistryOpSchema, RegistryPresetSchema } from '../../../../shared/registry/schema';
+import { RegistryOpSchema, RegistryPresetSchema, OpParamSchema } from '../../../../shared/registry/schema';
 
 describe('RegistryOpSchema', () => {
   it('accepts a minimal op', () => {
@@ -43,5 +43,24 @@ describe('RegistryPresetSchema', () => {
       ops: [{ op_id: 'grain', params: { amount: 15 } }],
     });
     expect(p.ops[0].op_id).toBe('grain');
+  });
+});
+
+describe('strict mode parity', () => {
+  it('rejects extra keys on RegistryOpSchema', () => {
+    expect(() => RegistryOpSchema.parse({
+      id: 'x', display_name: 'X',
+      llm: { description: 'd', typical_use: 'u', semantic_tags: [] },
+      params: { a: { type: 'scalar', range: [0, 1], default: 0 } },
+      bindings: [{ param_key: 'a', control_type: 'slider', label: 'A' }],
+      engine: { shader: 'x', render_order: 0, node_type: 'x' },
+      whoops_extra: 'forbidden',
+    })).toThrow();
+  });
+
+  it('rejects extra keys on OpParamSchema', () => {
+    expect(() => OpParamSchema.parse({
+      type: 'scalar', range: [0, 1], default: 0, extra_key: 'no',
+    })).toThrow();
   });
 });

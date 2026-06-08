@@ -19,7 +19,7 @@ export const OpParamSchema = z.object({
   values: z.array(z.string()).optional(),
   min_points: z.number().int().optional(),
   max_points: z.number().int().optional(),
-}).superRefine((p, ctx) => {
+}).strict().superRefine((p, ctx) => {
   if (p.type === 'scalar' && !p.range) {
     ctx.addIssue({ code: 'custom', message: 'scalar params require range' });
   }
@@ -40,19 +40,19 @@ export const OpBindingSchema = z.object({
   control_type: ControlTypeSchema,
   label: z.string(),
   group: z.string().optional(),
-});
+}).strict();
 
 export const OpLlmMetadataSchema = z.object({
   description: z.string(),
   typical_use: z.string(),
   semantic_tags: z.array(z.string()).default([]),
-});
+}).strict();
 
 export const OpEngineConfigSchema = z.object({
   shader: z.string(),
   render_order: z.number().int(),
   node_type: z.string(),
-});
+}).strict();
 
 export const RegistryOpSchema = z.object({
   id: z.string(),
@@ -61,7 +61,7 @@ export const RegistryOpSchema = z.object({
   params: z.record(z.string(), OpParamSchema),
   bindings: z.array(OpBindingSchema),
   engine: OpEngineConfigSchema,
-}).superRefine((op, ctx) => {
+}).strict().superRefine((op, ctx) => {
   for (const b of op.bindings) {
     if (!(b.param_key in op.params)) {
       ctx.addIssue({
@@ -85,7 +85,7 @@ export const RegistryPresetSchema = z.object({
   typical_use: z.string(),
   semantic_tags: z.array(z.string()).default([]),
   ops: z.array(PresetOpSchema),
-});
+}).strict();
 
 export type RegistryOp = z.infer<typeof RegistryOpSchema>;
 export type RegistryPreset = z.infer<typeof RegistryPresetSchema>;

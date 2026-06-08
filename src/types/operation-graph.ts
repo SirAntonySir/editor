@@ -6,8 +6,10 @@ export interface Node {
   id: string;
   type: string;
   scope: Scope;
-  // CurvesValue lets a curves node carry its per-channel control points.
-  params: Record<string, number | string | boolean | CurvesValue>;
+  // Numeric scalars, strings (e.g. blend mode), booleans (e.g. enabled),
+  // CurvesValue (legacy per-channel curve points), or a flat curve_points
+  // array (`[[x, y], ...]` in 0..1 space, used by fused-tool curve bindings).
+  params: Record<string, number | string | boolean | CurvesValue | [number, number][]>;
   inputs: string[];
   layer_id?: string;
   layer_ids?: string[];  // node-scope: applied to composite of these layers

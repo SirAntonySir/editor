@@ -317,15 +317,21 @@ export class WebGLPipeline {
         const p = adj.params;
         const textures: WebGLTexture[] = [];
         const channels = ['rgb', 'red', 'green', 'blue'] as const;
+        // Always bind all four LUT samplers. A missing channel falls back to
+        // identity; leaving the sampler unbound makes it default to texture
+        // unit 0 (the source image), which causes the curves shader to read
+        // arbitrary source pixels as if they were a LUT — visible as
+        // per-pixel colour noise.
         channels.forEach((ch, i) => {
           const lut = p[ch] as Float32Array | undefined;
-          if (!lut) return;
           const unit = i + 1;
           gl.activeTexture(gl.TEXTURE0 + unit);
           const tex = createTexture(gl, 256, 1);
           const data = new Uint8Array(256 * 4);
           for (let j = 0; j < 256; j++) {
-            const v = Math.round(Math.max(0, Math.min(255, lut[j] * 255)));
+            const v = lut
+              ? Math.round(Math.max(0, Math.min(255, lut[j] * 255)))
+              : j;
             data[j * 4] = v;
             data[j * 4 + 1] = v;
             data[j * 4 + 2] = v;

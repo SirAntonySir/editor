@@ -80,3 +80,29 @@ export function makeGlobalWidget(overrides: Partial<Widget> = {}): Widget {
     ...overrides,
   });
 }
+
+/** A compound Time-of-Day widget. Its sole binding is `time_of_day.position`. */
+export function makeTimeOfDayWidget(overrides: Partial<Widget> = {}): Widget {
+  const nodeId = 'c1';
+  const widgetId = 'w-tod-1';
+  return makeAiWidget({
+    id: widgetId,
+    intent: 'Time of Day',
+    reasoning: undefined,
+    origin: { kind: 'tool_invoked' },
+    fused_tool_id: 'time-of-day',
+    scope: { kind: 'global' },
+    preview: { kind: 'none', auto_before_after: false },
+    nodes: [{
+      id: nodeId, type: 'compound', scope: { kind: 'global' }, inputs: [], widget_id: widgetId,
+      layer_id: 'L1', params: { 'time_of_day.position': 0.30 },
+    }],
+    bindings: [{
+      param_key: 'time_of_day.position', label: 'Time', control_type: 'slider',
+      target: { node_id: nodeId, param_key: 'time_of_day.position' },
+      control_schema: { control_type: 'slider', min: 0, max: 1, step: 0.001 },
+      value: 0.30, default: 0.30,
+    }],
+    ...overrides,
+  });
+}

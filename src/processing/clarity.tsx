@@ -1,6 +1,8 @@
 // src/processing/clarity.tsx
-import { Contrast } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
+
+const ClarityIcon = createMaterialIcon('auto_awesome');
 import { ScalarSectionBody } from '@/components/inspector/adjustments/ScalarSectionBody';
 
 function ClarityPanel({ layerId }: ProcessingPanelProps) {
@@ -10,7 +12,7 @@ function ClarityPanel({ layerId }: ProcessingPanelProps) {
 export const clarityProcessing: ProcessingDefinition = {
   id: 'clarity',
   label: 'Clarity',
-  icon: Contrast,
+  icon: ClarityIcon,
   category: 'adjust',
   adjustmentType: 'clarity',
   paramKeys: ['amount'],

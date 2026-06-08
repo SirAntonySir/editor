@@ -1,5 +1,7 @@
-import { Spline } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
+
+const CurvesIcon = createMaterialIcon('show_chart');
 import { CurvesPanel as CurvesPanelImpl } from '@/tools/curves-tool';
 
 function CurvesPanel({ layerId }: ProcessingPanelProps) {
@@ -20,7 +22,7 @@ function CurvesNodeCompact({ layerId, adjustmentId }: ProcessingPanelProps) {
 export const curvesProcessing: ProcessingDefinition = {
   id: 'curves',
   label: 'Curves',
-  icon: Spline,
+  icon: CurvesIcon,
   category: 'adjust',
   adjustmentType: 'curves',
   params: [], // Curves uses Float32Array LUTs, not scalar params

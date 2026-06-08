@@ -1,5 +1,8 @@
-import { Sun, RotateCcw } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
+
+const LightIcon = createMaterialIcon('light_mode');
 import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
 import { useProcessingParam } from '@/lib/use-processing-param';
 
@@ -49,7 +52,7 @@ export function LightPanel({ layerId, adjustmentId }: ProcessingPanelProps) {
 export const lightProcessing: ProcessingDefinition = {
   id: 'light',
   label: 'Light',
-  icon: Sun,
+  icon: LightIcon,
   category: 'adjust',
   adjustmentType: 'basic',
   paramKeys: ['exposure', 'brightness', 'contrast', 'highlights', 'shadows', 'whites', 'blacks'],

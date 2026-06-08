@@ -1,13 +1,13 @@
 import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ToolDefinition } from '@/types/tool';
 
-const HslIcon = createMaterialIcon('colorize');
+const GrainIcon = createMaterialIcon('grain');
 
-export const HslTool: ToolDefinition = {
-  name: 'hsl',
-  label: 'HSL',
-  icon: HslIcon,
+export const GrainTool: ToolDefinition = {
+  name: 'grain',
+  label: 'Grain',
+  icon: GrainIcon,
   category: 'adjust',
-  processingId: 'hsl',
+  processingId: 'grain',
   onActivate: () => {},
 };

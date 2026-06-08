@@ -73,6 +73,27 @@ html, body, #root {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Material Symbols (Outlined) — used for tool + processing icons only.
+ * UI chrome (menus, close, chevrons, file ops) stays on Lucide.
+ * Variable axes are tuned to match the Lucide stroke weight (~1.75px). */
+.material-symbol {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  user-select: none;
+}
+
 /* Flat floating-overlay surface — used for menus, dropdowns,
  * context menus, tooltips, dialogs, and the selection-actions bar. */
 .overlay {

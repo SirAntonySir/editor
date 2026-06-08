@@ -1,6 +1,8 @@
 // src/processing/sharpen.tsx
-import { Aperture } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
+
+const SharpenIcon = createMaterialIcon('deblur');
 import { ScalarSectionBody } from '@/components/inspector/adjustments/ScalarSectionBody';
 
 function SharpenPanel({ layerId }: ProcessingPanelProps) {
@@ -10,7 +12,7 @@ function SharpenPanel({ layerId }: ProcessingPanelProps) {
 export const sharpenProcessing: ProcessingDefinition = {
   id: 'sharpen',
   label: 'Sharpen',
-  icon: Aperture,
+  icon: SharpenIcon,
   category: 'adjust',
   adjustmentType: 'sharpen',
   paramKeys: ['amount'],

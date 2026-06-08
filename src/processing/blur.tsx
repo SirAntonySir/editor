@@ -1,6 +1,8 @@
 // src/processing/blur.tsx
-import { Droplet } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
+
+const BlurIcon = createMaterialIcon('blur_on');
 import { ScalarSectionBody } from '@/components/inspector/adjustments/ScalarSectionBody';
 
 function BlurPanel({ layerId }: ProcessingPanelProps) {
@@ -10,7 +12,7 @@ function BlurPanel({ layerId }: ProcessingPanelProps) {
 export const blurProcessing: ProcessingDefinition = {
   id: 'blur',
   label: 'Blur',
-  icon: Droplet,
+  icon: BlurIcon,
   category: 'adjust',
   adjustmentType: 'blur',
   paramKeys: ['radius'],

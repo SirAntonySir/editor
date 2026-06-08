@@ -1,10 +1,12 @@
-import { Sun } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ToolDefinition } from '@/types/tool';
+
+const LightIcon = createMaterialIcon('light_mode');
 
 export const LightTool: ToolDefinition = {
   name: 'light',
   label: 'Light',
-  icon: Sun,
+  icon: LightIcon,
   category: 'adjust',
   shortcut: 'B',
   processingId: 'light',

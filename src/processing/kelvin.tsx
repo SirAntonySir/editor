@@ -1,5 +1,8 @@
-import { Thermometer, RotateCcw } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
+
+const KelvinIcon = createMaterialIcon('thermostat');
 import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
 import { useProcessingParam } from '@/lib/use-processing-param';
 
@@ -34,7 +37,7 @@ export function KelvinPanel({ layerId, adjustmentId }: ProcessingPanelProps) {
 export const kelvinProcessing: ProcessingDefinition = {
   id: 'kelvin',
   label: 'White Balance',
-  icon: Thermometer,
+  icon: KelvinIcon,
   category: 'adjust',
   adjustmentType: 'kelvin',
   params: [

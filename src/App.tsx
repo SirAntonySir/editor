@@ -29,6 +29,9 @@ import { SharpenTool } from '@/tools/sharpen-tool';
 import { BlurTool } from '@/tools/blur-tool';
 import { ClarityTool } from '@/tools/clarity-tool';
 import { TimeOfDayTool } from '@/tools/time-of-day-tool';
+import { GrainTool } from '@/tools/grain-tool';
+import { VignetteTool } from '@/tools/vignette-tool';
+import { SplitToneTool } from '@/tools/split-tone-tool';
 import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
 import { useBackendState } from '@/store/backend-state-slice';
 import { Upload } from 'lucide-react';
@@ -60,6 +63,9 @@ CanvasToolRegistry.register(SharpenTool);
 CanvasToolRegistry.register(BlurTool);
 CanvasToolRegistry.register(ClarityTool);
 CanvasToolRegistry.register(TimeOfDayTool);
+CanvasToolRegistry.register(GrainTool);
+CanvasToolRegistry.register(VignetteTool);
+CanvasToolRegistry.register(SplitToneTool);
 
 /** Main canvas area */
 function MainLayout({

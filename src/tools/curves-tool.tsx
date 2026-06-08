@@ -1,6 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Spline, RotateCcw } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ToolDefinition } from '@/types/tool';
+
+const CurvesIcon = createMaterialIcon('show_chart');
 import { useEditorStore } from '@/store';
 import { evaluateCubicSpline, DEFAULT_CURVE_POINTS, type CurvePoint } from '@/lib/curves';
 import { useCurvePoints, type CurvePointsMap } from '@/lib/curve-points-store';
@@ -207,7 +210,7 @@ export function CurvesPanel({ layerId: layerIdProp }: { layerId?: string } = {})
 export const CurvesTool: ToolDefinition = {
   name: 'curves',
   label: 'Curves',
-  icon: Spline,
+  icon: CurvesIcon,
   category: 'adjust',
   processingId: 'curves',
   onActivate: () => {

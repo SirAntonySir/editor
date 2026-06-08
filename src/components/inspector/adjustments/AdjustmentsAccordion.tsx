@@ -24,11 +24,13 @@ const SECTION_LABELS: Record<string, string> = {
 //   1) Tonal / luminance shaping
 //   2) Colour
 //   3) Detail
-//   4) Filter presets (LUTs)
+//   4) Finishing effects
+//   5) Filter presets (LUTs)
 const TOOL_GROUPS: string[][] = [
   ['light', 'levels', 'curves'],
   ['color', 'kelvin', 'hsl'],
   ['sharpen', 'clarity', 'blur'],
+  ['splitTone', 'vignette', 'grain'],
   ['filter'],
 ];
 

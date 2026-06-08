@@ -1,10 +1,12 @@
-import { Palette } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ToolDefinition } from '@/types/tool';
+
+const ColorIcon = createMaterialIcon('palette');
 
 export const ColorTool: ToolDefinition = {
   name: 'color',
   label: 'Color',
-  icon: Palette,
+  icon: ColorIcon,
   category: 'adjust',
   processingId: 'color',
   onActivate: () => {

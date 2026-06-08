@@ -1,10 +1,12 @@
-import { Thermometer } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ToolDefinition } from '@/types/tool';
+
+const KelvinIcon = createMaterialIcon('thermostat');
 
 export const KelvinTool: ToolDefinition = {
   name: 'kelvin',
   label: 'White Balance',
-  icon: Thermometer,
+  icon: KelvinIcon,
   category: 'adjust',
   processingId: 'kelvin',
   onActivate: () => {

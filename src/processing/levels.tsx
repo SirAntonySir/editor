@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
-import { SlidersHorizontal, RotateCcw } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
+
+const LevelsIcon = createMaterialIcon('tune');
 import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
 import { LevelsHistogramControl } from '@/components/inspector/LevelsHistogramControl';
 import { useProcessingParam } from '@/lib/use-processing-param';
@@ -86,7 +89,7 @@ const gammaFormat = (v: number) => v.toFixed(2);
 export const levelsProcessing: ProcessingDefinition = {
   id: 'levels',
   label: 'Levels',
-  icon: SlidersHorizontal,
+  icon: LevelsIcon,
   category: 'adjust',
   adjustmentType: 'levels',
   params: [

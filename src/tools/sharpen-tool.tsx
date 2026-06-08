@@ -1,10 +1,12 @@
-import { Aperture } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ToolDefinition } from '@/types/tool';
+
+const SharpenIcon = createMaterialIcon('deblur');
 
 export const SharpenTool: ToolDefinition = {
   name: 'sharpen',
   label: 'Sharpen',
-  icon: Aperture,
+  icon: SharpenIcon,
   category: 'adjust',
   processingId: 'sharpen',
   onActivate: () => {},

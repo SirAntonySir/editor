@@ -91,6 +91,36 @@
       "params": {
         "amount": { "uniform": "u_amount", "label": "Amount", "min": 0, "max": 100, "step": 1, "scale": 100, "default": 0 }
       }
+    },
+    "grain": {
+      "shaderBinding": "grain",
+      "toolDefaults": ["amount", "size", "roughness"],
+      "params": {
+        "amount":    { "uniform": "u_amount",    "label": "Amount",    "min": 0,  "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "size":      { "uniform": "u_size",      "label": "Size",      "min": 50, "max": 200, "step": 1, "scale": 100, "default": 100 },
+        "roughness": { "uniform": "u_roughness", "label": "Roughness", "min": 0,  "max": 100, "step": 1, "scale": 100, "default": 50 }
+      }
+    },
+    "vignette": {
+      "shaderBinding": "vignette",
+      "toolDefaults": ["amount", "midpoint", "feather", "roundness"],
+      "params": {
+        "amount":    { "uniform": "u_amount",    "label": "Amount",    "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 },
+        "midpoint":  { "uniform": "u_midpoint",  "label": "Midpoint",  "min": 0,    "max": 100, "step": 1, "scale": 100, "default": 50 },
+        "feather":   { "uniform": "u_feather",   "label": "Feather",   "min": 0,    "max": 100, "step": 1, "scale": 100, "default": 50 },
+        "roundness": { "uniform": "u_roundness", "label": "Roundness", "min": -100, "max": 100, "step": 1, "scale": 100, "default": 0 }
+      }
+    },
+    "splitTone": {
+      "shaderBinding": "splitTone",
+      "toolDefaults": ["shadow_hue", "shadow_sat", "highlight_hue", "highlight_sat", "balance"],
+      "params": {
+        "shadow_hue":    { "uniform": "u_shadowHue",    "label": "Shadow Hue",    "min": 0,    "max": 360, "step": 1, "scale": "deg2rad", "default": 0 },
+        "shadow_sat":    { "uniform": "u_shadowSat",    "label": "Shadow Sat",    "min": 0,    "max": 100, "step": 1, "scale": 100,       "default": 0 },
+        "highlight_hue": { "uniform": "u_highlightHue", "label": "Highlight Hue", "min": 0,    "max": 360, "step": 1, "scale": "deg2rad", "default": 0 },
+        "highlight_sat": { "uniform": "u_highlightSat", "label": "Highlight Sat", "min": 0,    "max": 100, "step": 1, "scale": 100,       "default": 0 },
+        "balance":       { "uniform": "u_balance",      "label": "Balance",       "min": -100, "max": 100, "step": 1, "scale": 100,       "default": 0 }
+      }
     }
   }
 }

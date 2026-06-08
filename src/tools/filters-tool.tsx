@@ -1,6 +1,8 @@
 import { useCallback, useMemo } from 'react';
-import { Image as ImageIcon } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ToolDefinition } from '@/types/tool';
+
+const FiltersIcon = createMaterialIcon('filter_b_and_w');
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
@@ -112,7 +114,7 @@ export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}
 export const FiltersTool: ToolDefinition = {
   name: 'filters',
   label: 'Filters',
-  icon: ImageIcon,
+  icon: FiltersIcon,
   category: 'filter',
   processingId: 'filter',
   onActivate: () => {

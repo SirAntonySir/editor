@@ -1,5 +1,7 @@
-import { Image as ImageIcon } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
+
+const FiltersIcon = createMaterialIcon('filter_b_and_w');
 import { FiltersPanel as FiltersPanelImpl } from '@/tools/filters-tool';
 import { useBackendState } from '@/store/backend-state-slice';
 
@@ -26,7 +28,7 @@ function FiltersNodeCompact({ layerId }: ProcessingPanelProps) {
 export const filtersProcessing: ProcessingDefinition = {
   id: 'filter',
   label: 'Filter',
-  icon: ImageIcon,
+  icon: FiltersIcon,
   category: 'filter',
   adjustmentType: 'lut',
   params: [], // LUT filters don't have scalar params — they're applied as a whole

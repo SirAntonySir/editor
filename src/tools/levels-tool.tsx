@@ -1,10 +1,12 @@
-import { SlidersHorizontal } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ToolDefinition } from '@/types/tool';
+
+const LevelsIcon = createMaterialIcon('tune');
 
 export const LevelsTool: ToolDefinition = {
   name: 'levels',
   label: 'Levels',
-  icon: SlidersHorizontal,
+  icon: LevelsIcon,
   category: 'adjust',
   processingId: 'levels',
   onActivate: () => {

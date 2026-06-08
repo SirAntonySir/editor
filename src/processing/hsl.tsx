@@ -1,5 +1,7 @@
-import { Palette } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
+
+const HslIcon = createMaterialIcon('colorize');
 import { HslSectionBody } from '@/components/inspector/adjustments/HslSectionBody';
 
 function HslPanel({ layerId }: ProcessingPanelProps) {
@@ -12,7 +14,7 @@ const CHANNELS = ['hue', 'sat', 'lum'];
 export const hslProcessing: ProcessingDefinition = {
   id: 'hsl',
   label: 'HSL',
-  icon: Palette,
+  icon: HslIcon,
   category: 'adjust',
   adjustmentType: 'hsl',
   paramKeys: BANDS.flatMap((b) => CHANNELS.map((c) => `${b}_${c}`)),

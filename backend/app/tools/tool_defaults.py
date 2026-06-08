@@ -8,7 +8,8 @@ from typing import Any
 
 from app.engine.registry import ENGINE_OPS
 
-_SCALAR_OPS = ("light", "color", "kelvin", "levels", "sharpen", "blur", "clarity")
+_SCALAR_OPS = ("light", "color", "kelvin", "levels", "sharpen", "blur", "clarity",
+               "grain", "vignette", "splitTone")
 
 
 def _slider_binding(params: dict[str, Any], key: str) -> dict[str, Any]:

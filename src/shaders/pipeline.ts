@@ -8,6 +8,9 @@ import { hslFragment } from './hsl.glsl.ts';
 import { sharpenFragment } from './sharpen.glsl.ts';
 import { blurFragment } from './blur.glsl.ts';
 import { clarityFragment } from './clarity.glsl.ts';
+import { grainFragment } from './grain.glsl.ts';
+import { vignetteFragment } from './vignette.glsl.ts';
+import { splitToneFragment } from './split-tone.glsl.ts';
 import { lutFragment } from './lut.glsl.ts';
 import { blendFragment } from './blend.glsl.ts';
 import { LutRegistry } from '@/lib/lut-registry';
@@ -259,6 +262,47 @@ export class WebGLPipeline {
         gl.uniform1f(gl.getUniformLocation(clarityProgram, 'u_amount'), amount);
         gl.uniform1i(gl.getUniformLocation(clarityProgram, 'u_useMask'), 0);
         drawQuad();
+      },
+    });
+
+    // Grain (procedural noise on luminance)
+    const grainProgram = createProgram(gl, fullscreenQuadVertex, grainFragment);
+    this.shaders.set('grain', {
+      program: grainProgram,
+      needsTexel: true,
+      setUniforms: (gl, program, adj) => {
+        const p = adj.params;
+        gl.uniform1f(gl.getUniformLocation(program, 'u_amount'), engineUniformValue('amount', (p.amount as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_size'), engineUniformValue('size', (p.size as number) ?? 100));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_roughness'), engineUniformValue('roughness', (p.roughness as number) ?? 50));
+      },
+    });
+
+    // Vignette (radial darken/brighten)
+    const vignetteProgram = createProgram(gl, fullscreenQuadVertex, vignetteFragment);
+    this.shaders.set('vignette', {
+      program: vignetteProgram,
+      needsTexel: true,
+      setUniforms: (gl, program, adj) => {
+        const p = adj.params;
+        gl.uniform1f(gl.getUniformLocation(program, 'u_amount'), engineUniformValue('amount', (p.amount as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_midpoint'), engineUniformValue('midpoint', (p.midpoint as number) ?? 50));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_feather'), engineUniformValue('feather', (p.feather as number) ?? 50));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_roundness'), engineUniformValue('roundness', (p.roundness as number) ?? 0));
+      },
+    });
+
+    // Split-toning (two-tone luma-weighted tint)
+    const splitToneProgram = createProgram(gl, fullscreenQuadVertex, splitToneFragment);
+    this.shaders.set('splitTone', {
+      program: splitToneProgram,
+      setUniforms: (gl, program, adj) => {
+        const p = adj.params;
+        gl.uniform1f(gl.getUniformLocation(program, 'u_shadowHue'), engineUniformValue('shadow_hue', (p.shadow_hue as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_shadowSat'), engineUniformValue('shadow_sat', (p.shadow_sat as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_highlightHue'), engineUniformValue('highlight_hue', (p.highlight_hue as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_highlightSat'), engineUniformValue('highlight_sat', (p.highlight_sat as number) ?? 0));
+        gl.uniform1f(gl.getUniformLocation(program, 'u_balance'), engineUniformValue('balance', (p.balance as number) ?? 0));
       },
     });
 

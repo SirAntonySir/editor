@@ -1,10 +1,12 @@
-import { Sun } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ProcessingDefinition } from '@/types/processing';
+
+const TimeOfDayIcon = createMaterialIcon('wb_twilight');
 
 export const timeOfDayProcessing: ProcessingDefinition = {
   id: 'time-of-day',
   label: 'Time of Day',
-  icon: Sun,
+  icon: TimeOfDayIcon,
   category: 'adjust',
   adjustmentType: 'compound',
   paramKeys: ['time_of_day.position'],

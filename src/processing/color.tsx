@@ -1,5 +1,8 @@
-import { Palette, RotateCcw } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
+import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
+
+const ColorIcon = createMaterialIcon('palette');
 import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
 import { useProcessingParam } from '@/lib/use-processing-param';
 
@@ -37,7 +40,7 @@ export function ColorPanel({ layerId, adjustmentId }: ProcessingPanelProps) {
 export const colorProcessing: ProcessingDefinition = {
   id: 'color',
   label: 'Color',
-  icon: Palette,
+  icon: ColorIcon,
   category: 'adjust',
   adjustmentType: 'basic',
   paramKeys: ['saturation', 'vibrance', 'hue'],

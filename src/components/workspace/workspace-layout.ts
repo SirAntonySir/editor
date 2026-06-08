@@ -40,6 +40,49 @@ export function pickSpawnSide(target: PlacedRect, viewport: Viewport): 'left' | 
   return imageCenterCanvasX > viewportCenterCanvasX ? 'left' : 'right';
 }
 
+export const COLUMN_OVERFLOW_PAD = 100;
+
+function attemptColumn(
+  target: PlacedRect,
+  ownSize: Size,
+  kind: 'widget' | 'image',
+  occupied: PlacedRect[],
+  side: 'left' | 'right',
+): { x: number; y: number } | null {
+  const xOffset = Math.min(target.size.w, MAX_TARGET_SPAWN_OFFSET);
+  const x = side === 'right'
+    ? target.position.x + xOffset + SPAWN_GAP
+    : target.position.x - ownSize.w - SPAWN_GAP;
+
+  let y = kind === 'widget' ? target.position.y + WIDGET_OFFSET_Y : target.position.y;
+  const yLimit = target.position.y + target.size.h + COLUMN_OVERFLOW_PAD;
+
+  while (occupied.some((o) => rectsOverlap({ position: { x, y }, size: ownSize }, o))) {
+    y += ownSize.h + SPAWN_GAP;
+    if (y + ownSize.h > yLimit) return null;
+  }
+  return { x, y };
+}
+
+function fallbackStackDownward(
+  target: PlacedRect,
+  ownSize: Size,
+  kind: 'widget' | 'image',
+  occupied: PlacedRect[],
+  side: 'left' | 'right',
+): { x: number; y: number } {
+  const xOffset = Math.min(target.size.w, MAX_TARGET_SPAWN_OFFSET);
+  const x = side === 'right'
+    ? target.position.x + xOffset + SPAWN_GAP
+    : target.position.x - ownSize.w - SPAWN_GAP;
+
+  let y = kind === 'widget' ? target.position.y + WIDGET_OFFSET_Y : target.position.y;
+  while (occupied.some((o) => rectsOverlap({ position: { x, y }, size: ownSize }, o))) {
+    y += ownSize.h + SPAWN_GAP;
+  }
+  return { x, y };
+}
+
 export function nextSpawnPositionFor(
   target: PlacedRect,
   ownSize: Size,
@@ -47,15 +90,19 @@ export function nextSpawnPositionFor(
   occupied: PlacedRect[],
   side: 'left' | 'right' = 'right',
 ): { x: number; y: number } {
-  const xOffset = Math.min(target.size.w, MAX_TARGET_SPAWN_OFFSET);
-  const x = side === 'right'
-    ? target.position.x + xOffset + SPAWN_GAP
-    : target.position.x - ownSize.w - SPAWN_GAP;
-  let y = kind === 'widget' ? target.position.y + WIDGET_OFFSET_Y : target.position.y;
-  while (occupied.some((o) => rectsOverlap({ position: { x, y }, size: ownSize }, o))) {
-    y += ownSize.h + SPAWN_GAP;
+  if (kind === 'image') {
+    // Images don't use side-column overflow — preserve original unlimited stacking behavior.
+    return fallbackStackDownward(target, ownSize, kind, occupied, side);
   }
-  return { x, y };
+
+  const tried = attemptColumn(target, ownSize, kind, occupied, side);
+  if (tried) return tried;
+
+  const opposite: 'left' | 'right' = side === 'right' ? 'left' : 'right';
+  const overflowed = attemptColumn(target, ownSize, kind, occupied, opposite);
+  if (overflowed) return overflowed;
+
+  return fallbackStackDownward(target, ownSize, kind, occupied, side);
 }
 
 function rectsOverlap(a: PlacedRect, b: PlacedRect): boolean {

@@ -42,6 +42,39 @@ describe('nextSpawnPositionFor', () => {
   });
 });
 
+describe('nextSpawnPositionFor: overflow to opposite side', () => {
+  const widgetSize = { w: 226, h: 60 };
+  const target = { position: { x: 500, y: 50 }, size: { w: 240, h: 180 } };
+  // Image bottom = 230; COLUMN_OVERFLOW_PAD = 100; yLimit = 330.
+
+  it('overflows to opposite side when preferred column is full', () => {
+    const leftX = 500 - 226 - 24;  // = 250
+    const occupied = [
+      { position: { x: leftX, y: 95 },  size: widgetSize },
+      { position: { x: leftX, y: 179 }, size: widgetSize },
+      { position: { x: leftX, y: 263 }, size: widgetSize },
+    ];
+    // Next widget should overflow to RIGHT: x = 500 + min(240,400) + 24 = 764
+    const pos = nextSpawnPositionFor(target, widgetSize, 'widget', occupied, 'left');
+    expect(pos.x).toBe(764);
+    expect(pos.y).toBe(95);   // right column empty → top
+  });
+
+  it('falls back to stacking past yLimit when BOTH sides are full', () => {
+    const leftX = 500 - 226 - 24;
+    const rightX = 500 + 240 + 24;
+    const yPositions = [95, 179, 263, 347, 431];
+    const occupied = [
+      ...yPositions.map(y => ({ position: { x: leftX,  y }, size: widgetSize })),
+      ...yPositions.map(y => ({ position: { x: rightX, y }, size: widgetSize })),
+    ];
+    const pos = nextSpawnPositionFor(target, widgetSize, 'widget', occupied, 'left');
+    // Fallback: stay on preferred (LEFT) side, keep stacking past yLimit.
+    expect(pos.x).toBe(leftX);
+    expect(pos.y).toBeGreaterThan(430);
+  });
+});
+
 describe('pickSpawnSide', () => {
   const target = { position: { x: 0, y: 0 }, size: { w: 200, h: 100 } };
   const screen = { w: 1200, h: 800 };

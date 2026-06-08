@@ -64,7 +64,8 @@ def _control_schema_for(op_id: str, param_key: str) -> ControlSchema:
     param = op.params[param_key]
     binding = next(b for b in op.bindings if b.param_key == param_key)
     payload: dict = {"control_type": _map_control_type(binding.control_type)}
-    if param.type == "scalar":
+    mapped_ct = payload["control_type"]
+    if param.type == "scalar" and mapped_ct == "slider":
         assert param.range is not None
         payload["min"], payload["max"] = param.range
         payload["step"] = 1

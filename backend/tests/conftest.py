@@ -4,15 +4,37 @@ import pytest
 @pytest.fixture
 def make_doc():
     """Factory that returns a fresh SessionDocument for unit tests that call
-    tool handlers directly (without the HTTP/registry layer)."""
+    tool handlers directly (without the HTTP/registry layer).
+
+    Pass ``with_image_context=True`` to attach a minimal :class:`ImageContext`
+    so that LLM-path tools (e.g. ``ProposeStackTool``) don't raise
+    ``_MissingContext`` before reaching the monkeypatched Anthropic client.
+    """
+    from app.schemas.image_context import ImageContext
     from app.state.document import SessionDocument
 
-    def _factory(session_id: str = "test-session") -> SessionDocument:
-        return SessionDocument(
+    def _factory(
+        session_id: str = "test-session",
+        *,
+        with_image_context: bool = False,
+    ) -> SessionDocument:
+        doc = SessionDocument(
             session_id=session_id,
             image_bytes=b"\xff\xd8\xff",  # minimal non-empty bytes
             mime_type="image/jpeg",
         )
+        if with_image_context:
+            doc.image_context = ImageContext(
+                subjects=["subject"],
+                lighting="flat",
+                dominant_tones=["midtones"],
+                mood="neutral",
+                candidate_regions=[],
+                model_name="claude-opus-4-7",
+                model_version="2026-01",
+                generated_at="2026-01-01T00:00:00Z",
+            )
+        return doc
 
     return _factory
 

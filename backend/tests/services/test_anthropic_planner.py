@@ -62,3 +62,45 @@ def test_plan_widget_stack_nested_shape(monkeypatch):
     assert plan[0]["category"] == "tone"
     assert len(plan[1]["ops"]) == 2
     assert plan[1]["ops"][0]["op_id"] == "color"
+
+
+def test_plan_widget_stack_catalog_surfaces_compound_dial(monkeypatch):
+    """The ops catalog sent to the planner must include `compound_dial` info
+    for compound ops so the model knows time-of-day is a 1D dial, not a
+    manual stack of N tone+color sliders."""
+    client = AnthropicClient(api_key="test", model="claude-opus-4-7")
+
+    captured: dict = {}
+
+    def fake_create(**kwargs):
+        captured["messages"] = kwargs.get("messages")
+        captured["system"] = kwargs.get("system")
+        resp = MagicMock()
+        resp.content = [MagicMock(text='{"plan": []}')]
+        return resp
+
+    monkeypatch.setattr(client._client.messages, "create", fake_create)
+
+    reg = reload_registry()
+    client.plan_widget_stack(
+        intent="make it a night scene",
+        scope={"kind": "global"},
+        image_context={},
+        existing_widgets=[],
+        registry=reg,
+        session_id="s1",
+    )
+
+    catalog_blob = captured["messages"][0]["content"][0]["text"]
+    # The TOD op's compound_dial info must be visible to the LLM.
+    assert "time-of-day" in catalog_blob
+    assert "compound_dial" in catalog_blob
+    assert "time_of_day.position" in catalog_blob
+    # Anchor names should be surfaced so the model picks the right position.
+    for name in ("dawn", "noon", "golden", "blue", "night"):
+        assert name in catalog_blob
+
+    # The system prompt should instruct the model how to use compound dials.
+    system_blob = str(captured["system"])
+    assert "COMPOUND DIAL OPS" in system_blob
+    assert "compound_dial" in system_blob

@@ -23,6 +23,7 @@ function makeWidget(overrides: Partial<Widget> = {}): Widget {
       params: { intensity: 0.5 }, inputs: [],
       widget_id: 'w1', layer_id: 'L1',
     }],
+    locked_params: [],
     ...overrides,
   };
 }

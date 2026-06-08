@@ -150,7 +150,7 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   // `withOptimistic` below still handles non-compound widget patches.
   const compoundMerged = (opGraph?.nodes ?? []).map((n) => {
     if (n.type !== 'compound') return n;
-    const patch = optimistic.get(n.id);
+    const patch = optimistic?.get(n.id);
     if (!patch) return n;
     const params = { ...n.params };
     for (const b of patch.bindings) params[b.paramKey] = b.value;

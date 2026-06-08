@@ -44,12 +44,13 @@ describe('TimeOfDayWidgetBody', () => {
     expect(screen.getByRole('slider')).toBeTruthy();
   });
 
-  it('renders a compiled read-out with at least one entry at the default position', () => {
+  it('renders an editable card for every bundle key, including zeros', () => {
     render(<TimeOfDayWidgetBody widget={makeTimeOfDayWidget()} />);
-    // At position 0.30 (noon anchor), the anchor table includes 'Blue Sat' +15
-    // which is among the top-4 by absolute value, so the CompiledReadout
-    // surfaces it as a label.
-    expect(screen.getByText('Blue Sat')).toBeTruthy();
+    // All 9 bundle keys render a card with a label, regardless of whether
+    // the current position interpolates them to zero (e.g. Noon → Vibrance 0).
+    ['WB', 'Exposure', 'Contrast', 'Highlights', 'Shadows',
+     'Vibrance', 'Orange Sat', 'Blue Sat', 'Vignette']
+      .forEach((label) => expect(screen.getByText(label)).toBeTruthy());
   });
 
   it('writes an optimistic patch keyed by the canonical compound node id when the slider moves', () => {

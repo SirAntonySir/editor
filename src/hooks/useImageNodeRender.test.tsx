@@ -46,6 +46,7 @@ function widgetWithNode(opts: { id: string; nodeId: string; layerId?: string; ty
     revision: 1,
     created_at: '',
     updated_at: '',
+    locked_params: [],
   } as Widget;
 }
 

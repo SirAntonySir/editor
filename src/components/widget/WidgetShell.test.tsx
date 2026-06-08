@@ -235,15 +235,6 @@ describe('WidgetShell collapsed pill width', () => {
   });
 });
 
-describe('WidgetShell zoom-invariant scale', () => {
-  it('applies a transform-scale style derived from React Flow zoom', () => {
-    const widget = makeAiWidget();
-    const { container } = renderInFlow(<WidgetShell widget={widget} />);
-    const shell = container.querySelector('.overlay') ?? container.firstElementChild;
-    expect(shell?.getAttribute('style') ?? '').toMatch(/scale\(1\)/);
-  });
-});
-
 describe('WidgetShell ellipsis title', () => {
   beforeEach(() => {
     useEditorStore.getState().collapseAllWidgets();

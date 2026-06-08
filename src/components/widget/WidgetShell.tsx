@@ -8,7 +8,6 @@ import { useHoveredWidget } from '@/hooks/useHoveredWidget';
 import { useEditorStore } from '@/store';
 import { bindingProvenance, touchKey } from '@/hooks/useParamProvenance';
 import { engineNeutralForBinding } from '@/engine/registry';
-import { useZoomInvariantScale } from './useZoomInvariantScale';
 import { WidgetShellHeader } from './WidgetShellHeader';
 import { WidgetShellFooter } from './WidgetShellFooter';
 import { RefineInput } from './RefineInput';
@@ -38,7 +37,6 @@ const EMPTY_MASKS: MaskSummary[] = [];
 
 export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
   const { isExpanded, toggle } = useWidgetExpansion(widget.id);
-  const zoomInverse = useZoomInvariantScale();
   const { hoveredWidgetId, setHoveredWidget } = useHoveredWidget();
   const sessionId = useBackendState((s) => s.sessionId);
   const optimistic = useBackendState((s) => s.optimistic);
@@ -141,13 +139,11 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
       // AI-composed widgets get a violet outline + glow (widget-shell-ai) so
       // they read as distinct from tool-invoked widgets on the canvas.
       className={`overlay w-fit ${showAiAffordances ? 'widget-shell-ai' : ''} ${selected && !showAiAffordances ? 'workspace-node-selected' : ''} ${hovered ? 'border-accent' : ''} ${hidden ? 'opacity-60' : ''}`}
-      style={{
-        transform: `scale(${zoomInverse})`,
-        transformOrigin: 'top left',
-        ...(isExpanded
+      style={
+        isExpanded
           ? { minWidth: `${WIDGET_SHELL_MIN_WIDTH}px` }
-          : { width: `${WIDGET_COLLAPSED_WIDTH}px` }),
-      }}
+          : { width: `${WIDGET_COLLAPSED_WIDTH}px` }
+      }
       onMouseEnter={() => setHoveredWidget(widget.id)}
       onMouseLeave={() => setHoveredWidget(null)}
     >

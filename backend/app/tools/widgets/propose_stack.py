@@ -110,7 +110,7 @@ def _build_widget(
         intent=intent,
         scope=scope,
         origin=origin,
-        fused_tool_id=op_id,
+        op_id=op_id,
         composed=False,
         nodes=[node],
         bindings=bindings,
@@ -162,7 +162,7 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             scope=input.scope,
             image_context=image_context,
             existing_widgets=[
-                {"op_id": w.fused_tool_id or "unknown"} for w in doc.widgets.values()
+                {"op_id": w.op_id or "unknown"} for w in doc.widgets.values()
             ],
             registry=reg,
             session_id=doc.session_id,

@@ -85,7 +85,7 @@ def _spawn_tod(client: TestClient, sid: str) -> str:
     r = client.post("/api/tools/propose_widget", json={"session_id": sid, "input": {
         "intent": "make it noon",
         "scope": {"kind": "global"},
-        "fused_tool_id": "time-of-day",
+        "op_id": "time-of-day",
         "layer_id": "layer_a",
         "origin": "mcp_user_prompt",
     }})

@@ -58,7 +58,7 @@ def _setup(client) -> tuple[str, str]:
     proposed = client.post(
         "/api/tools/propose_widget",
         json={"session_id": sid, "input": {
-            "intent": "warmer", "scope": {"kind": "global"}, "fused_tool_id": "warm_grade",
+            "intent": "warmer", "scope": {"kind": "global"}, "op_id": "warm_grade",
         }},
     ).json()
     return sid, proposed["output"]["widget"]["id"]

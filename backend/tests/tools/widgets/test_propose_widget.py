@@ -55,12 +55,12 @@ def test_propose_widget_with_explicit_fused_id(client) -> None:
         json={"session_id": sid, "input": {
             "intent": "warmer",
             "scope": {"kind": "global"},
-            "fused_tool_id": "warm_grade",
+            "fused_tool_id": "warm_grade",  # backwards-compat alias
         }},
     ).json()
     assert body["ok"] is True
     w = body["output"]["widget"]
-    assert w["fused_tool_id"] == "warm_grade"
+    assert w["op_id"] == "warm_grade"
     binding_keys = [b["param_key"] for b in w["bindings"]]
     assert "temperature" in binding_keys
 
@@ -75,7 +75,7 @@ def test_propose_widget_with_no_fused_id_uses_name_pick(client) -> None:
         }},
     ).json()
     assert body["ok"] is True
-    assert body["output"]["widget"]["fused_tool_id"] == "warm_grade"
+    assert body["output"]["widget"]["op_id"] == "warm_grade"
 
 
 def test_propose_widget_unknown_fused_id_returns_envelope_error(client) -> None:
@@ -85,7 +85,7 @@ def test_propose_widget_unknown_fused_id_returns_envelope_error(client) -> None:
         json={"session_id": sid, "input": {
             "intent": "warmer",
             "scope": {"kind": "global"},
-            "fused_tool_id": "nope",
+            "fused_tool_id": "nope",  # backwards-compat alias
         }},
     ).json()
     assert body["ok"] is False

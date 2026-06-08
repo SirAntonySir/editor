@@ -159,7 +159,7 @@ async def test_full_mcp_loop_create_propose_refine_delete() -> None:
                 "arguments": {
                     "intent": "warmer",
                     "scope": {"kind": "global"},
-                    "fused_tool_id": "warm_grade",
+                    "op_id": "warm_grade",
                 },
             }, 4))["result"]
             prop = json.loads(envp["content"][0]["text"])

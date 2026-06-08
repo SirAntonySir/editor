@@ -39,7 +39,7 @@ export const backendTools = {
   propose_widget(sessionId: string, args: {
     intent: string;
     scope: Scope;
-    fused_tool_id?: string;
+    op_id?: string;
     prompt?: string;
     layer_id: string;
     origin: WidgetOriginKind;

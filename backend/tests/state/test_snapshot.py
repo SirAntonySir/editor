@@ -17,7 +17,7 @@ def _widget(wid: str) -> Widget:
         id=wid, intent=f"i-{wid}",
         scope=Scope.model_validate({"kind": "global"}),
         origin=WidgetOrigin(kind="mcp_user_prompt", prompt="x"),
-        fused_tool_id="warm_grade",
+        op_id="warm_grade",
         nodes=[WidgetNode(
             id=f"n_{wid}", type="kelvin", params={"temperature": 6500},
             scope=Scope.model_validate({"kind": "global"}),

@@ -29,7 +29,7 @@ def test_tool_invoked_seeds_canonical_slot():
     client = _client()
     sid = _session(client)
     client.post("/api/tools/propose_widget", json={"session_id": sid, "input": {
-        "intent": "Light", "scope": {"kind": "global"}, "fused_tool_id": "light",
+        "intent": "Light", "scope": {"kind": "global"}, "op_id": "light",
         "layer_id": "layer_a", "origin": "tool_invoked"}})
     doc = deps.get_session_store().get_document(sid)
     assert "basic" in doc.canonical.get("layer_a", {})

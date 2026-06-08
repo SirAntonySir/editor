@@ -19,7 +19,7 @@ def _make_widget(wid: str = "w_1", intent: str = "warm subject") -> Widget:
         intent=intent,
         scope=Scope.model_validate({"kind": "global"}),
         origin=WidgetOrigin(kind="mcp_user_prompt", prompt=intent),
-        fused_tool_id="warm_grade",
+        op_id="warm_grade",
         nodes=[],
         bindings=[],
         preview=WidgetPreview(kind="thumbnail", auto_before_after=True),

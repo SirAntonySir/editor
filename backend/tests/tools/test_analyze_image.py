@@ -171,7 +171,7 @@ def test_autonomous_suggestions_minted_from_problems(client) -> None:
     doc = deps.get_session_store().get_document(sid)
     auto = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
     assert len(auto) >= 1
-    assert auto[0].fused_tool_id == "exposure_balance"
+    assert auto[0].op_id == "exposure_balance"
 
 
 def test_autonomous_suggestion_nodes_carry_supplied_layer_id(client) -> None:
@@ -284,7 +284,7 @@ def test_analyze_mints_target_when_no_problems(monkeypatch) -> None:
     doc = deps.get_session_store().get_document(sid)
     autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
     assert len(autonomous) == 3
-    fused_ids = {w.fused_tool_id for w in autonomous}
+    fused_ids = {w.op_id for w in autonomous}
     assert fused_ids == {"tone_red", "lift_shadows", "micro_contrast"}
 
 
@@ -314,7 +314,7 @@ def test_analyze_tops_up_when_one_problem(monkeypatch) -> None:
     doc = deps.get_session_store().get_document(sid)
     autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
     assert len(autonomous) == 3
-    assert {w.fused_tool_id for w in autonomous} == {"cast_correct", "lift_shadows", "micro_contrast"}
+    assert {w.op_id for w in autonomous} == {"cast_correct", "lift_shadows", "micro_contrast"}
     args, kwargs = fake.suggest_fused_tools_for_character.call_args
     assert "cast_correct" in kwargs["exclude"]
 
@@ -423,11 +423,11 @@ def test_analyze_dedupes_tool_across_problems(monkeypatch) -> None:
     client.post("/api/tools/analyze_image", json={"session_id": sid, "input": {}})
     doc = deps.get_session_store().get_document(sid)
     autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
-    fused_ids = sorted(w.fused_tool_id for w in autonomous)
+    fused_ids = sorted(w.op_id for w in autonomous)
     # cast_correct is used by the first problem; the second problem falls
     # through to exposure_balance. No duplicates.
     assert fused_ids == ["cast_correct", "exposure_balance"]
-    by_tool = {w.fused_tool_id: w for w in autonomous}
+    by_tool = {w.op_id: w for w in autonomous}
     # First-pick keeps the problem-kind label.
     assert by_tool["cast_correct"].intent == "strong color cast"
     # Fall-through uses the tool's own label so the widget title matches
@@ -474,7 +474,7 @@ def test_analyze_dedupes_canonical_knob_collisions(monkeypatch) -> None:
     client.post("/api/tools/analyze_image", json={"session_id": sid, "input": {}})
     doc = deps.get_session_store().get_document(sid)
     autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
-    fused_ids = sorted(w.fused_tool_id for w in autonomous)
+    fused_ids = sorted(w.op_id for w in autonomous)
     # cast_correct wins; warm_grade + subject_pop both blocked by the
     # basic.saturation knob collision.
     assert "cast_correct" in fused_ids
@@ -503,6 +503,6 @@ def test_analyze_skips_dismissed_topup_picks(monkeypatch) -> None:
     client = TestClient(app)
     client.post("/api/tools/analyze_image", json={"session_id": sid, "input": {}})
     autonomous = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
-    fused_ids = {w.fused_tool_id for w in autonomous}
+    fused_ids = {w.op_id for w in autonomous}
     assert "warm_grade" not in fused_ids
     assert "exposure_balance" in fused_ids

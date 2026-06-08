@@ -27,9 +27,9 @@ def _session(client) -> str:
     return sid
 
 
-def _propose(client, sid, fused_tool_id):
+def _propose(client, sid, op_id):
     return client.post("/api/tools/propose_widget", json={"session_id": sid, "input": {
-        "intent": fused_tool_id, "scope": {"kind": "global"}, "fused_tool_id": fused_tool_id,
+        "intent": op_id, "scope": {"kind": "global"}, "op_id": op_id,
         "layer_id": "layer_a", "origin": "tool_invoked"}})
 
 
@@ -41,7 +41,7 @@ def test_open_on_canvas_creates_all_bands_hsl_widget():
     doc = deps.get_session_store().get_document(sid)
     assert "hsl" in doc.canonical.get("layer_a", {})
     assert "blue_sat" in doc.canonical["layer_a"]["hsl"]
-    hsl_widgets = [w for w in doc.widgets.values() if w.fused_tool_id == "hsl"]
+    hsl_widgets = [w for w in doc.widgets.values() if w.op_id == "hsl"]
     assert hsl_widgets, "no HSL widget created"
     assert len(hsl_widgets[0].bindings) == 24
 
@@ -52,6 +52,6 @@ def test_colour_band_creates_single_band_hsl_widget():
     r = _propose(client, sid, "hsl_blue")
     assert r.status_code == 200, r.text
     doc = deps.get_session_store().get_document(sid)
-    band_widgets = [w for w in doc.widgets.values() if w.fused_tool_id == "hsl_blue"]
+    band_widgets = [w for w in doc.widgets.values() if w.op_id == "hsl_blue"]
     assert band_widgets, "no single-band HSL widget created"
     assert {b.param_key for b in band_widgets[0].bindings} == {"blue_hue", "blue_sat", "blue_lum"}

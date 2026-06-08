@@ -26,7 +26,7 @@ def _push_widget(doc, wid: str) -> None:
             id=wid, intent=f"intent-{wid}",
             scope=Scope.model_validate({"kind": "global"}),
             origin=WidgetOrigin(kind="mcp_user_prompt", prompt="x"),
-            fused_tool_id="warm_grade",
+            op_id="warm_grade",
             preview=WidgetPreview(kind="thumbnail", auto_before_after=True),
         )
     )

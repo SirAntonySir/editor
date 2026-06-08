@@ -191,7 +191,7 @@ export interface Widget {
   reasoning?: string;
   scope: Scope;
   origin: WidgetOrigin;
-  fused_tool_id?: string;
+  op_id?: string;
   composed: boolean;
   nodes: WidgetNode[];
   bindings: ControlBinding[];

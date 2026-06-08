@@ -9,7 +9,7 @@ beforeEach(() => vi.clearAllMocks());
 it('builds the tool_invoked propose_widget call', () => {
   promoteToCanvas('s1', 'light', 'L1');
   expect(backendTools.propose_widget).toHaveBeenCalledWith('s1', {
-    intent: 'light', scope: { kind: 'global' }, fused_tool_id: 'light', layer_id: 'L1', origin: 'tool_invoked',
+    intent: 'light', scope: { kind: 'global' }, op_id: 'light', layer_id: 'L1', origin: 'tool_invoked',
   });
 });
 

@@ -32,7 +32,7 @@ def test_set_widget_param_writes_canonical():
     client = _client()
     sid = _session_with_context(client)
     w = client.post("/api/tools/propose_widget", json={"session_id": sid, "input": {
-        "intent": "Light", "scope": {"kind": "global"}, "fused_tool_id": "light",
+        "intent": "Light", "scope": {"kind": "global"}, "op_id": "light",
         "layer_id": "layer_a", "origin": "tool_invoked",
     }}).json()["output"]["widget"]
     client.post("/api/tools/set_widget_param", json={"session_id": sid, "input": {

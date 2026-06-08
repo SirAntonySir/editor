@@ -28,7 +28,7 @@ def test_get_widget_returns_full_body(client) -> None:
             id="w_1", intent="warm",
             scope=Scope.model_validate({"kind": "global"}),
             origin=WidgetOrigin(kind="mcp_user_prompt", prompt="warmer"),
-            fused_tool_id="warm_grade",
+            op_id="warm_grade",
             preview=WidgetPreview(kind="thumbnail", auto_before_after=True),
         )
     )

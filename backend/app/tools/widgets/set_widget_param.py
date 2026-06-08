@@ -64,7 +64,7 @@ class SetWidgetParamTool(BackendTool[_Input, _Output]):
         #   revision bump.
         # - Bundle key edit (`kelvin.kelvin`, etc.): implicit lock-on-edit so a
         #   subsequent dial drag won't overwrite the user's value.
-        if w.fused_tool_id == "time-of-day":
+        if w.op_id == "time-of-day":
             from app.tools.fused._time_of_day_data import interpolate_1d
 
             if input.param_key == _TOD_POSITION_KEY:

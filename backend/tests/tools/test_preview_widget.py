@@ -36,7 +36,7 @@ def test_preview_returns_base64_jpeg(client) -> None:
         id="w_1", intent="warm",
         scope=Scope.model_validate({"kind": "global"}),
         origin=WidgetOrigin(kind="mcp_user_prompt", prompt="warm"),
-        fused_tool_id="warm_grade",
+        op_id="warm_grade",
         nodes=[WidgetNode(
             id="n_1", type="kelvin", params={"temperature": 800},
             scope=Scope.model_validate({"kind": "global"}),

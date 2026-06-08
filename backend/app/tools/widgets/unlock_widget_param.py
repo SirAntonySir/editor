@@ -55,7 +55,7 @@ class UnlockWidgetParamTool(BackendTool[_Input, _Output]):
         # Time-of-Day: restore the dial-derived value at the current position
         # so the canvas reflects the unlock immediately. Skip the position key
         # itself (it has no derived value — it IS the derivation input).
-        if w.fused_tool_id == "time-of-day" and input.param_key != _TOD_POSITION_KEY:
+        if w.op_id == "time-of-day" and input.param_key != _TOD_POSITION_KEY:
             from app.tools.fused._time_of_day_data import interpolate_1d
 
             position_binding = next(

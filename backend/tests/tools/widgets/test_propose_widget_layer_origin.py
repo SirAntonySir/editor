@@ -80,7 +80,7 @@ def test_propose_widget_accepts_layer_id_and_origin(client) -> None:
         json={"session_id": sid, "input": {
             "intent": "Brighten",
             "scope": {"kind": "global"},
-            "fused_tool_id": "warm_grade",
+            "op_id": "warm_grade",
             "layer_id": "layer_a",
             "origin": "mcp_user_prompt",
         }},
@@ -102,7 +102,7 @@ def test_propose_widget_tool_invoked_skips_llm(client, fake_anthropic) -> None:
             "scope": {"kind": "global"},
             "layer_id": "layer_a",
             "origin": "tool_invoked",
-            "fused_tool_id": "curves",
+            "op_id": "curves",
         }},
     ).json()
     assert body["ok"] is True
@@ -117,7 +117,7 @@ def test_propose_widget_tool_invoked_skips_llm(client, fake_anthropic) -> None:
 
 
 def test_propose_widget_tool_invoked_unknown_tool_errors(client) -> None:
-    """Unknown fused_tool_id raises a tool error when origin=tool_invoked."""
+    """Unknown op_id raises a tool error when origin=tool_invoked."""
     sid = _setup_session(client)
     body = client.post(
         "/api/tools/propose_widget",
@@ -126,7 +126,7 @@ def test_propose_widget_tool_invoked_unknown_tool_errors(client) -> None:
             "scope": {"kind": "global"},
             "layer_id": "layer_a",
             "origin": "tool_invoked",
-            "fused_tool_id": "nonexistent_tool",
+            "op_id": "nonexistent_tool",
         }},
     ).json()
     assert body["ok"] is False
@@ -143,7 +143,7 @@ def test_propose_widget_tool_invoked_nodes_have_correct_layer_id(client) -> None
             "scope": {"kind": "global"},
             "layer_id": "layer_xyz",
             "origin": "tool_invoked",
-            "fused_tool_id": "light",
+            "op_id": "light",
         }},
     ).json()
     assert body["ok"] is True

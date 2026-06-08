@@ -45,7 +45,7 @@ class ApplyAdjustmentTool(BackendTool[_Input, _Output]):
             reasoning=None,
             scope=scope,
             origin=WidgetOrigin(kind="mcp_user_prompt", prompt=None),
-            fused_tool_id=None,
+            op_id=None,
             nodes=[node],
             bindings=[],
             preview=WidgetPreview(kind="none", auto_before_after=False),

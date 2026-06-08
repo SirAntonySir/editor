@@ -42,11 +42,11 @@ class RepeatWidgetTool(BackendTool[_Input, _Output]):
         w = doc.widgets.get(input.widget_id)
         if w is None:
             raise _UnknownWidget(input.widget_id)
-        if w.fused_tool_id is None or w.composed:
+        if w.op_id is None or w.composed:
             raise _InvalidInput("repeat is only valid on un-composed fused-tool widgets")
 
         templates = {t.id: t for t in all_fused_templates()}
-        template = templates[w.fused_tool_id]
+        template = templates[w.op_id]
         current = ResolvedNumbers(values={b.param_key: b.value for b in w.bindings})
         w.rejected_attempts.append(current)
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, RootModel
 
 
 # ------------------------------------------------------------------
@@ -335,7 +335,7 @@ class Widget(BaseModel):
     reasoning: str | None = None
     scope: Scope
     origin: WidgetOrigin
-    fused_tool_id: str | None = None
+    op_id: str | None = Field(default=None, validation_alias=AliasChoices("op_id", "fused_tool_id"))
     composed: bool = False
     nodes: list[WidgetNode] = Field(default_factory=list)
     bindings: list[ControlBinding] = Field(default_factory=list)

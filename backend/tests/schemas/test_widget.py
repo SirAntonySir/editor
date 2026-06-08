@@ -223,7 +223,7 @@ def test_widget_full_roundtrip() -> None:
         reasoning="image is cool",
         scope=Scope.model_validate({"kind": "global"}),
         origin=WidgetOrigin(kind="mcp_user_prompt", prompt="warmer"),
-        fused_tool_id="warm_grade",
+        op_id="warm_grade",
         composed=False,
         nodes=[node],
         bindings=[binding],

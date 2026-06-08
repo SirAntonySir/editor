@@ -79,7 +79,7 @@ def test_tool_invoked_image_node_stamps_layer_ids(client, fake_anthropic) -> Non
             },
             "layer_id": "fallback_layer",
             "origin": "tool_invoked",
-            "fused_tool_id": "light",
+            "op_id": "light",
         }},
     ).json()
     assert body["ok"] is True
@@ -105,7 +105,7 @@ def test_llm_path_image_node_stamps_layer_ids(client) -> None:
                 "image_node_id": "in-1",
                 "layer_ids": ["la", "lb", "lc"],
             },
-            "fused_tool_id": "warm_grade",
+            "op_id": "warm_grade",
             "layer_id": "fallback_layer",
             "origin": "mcp_user_prompt",
         }},
@@ -133,7 +133,7 @@ def test_tool_invoked_image_node_empty_layer_ids_uses_input_fallback(client) -> 
             },
             "layer_id": "fallback_layer",
             "origin": "tool_invoked",
-            "fused_tool_id": "light",
+            "op_id": "light",
         }},
     ).json()
     assert body["ok"] is True
@@ -155,7 +155,7 @@ def test_global_scope_leaves_layer_ids_none(client) -> None:
             "scope": {"kind": "global"},
             "layer_id": "layer_a",
             "origin": "tool_invoked",
-            "fused_tool_id": "light",
+            "op_id": "light",
         }},
     ).json()
     assert body["ok"] is True

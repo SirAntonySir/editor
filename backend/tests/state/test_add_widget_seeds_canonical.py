@@ -13,7 +13,7 @@ def _widget(wid: str, layer_id: str, op: str, params: dict, origin_kind: str = "
     return Widget(
         id=wid, intent="x", scope=Scope.model_validate({"kind": "global"}),
         origin=WidgetOrigin(kind=origin_kind, prompt=None),
-        fused_tool_id="warm_grade",
+        op_id="warm_grade",
         nodes=[WidgetNode(
             id=f"n_{wid}", type=op, params=params,
             scope=Scope.model_validate({"kind": "global"}),

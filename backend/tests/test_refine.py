@@ -91,7 +91,7 @@ def _create_session_with_active_widget(client: TestClient) -> tuple[str, str]:
         json={"session_id": sid, "input": {
             "intent": "warmer",
             "scope": {"kind": "global"},
-            "fused_tool_id": "warm_grade",
+            "op_id": "warm_grade",
         }},
     ).json()
     assert body["ok"] is True, body

@@ -112,11 +112,11 @@ async def test_resolver_error_also_falls_back_to_seed() -> None:
 
 
 @pytest.mark.asyncio
-async def test_widget_carries_fused_tool_id_and_origin() -> None:
+async def test_widget_carries_op_id_and_origin() -> None:
     template = _InEnvelope()
     widget = await run_fused_tool(
         template, intent="warm", scope=_scope_global(), ctx=_ctx(),
         prior=None, instruction=None, anthropic=None,
     )
-    assert widget.fused_tool_id == "in_env"
+    assert widget.op_id == "in_env"
     assert widget.composed is False

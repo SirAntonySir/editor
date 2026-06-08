@@ -36,7 +36,7 @@ def test_two_basic_widgets_same_layer_share_one_canonical_node():
     sid = _session(client)
     for tool in ("light", "color"):
         client.post("/api/tools/propose_widget", json={"session_id": sid, "input": {
-            "intent": tool, "scope": {"kind": "global"}, "fused_tool_id": tool,
+            "intent": tool, "scope": {"kind": "global"}, "op_id": tool,
             "layer_id": "layer_a", "origin": "tool_invoked"}})
     doc = deps.get_session_store().get_document(sid)
     graph = project_to_graph(doc)

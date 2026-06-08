@@ -28,7 +28,7 @@ def _kelvin_widget(temperature: float) -> Widget:
         intent="warm",
         scope=Scope.model_validate({"kind": "global"}),
         origin=WidgetOrigin(kind="mcp_user_prompt", prompt="warm"),
-        fused_tool_id="warm_grade",
+        op_id="warm_grade",
         nodes=[
             WidgetNode(
                 id="n_k",

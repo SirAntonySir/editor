@@ -54,7 +54,7 @@ async def test_vintage_intent_spawns_multi_widget_stack(make_doc, monkeypatch):
         origin="mcp_user_prompt",
     ))
     assert len(out.widgets) == 5
-    op_ids = {w["fused_tool_id"] for w in out.widgets}
+    op_ids = {w["op_id"] for w in out.widgets}
     assert {"levels", "color", "hsl", "splitTone", "grain"} == op_ids
 
 

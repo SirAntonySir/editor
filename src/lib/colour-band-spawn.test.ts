@@ -11,7 +11,7 @@ it('spawns a single-band HSL widget for the chosen band', () => {
   expect(backendTools.propose_widget).toHaveBeenCalledWith(
     's1',
     expect.objectContaining({
-      fused_tool_id: 'hsl_blue',
+      op_id: 'hsl_blue',
       origin: 'tool_invoked',
       layer_id: 'L1',
       scope: { kind: 'global' },

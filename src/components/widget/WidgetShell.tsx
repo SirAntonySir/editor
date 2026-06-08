@@ -150,7 +150,7 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
         <>
           {/* Inline reasoning banner removed — the footer's "Why?" button
               already exposes the same string in a popover. */}
-          {widget.fused_tool_id === 'time-of-day' && (
+          {widget.op_id === 'time-of-day' && (
             <div className="px-1.5 py-1">
               <TimeOfDayWidgetBody widget={widget} />
             </div>
@@ -165,7 +165,7 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
               <LevelsWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
             </div>
           )}
-          {widget.bindings.length > 0 && widget.fused_tool_id !== 'time-of-day' && !isHslWidget(widget) && !isFullLevelsWidget(widget) && (
+          {widget.bindings.length > 0 && widget.op_id !== 'time-of-day' && !isHslWidget(widget) && !isFullLevelsWidget(widget) && (
             <div className="flex flex-col gap-1.5 px-1.5 py-1">
               {widget.bindings.map((b) => {
                 const eff = effectiveValue(b);

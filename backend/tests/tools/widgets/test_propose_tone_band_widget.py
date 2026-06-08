@@ -80,7 +80,7 @@ def test_tone_green_widget_carries_single_band_bindings(client) -> None:
     ).json()
     assert body["ok"] is True, body
     widget = body["output"]["widget"]
-    assert widget["fused_tool_id"] == "tone_green"
+    assert widget["op_id"] == "tone_green"
     # Single hsl node carries the three green-band params.
     node_types = [n["type"] for n in widget["nodes"]]
     assert node_types == ["hsl"]

@@ -65,7 +65,7 @@ export const applyAdjustmentTool: ToolManifest<typeof input, typeof ackSchema> =
     void backendTools.propose_widget(sid, {
       intent: label ?? `${kind} adjustment`,
       scope: resolved,
-      fused_tool_id: kind,
+      op_id: kind,
       layer_id: layerId,
       origin: 'tool_invoked',
     });

@@ -151,7 +151,7 @@ describe('selectPipelineNodes (compound optimistic patches)', () => {
           intent: 'Time of Day',
           scope: { kind: 'global' as const },
           origin: { kind: 'tool_invoked' as const },
-          fused_tool_id: 'time-of-day',
+          op_id: 'time-of-day',
           composed: false,
           status: 'active' as const,
           revision: 1,

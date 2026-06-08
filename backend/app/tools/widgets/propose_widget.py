@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 from app.api import deps
 from app.schemas.widget import (
@@ -42,7 +42,7 @@ class _MissingContext(Exception):
 class _Input(BaseModel):
     intent: str = Field(min_length=1)
     scope: dict
-    fused_tool_id: str | None = None
+    op_id: str | None = Field(default=None, validation_alias=AliasChoices("op_id", "fused_tool_id"))
     prompt: str | None = None
     layer_id: str = "legacy"
     origin: WidgetOriginKind = "mcp_user_prompt"
@@ -60,7 +60,7 @@ class ProposeWidgetTool(BackendTool[_Input, _Output]):
     name = "propose_widget"
     kind = "mutate"
     description = (
-        "Mint a widget. If fused_tool_id is given, that template is used. Otherwise "
+        "Mint a widget. If op_id is given, that template is used. Otherwise "
         "Claude picks one for the intent; if none fits, an ad-hoc widget is built."
     )
     input_schema = _Input
@@ -90,7 +90,7 @@ class ProposeWidgetTool(BackendTool[_Input, _Output]):
         # ----------------------------------------------------------------
         templates = {t.id: t for t in all_fused_templates()}
 
-        fused_id = input.fused_tool_id
+        fused_id = input.op_id
         if fused_id is not None and fused_id not in templates:
             raise _FusedToolNotFound(fused_id)
 
@@ -141,10 +141,10 @@ class ProposeWidgetTool(BackendTool[_Input, _Output]):
         scope: Scope,
     ) -> _Output:
         """Build a widget from TOOL_DEFAULTS without any LLM call."""
-        tool_id = input.fused_tool_id
+        tool_id = input.op_id
         if tool_id is None or tool_id not in TOOL_DEFAULTS:
             raise _InvalidInput(
-                f"Unknown fused_tool_id for tool_invoked origin: {tool_id!r}. "
+                f"Unknown op_id for tool_invoked origin: {tool_id!r}. "
                 f"Valid ids: {sorted(TOOL_DEFAULTS)}"
             )
 
@@ -195,7 +195,7 @@ class ProposeWidgetTool(BackendTool[_Input, _Output]):
             intent=input.intent,
             scope=scope,
             origin=WidgetOrigin(kind="tool_invoked", prompt=None, parent_widget_id=None),
-            fused_tool_id=tool_id,
+            op_id=tool_id,
             composed=False,
             nodes=nodes,
             bindings=bindings,

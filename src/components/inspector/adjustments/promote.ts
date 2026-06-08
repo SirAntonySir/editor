@@ -9,7 +9,7 @@ export function promoteToCanvas(sessionId: string | null, toolId: string, layerI
   void backendTools.propose_widget(sessionId, {
     intent: toolId,
     scope: { kind: 'global' },
-    fused_tool_id: toolId,
+    op_id: toolId,
     layer_id: layerId,
     origin: 'tool_invoked',
   });

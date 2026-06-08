@@ -402,8 +402,8 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
         return
 
     already_used = {
-        w.fused_tool_id for w in doc.widgets.values()
-        if w.origin.kind == "mcp_autonomous" and w.fused_tool_id
+        w.op_id for w in doc.widgets.values()
+        if w.origin.kind == "mcp_autonomous" and w.op_id
     }
     dismissed_global = {
         rule.fused_tool_id for rule in doc.dismissals

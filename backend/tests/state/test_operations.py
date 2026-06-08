@@ -19,7 +19,7 @@ def _widget(wid: str, node_id: str, params: dict, status: str = "active") -> Wid
         intent="warm",
         scope=Scope.model_validate({"kind": "global"}),
         origin=WidgetOrigin(kind="mcp_user_prompt", prompt="warmer"),
-        fused_tool_id="warm_grade",
+        op_id="warm_grade",
         nodes=[
             WidgetNode(
                 id=node_id, type="kelvin", params=params,

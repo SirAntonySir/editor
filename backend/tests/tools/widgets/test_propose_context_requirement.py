@@ -27,7 +27,7 @@ def test_tool_invoked_open_on_canvas_works_without_context():
     client = _client()
     sid = _session_no_context(client)
     r = client.post("/api/tools/propose_widget", json={"session_id": sid, "input": {
-        "intent": "Light", "scope": {"kind": "global"}, "fused_tool_id": "light",
+        "intent": "Light", "scope": {"kind": "global"}, "op_id": "light",
         "layer_id": "layer_a", "origin": "tool_invoked"}})
     assert r.status_code == 200, r.text
     assert r.json()["ok"] is True, r.json()  # was {ok:false, missing_context}
@@ -39,7 +39,7 @@ def test_hsl_open_on_canvas_works_without_context():
     client = _client()
     sid = _session_no_context(client)
     r = client.post("/api/tools/propose_widget", json={"session_id": sid, "input": {
-        "intent": "HSL", "scope": {"kind": "global"}, "fused_tool_id": "hsl",
+        "intent": "HSL", "scope": {"kind": "global"}, "op_id": "hsl",
         "layer_id": "layer_a", "origin": "tool_invoked"}})
     assert r.status_code == 200, r.text
     assert r.json()["ok"] is True, r.json()

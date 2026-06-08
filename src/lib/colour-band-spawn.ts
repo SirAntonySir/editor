@@ -11,7 +11,7 @@ export function promoteSingleBand(
   void backendTools.propose_widget(sessionId, {
     intent: `HSL ${band}`,
     scope: { kind: 'global' },
-    fused_tool_id: `hsl_${band}`,
+    op_id: `hsl_${band}`,
     layer_id: layerId,
     origin: 'tool_invoked',
   });

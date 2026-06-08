@@ -211,7 +211,7 @@ def _build_widget(
         reasoning=numbers.reasoning,
         scope=scope,
         origin=origin,
-        fused_tool_id=template.id,
+        op_id=template.id,
         composed=False,
         nodes=nodes,
         bindings=bindings,

@@ -36,7 +36,7 @@ export function makeToolWidget(overrides: Partial<Widget> = {}): Widget {
     intent: 'Light',
     reasoning: undefined,
     origin: { kind: 'tool_invoked' },
-    fused_tool_id: 'light',
+    op_id: 'light',
     scope: { kind: 'global' },
     preview: { kind: 'none', auto_before_after: false },
     ...overrides,
@@ -55,7 +55,7 @@ export function makeHslWidget(bands: string[], overrides: Partial<Widget> = {}):
     intent: 'HSL',
     reasoning: undefined,
     origin: { kind: 'tool_invoked' },
-    fused_tool_id: bands.length === 1 ? `hsl_${bands[0]}` : 'hsl',
+    op_id: bands.length === 1 ? `hsl_${bands[0]}` : 'hsl',
     scope: { kind: 'global' },
     preview: { kind: 'none', auto_before_after: false },
     nodes: [{
@@ -91,7 +91,7 @@ export function makeTimeOfDayWidget(overrides: Partial<Widget> = {}): Widget {
     intent: 'Time of Day',
     reasoning: undefined,
     origin: { kind: 'tool_invoked' },
-    fused_tool_id: 'time-of-day',
+    op_id: 'time-of-day',
     scope: { kind: 'global' },
     preview: { kind: 'none', auto_before_after: false },
     nodes: [{

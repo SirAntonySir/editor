@@ -93,10 +93,10 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
             return _Output(widget=w.model_dump(mode="json"))
 
         # No composition change → re-tune numbers via the fused template.
-        if w.fused_tool_id is None:
+        if w.op_id is None:
             return _Output(widget=w.model_dump(mode="json"))
         templates = {t.id: t for t in all_fused_templates()}
-        template = templates[w.fused_tool_id]
+        template = templates[w.op_id]
         new_widget = await run_fused_tool(
             template, intent=w.intent, scope=w.scope,
             ctx=doc.image_context, prior=w, instruction=input.instruction,

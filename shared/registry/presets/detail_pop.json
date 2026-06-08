@@ -1,0 +1,32 @@
+{
+  "id": "detail_pop",
+  "display_name": "Detail pop",
+  "source": "builtin",
+  "description": "Bring out fine detail \u2014 coordinated sharpen + clarity + a touch of contrast. Use when the image looks soft or details need to read.",
+  "typical_use": "User says 'more detail', 'sharper', 'pop the detail', 'enhance texture'.",
+  "semantic_tags": [
+    "detail",
+    "mood",
+    "pop"
+  ],
+  "ops": [
+    {
+      "op_id": "sharpen",
+      "params": {
+        "amount": 45.0
+      }
+    },
+    {
+      "op_id": "clarity",
+      "params": {
+        "amount": 45.0
+      }
+    },
+    {
+      "op_id": "light",
+      "params": {
+        "contrast": 15.0
+      }
+    }
+  ]
+}

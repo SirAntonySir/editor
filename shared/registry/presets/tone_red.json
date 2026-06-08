@@ -1,0 +1,22 @@
+{
+  "id": "tone_red",
+  "display_name": "Adjust red tones",
+  "source": "builtin",
+  "description": "Shift the red colour family in HSL space \u2014 covers red, reds, reddish, ruddy. Tunes hue / saturation / luminance for that band only.",
+  "typical_use": "User says 'red tones are off', 'too much red', 'desaturate the reds', or names any synonym above.",
+  "semantic_tags": [
+    "mood",
+    "red",
+    "tone"
+  ],
+  "ops": [
+    {
+      "op_id": "hsl",
+      "params": {
+        "red_hue": 0.0,
+        "red_sat": 0.0,
+        "red_lum": 0.0
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "contrast_drop",
+  "display_name": "Contrast drop",
+  "source": "builtin",
+  "description": "Reduce global contrast and lift the black point \u2014 softens an overly-punchy image.",
+  "typical_use": "User says 'too contrasty', 'soften contrast', 'lower contrast', 'less punch'.",
+  "semantic_tags": [
+    "contrast",
+    "drop",
+    "mood"
+  ],
+  "ops": [
+    {
+      "op_id": "light",
+      "params": {
+        "contrast": -30.0
+      }
+    },
+    {
+      "op_id": "levels",
+      "params": {
+        "inBlack": 20.0
+      }
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "contrast_punch",
+  "display_name": "Contrast punch",
+  "source": "builtin",
+  "description": "Generic contrast boost \u2014 positive contrast plus a small blacks/whites push for extra depth on flat images.",
+  "typical_use": "User says 'more contrast', 'flat needs depth', 'punchier', 'more punch'.",
+  "semantic_tags": [
+    "contrast",
+    "mood",
+    "punch"
+  ],
+  "ops": [
+    {
+      "op_id": "light",
+      "params": {
+        "contrast": 40.0,
+        "blacks": -20.0,
+        "whites": 20.0
+      }
+    }
+  ]
+}

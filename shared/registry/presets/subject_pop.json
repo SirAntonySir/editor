@@ -1,0 +1,26 @@
+{
+  "id": "subject_pop",
+  "display_name": "Subject pop",
+  "source": "builtin",
+  "description": "Makes a subject or region pop \u2014 local contrast and saturation boost.",
+  "typical_use": "Use when the user wants to make a subject, person, or region stand out.",
+  "semantic_tags": [
+    "mood",
+    "pop",
+    "subject"
+  ],
+  "ops": [
+    {
+      "op_id": "light",
+      "params": {
+        "contrast": 0.0
+      }
+    },
+    {
+      "op_id": "color",
+      "params": {
+        "saturation": 0.0
+      }
+    }
+  ]
+}

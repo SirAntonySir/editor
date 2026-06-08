@@ -1,0 +1,25 @@
+{
+  "id": "foggy",
+  "display_name": "Foggy",
+  "source": "builtin",
+  "description": "Foggy atmospheric haze \u2014 lift the blacks (clouded shadows) and push kelvin slightly cool. Evokes mist.",
+  "typical_use": "User says 'foggy', 'misty', 'hazy atmosphere'.",
+  "semantic_tags": [
+    "foggy",
+    "mood"
+  ],
+  "ops": [
+    {
+      "op_id": "levels",
+      "params": {
+        "inBlack": 35.0
+      }
+    },
+    {
+      "op_id": "kelvin",
+      "params": {
+        "kelvin": 6500
+      }
+    }
+  ]
+}

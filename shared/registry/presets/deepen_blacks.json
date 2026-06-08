@@ -1,0 +1,26 @@
+{
+  "id": "deepen_blacks",
+  "display_name": "Deepen blacks",
+  "source": "builtin",
+  "description": "Drop the darkest tones for more punch \u2014 negative `blacks` plus a small positive `inBlack` from levels to crush slightly.",
+  "typical_use": "User says 'deepen blacks', 'crush shadows', 'darker blacks', 'more punch in shadows'.",
+  "semantic_tags": [
+    "blacks",
+    "deepen",
+    "mood"
+  ],
+  "ops": [
+    {
+      "op_id": "light",
+      "params": {
+        "blacks": -40.0
+      }
+    },
+    {
+      "op_id": "levels",
+      "params": {
+        "inBlack": 20.0
+      }
+    }
+  ]
+}

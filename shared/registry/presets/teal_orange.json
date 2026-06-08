@@ -1,0 +1,20 @@
+{
+  "id": "teal_orange",
+  "display_name": "Teal & orange",
+  "source": "builtin",
+  "description": "Teal-and-orange cinematic grade \u2014 curve approximation plus selective saturation boost.",
+  "typical_use": "Use when the user wants a teal-orange colour grade or cinematic look.",
+  "semantic_tags": [
+    "mood",
+    "orange",
+    "teal"
+  ],
+  "ops": [
+    {
+      "op_id": "color",
+      "params": {
+        "saturation": 0.0
+      }
+    }
+  ]
+}

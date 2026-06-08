@@ -1,0 +1,29 @@
+{
+  "id": "bw_high_contrast",
+  "display_name": "B&W high-contrast",
+  "source": "builtin",
+  "description": "High-contrast black-and-white \u2014 full desaturation plus aggressive contrast, deeper blacks, brighter whites.",
+  "typical_use": "User says 'high contrast B&W', 'punchy black and white', 'monochrome contrast'.",
+  "semantic_tags": [
+    "bw",
+    "contrast",
+    "high",
+    "mood"
+  ],
+  "ops": [
+    {
+      "op_id": "light",
+      "params": {
+        "contrast": 50.0,
+        "blacks": -30.0,
+        "whites": 30.0
+      }
+    },
+    {
+      "op_id": "color",
+      "params": {
+        "saturation": -100
+      }
+    }
+  ]
+}

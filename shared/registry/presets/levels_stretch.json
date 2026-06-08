@@ -1,0 +1,22 @@
+{
+  "id": "levels_stretch",
+  "display_name": "Levels stretch",
+  "source": "builtin",
+  "description": "Explicit tonal map via levels \u2014 black point, white point, and gamma. Use when the user wants to remap the tonal range or fix exposure via the levels triplet rather than curves.",
+  "typical_use": "User says 'levels', 'remap blacks and whites', 'expand the tonal range'.",
+  "semantic_tags": [
+    "levels",
+    "mood",
+    "stretch"
+  ],
+  "ops": [
+    {
+      "op_id": "levels",
+      "params": {
+        "inBlack": 40.0,
+        "inWhite": 217.5,
+        "gamma": 1.25
+      }
+    }
+  ]
+}

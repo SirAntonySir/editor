@@ -1,0 +1,33 @@
+{
+  "id": "dreamy",
+  "display_name": "Dreamy",
+  "source": "builtin",
+  "description": "Soft dreamy look \u2014 lift shadows, soften highlights, drop contrast and saturation slightly, negative clarity for a hazy feel.",
+  "typical_use": "User says 'dreamy', 'soft', 'hazy', 'ethereal', 'fairytale'.",
+  "semantic_tags": [
+    "dreamy",
+    "mood"
+  ],
+  "ops": [
+    {
+      "op_id": "light",
+      "params": {
+        "exposure": 15.0,
+        "shadows": 35.0,
+        "highlights": -30.0
+      }
+    },
+    {
+      "op_id": "color",
+      "params": {
+        "saturation": -20.0
+      }
+    },
+    {
+      "op_id": "clarity",
+      "params": {
+        "amount": -50.0
+      }
+    }
+  ]
+}

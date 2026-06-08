@@ -1,0 +1,37 @@
+{
+  "id": "gritty",
+  "display_name": "Gritty",
+  "source": "builtin",
+  "description": "Gritty hard-edged look \u2014 strong contrast, desaturated palette, heavy sharpen and positive clarity for visible texture.",
+  "typical_use": "User says 'gritty', 'raw', 'hard', 'documentary', 'textured'.",
+  "semantic_tags": [
+    "gritty",
+    "mood"
+  ],
+  "ops": [
+    {
+      "op_id": "light",
+      "params": {
+        "contrast": 50.0
+      }
+    },
+    {
+      "op_id": "color",
+      "params": {
+        "saturation": -25.0
+      }
+    },
+    {
+      "op_id": "sharpen",
+      "params": {
+        "amount": 60.0
+      }
+    },
+    {
+      "op_id": "clarity",
+      "params": {
+        "amount": 60.0
+      }
+    }
+  ]
+}

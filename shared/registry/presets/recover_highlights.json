@@ -1,0 +1,21 @@
+{
+  "id": "recover_highlights",
+  "display_name": "Recover highlights",
+  "source": "builtin",
+  "description": "Pull back blown highlights \u2014 negative `highlights` and `whites`. Generic, not sky-specific (see `sky_recovery` for that).",
+  "typical_use": "User says 'recover highlights', 'blown out', 'too bright', 'tone down brights'.",
+  "semantic_tags": [
+    "highlights",
+    "mood",
+    "recover"
+  ],
+  "ops": [
+    {
+      "op_id": "light",
+      "params": {
+        "highlights": -40.0,
+        "whites": -30.0
+      }
+    }
+  ]
+}

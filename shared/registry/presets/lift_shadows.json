@@ -1,0 +1,21 @@
+{
+  "id": "lift_shadows",
+  "display_name": "Lift shadows",
+  "source": "builtin",
+  "description": "Open up blocked-up shadows \u2014 positive `shadows` and `blacks`. Use when shadow detail is hidden in the dark.",
+  "typical_use": "User says 'shadows are blocked', 'open up shadows', 'lift the darks', 'too dark'.",
+  "semantic_tags": [
+    "lift",
+    "mood",
+    "shadows"
+  ],
+  "ops": [
+    {
+      "op_id": "light",
+      "params": {
+        "shadows": 40.0,
+        "blacks": 30.0
+      }
+    }
+  ]
+}

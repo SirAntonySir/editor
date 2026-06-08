@@ -16,10 +16,10 @@ def test_loader_op_is_typed():
     assert light.engine.shader == "basic"
 
 
-def test_loader_finds_no_presets_yet():
-    # Presets directory exists but is empty before Task 6 runs.
+def test_loader_finds_presets():
+    # After Task 6 the presets directory is populated.
     reg = load_registry()
-    assert reg.presets == {}
+    assert len(reg.presets) >= 30
 
 
 def test_loader_rejects_duplicate_op_id(tmp_path, monkeypatch):

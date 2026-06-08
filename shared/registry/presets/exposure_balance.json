@@ -1,0 +1,23 @@
+{
+  "id": "exposure_balance",
+  "display_name": "Balance exposure",
+  "source": "builtin",
+  "description": "Balances tonal range \u2014 lift shadows, recover highlights, set white/black points.",
+  "typical_use": "Use when the user wants to balance exposure, recover clipped areas, or improve tonal range.",
+  "semantic_tags": [
+    "balance",
+    "exposure",
+    "mood"
+  ],
+  "ops": [
+    {
+      "op_id": "light",
+      "params": {
+        "shadows": 0.0,
+        "highlights": 0.0,
+        "whites": 0.0,
+        "blacks": 0.0
+      }
+    }
+  ]
+}

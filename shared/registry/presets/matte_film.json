@@ -1,0 +1,27 @@
+{
+  "id": "matte_film",
+  "display_name": "Matte film",
+  "source": "builtin",
+  "description": "Flat matte film stock \u2014 lifted blacks, dropped whites, gentle contrast reduction. The classic faded-print look.",
+  "typical_use": "User says 'matte', 'faded', 'flat film', 'low contrast film'.",
+  "semantic_tags": [
+    "film",
+    "matte",
+    "mood"
+  ],
+  "ops": [
+    {
+      "op_id": "levels",
+      "params": {
+        "inBlack": 30.0,
+        "inWhite": 227.5
+      }
+    },
+    {
+      "op_id": "light",
+      "params": {
+        "contrast": -25.0
+      }
+    }
+  ]
+}

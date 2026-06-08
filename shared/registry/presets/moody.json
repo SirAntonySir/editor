@@ -1,0 +1,27 @@
+{
+  "id": "moody",
+  "display_name": "Moody",
+  "source": "builtin",
+  "description": "Moody, brooding look \u2014 drop exposure, raise contrast, desaturate, and pull the shadows down slightly.",
+  "typical_use": "User says 'moody', 'brooding', 'darker mood', 'cinematic darkness'.",
+  "semantic_tags": [
+    "mood",
+    "moody"
+  ],
+  "ops": [
+    {
+      "op_id": "light",
+      "params": {
+        "exposure": -20.0,
+        "contrast": 35.0,
+        "shadows": -30.0
+      }
+    },
+    {
+      "op_id": "color",
+      "params": {
+        "saturation": -20.0
+      }
+    }
+  ]
+}

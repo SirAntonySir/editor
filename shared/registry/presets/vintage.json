@@ -1,0 +1,33 @@
+{
+  "id": "vintage",
+  "display_name": "Vintage",
+  "source": "builtin",
+  "description": "Vintage film look \u2014 lifted blacks, slightly muted whites, desaturated palette with warm red/yellow hue rotation.",
+  "typical_use": "User says 'vintage', 'retro', '70s', 'old film', 'nostalgic'.",
+  "semantic_tags": [
+    "mood",
+    "vintage"
+  ],
+  "ops": [
+    {
+      "op_id": "levels",
+      "params": {
+        "inBlack": 40.0,
+        "inWhite": 217.5
+      }
+    },
+    {
+      "op_id": "color",
+      "params": {
+        "saturation": -25.0
+      }
+    },
+    {
+      "op_id": "hsl",
+      "params": {
+        "red_hue": 0.0,
+        "yellow_hue": 0.0
+      }
+    }
+  ]
+}

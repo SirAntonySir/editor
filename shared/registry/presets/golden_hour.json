@@ -1,0 +1,32 @@
+{
+  "id": "golden_hour",
+  "display_name": "Golden hour",
+  "source": "builtin",
+  "description": "Warm golden-hour glow \u2014 push kelvin toward warm, lift shadows, boost saturation slightly. Evokes late-afternoon sun.",
+  "typical_use": "User says 'golden hour', 'sunset glow', 'warm afternoon light'.",
+  "semantic_tags": [
+    "golden",
+    "hour",
+    "mood"
+  ],
+  "ops": [
+    {
+      "op_id": "kelvin",
+      "params": {
+        "kelvin": 6500
+      }
+    },
+    {
+      "op_id": "light",
+      "params": {
+        "shadows": 25.0
+      }
+    },
+    {
+      "op_id": "color",
+      "params": {
+        "saturation": 15.0
+      }
+    }
+  ]
+}

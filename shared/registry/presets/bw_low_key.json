@@ -1,0 +1,34 @@
+{
+  "id": "bw_low_key",
+  "display_name": "B&W low-key",
+  "source": "builtin",
+  "description": "Moody low-key black-and-white \u2014 full desaturation, dropped shadows, muted whites for a dark, brooding monochrome look.",
+  "typical_use": "User says 'low key B&W', 'moody black and white', 'dark monochrome'.",
+  "semantic_tags": [
+    "bw",
+    "key",
+    "low",
+    "mood"
+  ],
+  "ops": [
+    {
+      "op_id": "light",
+      "params": {
+        "exposure": -20.0,
+        "shadows": -30.0
+      }
+    },
+    {
+      "op_id": "color",
+      "params": {
+        "saturation": -100
+      }
+    },
+    {
+      "op_id": "levels",
+      "params": {
+        "inWhite": 227.5
+      }
+    }
+  ]
+}

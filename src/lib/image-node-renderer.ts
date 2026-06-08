@@ -22,6 +22,7 @@ import { applyGeometry, getInternalCanvas, type Crop, type Rotate } from './imag
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { nodeToAdjustment } from './node-to-adjustment';
+import { expandCompoundNodes } from './perceptual-dial/expand-compound';
 import {
   MASK_STYLES,
   paintFullImageOutline,
@@ -139,7 +140,11 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
 
   const allLayers = useEditorStore.getState().layers;
   const layersById = new Map(allLayers.map((l) => [l.id, l] as const));
-  const nodes = opGraph?.nodes ?? [];
+  // Compound nodes (e.g. Time-of-Day) split here into one virtual node per
+  // adjustmentType ('basic', 'kelvin', 'hsl', …) so the WebGL pipeline can
+  // dispatch them to the existing per-op shaders. Non-compound nodes pass
+  // through unchanged.
+  const nodes = expandCompoundNodes(opGraph?.nodes ?? []);
 
   for (const layerId of layerIds) {
     const layer = layersById.get(layerId);

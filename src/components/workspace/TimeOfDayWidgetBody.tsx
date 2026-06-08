@@ -4,9 +4,24 @@ import { PerceptualDialBody } from './PerceptualDialBody';
 import { EditableParamCard } from '@/components/ui/EditableParamCard';
 import { useProcessingParam } from '@/lib/use-processing-param';
 import { interpolate1D } from '@/lib/perceptual-dial/interpolate';
-import { TIME_OF_DAY_ANCHORS } from '@/processing/anchors/time-of-day-anchors';
+import type { Anchor } from '@/lib/perceptual-dial/types';
+import { loadRegistry } from '@/lib/registry/loader';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
+
+/** Read TOD anchors from the SSoT registry and shape them into the legacy
+ *  PerceptualDialBody `Anchor` form. Source of truth: shared/registry/ops/time-of-day.json. */
+function loadTodAnchors(): Anchor[] {
+  const op = loadRegistry().ops['time-of-day'];
+  if (!op?.compound) return [];
+  return op.compound.anchors.map((a) => ({
+    id: a.name,
+    label: a.name.charAt(0).toUpperCase() + a.name.slice(1),
+    position: [a.position],
+    params: a.values,
+  }));
+}
+const TIME_OF_DAY_ANCHORS: Anchor[] = loadTodAnchors();
 
 interface TimeOfDayWidgetBodyProps {
   widget: Widget;

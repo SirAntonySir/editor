@@ -15,6 +15,7 @@ import { WhyPopover } from './WhyPopover';
 import { BindingRow } from '@/components/inspector/widget/BindingRow';
 import { HslWidgetBody, isHslWidget } from './HslWidgetBody';
 import { LevelsWidgetBody, isFullLevelsWidget } from './LevelsWidgetBody';
+import { TimeOfDayWidgetBody } from '@/components/workspace/TimeOfDayWidgetBody';
 
 /**
  * Minimum WidgetShell width in CSS pixels. The shell grows past this to fit
@@ -149,6 +150,11 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
         <>
           {/* Inline reasoning banner removed — the footer's "Why?" button
               already exposes the same string in a popover. */}
+          {widget.fused_tool_id === 'time-of-day' && (
+            <div className="px-1.5 py-1">
+              <TimeOfDayWidgetBody widget={widget} />
+            </div>
+          )}
           {widget.bindings.length > 0 && isHslWidget(widget) && (
             <div className="px-1.5 py-1">
               <HslWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
@@ -159,7 +165,7 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
               <LevelsWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
             </div>
           )}
-          {widget.bindings.length > 0 && !isHslWidget(widget) && !isFullLevelsWidget(widget) && (
+          {widget.bindings.length > 0 && widget.fused_tool_id !== 'time-of-day' && !isHslWidget(widget) && !isFullLevelsWidget(widget) && (
             <div className="flex flex-col gap-1.5 px-1.5 py-1">
               {widget.bindings.map((b) => {
                 const eff = effectiveValue(b);

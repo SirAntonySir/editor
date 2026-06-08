@@ -9,6 +9,7 @@ import { filtersProcessing } from './filters';
 import { sharpenProcessing } from './sharpen';
 import { blurProcessing } from './blur';
 import { clarityProcessing } from './clarity';
+import { timeOfDayProcessing } from './time-of-day';
 
 export function registerAllProcessing(): void {
   ProcessingRegistry.register(lightProcessing);
@@ -21,6 +22,7 @@ export function registerAllProcessing(): void {
   ProcessingRegistry.register(sharpenProcessing);
   ProcessingRegistry.register(blurProcessing);
   ProcessingRegistry.register(clarityProcessing);
+  ProcessingRegistry.register(timeOfDayProcessing);
 }
 
 export {
@@ -34,4 +36,5 @@ export {
   sharpenProcessing,
   blurProcessing,
   clarityProcessing,
+  timeOfDayProcessing,
 };

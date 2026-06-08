@@ -11,6 +11,7 @@ import { RightSidebar } from '@/components/panels/RightSidebar';
 import { PreferencesPage } from '@/components/PreferencesPage';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
+import { ProcessingRegistry } from '@/lib/processing-registry';
 import { registerAllProcessing } from '@/processing';
 import { registerAllToolManifests } from '@/lib/tool-manifest';
 import { useEditorStore } from '@/store';
@@ -18,20 +19,11 @@ import { usePreferencesStore, applyPreferences } from '@/store/preferences-store
 import { editorDocument } from '@/core/document';
 import { initLayerLifecycle } from '@/core/layer-lifecycle';
 import { initEditorStatePersistence } from '@/core/editor-state-persistence';
-import { LightTool } from '@/tools/light-tool';
-import { ColorTool } from '@/tools/color-tool';
-import { KelvinTool } from '@/tools/kelvin-tool';
 import { CurvesTool } from '@/tools/curves-tool';
 import { LevelsTool } from '@/tools/levels-tool';
 import { FiltersTool } from '@/tools/filters-tool';
 import { HslTool } from '@/tools/hsl-tool';
-import { SharpenTool } from '@/tools/sharpen-tool';
-import { BlurTool } from '@/tools/blur-tool';
-import { ClarityTool } from '@/tools/clarity-tool';
 import { TimeOfDayTool } from '@/tools/time-of-day-tool';
-import { GrainTool } from '@/tools/grain-tool';
-import { VignetteTool } from '@/tools/vignette-tool';
-import { SplitToneTool } from '@/tools/split-tone-tool';
 import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
 import { useBackendState } from '@/store/backend-state-slice';
 import { Upload } from 'lucide-react';
@@ -51,21 +43,27 @@ registerAllProcessing();
 // Register LLM-facing tool manifests (Plan 2)
 registerAllToolManifests();
 
-// Register tools (lean canvas-centric set — adjustment widget tools)
-CanvasToolRegistry.register(LightTool);
-CanvasToolRegistry.register(ColorTool);
+// Register tools (lean canvas-centric set — adjustment widget tools).
+// Registry-driven ops are auto-registered as ToolDefinitions derived from
+// their ProcessingDefinition. Bespoke tools (curves, hsl, levels, filters,
+// time-of-day) are registered explicitly.
+for (const def of ProcessingRegistry.getAll()) {
+  if (!CanvasToolRegistry.has(def.id)) {
+    CanvasToolRegistry.register({
+      name: def.id,
+      label: def.label,
+      icon: def.icon,
+      category: def.category as 'adjust' | 'filter' | 'ai' | 'transform' | 'select' | 'draw',
+      processingId: def.id,
+      onActivate: () => {},
+    });
+  }
+}
 CanvasToolRegistry.register(HslTool);
-CanvasToolRegistry.register(KelvinTool);
 CanvasToolRegistry.register(CurvesTool);
 CanvasToolRegistry.register(LevelsTool);
 CanvasToolRegistry.register(FiltersTool);
-CanvasToolRegistry.register(SharpenTool);
-CanvasToolRegistry.register(BlurTool);
-CanvasToolRegistry.register(ClarityTool);
 CanvasToolRegistry.register(TimeOfDayTool);
-CanvasToolRegistry.register(GrainTool);
-CanvasToolRegistry.register(VignetteTool);
-CanvasToolRegistry.register(SplitToneTool);
 
 /** Main canvas area */
 function MainLayout({

@@ -16,5 +16,6 @@
     { "param_key": "vibrance",   "control_type": "slider",    "label": "Vibrance" },
     { "param_key": "hue",        "control_type": "hue_wheel", "label": "Hue" }
   ],
-  "engine": { "shader": "basic", "render_order": 20, "node_type": "basic" }
+  "engine": { "shader": "basic", "render_order": 20, "node_type": "basic" },
+  "tool_defaults": ["saturation", "vibrance"]
 }

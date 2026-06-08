@@ -19,6 +19,7 @@ class OpParamSchema(BaseModel):
     default: Any
     range: tuple[float, float] | None = None
     unit: str | None = None
+    step: float | None = None               # slider step; defaults to 1 when absent
     values: list[str] | None = None         # enum
     min_points: int | None = None           # curve_points
     max_points: int | None = None           # curve_points
@@ -66,6 +67,7 @@ class RegistryOp(BaseModel):
     params: dict[str, OpParamSchema]
     bindings: list[OpBinding]
     engine: OpEngineConfig
+    tool_defaults: list[str] | None = None  # curated subset of param keys for toolrail widget
 
     @model_validator(mode="after")
     def _bindings_reference_params(self) -> RegistryOp:

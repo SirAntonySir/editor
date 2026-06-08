@@ -5,8 +5,18 @@ import { CommandPalette } from './CommandPalette';
 import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
-import { LightTool } from '@/tools/light-tool';
 import { CurvesTool } from '@/tools/curves-tool';
+import type { ToolDefinition } from '@/types/tool';
+
+// Minimal stub for the light tool (replaces deleted light-tool.tsx).
+const LightToolStub: ToolDefinition = {
+  name: 'light',
+  label: 'Light',
+  icon: () => null,
+  category: 'adjust',
+  processingId: 'light',
+  onActivate: () => {},
+};
 import { toast } from '@/components/ui/Toast';
 import { spawnToolWidget } from '@/lib/toolrail-spawn';
 import { proposeFromPalette } from '@/lib/palette-actions';
@@ -19,7 +29,7 @@ function open() {
 }
 
 beforeEach(() => {
-  CanvasToolRegistry.register(LightTool);
+  CanvasToolRegistry.register(LightToolStub);
   CanvasToolRegistry.register(CurvesTool);
   useEditorStore.getState().resetWorkspace();
   useEditorStore.getState().clearSelection?.();

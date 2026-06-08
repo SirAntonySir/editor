@@ -19,8 +19,9 @@ describe('loadRegistry', () => {
     expect(light.engine.shader).toBe('basic');
   });
 
-  it('returns empty presets when no preset files exist yet', () => {
+  it('loads the builtin preset files', () => {
     const reg = loadRegistry();
-    expect(Object.keys(reg.presets).length).toBe(0);
+    // Builtin presets were added in the registry (40 at time of writing).
+    expect(Object.keys(reg.presets).length).toBeGreaterThan(0);
   });
 });

@@ -24,5 +24,6 @@
     { "param_key": "blacks",     "control_type": "slider", "label": "Blacks" },
     { "param_key": "brightness", "control_type": "slider", "label": "Brightness" }
   ],
-  "engine": { "shader": "basic", "render_order": 10, "node_type": "basic" }
+  "engine": { "shader": "basic", "render_order": 10, "node_type": "basic" },
+  "tool_defaults": ["exposure", "contrast", "highlights", "shadows"]
 }

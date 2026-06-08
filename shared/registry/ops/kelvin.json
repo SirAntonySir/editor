@@ -7,7 +7,7 @@
     "semantic_tags": ["color", "white-balance", "kelvin", "temperature"]
   },
   "params": {
-    "kelvin": { "type": "scalar", "range": [2000, 10000], "default": 6500, "unit": "K" },
+    "kelvin": { "type": "scalar", "range": [2000, 10000], "default": 6500, "unit": "K", "step": 50 },
     "tint":   { "type": "scalar", "range": [-100, 100],   "default": 0 }
   },
   "bindings": [

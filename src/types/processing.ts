@@ -61,8 +61,12 @@ export interface ProcessingDefinition {
    * Panel component rendered in the inspector (develop/compose mode),
    * graph properties panel, and expanded graph nodes.
    * Receives layerId + optional adjustmentId so it works in any context.
+   *
+   * Optional for ops whose Inspector rendering is fully handled by
+   * ToolSection's type-dispatch (RegistryDrivenSectionBody, CurvesSectionBody,
+   * HslSectionBody, LevelsSectionBody). Required for bespoke panels.
    */
-  Panel: ComponentType<ProcessingPanelProps>;
+  Panel?: ComponentType<ProcessingPanelProps>;
 
 
   /**

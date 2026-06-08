@@ -4,7 +4,17 @@ import { spawnToolWidget } from './toolrail-spawn';
 import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
-import { LightTool } from '@/tools/light-tool';
+import type { ToolDefinition } from '@/types/tool';
+
+// Minimal stub for the light tool (replaces deleted light-tool.tsx).
+const LightToolStub: ToolDefinition = {
+  name: 'light',
+  label: 'Light',
+  icon: () => null,
+  category: 'adjust',
+  processingId: 'light',
+  onActivate: () => {},
+};
 
 vi.mock('@/lib/backend-tools', () => ({
   backendTools: {
@@ -13,7 +23,7 @@ vi.mock('@/lib/backend-tools', () => ({
 }));
 
 beforeEach(() => {
-  CanvasToolRegistry.register(LightTool);
+  CanvasToolRegistry.register(LightToolStub);
   useEditorStore.getState().clearSelection();
   useEditorStore.getState().resetWorkspace();
   useBackendState.getState().reset();

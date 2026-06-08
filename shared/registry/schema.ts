@@ -16,6 +16,8 @@ export const OpParamSchema = z.object({
   default: z.unknown(),
   range: z.tuple([z.number(), z.number()]).optional(),
   unit: z.string().optional(),
+  /** Slider step size. Defaults to 1 when absent. */
+  step: z.number().optional(),
   values: z.array(z.string()).optional(),
   min_points: z.number().int().optional(),
   max_points: z.number().int().optional(),
@@ -61,6 +63,11 @@ export const RegistryOpSchema = z.object({
   params: z.record(z.string(), OpParamSchema),
   bindings: z.array(OpBindingSchema),
   engine: OpEngineConfigSchema,
+  /**
+   * Curated subset of param keys shown by the default toolrail widget.
+   * Defaults to all binding param_keys when absent.
+   */
+  tool_defaults: z.array(z.string()).optional(),
 }).strict().superRefine((op, ctx) => {
   for (const b of op.bindings) {
     if (!(b.param_key in op.params)) {

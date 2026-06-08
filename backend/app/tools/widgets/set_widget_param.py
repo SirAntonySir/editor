@@ -24,11 +24,6 @@ class _Output(BaseModel):
     ok: bool
 
 
-# Time-of-Day position key — kept here as a constant so the recompute branch
-# is easy to grep against the template.
-_TOD_POSITION_KEY = "time_of_day.position"
-
-
 class SetWidgetParamTool(BackendTool[_Input, _Output]):
     name = "set_widget_param"
     kind = "mutate"
@@ -56,33 +51,31 @@ class SetWidgetParamTool(BackendTool[_Input, _Output]):
             # Canonical write: the op_graph now projects from here.
             doc.set_param(node.layer_id, node.type, binding.target.param_key, input.value)
 
-        # Time-of-Day compound-bundle recompute / implicit lock.
-        # - Dial drag (`time_of_day.position`): recompute the bundle from the
-        #   anchor table and write all non-locked keys through binding + node
-        #   params + canonical. Without this the bundle stays at spawn values
-        #   and the canvas snaps back when optimistic patches clear on the
-        #   revision bump.
-        # - Bundle key edit (`kelvin.kelvin`, etc.): implicit lock-on-edit so a
-        #   subsequent dial drag won't overwrite the user's value.
-        if w.op_id == "time-of-day":
-            from app.tools.fused._time_of_day_data import interpolate_1d
+        # Compound widget driver-recompute / implicit lock.
+        # - Driver param change: recompute the bundle via the registry's anchor
+        #   table and write all non-locked derived keys back to the node + canon.
+        # - Derived key edit: implicit lock-on-edit so a subsequent driver
+        #   change won't overwrite the user's value.
+        from app.registry.compound_resolver import resolve_compound
+        from app.registry.loader import get_registry
 
-            if input.param_key == _TOD_POSITION_KEY:
-                position = float(input.value)
-                bundle = interpolate_1d(position)
-                # The compound node holds the bundle params alongside `position`.
-                # Always the same node that owns the position binding.
-                compound_node = node
-                for bkey, bvalue in bundle.items():
-                    if bkey in w.locked_params:
-                        continue
+        reg = get_registry()
+        op = reg.ops.get(w.op_id) if w.op_id else None
+        if op is not None and op.compound is not None:
+            if input.param_key == op.compound.driver:
+                derived = resolve_compound(w, op, float(input.value))
+                compound_node = node    # driver's node — bundle lives on the same node
+                for bkey, bvalue in derived.items():
                     if compound_node is not None:
                         compound_node.params[bkey] = bvalue
-                        doc.set_param(compound_node.layer_id, compound_node.type, bkey, bvalue)
+                        doc.set_param(
+                            compound_node.layer_id, compound_node.type, bkey, bvalue,
+                        )
                     bbind = next((b for b in w.bindings if b.param_key == bkey), None)
                     if bbind is not None:
                         bbind.value = bvalue
             else:
+                # Derived key edit → implicit lock.
                 if input.param_key not in w.locked_params:
                     w.locked_params.append(input.param_key)
 

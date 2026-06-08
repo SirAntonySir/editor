@@ -38,7 +38,7 @@ def test_time_of_day_op_loads_with_compound():
     op = reg.ops.get("time-of-day")
     assert op is not None
     assert op.compound is not None
-    assert op.compound.driver == "position"
+    assert op.compound.driver == "time_of_day.position"
     assert len(op.compound.anchors) == 5
     names = [a.name for a in op.compound.anchors]
     assert names == ["dawn", "noon", "golden", "blue", "night"]

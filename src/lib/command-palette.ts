@@ -22,6 +22,7 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
   curves: 'RGB curves',
   levels: 'Levels with histogram',
   filters: 'LUT colour grading',
+  'time-of-day': 'Dawn / noon / golden / blue / night',
 };
 
 export function buildToolCommands(tools: ToolDefinition[]): PaletteCommand[] {

@@ -28,6 +28,7 @@ import { HslTool } from '@/tools/hsl-tool';
 import { SharpenTool } from '@/tools/sharpen-tool';
 import { BlurTool } from '@/tools/blur-tool';
 import { ClarityTool } from '@/tools/clarity-tool';
+import { TimeOfDayTool } from '@/tools/time-of-day-tool';
 import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
 import { useBackendState } from '@/store/backend-state-slice';
 import { Upload } from 'lucide-react';
@@ -58,6 +59,7 @@ CanvasToolRegistry.register(FiltersTool);
 CanvasToolRegistry.register(SharpenTool);
 CanvasToolRegistry.register(BlurTool);
 CanvasToolRegistry.register(ClarityTool);
+CanvasToolRegistry.register(TimeOfDayTool);
 
 /** Main canvas area */
 function MainLayout({

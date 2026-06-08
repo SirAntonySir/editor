@@ -70,6 +70,28 @@ def _control_schema_for(op_id: str, param_key: str) -> ControlSchema:
     return ControlSchema.model_validate(payload)
 
 
+def _normalize_plan_entries(raw_entries: list[dict]) -> list[dict]:
+    """Transform OLD-shape entries ({op_id, rationale}) into NEW shape
+    ({widget_name: None, category: None, ops: [{op_id, rationale, starting_params}]}).
+    NEW-shape entries pass through unchanged.
+    """
+    normalized: list[dict] = []
+    for entry in raw_entries:
+        if "ops" in entry:
+            normalized.append(entry)
+            continue
+        normalized.append({
+            "widget_name": None,
+            "category": None,
+            "ops": [{
+                "op_id": entry.get("op_id"),
+                "rationale": entry.get("rationale", ""),
+                "starting_params": entry.get("starting_params"),
+            }],
+        })
+    return normalized
+
+
 def _dedup_plan(raw_plan: list[dict]) -> list[dict]:
     """Collapse same-op-id repeats.
 
@@ -331,50 +353,69 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             session_id=doc.session_id,
         )
 
-        planned_ops = plan_result.get("plan") or self._fallback_plan(input.intent, reg)
+        raw_plan = plan_result.get("plan") or []
+        # Old-shape → new-shape transform (back-compat).
+        plan_entries = _normalize_plan_entries(raw_plan)
+        # Dedup within and across widgets.
+        plan_entries = _dedup_plan(plan_entries)
 
-        # Phase 2: resolve each op's params in parallel.
-        async def _resolve_one(entry: dict) -> tuple[str, dict] | None:
-            op_id = entry.get("op_id")
+        # Fallback if nothing remains: keyword preset.
+        if not plan_entries:
+            fallback_ops = self._fallback_plan(input.intent, reg)
+            plan_entries = [{
+                "widget_name": None, "category": None,
+                "ops": [{"op_id": op["op_id"], "rationale": "",
+                         "starting_params": op.get("starting_params")} for op in fallback_ops],
+            }] if fallback_ops else []
+
+        # Phase 2: resolve each (entry_index, op) in parallel.
+        async def _resolve_one(entry_index: int, op_entry: dict) -> tuple[int, str, dict] | None:
+            op_id = op_entry.get("op_id")
             if op_id not in reg.ops:
                 return None
             op = reg.ops[op_id]
             try:
                 params = await asyncio.to_thread(
                     anthropic.resolve_widget_params,
-                    op=op,
-                    intent=input.intent,
-                    rationale=entry.get("rationale", ""),
-                    starting_params=entry.get("starting_params") or {},
-                    image_context=image_context,
-                    session_id=doc.session_id,
+                    op=op, intent=input.intent,
+                    rationale=op_entry.get("rationale", ""),
+                    starting_params=op_entry.get("starting_params") or {},
+                    image_context=image_context, session_id=doc.session_id,
                 )
-            except Exception as exc:  # noqa: BLE001
-                # Drop this op; others still spawn.
+            except Exception as exc:    # noqa: BLE001
                 print(f"[propose_stack] resolve failed for {op_id}: {exc}")
                 return None
-            return (op_id, params)
+            return (entry_index, op_id, params)
 
-        resolved = [
-            r for r in await asyncio.gather(*(_resolve_one(e) for e in planned_ops))
-            if r is not None
+        flat_ops = [
+            (i, op) for i, entry in enumerate(plan_entries) for op in entry["ops"]
         ]
+        resolved_flat = [r for r in await asyncio.gather(
+            *(_resolve_one(i, op) for i, op in flat_ops)
+        ) if r is not None]
 
-        image_node_layer_ids = None
-        if scope.root.kind == "image_node":
-            image_node_layer_ids = list(scope.root.layer_ids)
+        # Group resolved params by entry_index, preserving op order within each entry.
+        by_entry: dict[int, list[tuple[str, dict]]] = {}
+        for entry_index, op_id, params in resolved_flat:
+            by_entry.setdefault(entry_index, []).append((op_id, params))
 
+        image_node_layer_ids = (
+            list(scope.root.layer_ids) if scope.root.kind == "image_node" else None
+        )
         origin = WidgetOrigin(
-            kind=input.origin,
-            prompt=input.prompt or input.intent,
+            kind=input.origin, prompt=input.prompt or input.intent,
             parent_widget_id=None,
         )
 
         widgets: list[Widget] = []
-        for op_id, params in resolved:
-            widget = _build_widget(
-                op_id=op_id,
-                params=params,
+        for entry_index, entry in enumerate(plan_entries):
+            ops_for_entry = by_entry.get(entry_index, [])
+            if not ops_for_entry:
+                continue   # all ops failed resolution — drop the widget
+            widget = _build_widget_multi(
+                widget_name=entry.get("widget_name"),
+                category=entry.get("category"),
+                ops=ops_for_entry,
                 intent=input.intent,
                 scope=scope,
                 origin=origin,

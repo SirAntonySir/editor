@@ -92,3 +92,91 @@ async def test_planner_empty_falls_back_to_keyword_preset(make_doc, monkeypatch)
     ))
     # Fallback used → at least one widget from the vintage preset
     assert len(out.widgets) >= 1
+
+
+@pytest.mark.asyncio
+async def test_vintage_produces_multi_op_widget(make_doc, monkeypatch):
+    """The vintage prompt should produce a multi-op widget (color + splitTone)
+    plus single-op widgets for the rest."""
+    doc = make_doc(with_image_context=True)
+    tool = ProposeStackTool()
+
+    fake_plan = {
+        "plan": [
+            {"widget_name": "Lifted blacks", "category": "tone",
+             "ops": [{"op_id": "levels", "rationale": "lift", "starting_params": {}}]},
+            {"widget_name": "Warm fade", "category": "color",
+             "ops": [
+                 {"op_id": "color",     "rationale": "desat", "starting_params": {}},
+                 {"op_id": "splitTone", "rationale": "teal/orange", "starting_params": {}},
+             ]},
+            {"widget_name": "Film grain", "category": "texture",
+             "ops": [{"op_id": "grain", "rationale": "fine", "starting_params": {}}]},
+        ],
+        "overall_rationale": "vintage film",
+    }
+
+    def fake_resolve(*, op, **_):
+        return {k: p.default for k, p in op.params.items()}
+
+    from app.services import anthropic_client as ac
+    monkeypatch.setattr(ac.AnthropicClient, "plan_widget_stack",
+                        MagicMock(return_value=fake_plan))
+    monkeypatch.setattr(ac.AnthropicClient, "resolve_widget_params",
+                        MagicMock(side_effect=fake_resolve))
+    monkeypatch.setattr("app.api.deps.get_anthropic_client",
+                        lambda: ac.AnthropicClient(api_key="test", model="claude-opus-4-7"))
+
+    out = await tool.handler(doc, _Input(
+        intent="make it look like a vintage film",
+        scope={"kind": "global"},
+        origin="mcp_user_prompt",
+    ))
+    # 3 widgets
+    assert len(out.widgets) == 3
+    # Each has a display_name
+    names = [w["display_name"] for w in out.widgets]
+    assert "Lifted blacks" in names
+    assert "Warm fade" in names
+    assert "Film grain" in names
+    # The "Warm fade" widget has 2 nodes (color + splitTone)
+    warm_fade = next(w for w in out.widgets if w["display_name"] == "Warm fade")
+    assert len(warm_fade["nodes"]) == 2
+    node_types = {n["type"] for n in warm_fade["nodes"]}
+    assert node_types == {"basic", "splitTone"}    # color → basic, splitTone → splitTone
+    # Categories propagate
+    assert warm_fade["category"] == "color"
+
+
+@pytest.mark.asyncio
+async def test_old_shape_plan_response_back_compat(make_doc, monkeypatch):
+    """A planner returning the OLD flat shape still produces single-op widgets."""
+    doc = make_doc(with_image_context=True)
+    tool = ProposeStackTool()
+
+    fake_plan = {
+        "plan": [
+            {"op_id": "levels", "rationale": "lift"},
+            {"op_id": "grain",  "rationale": "fine"},
+        ],
+        "overall_rationale": "back-compat shape",
+    }
+
+    def fake_resolve(*, op, **_):
+        return {k: p.default for k, p in op.params.items()}
+
+    from app.services import anthropic_client as ac
+    monkeypatch.setattr(ac.AnthropicClient, "plan_widget_stack",
+                        MagicMock(return_value=fake_plan))
+    monkeypatch.setattr(ac.AnthropicClient, "resolve_widget_params",
+                        MagicMock(side_effect=fake_resolve))
+    monkeypatch.setattr("app.api.deps.get_anthropic_client",
+                        lambda: ac.AnthropicClient(api_key="test", model="claude-opus-4-7"))
+
+    out = await tool.handler(doc, _Input(
+        intent="t", scope={"kind": "global"}, origin="mcp_user_prompt",
+    ))
+    assert len(out.widgets) == 2
+    # display_name is None when planner doesn't provide one
+    assert all(w["display_name"] is None for w in out.widgets)
+    assert all(len(w["nodes"]) == 1 for w in out.widgets)

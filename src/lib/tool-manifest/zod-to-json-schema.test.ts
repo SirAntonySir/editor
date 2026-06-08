@@ -54,7 +54,7 @@ describe('serializeAllManifests', () => {
     LlmToolRegistry.clear();
     registerAllToolManifests();
     const tools = serializeAllManifests();
-    expect(tools.length).toBe(9);
+    expect(tools.length).toBe(10);
     for (const t of tools) {
       expect(typeof t.name).toBe('string');
       expect(typeof t.description).toBe('string');
@@ -62,5 +62,6 @@ describe('serializeAllManifests', () => {
     }
     expect(tools.map((t) => t.name)).toContain('apply_adjustment');
     expect(tools.map((t) => t.name)).toContain('select_named_region');
+    expect(tools.map((t) => t.name)).toContain('propose_stack');
   });
 });

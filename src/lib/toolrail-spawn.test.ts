@@ -18,7 +18,7 @@ const LightToolStub: ToolDefinition = {
 
 vi.mock('@/lib/backend-tools', () => ({
   backendTools: {
-    propose_widget: vi.fn().mockResolvedValue({ ok: true, output: { widget: {} } }),
+    proposeStack: vi.fn().mockResolvedValue({ ok: true, output: { widgets: [] } }),
   },
 }));
 
@@ -35,15 +35,15 @@ describe('spawnToolWidget', () => {
     expect(spawnToolWidget('unknown-tool')).toBe(false);
   });
 
-  it('no activeImageNodeId → toast, no propose_widget', async () => {
+  it('no activeImageNodeId → toast, no proposeStack', async () => {
     const { backendTools } = await import('@/lib/backend-tools');
     useBackendState.setState({ sessionId: 's1' });
 
     expect(spawnToolWidget('light')).toBe(true);
-    expect(backendTools.propose_widget).not.toHaveBeenCalled();
+    expect(backendTools.proposeStack).not.toHaveBeenCalled();
   });
 
-  it('active node → direct propose_widget with the node\'s layer', async () => {
+  it('active node → proposeStack with forced_ops and the node\'s layer', async () => {
     const { backendTools } = await import('@/lib/backend-tools');
     useBackendState.setState({ sessionId: 's1' });
 
@@ -51,10 +51,10 @@ describe('spawnToolWidget', () => {
     useEditorStore.getState().setActiveImageNode(nodeId);
 
     expect(spawnToolWidget('light')).toBe(true);
-    expect(backendTools.propose_widget).toHaveBeenCalledWith('s1', {
+    expect(backendTools.proposeStack).toHaveBeenCalledWith('s1', {
       intent: 'Light',
       scope: { kind: 'global' },
-      fused_tool_id: 'light',
+      forced_ops: ['light'],
       layer_id: 'layer-a',
       origin: 'tool_invoked',
     });
@@ -66,6 +66,6 @@ describe('spawnToolWidget', () => {
     useEditorStore.getState().setActiveImageNode(nodeId);
 
     expect(spawnToolWidget('light')).toBe(true);
-    expect(backendTools.propose_widget).not.toHaveBeenCalled();
+    expect(backendTools.proposeStack).not.toHaveBeenCalled();
   });
 });

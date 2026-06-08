@@ -1,0 +1,28 @@
+{
+  "id": "light",
+  "display_name": "Light",
+  "llm": {
+    "description": "Tonal range controls — exposure, contrast, and per-zone tweaks (highlights, shadows, whites, blacks, brightness).",
+    "typical_use": "Brightening a too-dark photo, recovering blown highlights, deepening shadows, base tone shaping.",
+    "semantic_tags": ["tone", "exposure", "basic", "light"]
+  },
+  "params": {
+    "exposure":   { "type": "scalar", "range": [-100, 100], "default": 0 },
+    "contrast":   { "type": "scalar", "range": [-100, 100], "default": 0 },
+    "highlights": { "type": "scalar", "range": [-100, 100], "default": 0 },
+    "shadows":    { "type": "scalar", "range": [-100, 100], "default": 0 },
+    "whites":     { "type": "scalar", "range": [-100, 100], "default": 0 },
+    "blacks":     { "type": "scalar", "range": [-100, 100], "default": 0 },
+    "brightness": { "type": "scalar", "range": [-100, 100], "default": 0 }
+  },
+  "bindings": [
+    { "param_key": "exposure",   "control_type": "slider", "label": "Exposure" },
+    { "param_key": "contrast",   "control_type": "slider", "label": "Contrast" },
+    { "param_key": "highlights", "control_type": "slider", "label": "Highlights" },
+    { "param_key": "shadows",    "control_type": "slider", "label": "Shadows" },
+    { "param_key": "whites",     "control_type": "slider", "label": "Whites" },
+    { "param_key": "blacks",     "control_type": "slider", "label": "Blacks" },
+    { "param_key": "brightness", "control_type": "slider", "label": "Brightness" }
+  ],
+  "engine": { "shader": "basic", "render_order": 10, "node_type": "basic" }
+}

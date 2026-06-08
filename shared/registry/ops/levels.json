@@ -1,0 +1,24 @@
+{
+  "id": "levels",
+  "display_name": "Levels",
+  "llm": {
+    "description": "Input/output black and white points plus gamma. Use to remap tonal range, lift blacks, or crush whites.",
+    "typical_use": "Lifted blacks for faded film look, contrast stretching, gamma correction.",
+    "semantic_tags": ["tone", "levels", "contrast"]
+  },
+  "params": {
+    "inBlack":  { "type": "scalar", "range": [0, 255],  "default": 0 },
+    "inWhite":  { "type": "scalar", "range": [0, 255],  "default": 255 },
+    "gamma":    { "type": "scalar", "range": [0.1, 3],  "default": 1 },
+    "outBlack": { "type": "scalar", "range": [0, 255],  "default": 0 },
+    "outWhite": { "type": "scalar", "range": [0, 255],  "default": 255 }
+  },
+  "bindings": [
+    { "param_key": "inBlack",  "control_type": "slider", "label": "Black Point",  "group": "Input" },
+    { "param_key": "inWhite",  "control_type": "slider", "label": "White Point",  "group": "Input" },
+    { "param_key": "gamma",    "control_type": "slider", "label": "Gamma",        "group": "Input" },
+    { "param_key": "outBlack", "control_type": "slider", "label": "Output Black", "group": "Output" },
+    { "param_key": "outWhite", "control_type": "slider", "label": "Output White", "group": "Output" }
+  ],
+  "engine": { "shader": "levels", "render_order": 15, "node_type": "levels" }
+}

@@ -1,0 +1,12 @@
+{
+  "id": "sharpen",
+  "display_name": "Sharpen",
+  "llm": {
+    "description": "Edge sharpening via local contrast enhancement.",
+    "typical_use": "Crisp detail on focal subjects.",
+    "semantic_tags": ["detail", "sharpen"]
+  },
+  "params": { "amount": { "type": "scalar", "range": [0, 100], "default": 0 } },
+  "bindings": [{ "param_key": "amount", "control_type": "slider", "label": "Amount" }],
+  "engine": { "shader": "sharpen", "render_order": 60, "node_type": "sharpen" }
+}

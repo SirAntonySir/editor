@@ -2,6 +2,7 @@ import type { Node } from '@/types/operation-graph';
 import type { CurvesValue } from '@/types/curve';
 import type { OptimisticPatch } from '@/store/backend-state-slice';
 import { useBackendState } from '@/store/backend-state-slice';
+import { expandCompoundNodes } from '@/lib/perceptual-dial/expand-compound';
 
 /**
  * PipelineNode is whatever pipeline-manager.ts already consumes. We import
@@ -68,5 +69,5 @@ export function selectPipelineNodes(): PipelineNode[] {
   const snap = useBackendState.getState().snapshot;
   const opt = useBackendState.getState().optimistic;
   if (!snap) return [];
-  return mergeOptimistic(snap.operation_graph.nodes, opt).map(toPipelineNode);
+  return expandCompoundNodes(mergeOptimistic(snap.operation_graph.nodes, opt)).map(toPipelineNode);
 }

@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { mergeOptimistic, toPipelineNode } from './select-pipeline-nodes';
+import { mergeOptimistic, selectPipelineNodes, toPipelineNode } from './select-pipeline-nodes';
 import { useBackendState } from '@/store/backend-state-slice';
 import type { OperationGraph } from '@/types/operation-graph';
+import { ProcessingRegistry } from '@/lib/processing-registry';
+import { registerAllProcessing } from '@/processing';
 
 const baseGraph: OperationGraph = {
   id: 'g1',
@@ -98,5 +100,40 @@ describe('mergeOptimistic', () => {
     optimistic.set('w_1', { baseRevision: 1, bindings: [{ paramKey: 'temperature', value: 7800 }] });
     const out = mergeOptimistic(baseGraph.nodes, optimistic);
     expect(out).toEqual(baseGraph.nodes);
+  });
+});
+
+describe('selectPipelineNodes (compound expansion)', () => {
+  beforeEach(() => {
+    if (!ProcessingRegistry.has('light')) registerAllProcessing();
+    useBackendState.setState({
+      snapshot: {
+        session_id: 's1',
+        image_context: null,
+        widgets: [],
+        masks_index: [],
+        operation_graph: {
+          id: 'g1',
+          userGoal: 'time-of-day',
+          nodes: [{
+            id: 'c1', type: 'compound', scope: { kind: 'global' as const },
+            params: { 'light.exposure': 0.2, 'kelvin.kelvin': 3400 },
+            inputs: [], layer_id: 'L1',
+          }],
+          panelBindings: [],
+          metadata: {},
+        },
+        revision: 1,
+      },
+      optimistic: new Map(),
+    });
+  });
+
+  it('returns virtual nodes per adjustmentType for compound nodes in the snapshot', () => {
+    const out = selectPipelineNodes();
+    const types = out.map((n) => n.type).sort();
+    expect(types).toEqual(['basic', 'kelvin']);
+    expect(out.find((n) => n.type === 'basic')?.params).toEqual({ exposure: 0.2 });
+    expect(out.find((n) => n.type === 'kelvin')?.params).toEqual({ kelvin: 3400 });
   });
 });

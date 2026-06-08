@@ -1,4 +1,5 @@
 import type { Anchor } from '@/lib/perceptual-dial/types';
+import { shaderKelvinToDisplayKelvin, KELVIN_NEUTRAL } from '@/lib/kelvin-direction';
 
 const SLIDER_MAX = 1000; // Internal precision: 1/1000 → quick & smooth.
 
@@ -52,13 +53,14 @@ function clamp01(t: number): number {
 
 /**
  * Build a CSS linear-gradient string from `kelvin.kelvin` values across anchors.
- * Each anchor contributes a colour stop at its normalised position.
+ * Anchors store kelvin in the shader convention (high = warmer apparent image);
+ * we reflect through the SSoT helper to get the perceptual colour for display.
  */
 function buildKelvinGradient(anchors: Anchor[]): string {
   const sorted = [...anchors].sort((a, b) => a.position[0] - b.position[0]);
   const stops = sorted.map((a) => {
-    const k = (a.params['kelvin.kelvin'] as number | undefined) ?? 5500;
-    return `${kelvinToRgb(k)} ${(a.position[0] * 100).toFixed(1)}%`;
+    const stored = (a.params['kelvin.kelvin'] as number | undefined) ?? KELVIN_NEUTRAL;
+    return `${kelvinToRgb(shaderKelvinToDisplayKelvin(stored))} ${(a.position[0] * 100).toFixed(1)}%`;
   });
   return `linear-gradient(to right, ${stops.join(', ')})`;
 }

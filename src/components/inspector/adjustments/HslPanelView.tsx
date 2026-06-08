@@ -16,29 +16,43 @@ interface HslPanelViewProps {
   renderSlider: RenderSlider;
   bandEdited: (band: string) => boolean;
   onReset: () => void;
+  /**
+   * Optional subset of band keys the panel should expose. Defaults to all 8
+   * bands. AI-spawned widgets (e.g. complementary-grade preset) pass only the
+   * bands they actually bind, so the rail doesn't display dead rows.
+   */
+  availableBands?: string[];
 }
 
 /** Source-agnostic two-view HSL panel. Owns the view/band/channel UI state;
  *  the data binding is injected via `renderSlider` / `bandEdited` / `onReset`. */
-export function HslPanelView({ renderSlider, bandEdited, onReset }: HslPanelViewProps) {
+export function HslPanelView({ renderSlider, bandEdited, onReset, availableBands }: HslPanelViewProps) {
+  const bands = availableBands && availableBands.length > 0
+    ? HSL_BANDS.filter((b) => availableBands.includes(b.key))
+    : [...HSL_BANDS];
   const [view, setView] = useState<View>('band');
-  const [band, setBand] = useState<string>(HSL_BANDS[0].key);
+  const [band, setBand] = useState<string>(bands[0]?.key ?? HSL_BANDS[0].key);
   const [channel, setChannel] = useState<HslChannel>('hue');
-  const activeLabel = HSL_BANDS.find((b) => b.key === band)?.label ?? '';
+  // If the active band falls out of `availableBands` (e.g. widget shape
+  // changed), snap back to the first available one.
+  if (!bands.some((b) => b.key === band) && bands[0]) {
+    setBand(bands[0].key);
+  }
+  const activeLabel = bands.find((b) => b.key === band)?.label ?? '';
 
   return (
     <div className="flex flex-col gap-3">
       <Segmented options={VIEW_OPTS} value={view} onChange={setView} aria-label="HSL view" />
       {view === 'band' ? (
         <>
-          <HslBandRail activeBand={band} onSelect={setBand} bandEdited={bandEdited} />
+          <HslBandRail activeBand={band} onSelect={setBand} bandEdited={bandEdited} bands={bands} />
           <div className="text-[10px] text-text-secondary">
             Editing <span className="text-text-primary font-medium">{activeLabel}</span>
           </div>
           <HslBandSliders band={band} renderSlider={renderSlider} />
         </>
       ) : (
-        <HslChannelRows channel={channel} onChannelChange={setChannel} renderSlider={renderSlider} />
+        <HslChannelRows channel={channel} onChannelChange={setChannel} renderSlider={renderSlider} bands={bands} />
       )}
       <HslReset onReset={onReset} />
     </div>

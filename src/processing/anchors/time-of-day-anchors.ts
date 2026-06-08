@@ -1,12 +1,25 @@
 import type { Anchor } from '@/lib/perceptual-dial/types';
 
+/**
+ * Anchor values for the Time-of-Day perceptual dial.
+ *
+ * `kelvin.kelvin` is stored in the **shader convention** — high value =
+ * warmer apparent image. See `src/lib/kelvin-direction.ts` for the rule
+ * and `src/shaders/kelvin.glsl.ts` for the math. Each kelvin number here
+ * is `2 * 6500 - physical_kelvin` of the lighting condition it emulates
+ * (e.g. dawn ≈ 3200 K physical light → stored 9800).
+ *
+ * All other params are plain shader values in their natural ranges.
+ *
+ * Keep this in lockstep with `backend/app/tools/fused/_time_of_day_data.py`.
+ */
 export const TIME_OF_DAY_ANCHORS: Anchor[] = [
   {
     id: 'dawn',
     label: 'Dawn',
     position: [0.10],
     params: {
-      'kelvin.kelvin':     3200,
+      'kelvin.kelvin':     9800,
       'light.exposure':     -0.3,
       'light.contrast':     -8,
       'light.highlights':  -15,
@@ -22,7 +35,7 @@ export const TIME_OF_DAY_ANCHORS: Anchor[] = [
     label: 'Noon',
     position: [0.30],
     params: {
-      'kelvin.kelvin':     5500,
+      'kelvin.kelvin':     7500,
       'light.exposure':      0,
       'light.contrast':    +10,
       'light.highlights':    0,
@@ -38,7 +51,7 @@ export const TIME_OF_DAY_ANCHORS: Anchor[] = [
     label: 'Golden',
     position: [0.55],
     params: {
-      'kelvin.kelvin':     3400,
+      'kelvin.kelvin':     9600,
       'light.exposure':     +0.2,
       'light.contrast':     +5,
       'light.highlights':  -20,
@@ -54,7 +67,7 @@ export const TIME_OF_DAY_ANCHORS: Anchor[] = [
     label: 'Blue',
     position: [0.80],
     params: {
-      'kelvin.kelvin':     8500,
+      'kelvin.kelvin':     4500,
       'light.exposure':     -0.5,
       'light.contrast':    +15,
       'light.highlights':  -10,
@@ -70,7 +83,7 @@ export const TIME_OF_DAY_ANCHORS: Anchor[] = [
     label: 'Night',
     position: [1.00],
     params: {
-      'kelvin.kelvin':     4200,
+      'kelvin.kelvin':     8800,
       'light.exposure':     -1.2,
       'light.contrast':    +25,
       'light.highlights':  -40,

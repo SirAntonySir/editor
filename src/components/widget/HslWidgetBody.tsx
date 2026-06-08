@@ -65,7 +65,17 @@ export function HslWidgetBody({ widget, effectiveValue, setParam }: HslWidgetBod
   if (bands.length === 1) {
     return <HslSingleBandView band={bands[0]} renderSlider={renderSlider} onReset={onReset} />;
   }
-  return <HslPanelView renderSlider={renderSlider} bandEdited={bandEdited} onReset={onReset} />;
+  // `availableBands` are the bands this widget actually has bindings for —
+  // a complementary-grade preset binds only orange + blue; the rail and the
+  // by-channel view should hide the empty ones rather than render dead rows.
+  return (
+    <HslPanelView
+      renderSlider={renderSlider}
+      bandEdited={bandEdited}
+      onReset={onReset}
+      availableBands={bands}
+    />
+  );
 }
 
 /** True when a widget should render the HSL colour UI (shared `hsl` node). */

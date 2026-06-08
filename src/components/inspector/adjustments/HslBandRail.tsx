@@ -1,17 +1,24 @@
-import { HSL_BANDS, bandDisplayColor } from './hsl-bands';
+import { HSL_BANDS, bandDisplayColor, type HslBand } from './hsl-bands';
 
 interface HslBandRailProps {
   activeBand: string;
   onSelect: (band: string) => void;
   /** Whether a band has any non-default param (drives the edited dot). */
   bandEdited: (band: string) => boolean;
+  /**
+   * Optional subset of bands to render. Defaults to all 8 bands. Filtered
+   * widgets (e.g. complementary-grade with only orange + blue bindings)
+   * shrink the rail to just those bands.
+   */
+  bands?: readonly HslBand[];
 }
 
-/** The 8-colour band picker. Selects the active band and flags edited ones. */
-export function HslBandRail({ activeBand, onSelect, bandEdited }: HslBandRailProps) {
+/** The colour band picker. Selects the active band and flags edited ones. */
+export function HslBandRail({ activeBand, onSelect, bandEdited, bands }: HslBandRailProps) {
+  const visible = bands ?? HSL_BANDS;
   return (
     <div className="flex gap-1.5 justify-between">
-      {HSL_BANDS.map((b) => {
+      {visible.map((b) => {
         const active = b.key === activeBand;
         return (
           <button

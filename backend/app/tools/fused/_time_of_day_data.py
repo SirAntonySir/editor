@@ -3,6 +3,10 @@ of `src/processing/anchors/time-of-day-anchors.ts` and
 `src/lib/perceptual-dial/interpolate.ts`. Kept verbatim so that a `position`
 value resolves to the same compound bundle on backend and frontend.
 
+`kelvin.kelvin` values follow the shader convention (high value = warmer
+apparent image) — see `src/lib/kelvin-direction.ts` for the rule. Stored
+values are `2 * 6500 - physical_kelvin` of the lighting condition emulated.
+
 If you change values here, update the JS copies in lockstep.
 """
 from __future__ import annotations
@@ -11,7 +15,7 @@ from __future__ import annotations
 # `params` keys are `${op}.${param}` strings as defined by the frontend.
 TIME_OF_DAY_ANCHORS: list[tuple[float, dict[str, float]]] = [
     (0.10, {  # dawn
-        "kelvin.kelvin": 3200,
+        "kelvin.kelvin": 9800,
         "light.exposure": -0.3,
         "light.contrast": -8,
         "light.highlights": -15,
@@ -22,7 +26,7 @@ TIME_OF_DAY_ANCHORS: list[tuple[float, dict[str, float]]] = [
         "filters.vignette_amount": -10,
     }),
     (0.30, {  # noon
-        "kelvin.kelvin": 5500,
+        "kelvin.kelvin": 7500,
         "light.exposure": 0,
         "light.contrast": 10,
         "light.highlights": 0,
@@ -33,7 +37,7 @@ TIME_OF_DAY_ANCHORS: list[tuple[float, dict[str, float]]] = [
         "filters.vignette_amount": 0,
     }),
     (0.55, {  # golden
-        "kelvin.kelvin": 3400,
+        "kelvin.kelvin": 9600,
         "light.exposure": 0.2,
         "light.contrast": 5,
         "light.highlights": -20,
@@ -44,7 +48,7 @@ TIME_OF_DAY_ANCHORS: list[tuple[float, dict[str, float]]] = [
         "filters.vignette_amount": -8,
     }),
     (0.80, {  # blue
-        "kelvin.kelvin": 8500,
+        "kelvin.kelvin": 4500,
         "light.exposure": -0.5,
         "light.contrast": 15,
         "light.highlights": -10,
@@ -55,7 +59,7 @@ TIME_OF_DAY_ANCHORS: list[tuple[float, dict[str, float]]] = [
         "filters.vignette_amount": -15,
     }),
     (1.00, {  # night
-        "kelvin.kelvin": 4200,
+        "kelvin.kelvin": 8800,
         "light.exposure": -1.2,
         "light.contrast": 25,
         "light.highlights": -40,

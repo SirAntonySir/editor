@@ -41,8 +41,9 @@ def test_interpolate_clamps_out_of_range() -> None:
 
 def test_interpolate_intermediate_monotonic() -> None:
     mid = interpolate_1d(0.20)  # between dawn (0.10) and noon (0.30)
-    # Kelvin rises monotonically between dawn (3200) and noon (5500), so mid > 3200.
-    assert 3200 < mid["kelvin.kelvin"] < 5500
+    # Kelvin descends monotonically between dawn (9800) and noon (7500) in the
+    # shader convention, so the midpoint lies between them.
+    assert 7500 < mid["kelvin.kelvin"] < 9800
     # Exposure goes from -0.3 → 0; mid should be between.
     assert -0.3 < mid["light.exposure"] < 0.0
 
@@ -52,9 +53,11 @@ def test_interpolate_position_05_matches_js_catmull_rom_within_eps() -> None:
     # the JS; this test pins the Python output so future drift is detected.
     out = interpolate_1d(0.5)
     # Verified bit-for-bit against the JS implementation in
-    # `src/lib/perceptual-dial/interpolate.ts` at t=0.5.
+    # `src/lib/perceptual-dial/interpolate.ts` at t=0.5. `kelvin.kelvin` is
+    # stored in shader convention (high = warmer); 9570.4 = 13000 - 3429.6
+    # (the prior physical-convention lock).
     expected = {
-        "kelvin.kelvin": 3429.6,
+        "kelvin.kelvin": 9570.4,
         "light.exposure": 0.2192,
         "color.vibrance": 10.544,
         "filters.vignette_amount": -6.176,

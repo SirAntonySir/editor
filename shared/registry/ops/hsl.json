@@ -1,6 +1,7 @@
 {
   "id": "hsl",
   "display_name": "HSL",
+  "category": "color",
   "llm": {
     "description": "Per-color-band hue, saturation, and luminance. Bands: red, orange, yellow, green, aqua, blue, purple, magenta.",
     "typical_use": "Shifting skin tones, retoning skies, isolating a single color's hue/sat/lum.",

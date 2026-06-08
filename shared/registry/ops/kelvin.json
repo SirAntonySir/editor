@@ -1,6 +1,7 @@
 {
   "id": "kelvin",
   "display_name": "White Balance",
+  "category": "color",
   "llm": {
     "description": "Color temperature and tint — corrects or shifts overall warmth and green/magenta cast.",
     "typical_use": "Fix indoor light cast, warm up a cold image, neutralize a green tint.",

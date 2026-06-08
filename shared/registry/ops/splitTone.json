@@ -1,6 +1,7 @@
 {
   "id": "splitTone",
   "display_name": "Split Tone",
+  "category": "color",
   "llm": {
     "description": "Independently color-tones shadows and highlights with hue + saturation per zone and a balance slider.",
     "typical_use": "Cinematic teal-orange, warm shadows + cool highlights, vintage color cast.",

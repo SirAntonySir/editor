@@ -22,6 +22,16 @@ def test_loader_finds_presets():
     assert len(reg.presets) >= 30
 
 
+def test_all_ops_have_category():
+    reg = load_registry()
+    expected_categories = {"tone", "color", "detail", "texture", "effect"}
+    for op_id, op in reg.ops.items():
+        assert op.category is not None, f"op {op_id} missing category"
+        assert op.category in expected_categories, (
+            f"op {op_id} category {op.category!r} not in {expected_categories}"
+        )
+
+
 def test_loader_rejects_duplicate_op_id(tmp_path, monkeypatch):
     # Drop two op files with same id into an isolated registry dir.
     ops_dir = tmp_path / "ops"

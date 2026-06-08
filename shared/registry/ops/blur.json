@@ -1,6 +1,7 @@
 {
   "id": "blur",
   "display_name": "Blur",
+  "category": "detail",
   "llm": {
     "description": "Gaussian-like blur radius.",
     "typical_use": "Soft-focus, background blur, dreamy look.",

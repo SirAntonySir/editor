@@ -1,6 +1,7 @@
 {
   "id": "color",
   "display_name": "Color",
+  "category": "color",
   "llm": {
     "description": "Global color intensity — saturation and vibrance (vibrance is skin-protected). Hue rotates colors uniformly.",
     "typical_use": "Bumping vivid colors, desaturating for a faded look, shifting overall warmth.",

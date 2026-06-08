@@ -1,6 +1,7 @@
 {
   "id": "sharpen",
   "display_name": "Sharpen",
+  "category": "detail",
   "llm": {
     "description": "Edge sharpening via local contrast enhancement.",
     "typical_use": "Crisp detail on focal subjects.",

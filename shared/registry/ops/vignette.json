@@ -1,6 +1,7 @@
 {
   "id": "vignette",
   "display_name": "Vignette",
+  "category": "effect",
   "llm": {
     "description": "Edge darkening (negative amount) or lightening with controllable midpoint, feather, and roundness.",
     "typical_use": "Focus the eye on the subject, classical portrait darkening.",

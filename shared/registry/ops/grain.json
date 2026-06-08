@@ -1,6 +1,7 @@
 {
   "id": "grain",
   "display_name": "Grain",
+  "category": "texture",
   "llm": {
     "description": "Procedural film-grain texture with amount, grain size, and roughness.",
     "typical_use": "Analog/film feel, organic noise in skies and skin, vintage texture.",

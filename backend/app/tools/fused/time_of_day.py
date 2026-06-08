@@ -66,6 +66,12 @@ class TimeOfDayTemplate(FusedToolTemplate):
             tunable_param_keys=_ALL_KEYS,
         ),
     ]
+    # All 10 compound keys are bound so `set_widget_param` can target them
+    # individually. The dial owns `time_of_day.position`; the 9 bundle keys
+    # are normally driven by `interpolate_1d` after a position change, but
+    # explicit edits via these bindings lock the key (see
+    # `set_widget_param` → `widget.locked_params`) so subsequent dial drags
+    # leave them alone.
     bindings_skeleton = [
         slider(
             param_key="time_of_day.position",
@@ -73,14 +79,41 @@ class TimeOfDayTemplate(FusedToolTemplate):
             target_node_id="n_compound",
             min=0, max=1, step=0.001,
         ),
+        slider(param_key="light.exposure", label="Exposure",
+               target_node_id="n_compound", min=-100, max=100, step=1),
+        slider(param_key="light.contrast", label="Contrast",
+               target_node_id="n_compound", min=-100, max=100, step=1),
+        slider(param_key="light.highlights", label="Highlights",
+               target_node_id="n_compound", min=-100, max=100, step=1),
+        slider(param_key="light.shadows", label="Shadows",
+               target_node_id="n_compound", min=-100, max=100, step=1),
+        slider(param_key="color.vibrance", label="Vibrance",
+               target_node_id="n_compound", min=-100, max=100, step=1),
+        slider(param_key="hsl.orange_sat", label="Orange Sat",
+               target_node_id="n_compound", min=-100, max=100, step=1),
+        slider(param_key="hsl.blue_sat", label="Blue Sat",
+               target_node_id="n_compound", min=-100, max=100, step=1),
+        slider(param_key="kelvin.kelvin", label="WB",
+               target_node_id="n_compound", min=2000, max=12000, step=50, unit="K"),
+        slider(param_key="filters.vignette_amount", label="Vignette",
+               target_node_id="n_compound", min=-100, max=100, step=1),
     ]
-    # Only the LLM-controlled value gets an envelope. The 9 compound bundle
-    # values are deterministically derived from `time_of_day.position` via
-    # `interpolate_1d` against a fixed anchor table; their range is bounded by
-    # the anchors themselves. The catalogue contract requires one envelope
-    # entry per binding, and the bundle is not user-bound.
+    # Envelopes for every key the LLM/dial can produce. `time_of_day.position`
+    # remains the LLM's only direct output; the 9 bundle keys are derived by
+    # `interpolate_1d` (so the LLM never sets them) but their envelopes still
+    # exist to (a) satisfy the catalogue contract that every binding has an
+    # envelope and (b) clamp any user edit through `set_widget_param`.
     param_envelope = {
         "time_of_day.position": envelope(min=0.0, max=1.0, step=0.01),
+        "light.exposure": envelope(min=-100, max=100, step=1),
+        "light.contrast": envelope(min=-100, max=100, step=1),
+        "light.highlights": envelope(min=-100, max=100, step=1),
+        "light.shadows": envelope(min=-100, max=100, step=1),
+        "color.vibrance": envelope(min=-100, max=100, step=1),
+        "hsl.orange_sat": envelope(min=-100, max=100, step=1),
+        "hsl.blue_sat": envelope(min=-100, max=100, step=1),
+        "kelvin.kelvin": envelope(min=2000, max=12000, step=50),
+        "filters.vignette_amount": envelope(min=-100, max=100, step=1),
     }
     preview = {"kind": "thumbnail", "auto_before_after": True}
     requires_scope = "any"

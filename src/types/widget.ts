@@ -135,6 +135,10 @@ export interface Widget {
   rejected_attempts: unknown[];
   status: 'active' | 'dismissed' | 'accepted';
   revision: number;
+  /** Param keys the user has explicitly edited; bundle-recompute paths
+   *  (e.g. Time-of-Day dial) skip these so manual values aren't overwritten.
+   *  Cleared via the `unlock_widget_param` backend tool. */
+  locked_params: string[];
   created_at: string;
   updated_at: string;
 }

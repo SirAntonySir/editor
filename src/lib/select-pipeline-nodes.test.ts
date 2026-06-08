@@ -56,6 +56,7 @@ describe('mergeOptimistic', () => {
             ],
             preview: { kind: 'thumbnail', auto_before_after: true },
             rejected_attempts: [],
+            locked_params: [],
             created_at: '2026-05-28T00:00:00Z',
             updated_at: '2026-05-28T00:00:00Z',
           },
@@ -158,6 +159,7 @@ describe('selectPipelineNodes (compound optimistic patches)', () => {
           updated_at: '',
           preview: { kind: 'none' as const, auto_before_after: false },
           rejected_attempts: [],
+          locked_params: [],
           nodes: [{
             id: 'c1', type: 'compound', scope: { kind: 'global' as const },
             inputs: [], widget_id: 'w_tod', layer_id: 'L1', params: {},

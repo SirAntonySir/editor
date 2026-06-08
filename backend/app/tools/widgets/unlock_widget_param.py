@@ -1,0 +1,86 @@
+"""Clear a per-binding user lock. The companion to the implicit lock-on-edit
+behaviour in `set_widget_param`: once a Time-of-Day bundle key (e.g.
+`kelvin.kelvin`) has been hand-edited, dial drags skip it. Calling this tool
+removes the lock and — for compound-bundle widgets — immediately restores the
+dial-derived value so the visual state matches the position without requiring
+the user to nudge the dial."""
+from __future__ import annotations
+
+from pydantic import BaseModel
+
+from app.state.document import SessionDocument
+from app.tools.base import BackendTool, ToolPermissions
+
+
+class _UnknownWidget(KeyError):
+    pass
+
+
+class _Input(BaseModel):
+    widget_id: str
+    param_key: str
+
+
+class _Output(BaseModel):
+    ok: bool
+
+
+_TOD_POSITION_KEY = "time_of_day.position"
+
+
+class UnlockWidgetParamTool(BackendTool[_Input, _Output]):
+    name = "unlock_widget_param"
+    kind = "mutate"
+    description = (
+        "Clear a per-binding user lock previously created by manual edits via "
+        "set_widget_param. For Time-of-Day bundle keys, also restores the "
+        "dial-derived value at the current position. REST-only — locks are a "
+        "human-affordance concept."
+    )
+    input_schema = _Input
+    output_schema = _Output
+    permissions = ToolPermissions(
+        expose_mcp=False, expose_rest=True, requires_image=False,
+    )
+
+    async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
+        w = doc.widgets.get(input.widget_id)
+        if w is None:
+            raise _UnknownWidget(input.widget_id)
+
+        # Idempotent unlock.
+        if input.param_key in w.locked_params:
+            w.locked_params = [k for k in w.locked_params if k != input.param_key]
+
+        # Time-of-Day: restore the dial-derived value at the current position
+        # so the canvas reflects the unlock immediately. Skip the position key
+        # itself (it has no derived value — it IS the derivation input).
+        if w.fused_tool_id == "time-of-day" and input.param_key != _TOD_POSITION_KEY:
+            from app.tools.fused._time_of_day_data import interpolate_1d
+
+            position_binding = next(
+                (b for b in w.bindings if b.param_key == _TOD_POSITION_KEY), None,
+            )
+            if position_binding is not None:
+                position = float(position_binding.value)
+                bundle = interpolate_1d(position)
+                if input.param_key in bundle:
+                    bvalue = bundle[input.param_key]
+                    binding = next(
+                        (b for b in w.bindings if b.param_key == input.param_key), None,
+                    )
+                    if binding is not None:
+                        binding.value = bvalue
+                        node = next(
+                            (n for n in w.nodes if n.id == binding.target.node_id), None,
+                        )
+                        if node is not None:
+                            node.params[binding.target.param_key] = bvalue
+                            doc.set_param(
+                                node.layer_id, node.type,
+                                binding.target.param_key, bvalue,
+                            )
+
+        w.revision += 1
+        doc.update_widget(w)
+        return _Output(ok=True)

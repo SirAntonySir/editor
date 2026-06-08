@@ -23,6 +23,7 @@ export function makeAiWidget(overrides: Partial<Widget> = {}): Widget {
     rejected_attempts: [],
     status: 'active',
     revision: 1,
+    locked_params: [],
     created_at: baseTimestamp,
     updated_at: baseTimestamp,
     ...overrides,

@@ -8,6 +8,7 @@ from .repeat_widget import RepeatWidgetTool
 from .restore_widget import RestoreWidgetTool
 from .set_param import SetParamTool
 from .set_widget_param import SetWidgetParamTool
+from .unlock_widget_param import UnlockWidgetParamTool
 
 
 def register_all_widget_tools(registry: BackendToolRegistry) -> None:
@@ -18,4 +19,5 @@ def register_all_widget_tools(registry: BackendToolRegistry) -> None:
     registry.register(RestoreWidgetTool())
     registry.register(AcceptWidgetTool())
     registry.register(SetWidgetParamTool())
+    registry.register(UnlockWidgetParamTool())
     registry.register(SetParamTool())

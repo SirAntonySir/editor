@@ -272,6 +272,12 @@ class Widget(BaseModel):
     rejected_attempts: list[ResolvedNumbers] = Field(default_factory=list)
     status: Literal["active", "dismissed", "accepted"] = "active"
     revision: int = 1
+    # Per-binding user locks. When a user manually edits a binding's value
+    # (typically via set_widget_param), its `param_key` is appended here so
+    # later compound/bundle recomputation skips it. Cleared via
+    # `unlock_widget_param`. Empty by default for backwards-compatible
+    # spawning.
+    locked_params: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

@@ -75,6 +75,8 @@ export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}
     LutRegistry.register(adjustmentId, lut.size, lut.data);
 
     // Propose a filter widget — default scope to active selection, fallback Global.
+    // NOTE: filters/LUT remain on propose_widget; the 'filter' op_id is not yet
+    // modeled in the SSoT registry (it uses TOOL_DEFAULTS + LutRegistry instead).
     const scope = useEditorStore.getState().activeScope ?? { kind: 'global' as const };
     void backendTools.propose_widget(sid, {
       intent: `Apply ${lut.title} filter`,

@@ -51,6 +51,7 @@ export const backendTools = {
     scope: Scope;
     origin: 'mcp_user_prompt' | 'mcp_autonomous' | 'tool_invoked';
     forced_ops?: string[];
+    preset_id?: string;
     prompt?: string;
     layer_id?: string;
   }) {

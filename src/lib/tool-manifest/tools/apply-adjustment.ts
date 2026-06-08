@@ -61,11 +61,13 @@ export const applyAdjustmentTool: ToolManifest<typeof input, typeof ackSchema> =
     const sid = useBackendState.getState().sessionId;
     if (!sid) return { ok: false, message: 'Backend session not available.' };
 
-    // Route adjustment through backend as a proposed widget.
-    void backendTools.propose_widget(sid, {
+    // Route adjustment through backend as a proposed widget stack.
+    // Migrated from propose_widget to proposeStack; kind is always a registry
+    // op_id (validated against ProcessingRegistry above), so forced_ops is safe.
+    void backendTools.proposeStack(sid, {
       intent: label ?? `${kind} adjustment`,
       scope: resolved,
-      op_id: kind,
+      forced_ops: [kind],
       layer_id: layerId,
       origin: 'tool_invoked',
     });

@@ -26,6 +26,7 @@ class _Input(BaseModel):
     origin: WidgetOriginKind = "mcp_user_prompt"
     layer_id: str = "legacy"
     forced_ops: list[str] | None = None     # bypass Phase 1
+    preset_id: str | None = None            # unfold a registry preset directly
     prompt: str | None = None
 
 
@@ -71,7 +72,14 @@ def _control_schema_for(op_id: str, param_key: str) -> ControlSchema:
 def _build_widget(
     *, op_id: str, params: dict, intent: str, scope: Scope,
     origin: WidgetOrigin, layer_id: str, image_node_layer_ids: list[str] | None,
+    exposed_param_keys: set[str] | None = None,
 ) -> Widget:
+    """Build a widget from a registry op.
+
+    If ``exposed_param_keys`` is given, only bindings whose ``param_key`` is in
+    that set are included in the widget's controls. The node still receives ALL
+    op params at their defaults so the shader pipeline stays complete.
+    """
     reg = get_registry()
     op = reg.ops[op_id]
     widget_id = f"w_{uuid.uuid4().hex[:8]}"
@@ -95,6 +103,8 @@ def _build_widget(
 
     bindings: list[ControlBinding] = []
     for b in op.bindings:
+        if exposed_param_keys is not None and b.param_key not in exposed_param_keys:
+            continue
         bindings.append(ControlBinding(
             param_key=b.param_key,
             label=b.label,
@@ -134,6 +144,11 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         scope = Scope.model_validate(input.scope)
+
+        # preset_id takes priority over both the toolrail fast-path and the LLM
+        # path — it works with any origin including tool_invoked.
+        if input.preset_id is not None:
+            return self._handle_preset_spawn(doc, input, scope)
 
         if input.origin == "tool_invoked":
             return self._handle_tool_invoked(doc, input, scope)
@@ -235,6 +250,55 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             return [{"op_id": p.op_id, "starting_params": p.params}
                     for p in first.ops]
         return []
+
+    def _handle_preset_spawn(
+        self, doc: SessionDocument, input: _Input, scope: Scope,
+    ) -> _Output:
+        """Unfold a named registry preset into widgets. No LLM call.
+
+        Each PresetOp in reg.presets[preset_id] becomes one widget via
+        _build_widget. Works for any origin (tool_invoked, mcp_user_prompt,
+        mcp_autonomous).
+        """
+        assert input.preset_id is not None
+        reg = get_registry()
+        if input.preset_id not in reg.presets:
+            raise ValueError(f"unknown preset id: {input.preset_id!r}")
+        preset = reg.presets[input.preset_id]
+
+        image_node_layer_ids = None
+        if scope.root.kind == "image_node":
+            image_node_layer_ids = list(scope.root.layer_ids)
+
+        origin = WidgetOrigin(
+            kind=input.origin,
+            prompt=input.prompt or input.intent,
+            parent_widget_id=None,
+        )
+
+        widgets: list[Widget] = []
+        for p in preset.ops:
+            if p.op_id not in reg.ops:
+                continue
+            # If the preset specifies only a subset of the op's params, expose
+            # only those as controls (the node still gets all defaults for the
+            # shader pipeline). This preserves per-band HSL semantics where
+            # tone_red only exposes {red_hue, red_sat, red_lum}.
+            exposed = set(p.params.keys()) if p.params else None
+            widget = _build_widget(
+                op_id=p.op_id,
+                params=p.params,
+                intent=input.intent,
+                scope=scope,
+                origin=origin,
+                layer_id=input.layer_id,
+                image_node_layer_ids=image_node_layer_ids,
+                exposed_param_keys=exposed if exposed else None,
+            )
+            doc.add_widget(widget)
+            widgets.append(widget)
+
+        return _Output(widgets=[w.model_dump(mode="json") for w in widgets])
 
     def _handle_tool_invoked(
         self, doc: SessionDocument, input: _Input, scope: Scope,

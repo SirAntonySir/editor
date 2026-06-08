@@ -20,13 +20,13 @@ async def panel(
     response: Response,
     store: SessionStore = Depends(deps.get_session_store),
 ) -> OperationGraph:
-    """Deprecated shim. Calls propose_widget(intent=user_goal, scope=global)
+    """Deprecated shim. Calls propose_stack(intent=user_goal, scope=global)
     and returns the resulting projected OperationGraph."""
     response.headers["Deprecation"] = "true"
-    response.headers["Sunset"] = "see /api/tools/propose_widget"
+    response.headers["Sunset"] = "see /api/tools/propose_stack"
     registry = deps.get_tool_registry()
 
-    # Ensure context exists — propose_widget requires it (registry enforces
+    # Ensure context exists — propose_stack LLM path requires it (registry enforces
     # ToolPermissions.requires_context). Call analyze_image first if missing.
     try:
         record = store.get(body.session_id)
@@ -43,7 +43,7 @@ async def panel(
             )
 
     envelope = await registry.invoke(
-        name="propose_widget",
+        name="propose_stack",
         session_id=body.session_id,
         raw_input={
             "intent": body.user_goal,

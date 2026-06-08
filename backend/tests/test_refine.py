@@ -72,8 +72,17 @@ def client(fake_client: MagicMock, monkeypatch) -> TestClient:
 
 
 def _create_session_with_active_widget(client: TestClient) -> tuple[str, str]:
-    """Create a real session via /api/session, prime context, propose one
-    widget via the tool, and return (session_id, widget_id)."""
+    """Create a real session via /api/session, prime context, spawn one warm_grade
+    widget directly via run_fused_tool (propose_widget is now filter-only), and
+    return (session_id, widget_id).
+
+    We still go through run_fused_tool so resolve_fused_tool is called once here
+    and once inside the /api/refine shim, keeping the call_count >= 2 assertion."""
+    import asyncio
+    from app.schemas.widget import Scope, WidgetOrigin
+    from app.tools.fused import all_fused_templates
+    from app.tools.fused_framework import run_fused_tool
+
     image_path = Path(__file__).parent / "fixtures" / "test_image.jpg"
     with image_path.open("rb") as fh:
         sid = client.post("/api/session", files={"image": ("t.jpg", fh, "image/jpeg")}).json()["session_id"]
@@ -85,17 +94,19 @@ def _create_session_with_active_widget(client: TestClient) -> tuple[str, str]:
         model_name="x", model_version="y", generated_at="2026-05-21T00:00:00Z",
     )
     deps.get_session_store().set_context(sid, doc.image_context.model_dump(mode="json"))
-    # Mint a widget so the shim has something to refine.
-    body = client.post(
-        "/api/tools/propose_widget",
-        json={"session_id": sid, "input": {
-            "intent": "warmer",
-            "scope": {"kind": "global"},
-            "op_id": "warm_grade",
-        }},
-    ).json()
-    assert body["ok"] is True, body
-    return sid, body["output"]["widget"]["id"]
+    # Mint a warm_grade widget directly via the fused framework so the shim has
+    # something to refine and resolve_fused_tool is invoked once here.
+    templates = {t.id: t for t in all_fused_templates()}
+    template = templates["warm_grade"]
+    scope = Scope.model_validate({"kind": "global"})
+    origin = WidgetOrigin(kind="mcp_user_prompt", prompt=None)
+    anthropic = deps.get_anthropic_client()
+    widget = asyncio.get_event_loop().run_until_complete(
+        run_fused_tool(template, intent="warmer", scope=scope, ctx=doc.image_context,
+                       prior=None, instruction=None, anthropic=anthropic, origin=origin)
+    )
+    doc.add_widget(widget)
+    return sid, widget.id
 
 
 def test_refine_happy_path(client: TestClient, fake_client: MagicMock) -> None:

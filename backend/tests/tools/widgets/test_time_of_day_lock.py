@@ -13,7 +13,6 @@ from PIL import Image
 from app.api import deps
 from app.schemas.enriched_context import EnrichedImageContext
 from app.tools.fused._time_of_day_data import interpolate_1d
-from app.tools.widgets.propose_widget import ProposeWidgetTool
 from app.tools.widgets.set_widget_param import SetWidgetParamTool
 from app.tools.widgets.unlock_widget_param import UnlockWidgetParamTool
 
@@ -56,7 +55,7 @@ def client(fake_anthropic):
     _prev = deps._anthropic_client
     deps._anthropic_client = fake_anthropic
     reg = deps.get_tool_registry()
-    for tool in (ProposeWidgetTool(), SetWidgetParamTool(), UnlockWidgetParamTool()):
+    for tool in (SetWidgetParamTool(), UnlockWidgetParamTool()):
         if tool.name not in reg._tools:
             reg.register(tool)
     try:
@@ -81,18 +80,37 @@ def _session(client: TestClient) -> str:
     return sid
 
 
+async def _spawn_tod_direct(sid: str) -> str:
+    """Spawn a time-of-day compound widget directly via the fused framework,
+    bypassing the HTTP layer. propose_widget is now filter-only; this test
+    targets set_widget_param lock behavior which is independent of the spawn path."""
+    import asyncio
+    from app.schemas.widget import Scope, WidgetOrigin
+    from app.tools.fused import all_fused_templates
+    from app.tools.fused_framework import run_fused_tool
+    from app.schemas.enriched_context import EnrichedImageContext
+
+    doc = deps.get_session_store().get_document(sid)
+    templates = {t.id: t for t in all_fused_templates()}
+    template = templates["time-of-day"]
+    scope = Scope.model_validate({"kind": "global"})
+    ctx = doc.image_context
+    anthropic = deps.get_anthropic_client()
+    origin = WidgetOrigin(kind="mcp_user_prompt", prompt=None)
+    widget = await run_fused_tool(
+        template, intent="make it noon",
+        scope=scope, ctx=ctx, prior=None, instruction=None,
+        anthropic=anthropic, origin=origin,
+    )
+    for node in widget.nodes:
+        node.layer_id = "layer_a"
+    doc.add_widget(widget)
+    return widget.id
+
+
 def _spawn_tod(client: TestClient, sid: str) -> str:
-    r = client.post("/api/tools/propose_widget", json={"session_id": sid, "input": {
-        "intent": "make it noon",
-        "scope": {"kind": "global"},
-        "op_id": "time-of-day",
-        "layer_id": "layer_a",
-        "origin": "mcp_user_prompt",
-    }})
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["ok"] is True, body
-    return body["output"]["widget"]["id"]
+    import asyncio
+    return asyncio.get_event_loop().run_until_complete(_spawn_tod_direct(sid))
 
 
 def _set_param(client: TestClient, sid: str, wid: str, key: str, value: float) -> None:

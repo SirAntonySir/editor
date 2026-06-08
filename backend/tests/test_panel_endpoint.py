@@ -29,18 +29,16 @@ def fake_client() -> MagicMock:
     # the EnrichedImageContext. We give problems=[] so no autonomous suggestion
     # widgets are minted (keeps the test deterministic).
     fake.augment_context_soft_fields.return_value = _build_soft_fields_stub()
-    # propose_widget picks a fused tool by name; we pin it to warm_grade so
-    # the resolve_fused_tool stub below matches the warm_grade schema.
-    fake.name_pick_fused_tool.return_value = "warm_grade"
-    # resolve_fused_tool returns the dict that the warm_grade template expects.
-    fake.resolve_fused_tool.return_value = {
-        "values": {
-            "temperature": 600,
-            "highlight_warmth": 8,
-            "saturation_lift": 3,
-        },
-        "reasoning": "image is cool",
+    # propose_stack (now used by the panel shim) uses plan_widget_stack + resolve_widget_params.
+    # Pin it to a single light op so the test is deterministic and panel_bindings > 0.
+    from app.registry.loader import get_registry
+    fake.plan_widget_stack.return_value = {
+        "plan": [{"op_id": "light", "rationale": "make it warmer"}],
+        "overall_rationale": "light adjustment",
     }
+    reg = get_registry()
+    light_op = reg.ops["light"]
+    fake.resolve_widget_params.return_value = {k: p.default for k, p in light_op.params.items()}
     return fake
 
 

@@ -6,10 +6,6 @@ from app.tools.widgets.refine_widget import RefineWidgetTool
 
 
 class _FakeAnthropic:
-    def resolve_fused_tool(self, template_id, prompt_payload, response_schema, session_id=None):
-        return {"values": {"temperature": 600, "highlight_warmth": 8, "saturation_lift": 3}, "reasoning": ""}
-    def name_pick_fused_tool(self, intent, candidates, session_id=None):
-        return "warm_grade"
     def flesh_out_binding(self, request, widget, response_schema=None, session_id=None):
         return {
             "binding": {
@@ -42,9 +38,12 @@ def client():
 
 
 def _setup(client) -> tuple[str, str]:
+    """Spawn a warm_grade preset widget (kelvin + light + color) via propose_stack.
+    Context is required by refine_widget (requires_context=True permission)."""
     from io import BytesIO
     from PIL import Image
     from app.schemas.enriched_context import EnrichedImageContext
+    from app.tools.widgets.propose_stack import ProposeStackTool
     buf = BytesIO(); Image.new("RGB", (16, 16)).save(buf, format="JPEG")
     files = {"image": ("a.jpg", buf.getvalue(), "image/jpeg")}
     sid = client.post("/api/session", files=files).json()["session_id"]
@@ -55,28 +54,37 @@ def _setup(client) -> tuple[str, str]:
         model_name="x", model_version="y", generated_at="2026-05-21T00:00:00Z",
     )
     deps.get_session_store().set_context(sid, doc.image_context.model_dump(mode="json"))
+    reg = deps.get_tool_registry()
+    if "propose_stack" not in reg._tools:
+        reg.register(ProposeStackTool())
     proposed = client.post(
-        "/api/tools/propose_widget",
+        "/api/tools/propose_stack",
         json={"session_id": sid, "input": {
-            "intent": "warmer", "scope": {"kind": "global"}, "op_id": "warm_grade",
+            "intent": "warmer", "scope": {"kind": "global"},
+            "preset_id": "warm_grade", "origin": "mcp_user_prompt",
         }},
     ).json()
-    return sid, proposed["output"]["widget"]["id"]
+    # Use the first widget (kelvin) as the target for refine tests
+    return sid, proposed["output"]["widgets"][0]["id"]
 
 
 def test_refine_removes_a_binding(client) -> None:
+    """Remove the kelvin binding from a warm_grade kelvin widget."""
     sid, wid = _setup(client)
+    doc = deps.get_session_store().get_document(sid)
+    w = doc.widgets[wid]
+    first_key = w.bindings[0].param_key if w.bindings else "kelvin"
     body = client.post(
         "/api/tools/refine_widget",
         json={"session_id": sid, "input": {
             "widget_id": wid,
-            "edits": [{"param_key": "saturation_lift", "action": "remove"}],
+            "edits": [{"param_key": first_key, "action": "remove"}],
             "additions": [],
         }},
     ).json()
     assert body["ok"] is True
     keys = [b["param_key"] for b in body["output"]["widget"]["bindings"]]
-    assert "saturation_lift" not in keys
+    assert first_key not in keys
     assert body["output"]["widget"]["composed"] is True
 
 

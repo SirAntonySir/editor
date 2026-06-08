@@ -1,7 +1,7 @@
 """End-to-end MCP wire test.
 
 Walks the full MCP loop over the real /mcp endpoint with a fake AnthropicClient:
-session bootstrap -> initialize -> tools/list -> analyze_image -> propose_widget
+session bootstrap -> initialize -> tools/list -> analyze_image -> propose_stack
 -> refine_widget -> delete_widget. Verifies the dismissal rule lands in the
 session document at the end.
 """
@@ -61,9 +61,18 @@ class _FakeClaude:
             region_soft_fields=[],
         )
 
+    def plan_widget_stack(self, *, intent, scope, image_context, existing_widgets, registry, session_id=None):
+        # Return a single light op plan so we get deterministic panel_bindings.
+        return {
+            "plan": [{"op_id": "light", "rationale": "make it warmer"}],
+            "overall_rationale": "light adjustment",
+        }
+
+    def resolve_widget_params(self, *, op, intent, rationale, starting_params, image_context, session_id=None):
+        return {k: p.default for k, p in op.params.items()}
+
     def resolve_fused_tool(self, template_id, prompt_payload, response_schema, session_id=None):
-        # warm_grade envelope: temperature [-1200, 1200], highlight_warmth
-        # [-30, 30], saturation_lift [-20, 20]. Stay well inside.
+        # Still needed by refine_widget which calls the fused framework on re-tune.
         return {
             "values": {
                 "temperature": 600,
@@ -143,28 +152,27 @@ async def test_full_mcp_loop_create_propose_refine_delete() -> None:
             # 3. tools/list contains the headline widget tools.
             listing = (await _mcp(ac, sid, "tools/list", {}, 2))["result"]["tools"]
             names = {t["name"] for t in listing}
-            assert {"propose_widget", "refine_widget", "repeat_widget", "delete_widget"}.issubset(names)
+            assert {"propose_stack", "propose_widget", "refine_widget", "repeat_widget", "delete_widget"}.issubset(names)
 
-            # 4. analyze_image via MCP — also sets record.context, satisfying
-            # propose_widget's requires_context permission.
+            # 4. analyze_image via MCP — sets record.context satisfying
+            # propose_stack's requires_context permission.
             env = (await _mcp(ac, sid, "tools/call", {
                 "name": "analyze_image", "arguments": {},
             }, 3))["result"]
             outer = json.loads(env["content"][0]["text"])
             assert outer["ok"] is True
 
-            # 5. propose_widget via MCP.
+            # 5. propose_stack via MCP (migrated from propose_widget for LLM path).
             envp = (await _mcp(ac, sid, "tools/call", {
-                "name": "propose_widget",
+                "name": "propose_stack",
                 "arguments": {
                     "intent": "warmer",
                     "scope": {"kind": "global"},
-                    "op_id": "warm_grade",
                 },
             }, 4))["result"]
             prop = json.loads(envp["content"][0]["text"])
             assert prop["ok"] is True
-            wid = prop["output"]["widget"]["id"]
+            wid = prop["output"]["widgets"][0]["id"]
 
             # 6. refine_widget — add a skin-protect toggle.
             envr = (await _mcp(ac, sid, "tools/call", {

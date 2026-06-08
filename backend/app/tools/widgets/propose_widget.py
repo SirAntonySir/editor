@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
 
 from pydantic import AliasChoices, BaseModel, Field
 
-from app.api import deps
 from app.schemas.widget import (
     ControlBinding,
     ControlSchema,
@@ -19,14 +17,7 @@ from app.schemas.widget import (
 )
 from app.state.document import SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
-from app.tools.fused import all_fused_templates
-from app.tools.fused_framework import run_fused_tool
 from app.tools.tool_defaults import TOOL_DEFAULTS
-
-
-class _FusedToolNotFound(KeyError):
-    """Mapped to fused_tool_not_found in the envelope by the registry."""
-    pass
 
 
 class _InvalidInput(Exception):
@@ -35,7 +26,8 @@ class _InvalidInput(Exception):
 
 
 class _MissingContext(Exception):
-    """Mapped to missing_context in the envelope by the registry."""
+    """Mapped to missing_context in the envelope by the registry.
+    Also re-raised by propose_stack for the LLM path guard."""
     pass
 
 
@@ -52,87 +44,31 @@ class _Output(BaseModel):
     widget: dict
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
 class ProposeWidgetTool(BackendTool[_Input, _Output]):
     name = "propose_widget"
     kind = "mutate"
     description = (
-        "Mint a widget. If op_id is given, that template is used. Otherwise "
-        "Claude picks one for the intent; if none fits, an ad-hoc widget is built."
+        "Mint a LUT/filter widget via the tool_invoked fast path. "
+        "Only the 'filter' op_id is supported; all other adjustments "
+        "should use propose_stack instead."
     )
     input_schema = _Input
     output_schema = _Output
     # requires_context is False so the tool_invoked fast path (ships TOOL_DEFAULTS,
-    # no LLM, no image_context use) isn't blocked before analyze_image runs. The
-    # LLM path re-asserts context inside the handler (see _MissingContext).
+    # no LLM, no image_context use) isn't blocked before analyze_image runs.
     permissions = ToolPermissions(requires_image=True, requires_context=False)
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         scope = Scope.model_validate(input.scope)
 
-        # ----------------------------------------------------------------
-        # Fast path: tool_invoked bypasses LLM entirely.
-        # ----------------------------------------------------------------
-        if input.origin == "tool_invoked":
-            return self._handle_tool_invoked(doc, input, scope)
-
-        # The LLM path needs image_context; the fast path above does not. Since
-        # requires_context is now False at the permission layer, enforce it here
-        # for the LLM path only.
-        if doc.image_context is None:
-            raise _MissingContext("call analyze_image first")
-
-        # ----------------------------------------------------------------
-        # Normal path: LLM picks / resolves a fused tool.
-        # ----------------------------------------------------------------
-        templates = {t.id: t for t in all_fused_templates()}
-
-        fused_id = input.op_id
-        if fused_id is not None and fused_id not in templates:
-            raise _FusedToolNotFound(fused_id)
-
-        anthropic = deps.get_anthropic_client()
-        if fused_id is None:
-            candidates = [
-                {"id": t.id, "description": t.description, "typical_use": t.typical_use}
-                for t in templates.values()
-            ]
-            fused_id = anthropic.name_pick_fused_tool(
-                intent=input.intent, candidates=candidates, session_id=doc.session_id,
+        # Only the tool_invoked fast path is supported (LUT/filter only).
+        # All other adjustments and LLM-driven spawns now go through propose_stack.
+        if input.origin != "tool_invoked":
+            raise _InvalidInput(
+                "propose_widget only supports origin='tool_invoked' for LUT/filter. "
+                "Use propose_stack for all other origins."
             )
-            if fused_id is None or fused_id not in templates:
-                fused_id = "warm_grade"
-
-        template = templates[fused_id]
-        origin = WidgetOrigin(
-            kind=input.origin, prompt=input.prompt or input.intent, parent_widget_id=None,
-        )
-        widget = await run_fused_tool(
-            template,
-            intent=input.intent, scope=scope, ctx=doc.image_context,
-            prior=None, instruction=None, anthropic=anthropic,
-            origin=origin,
-        )
-        # Stamp layer_id on every node.
-        for node in widget.nodes:
-            node.layer_id = input.layer_id
-
-        # When the widget targets an ImageNode, also stamp layer_ids so the
-        # projected operation_graph carries the node-scope membership. If the
-        # ImageNode owns specific layers, prefer the first one as the legacy
-        # single-layer attribution.
-        if scope.root.kind == "image_node":
-            layer_ids_value = list(scope.root.layer_ids)
-            for node in widget.nodes:
-                node.layer_ids = layer_ids_value
-                if layer_ids_value:
-                    node.layer_id = layer_ids_value[0]
-
-        doc.add_widget(widget)
-        return _Output(widget=widget.model_dump(mode="json"))
+        return self._handle_tool_invoked(doc, input, scope)
 
     def _handle_tool_invoked(
         self,
@@ -140,7 +76,11 @@ class ProposeWidgetTool(BackendTool[_Input, _Output]):
         input: _Input,  # noqa: A002
         scope: Scope,
     ) -> _Output:
-        """Build a widget from TOOL_DEFAULTS without any LLM call."""
+        """Build a widget from TOOL_DEFAULTS without any LLM call.
+
+        Only the 'filter' op_id is expected here; filters/LUT are not yet
+        modeled in the SSoT registry so they stay on this path.
+        """
         tool_id = input.op_id
         if tool_id is None or tool_id not in TOOL_DEFAULTS:
             raise _InvalidInput(

@@ -5,8 +5,10 @@ silently drops it (no uniform to receive it)."""
 from app.engine.registry import ENGINE_OPS
 from app.tools.fused import all_fused_templates
 
-# Node types that are texture/structured shaders (no scalar param contract).
-STRUCTURED_NODE_TYPES = {"curves", "lut"}
+# Node types that are texture/structured shaders (no scalar param contract),
+# or synthetic frontend-only types (e.g. `compound` carries a bundle that the
+# frontend explodes per-key into the per-op pipeline).
+STRUCTURED_NODE_TYPES = {"curves", "lut", "compound"}
 
 # Pre-existing, tracked gaps. Each entry is debt to fix separately, NOT a licence
 # to add more. Do not extend without a tracking note.

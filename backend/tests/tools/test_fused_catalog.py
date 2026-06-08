@@ -16,7 +16,7 @@ _TEMPLATES = list(all_fused_templates())
 
 
 def test_catalog_size() -> None:
-    assert len(_TEMPLATES) == 40
+    assert len(_TEMPLATES) == 41
 
 
 def test_ids_are_unique() -> None:

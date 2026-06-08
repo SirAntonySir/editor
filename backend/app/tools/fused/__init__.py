@@ -41,6 +41,7 @@ from .portrait_glow import PortraitGlowTemplate
 from .sky_recovery import SkyRecoveryTemplate
 from .subject_pop import SubjectPopTemplate
 from .teal_orange import TealOrangeTemplate
+from .time_of_day import TimeOfDayTemplate
 from .tone_band import all_tone_band_templates
 from .warm_grade import WarmGradeTemplate
 
@@ -96,3 +97,6 @@ def all_fused_templates() -> Iterable[FusedToolTemplate]:
     yield ComplementaryGradeTemplate()
     yield AnalogousGradeTemplate()
     yield MonochromeTintTemplate()
+
+    # New: 1 perceptual-dial template (compound node).
+    yield TimeOfDayTemplate()

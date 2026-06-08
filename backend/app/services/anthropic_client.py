@@ -693,9 +693,9 @@ class AnthropicClient:
         character, excluding ones already suggested. Returns template ids
         in priority order. Used by analyze_image to top up suggestions
         when problem-driven minting yields fewer than 2."""
-        from app.tools.fused import all_fused_templates
+        from app.registry.loader import get_registry
 
-        templates = list(all_fused_templates())
+        templates = list(get_registry().presets.values())
         catalog = [
             {"id": t.id, "description": t.description, "typical_use": t.typical_use}
             for t in templates
@@ -942,13 +942,13 @@ a strong prior if provided. Do not include markdown fences."""
         cheap_pass_summary: dict,
         session_id: str | None = None,
     ) -> _ContextSoftFields:
-        # Build the fused-tool catalogue dynamically so adding templates to
-        # `all_fused_templates()` automatically widens the autonomous picker.
-        # System prompt stays static (cache-friendly); the catalogue rides in
-        # a user-message block.
-        from app.tools.fused import all_fused_templates
+        # Build the catalogue dynamically from the SSoT registry presets so
+        # adding/removing a preset JSON automatically widens or narrows the
+        # autonomous picker. System prompt stays static (cache-friendly);
+        # the catalogue rides in a user-message block.
+        from app.registry.loader import get_registry
         catalog_lines = [
-            f"- {t.id}: {t.typical_use}" for t in all_fused_templates()
+            f"- {t.id}: {t.typical_use}" for t in get_registry().presets.values()
         ]
         catalog_block = (
             "Catalogue of valid `suggested_fused_tools` ids "

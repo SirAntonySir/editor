@@ -89,7 +89,7 @@ export function WidgetShellHeader({
           ·
         </span>
       )}
-      <span className="text-[11px] font-medium flex-1 min-w-0 truncate text-text-primary">{resolveTitle(widget)}</span>
+      <span className="text-[11px] font-medium flex-1 min-w-0 truncate text-text-primary widget-title-ellipsis">{resolveTitle(widget)}</span>
       <span className="inline-flex items-center gap-1 text-[9px] text-text-secondary bg-surface-secondary border border-separator rounded-[3px] px-1.5 py-px leading-[1.4]">
         <span className={`w-[5px] h-[5px] rounded-full ${scopeDotClass(widget)}`} />
         {scopeLabel(widget)}

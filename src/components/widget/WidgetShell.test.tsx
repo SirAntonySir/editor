@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, render, screen, fireEvent } from '@testing-library/react';
-import { WidgetShell } from './WidgetShell';
+import { WidgetShell, WIDGET_COLLAPSED_WIDTH } from './WidgetShell';
 import { makeAiWidget, makeToolWidget, makeHslWidget } from './__fixtures__/widgets';
 import { useEditorStore } from '@/store';
 import { backendTools } from '@/lib/backend-tools';
@@ -216,5 +216,26 @@ describe('selection glow', () => {
     const overlay = document.querySelector('.overlay') as HTMLElement;
     expect(overlay.classList.contains('workspace-node-selected')).toBe(false);
     expect(overlay.classList.contains('widget-shell-ai')).toBe(false);
+  });
+});
+
+describe('WidgetShell collapsed pill width', () => {
+  it('exports WIDGET_COLLAPSED_WIDTH = 226', () => {
+    expect(WIDGET_COLLAPSED_WIDTH).toBe(226);
+  });
+});
+
+describe('WidgetShell ellipsis title', () => {
+  beforeEach(() => {
+    useEditorStore.getState().collapseAllWidgets();
+  });
+
+  it('truncates long titles with ellipsis in collapsed state', () => {
+    const widget = makeAiWidget({
+      display_name: 'A very long widget name that should not stretch the pill wider',
+    });
+    const { container } = render(<WidgetShell widget={widget} />);
+    const titleEl = container.querySelector('.widget-title-ellipsis');
+    expect(titleEl).not.toBeNull();
   });
 });

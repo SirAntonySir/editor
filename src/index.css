@@ -129,6 +129,16 @@ html, body, #root {
     var(--overlay-shadow, var(--shadow-overlay));
 }
 
+/* Truncate long widget titles in the collapsed pill with an ellipsis.
+ * Applied to the title <span> inside WidgetShellHeader. The parent flex
+ * container must have min-width: 0 (min-w-0) for text-overflow to engage. */
+.widget-title-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 /* Skeleton-shimmer animation for empty-state previews. A diagonal accent
  * gradient sweeps across the element, riding atop whatever surface tile it
  * sits on. Respects prefers-reduced-motion. */

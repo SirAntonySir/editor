@@ -19,10 +19,14 @@ import { TimeOfDayWidgetBody } from '@/components/workspace/TimeOfDayWidgetBody'
 
 /**
  * Minimum WidgetShell width in CSS pixels. The shell grows past this to fit
- * its content. Tailwind's `min-w-[226px]` is a compile-time literal, so keep
- * the literal in the className in sync with this constant.
+ * its content when expanded.
  */
 export const WIDGET_SHELL_MIN_WIDTH = 226;
+
+// Fixed width for collapsed pill state. Matches WIDGET_SHELL_MIN_WIDTH so
+// transitioning collapsed → expanded doesn't change horizontal footprint.
+// Long titles truncate with ellipsis (.widget-title-ellipsis utility).
+export const WIDGET_COLLAPSED_WIDTH = 226;
 
 interface WidgetShellProps {
   widget: Widget;
@@ -130,10 +134,14 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
 
   return (
     <div
-      // min-w-[226px] matches WIDGET_SHELL_MIN_WIDTH; width grows to fit content.
+      // Collapsed: fixed 226px pill (WIDGET_COLLAPSED_WIDTH) — no stretching for long titles.
+      // Expanded: min-width only, body grows to fit controls.
       // AI-composed widgets get a violet outline + glow (widget-shell-ai) so
       // they read as distinct from tool-invoked widgets on the canvas.
-      className={`overlay min-w-[226px] w-fit ${showAiAffordances ? 'widget-shell-ai' : ''} ${selected && !showAiAffordances ? 'workspace-node-selected' : ''} ${hovered ? 'border-accent' : ''} ${hidden ? 'opacity-60' : ''}`}
+      className={`overlay w-fit ${showAiAffordances ? 'widget-shell-ai' : ''} ${selected && !showAiAffordances ? 'workspace-node-selected' : ''} ${hovered ? 'border-accent' : ''} ${hidden ? 'opacity-60' : ''}`}
+      style={isExpanded
+        ? { minWidth: `${WIDGET_SHELL_MIN_WIDTH}px` }
+        : { width: `${WIDGET_COLLAPSED_WIDTH}px` }}
       onMouseEnter={() => setHoveredWidget(widget.id)}
       onMouseLeave={() => setHoveredWidget(null)}
     >

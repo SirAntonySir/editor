@@ -13,15 +13,16 @@ import type { ProcessingDefinition, ParamDefinition } from '@/types/processing';
 
 /** Material icon name per op id. */
 const ICON_MAP: Record<string, string> = {
-  light:      'light_mode',
-  color:      'palette',
-  kelvin:     'thermostat',
-  sharpen:    'deblur',
-  blur:       'blur_on',
-  clarity:    'auto_awesome',
-  grain:      'grain',
-  splitTone:  'gradient',
-  vignette:   'vignette',
+  light:         'light_mode',
+  color:         'palette',
+  kelvin:        'thermostat',
+  sharpen:       'deblur',
+  blur:          'blur_on',
+  clarity:       'auto_awesome',
+  grain:         'grain',
+  splitTone:     'gradient',
+  vignette:      'vignette',
+  'time-of-day': 'wb_twilight',
 };
 
 /**
@@ -29,7 +30,9 @@ const ICON_MAP: Record<string, string> = {
  * icon mapping and only scalar params (i.e. not curves/hsl/levels/filters).
  *
  * Ops NOT in ICON_MAP are skipped — they have bespoke Panel files:
- *   curves, hsl, levels  (and filters / time-of-day registered separately)
+ *   curves, hsl, levels, filters (registered separately in index.ts)
+ * Compound ops (time-of-day) are included here; ToolSection dispatches them
+ * to CompoundWidgetBody when a compound widget is active.
  */
 export function buildRegistryProcessingDefs(): ProcessingDefinition[] {
   const reg = loadRegistry();

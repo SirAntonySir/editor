@@ -4,12 +4,12 @@ import { hslProcessing } from './hsl';
 import { curvesProcessing } from './curves';
 import { levelsProcessing } from './levels';
 import { filtersProcessing } from './filters';
-import { timeOfDayProcessing } from './time-of-day';
 
 export function registerAllProcessing(): void {
   // Registry-driven ops (light, color, kelvin, sharpen, blur, clarity,
-  // grain, vignette, splitTone): ProcessingDefinitions are generated from
-  // the SSoT registry ops. Inspector rendering handled by RegistryDrivenSectionBody.
+  // grain, vignette, splitTone, time-of-day): ProcessingDefinitions are
+  // generated from the SSoT registry ops. Inspector rendering handled by
+  // RegistryDrivenSectionBody or CompoundWidgetBody for compound ops.
   for (const def of buildRegistryProcessingDefs()) {
     ProcessingRegistry.register(def);
   }
@@ -19,7 +19,6 @@ export function registerAllProcessing(): void {
   ProcessingRegistry.register(curvesProcessing);
   ProcessingRegistry.register(levelsProcessing);
   ProcessingRegistry.register(filtersProcessing);
-  ProcessingRegistry.register(timeOfDayProcessing);
 }
 
 export {
@@ -27,5 +26,4 @@ export {
   curvesProcessing,
   levelsProcessing,
   filtersProcessing,
-  timeOfDayProcessing,
 };

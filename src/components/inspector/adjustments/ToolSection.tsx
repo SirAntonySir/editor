@@ -118,10 +118,8 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
         ) : def.adjustmentType === 'lut' ? (
           <PromoteOnlyBody toolId={def.id} />
         ) : compoundWidget ? (
-          // Generic compound body — fires for future compound ops that are
-          // registered as a ProcessingDefinition AND have an active widget.
-          // The bespoke time-of-day branch (TimeOfDayWidgetBody) precedes this
-          // via the workspace WidgetNode path and is unaffected.
+          // Generic compound body — fires for any registry op with a `compound`
+          // block that has an active widget, including time-of-day.
           <CompoundWidgetBody widget={compoundWidget} />
         ) : loadRegistry().ops[def.id] ? (
           <RegistryDrivenSectionBody

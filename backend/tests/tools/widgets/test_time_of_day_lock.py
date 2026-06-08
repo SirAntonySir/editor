@@ -1,9 +1,14 @@
 """Time-of-Day lock-aware bundle recompute integration tests. Covers the
 snap-back fix (dial drag recomputes the bundle and writes it through binding
 + node + canonical) and the implicit lock-on-edit behaviour (manually editing
-a bundle key sticks even if the dial is later dragged)."""
+a bundle key sticks even if the dial is later dragged).
+
+The bespoke TimeOfDayTemplate has been retired (Task 7); widgets are now
+spawned directly from the registry schema so the test focuses on
+set_widget_param / unlock_widget_param behaviour only."""
 from __future__ import annotations
 
+import uuid
 from io import BytesIO
 
 import pytest
@@ -11,10 +16,17 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from app.api import deps
+from app.registry.interpolate import interpolate_1d as _interpolate_1d_generic
+from app.registry.loader import get_registry
 from app.schemas.enriched_context import EnrichedImageContext
-from app.tools.fused._time_of_day_data import interpolate_1d
 from app.tools.widgets.set_widget_param import SetWidgetParamTool
 from app.tools.widgets.unlock_widget_param import UnlockWidgetParamTool
+
+
+def interpolate_1d(t: float) -> dict:
+    """Adapter: call registry interpolate_1d with the TOD op anchors."""
+    op = get_registry().ops["time-of-day"]
+    return _interpolate_1d_generic(op.compound.anchors, t)  # type: ignore[union-attr]
 
 
 _BUNDLE_KEYS = [
@@ -28,40 +40,17 @@ _BUNDLE_KEYS = [
     "hsl.blue_sat",
     "filters.vignette_amount",
 ]
-_SPAWN_POSITION = 0.30  # noon — what the fake LLM emits below
-
-
-class _FakeAnthropic:
-    """Pins the picker to `time-of-day` and emits a fixed position so the
-    spawn-time bundle is deterministic. The template's own `resolve` adds the
-    `interpolate_1d(position)` bundle on top."""
-
-    def name_pick_fused_tool(self, intent, candidates, session_id=None):
-        return "time-of-day"
-
-    def resolve_fused_tool(self, template_id, prompt_payload, response_schema, session_id=None):
-        assert template_id == "time-of-day"
-        return {"values": {"time_of_day.position": _SPAWN_POSITION}}
+_SPAWN_POSITION = 0.30  # noon
 
 
 @pytest.fixture
-def fake_anthropic():
-    return _FakeAnthropic()
-
-
-@pytest.fixture
-def client(fake_anthropic):
+def client():
     from app.main import app
-    _prev = deps._anthropic_client
-    deps._anthropic_client = fake_anthropic
     reg = deps.get_tool_registry()
     for tool in (SetWidgetParamTool(), UnlockWidgetParamTool()):
         if tool.name not in reg._tools:
             reg.register(tool)
-    try:
-        yield TestClient(app)
-    finally:
-        deps._anthropic_client = _prev
+    yield TestClient(app)
 
 
 def _session(client: TestClient) -> str:
@@ -80,37 +69,63 @@ def _session(client: TestClient) -> str:
     return sid
 
 
-async def _spawn_tod_direct(sid: str) -> str:
-    """Spawn a time-of-day compound widget directly via the fused framework,
-    bypassing the HTTP layer. propose_widget is now filter-only; this test
-    targets set_widget_param lock behavior which is independent of the spawn path."""
-    import asyncio
-    from app.schemas.widget import Scope, WidgetOrigin
-    from app.tools.fused import all_fused_templates
-    from app.tools.fused_framework import run_fused_tool
-    from app.schemas.enriched_context import EnrichedImageContext
+def _spawn_tod(sid: str) -> str:
+    """Build a TOD widget directly from the registry and add it to the doc.
+    Bypasses the LLM / fused-template path; this test targets lock behaviour
+    in set_widget_param / unlock_widget_param which is independent of spawn."""
+    from app.schemas.widget import (
+        ControlBinding, ControlSchema, NodeParamTarget,
+        Scope, Widget, WidgetNode, WidgetOrigin, WidgetPreview, SliderSchema,
+    )
+
+    op = get_registry().ops["time-of-day"]
+    assert op.compound is not None
+
+    position = _SPAWN_POSITION
+    bundle = interpolate_1d(position)
+
+    wid = f"w_{uuid.uuid4().hex[:8]}"
+    nid = f"n_{uuid.uuid4().hex[:6]}"
+    scope = Scope.model_validate({"kind": "global"})
+
+    # All params (position + bundle) on one compound node.
+    all_params = {"time_of_day.position": position, **bundle}
+    node = WidgetNode(
+        id=nid, type="compound", params=all_params,
+        scope=scope, inputs=[], widget_id=wid, layer_id="layer_a",
+    )
+
+    # Build bindings from registry op.bindings so control_schema comes from the
+    # same source as the live app.
+    bindings: list[ControlBinding] = []
+    for b in op.bindings:
+        p = op.params[b.param_key]
+        lo, hi = p.range if p.range else (0.0, 1.0)
+        step = p.step if p.step is not None else 1.0
+        value = all_params.get(b.param_key, p.default)
+        bindings.append(ControlBinding(
+            param_key=b.param_key,
+            label=b.label,
+            control_type=b.control_type,
+            target=NodeParamTarget(node_id=nid, param_key=b.param_key),
+            control_schema=ControlSchema(SliderSchema(control_type="slider", min=lo, max=hi, step=step)),
+            value=value,
+            default=value,
+        ))
+
+    widget = Widget(
+        id=wid, intent="make it noon", reasoning=None,
+        scope=scope,
+        origin=WidgetOrigin(kind="mcp_user_prompt", prompt=None),
+        op_id="time-of-day", composed=False,
+        nodes=[node], bindings=bindings,
+        preview=WidgetPreview(kind="thumbnail", auto_before_after=True),
+        rejected_attempts=[], status="active", revision=1,
+    )
 
     doc = deps.get_session_store().get_document(sid)
-    templates = {t.id: t for t in all_fused_templates()}
-    template = templates["time-of-day"]
-    scope = Scope.model_validate({"kind": "global"})
-    ctx = doc.image_context
-    anthropic = deps.get_anthropic_client()
-    origin = WidgetOrigin(kind="mcp_user_prompt", prompt=None)
-    widget = await run_fused_tool(
-        template, intent="make it noon",
-        scope=scope, ctx=ctx, prior=None, instruction=None,
-        anthropic=anthropic, origin=origin,
-    )
-    for node in widget.nodes:
-        node.layer_id = "layer_a"
     doc.add_widget(widget)
-    return widget.id
-
-
-def _spawn_tod(client: TestClient, sid: str) -> str:
-    import asyncio
-    return asyncio.get_event_loop().run_until_complete(_spawn_tod_direct(sid))
+    return wid
 
 
 def _set_param(client: TestClient, sid: str, wid: str, key: str, value: float) -> None:
@@ -122,7 +137,7 @@ def _set_param(client: TestClient, sid: str, wid: str, key: str, value: float) -
 
 def test_spawn_initialises_empty_locks_and_all_bindings(client) -> None:
     sid = _session(client)
-    wid = _spawn_tod(client, sid)
+    wid = _spawn_tod(sid)
     doc = deps.get_session_store().get_document(sid)
     w = doc.widgets[wid]
 
@@ -133,7 +148,7 @@ def test_spawn_initialises_empty_locks_and_all_bindings(client) -> None:
 
 def test_dial_drag_recomputes_bundle_on_node_and_bindings(client) -> None:
     sid = _session(client)
-    wid = _spawn_tod(client, sid)
+    wid = _spawn_tod(sid)
 
     _set_param(client, sid, wid, "time_of_day.position", 0.55)
 
@@ -149,7 +164,7 @@ def test_dial_drag_recomputes_bundle_on_node_and_bindings(client) -> None:
 
 def test_editing_bundle_key_locks_only_that_key(client) -> None:
     sid = _session(client)
-    wid = _spawn_tod(client, sid)
+    wid = _spawn_tod(sid)
 
     # Snapshot the bundle at the spawn position so we can prove the other
     # keys aren't touched by the kelvin edit.
@@ -171,7 +186,7 @@ def test_editing_bundle_key_locks_only_that_key(client) -> None:
 
 def test_locked_key_survives_dial_drag(client) -> None:
     sid = _session(client)
-    wid = _spawn_tod(client, sid)
+    wid = _spawn_tod(sid)
 
     _set_param(client, sid, wid, "kelvin.kelvin", 5500)
     _set_param(client, sid, wid, "time_of_day.position", 0.30)
@@ -193,7 +208,7 @@ def test_locked_key_survives_dial_drag(client) -> None:
 
 def test_unlock_restores_dial_derived_value(client) -> None:
     sid = _session(client)
-    wid = _spawn_tod(client, sid)
+    wid = _spawn_tod(sid)
 
     _set_param(client, sid, wid, "kelvin.kelvin", 5500)
     _set_param(client, sid, wid, "time_of_day.position", 0.30)

@@ -1,5 +1,5 @@
 """Clear a per-binding user lock. The companion to the implicit lock-on-edit
-behaviour in `set_widget_param`: once a Time-of-Day bundle key (e.g.
+behaviour in `set_widget_param`: once a compound bundle key (e.g.
 `kelvin.kelvin`) has been hand-edited, dial drags skip it. Calling this tool
 removes the lock and — for compound-bundle widgets — immediately restores the
 dial-derived value so the visual state matches the position without requiring
@@ -8,8 +8,20 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from app.registry.loader import get_registry
+from app.registry.schema import RegistryOp
 from app.state.document import SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
+
+
+def _get_compound_op(op_id: str | None) -> RegistryOp | None:
+    """Return the registry op if it has a compound block, else None."""
+    if not op_id:
+        return None
+    op = get_registry().ops.get(op_id)
+    if op is None or op.compound is None:
+        return None
+    return op
 
 
 class _UnknownWidget(KeyError):
@@ -23,9 +35,6 @@ class _Input(BaseModel):
 
 class _Output(BaseModel):
     ok: bool
-
-
-_TOD_POSITION_KEY = "time_of_day.position"
 
 
 class UnlockWidgetParamTool(BackendTool[_Input, _Output]):
@@ -52,18 +61,20 @@ class UnlockWidgetParamTool(BackendTool[_Input, _Output]):
         if input.param_key in w.locked_params:
             w.locked_params = [k for k in w.locked_params if k != input.param_key]
 
-        # Time-of-Day: restore the dial-derived value at the current position
-        # so the canvas reflects the unlock immediately. Skip the position key
+        # Compound ops: restore the dial-derived value at the current position
+        # so the canvas reflects the unlock immediately. Skip the driver key
         # itself (it has no derived value — it IS the derivation input).
-        if w.op_id == "time-of-day" and input.param_key != _TOD_POSITION_KEY:
-            from app.tools.fused._time_of_day_data import interpolate_1d
+        op = _get_compound_op(w.op_id)
+        if op is not None and input.param_key != op.compound.driver:  # type: ignore[union-attr]
+            from app.registry.interpolate import interpolate_1d
 
+            driver_key = op.compound.driver  # type: ignore[union-attr]
             position_binding = next(
-                (b for b in w.bindings if b.param_key == _TOD_POSITION_KEY), None,
+                (b for b in w.bindings if b.param_key == driver_key), None,
             )
             if position_binding is not None:
                 position = float(position_binding.value)
-                bundle = interpolate_1d(position)
+                bundle = interpolate_1d(op.compound.anchors, position)  # type: ignore[union-attr]
                 if input.param_key in bundle:
                     bvalue = bundle[input.param_key]
                     binding = next(

@@ -1,7 +1,23 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { PerceptualDialBody } from './PerceptualDialBody';
-import { TIME_OF_DAY_ANCHORS } from '@/processing/anchors/time-of-day-anchors';
+import { loadRegistry } from '@/lib/registry/loader';
+import type { Anchor } from '@/lib/perceptual-dial/types';
+
+/** Build the TOD anchor list from the shared registry (same source used by
+ *  CompoundWidgetBody at runtime). */
+function todAnchors(): Anchor[] {
+  const op = loadRegistry().ops['time-of-day'];
+  if (!op?.compound) return [];
+  return op.compound.anchors.map((a) => ({
+    id: a.name,
+    label: a.name.charAt(0).toUpperCase() + a.name.slice(1),
+    position: [a.position],
+    params: a.values,
+  }));
+}
+
+const TIME_OF_DAY_ANCHORS: Anchor[] = todAnchors();
 
 afterEach(cleanup);
 

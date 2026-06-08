@@ -16,7 +16,8 @@ _TEMPLATES = list(all_fused_templates())
 
 
 def test_catalog_size() -> None:
-    assert len(_TEMPLATES) == 41
+    # time-of-day retired from fused templates (Task 7): now registry-driven.
+    assert len(_TEMPLATES) == 40
 
 
 def test_ids_are_unique() -> None:

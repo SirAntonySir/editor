@@ -8,7 +8,59 @@ import pytest
 
 from app.schemas.widget import Scope, WidgetOrigin
 from app.state.document import SessionDocument
-from app.tools.widgets.propose_stack import ProposeStackTool, _Input, _build_widget_multi
+from app.tools.widgets.propose_stack import ProposeStackTool, _Input, _build_widget_multi, _dedup_plan
+
+
+def test_dedup_within_widget_collapses_repeats():
+    raw_plan = [
+        {
+            "widget_name": "HSL",
+            "category": "color",
+            "ops": [
+                {"op_id": "hsl", "rationale": "warm reds", "starting_params": {"red_hue": 8}},
+                {"op_id": "hsl", "rationale": "cooler greens", "starting_params": {"green_hue": -8}},
+            ],
+        },
+    ]
+    deduped = _dedup_plan(raw_plan)
+    assert len(deduped) == 1
+    ops = deduped[0]["ops"]
+    assert len(ops) == 1
+    assert ops[0]["starting_params"] == {"red_hue": 8, "green_hue": -8}
+    assert "warm reds" in ops[0]["rationale"] and "cooler greens" in ops[0]["rationale"]
+
+
+def test_dedup_cross_widget_merges_same_signature():
+    raw_plan = [
+        {
+            "widget_name": "Lifted",
+            "category": "tone",
+            "ops": [{"op_id": "levels", "rationale": "lift", "starting_params": {"inBlack": 10}}],
+        },
+        {
+            "widget_name": "Crushed",
+            "category": "tone",
+            "ops": [{"op_id": "levels", "rationale": "crush", "starting_params": {"inWhite": 240}}],
+        },
+    ]
+    deduped = _dedup_plan(raw_plan)
+    assert len(deduped) == 1
+    # First widget wins on widget_name; params merge last-write-wins
+    assert deduped[0]["widget_name"] == "Lifted"
+    assert deduped[0]["ops"][0]["starting_params"] == {"inBlack": 10, "inWhite": 240}
+    assert "lift" in deduped[0]["ops"][0]["rationale"]
+    assert "crush" in deduped[0]["ops"][0]["rationale"]
+
+
+def test_dedup_different_signatures_stay_separate():
+    raw_plan = [
+        {"widget_name": "A", "category": "tone",
+         "ops": [{"op_id": "levels", "rationale": "x", "starting_params": {}}]},
+        {"widget_name": "B", "category": "color",
+         "ops": [{"op_id": "color", "rationale": "y", "starting_params": {}}]},
+    ]
+    deduped = _dedup_plan(raw_plan)
+    assert len(deduped) == 2
 
 
 def test_build_widget_multi_two_ops():

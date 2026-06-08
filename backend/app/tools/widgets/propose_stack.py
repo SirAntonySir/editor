@@ -70,6 +70,65 @@ def _control_schema_for(op_id: str, param_key: str) -> ControlSchema:
     return ControlSchema.model_validate(payload)
 
 
+def _dedup_plan(raw_plan: list[dict]) -> list[dict]:
+    """Collapse same-op-id repeats.
+
+    Within a widget: if `ops` has the same op_id twice, merge into one
+    (params merged last-write-wins, rationales concatenated).
+
+    Cross-widget: if two entries have the same sorted op_id signature,
+    merge into one (first widget_name/category wins, per-op params merged).
+    """
+    # --- Within-widget dedup ---
+    for entry in raw_plan:
+        seen: dict[str, dict] = {}
+        merged_ops: list[dict] = []
+        for op in entry.get("ops", []):
+            op_id = op.get("op_id")
+            if op_id is None:
+                continue
+            if op_id in seen:
+                target = seen[op_id]
+                target["starting_params"] = {
+                    **(target.get("starting_params") or {}),
+                    **(op.get("starting_params") or {}),
+                }
+                if op.get("rationale"):
+                    sep = " · " if target.get("rationale") else ""
+                    target["rationale"] = (target.get("rationale") or "") + sep + op["rationale"]
+            else:
+                # Defensive copy so cross-widget pass doesn't mutate shared dicts.
+                seen[op_id] = dict(op)
+                seen[op_id]["starting_params"] = dict(op.get("starting_params") or {})
+                merged_ops.append(seen[op_id])
+        entry["ops"] = merged_ops
+
+    # --- Cross-widget dedup ---
+    by_signature: dict[tuple[str, ...], dict] = {}
+    deduped: list[dict] = []
+    for entry in raw_plan:
+        sig = tuple(sorted(op["op_id"] for op in entry.get("ops", [])))
+        if not sig:
+            continue
+        if sig in by_signature:
+            target_entry = by_signature[sig]
+            # Build a map of target ops by id for quick merge.
+            target_ops_by_id = {o["op_id"]: o for o in target_entry["ops"]}
+            for op in entry["ops"]:
+                target_op = target_ops_by_id[op["op_id"]]
+                target_op["starting_params"] = {
+                    **(target_op.get("starting_params") or {}),
+                    **(op.get("starting_params") or {}),
+                }
+                if op.get("rationale"):
+                    sep = " · " if target_op.get("rationale") else ""
+                    target_op["rationale"] = (target_op.get("rationale") or "") + sep + op["rationale"]
+        else:
+            by_signature[sig] = entry
+            deduped.append(entry)
+    return deduped
+
+
 def _build_widget_multi(
     *, widget_name: str | None,
     category: str | None,

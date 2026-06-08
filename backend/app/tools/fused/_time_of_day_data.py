@@ -16,7 +16,7 @@ from __future__ import annotations
 TIME_OF_DAY_ANCHORS: list[tuple[float, dict[str, float]]] = [
     (0.10, {  # dawn
         "kelvin.kelvin": 9800,
-        "light.exposure": -0.3,
+        "light.exposure": -30,
         "light.contrast": -8,
         "light.highlights": -15,
         "light.shadows": 20,
@@ -38,7 +38,7 @@ TIME_OF_DAY_ANCHORS: list[tuple[float, dict[str, float]]] = [
     }),
     (0.55, {  # golden
         "kelvin.kelvin": 9600,
-        "light.exposure": 0.2,
+        "light.exposure": 20,
         "light.contrast": 5,
         "light.highlights": -20,
         "light.shadows": 10,
@@ -49,7 +49,7 @@ TIME_OF_DAY_ANCHORS: list[tuple[float, dict[str, float]]] = [
     }),
     (0.80, {  # blue
         "kelvin.kelvin": 4500,
-        "light.exposure": -0.5,
+        "light.exposure": -50,
         "light.contrast": 15,
         "light.highlights": -10,
         "light.shadows": 5,
@@ -60,7 +60,7 @@ TIME_OF_DAY_ANCHORS: list[tuple[float, dict[str, float]]] = [
     }),
     (1.00, {  # night
         "kelvin.kelvin": 8800,
-        "light.exposure": -1.2,
+        "light.exposure": -120,
         "light.contrast": 25,
         "light.highlights": -40,
         "light.shadows": -10,

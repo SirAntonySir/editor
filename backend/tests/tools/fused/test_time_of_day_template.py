@@ -44,8 +44,8 @@ def test_interpolate_intermediate_monotonic() -> None:
     # Kelvin descends monotonically between dawn (9800) and noon (7500) in the
     # shader convention, so the midpoint lies between them.
     assert 7500 < mid["kelvin.kelvin"] < 9800
-    # Exposure goes from -0.3 → 0; mid should be between.
-    assert -0.3 < mid["light.exposure"] < 0.0
+    # Exposure goes from -30 → 0 (canonical engine units); mid should be between.
+    assert -30 < mid["light.exposure"] < 0
 
 
 def test_interpolate_position_05_matches_js_catmull_rom_within_eps() -> None:
@@ -58,7 +58,7 @@ def test_interpolate_position_05_matches_js_catmull_rom_within_eps() -> None:
     # (the prior physical-convention lock).
     expected = {
         "kelvin.kelvin": 9570.4,
-        "light.exposure": 0.2192,
+        "light.exposure": 21.92,
         "color.vibrance": 10.544,
         "filters.vignette_amount": -6.176,
     }

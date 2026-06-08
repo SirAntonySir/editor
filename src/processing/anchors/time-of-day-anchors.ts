@@ -9,7 +9,13 @@ import type { Anchor } from '@/lib/perceptual-dial/types';
  * is `2 * 6500 - physical_kelvin` of the lighting condition it emulates
  * (e.g. dawn ≈ 3200 K physical light → stored 9800).
  *
- * All other params are plain shader values in their natural ranges.
+ * All other params use the **engine canonical scale** (typically −100..100)
+ * as defined in `shared/engine-registry.json`. `engineUniformValue`
+ * divides by the param's `scale` before uniforming — exposure has
+ * `scale: 100`, so canonical −100 maps to shader stops −1.0 (= 0.5×
+ * brightness via `pow(2, u_exposure)`). The first revision of this file
+ * mistakenly used fractional stops (e.g. −1.2) directly, producing a
+ * near-zero shader value and zero perceived change for night.
  *
  * Keep this in lockstep with `backend/app/tools/fused/_time_of_day_data.py`.
  */
@@ -20,7 +26,7 @@ export const TIME_OF_DAY_ANCHORS: Anchor[] = [
     position: [0.10],
     params: {
       'kelvin.kelvin':     9800,
-      'light.exposure':     -0.3,
+      'light.exposure':    -30,
       'light.contrast':     -8,
       'light.highlights':  -15,
       'light.shadows':     +20,
@@ -52,7 +58,7 @@ export const TIME_OF_DAY_ANCHORS: Anchor[] = [
     position: [0.55],
     params: {
       'kelvin.kelvin':     9600,
-      'light.exposure':     +0.2,
+      'light.exposure':    +20,
       'light.contrast':     +5,
       'light.highlights':  -20,
       'light.shadows':     +10,
@@ -68,7 +74,7 @@ export const TIME_OF_DAY_ANCHORS: Anchor[] = [
     position: [0.80],
     params: {
       'kelvin.kelvin':     4500,
-      'light.exposure':     -0.5,
+      'light.exposure':    -50,
       'light.contrast':    +15,
       'light.highlights':  -10,
       'light.shadows':      +5,
@@ -84,7 +90,7 @@ export const TIME_OF_DAY_ANCHORS: Anchor[] = [
     position: [1.00],
     params: {
       'kelvin.kelvin':     8800,
-      'light.exposure':     -1.2,
+      'light.exposure':   -120,
       'light.contrast':    +25,
       'light.highlights':  -40,
       'light.shadows':     -10,

@@ -203,6 +203,8 @@ export interface Widget {
    *  (e.g. Time-of-Day dial) skip these so manual values aren't overwritten.
    *  Cleared via the `unlock_widget_param` backend tool. */
   locked_params: string[];
+  display_name?: string | null;
+  category?: string | null;
   created_at: string;
   updated_at: string;
 }

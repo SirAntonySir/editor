@@ -351,6 +351,8 @@ class Widget(BaseModel):
     # `unlock_widget_param`. Empty by default for backwards-compatible
     # spawning.
     locked_params: list[str] = Field(default_factory=list)
+    display_name: str | None = None    # NEW — per-widget label (smart composition)
+    category: str | None = None         # NEW — for grouping (smart composition)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

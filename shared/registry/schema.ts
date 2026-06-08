@@ -59,6 +59,7 @@ export const OpEngineConfigSchema = z.object({
 export const RegistryOpSchema = z.object({
   id: z.string(),
   display_name: z.string(),
+  category: z.string().optional(),     // NEW — planner grouping hint
   llm: OpLlmMetadataSchema,
   params: z.record(z.string(), OpParamSchema),
   bindings: z.array(OpBindingSchema),

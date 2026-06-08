@@ -46,6 +46,30 @@ describe('RegistryPresetSchema', () => {
   });
 });
 
+describe('RegistryOpSchema category', () => {
+  it('accepts a category', () => {
+    const parsed = RegistryOpSchema.parse({
+      id: 'x', display_name: 'X', category: 'color',
+      llm: { description: 'd', typical_use: 'u', semantic_tags: [] },
+      params: { a: { type: 'scalar', range: [0, 1], default: 0 } },
+      bindings: [{ param_key: 'a', control_type: 'slider', label: 'A' }],
+      engine: { shader: 'x', render_order: 0, node_type: 'x' },
+    });
+    expect(parsed.category).toBe('color');
+  });
+
+  it('treats category as optional', () => {
+    const parsed = RegistryOpSchema.parse({
+      id: 'x', display_name: 'X',
+      llm: { description: 'd', typical_use: 'u', semantic_tags: [] },
+      params: { a: { type: 'scalar', range: [0, 1], default: 0 } },
+      bindings: [{ param_key: 'a', control_type: 'slider', label: 'A' }],
+      engine: { shader: 'x', render_order: 0, node_type: 'x' },
+    });
+    expect(parsed.category).toBeUndefined();
+  });
+});
+
 describe('strict mode parity', () => {
   it('rejects extra keys on RegistryOpSchema', () => {
     expect(() => RegistryOpSchema.parse({

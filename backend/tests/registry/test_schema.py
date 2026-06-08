@@ -81,6 +81,29 @@ def test_op_param_curve_points_rejects_malformed_default():
         })
 
 
+def test_registry_op_accepts_category():
+    op = RegistryOp.model_validate({
+        "id": "x", "display_name": "X",
+        "category": "color",
+        "llm": {"description": "d", "typical_use": "u", "semantic_tags": []},
+        "params": {"a": {"type": "scalar", "range": [0, 1], "default": 0}},
+        "bindings": [{"param_key": "a", "control_type": "slider", "label": "A"}],
+        "engine": {"shader": "x", "render_order": 0, "node_type": "x"},
+    })
+    assert op.category == "color"
+
+
+def test_registry_op_category_optional():
+    op = RegistryOp.model_validate({
+        "id": "x", "display_name": "X",
+        "llm": {"description": "d", "typical_use": "u", "semantic_tags": []},
+        "params": {"a": {"type": "scalar", "range": [0, 1], "default": 0}},
+        "bindings": [{"param_key": "a", "control_type": "slider", "label": "A"}],
+        "engine": {"shader": "x", "render_order": 0, "node_type": "x"},
+    })
+    assert op.category is None
+
+
 def test_preset_validates():
     preset = RegistryPreset.model_validate({
         "id": "vintage",

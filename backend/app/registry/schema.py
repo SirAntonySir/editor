@@ -63,6 +63,7 @@ class RegistryOp(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str
     display_name: str
+    category: str | None = None    # NEW — planner grouping hint
     llm: OpLlmMetadata
     params: dict[str, OpParamSchema]
     bindings: list[OpBinding]

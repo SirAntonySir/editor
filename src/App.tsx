@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
+import { ReactFlowProvider } from '@xyflow/react';
 import { EditorProvider, useEditor } from '@/components/EditorProvider';
 import { CanvasWorkspace } from '@/components/workspace/CanvasWorkspace';
 
@@ -248,8 +249,10 @@ export default function App() {
   }, []);
 
   return (
-    <EditorProvider>
-      <EditorContent />
-    </EditorProvider>
+    <ReactFlowProvider>
+      <EditorProvider>
+        <EditorContent />
+      </EditorProvider>
+    </ReactFlowProvider>
   );
 }

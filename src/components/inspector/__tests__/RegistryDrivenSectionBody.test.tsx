@@ -110,4 +110,34 @@ describe('RegistryDrivenSectionBody multi-op rendering', () => {
     // Single-op path must NOT render a section header.
     expect(queryByText('Grain')).toBeFalsy();
   });
+
+  it('identifies ops by op_id even when two ops share a node_type', () => {
+    // light and color both have node_type "basic".
+    const widget = makeMultiOpWidget();
+    widget.nodes = [
+      { id: 'n_a', type: 'basic', op_id: 'light', params: { exposure: 0 }, scope: { kind: 'global' }, inputs: [], widget_id: 'w_test' },
+      { id: 'n_b', type: 'basic', op_id: 'color', params: { saturation: 0 }, scope: { kind: 'global' }, inputs: [], widget_id: 'w_test' },
+    ] as unknown as Widget['nodes'];
+    // Add minimal bindings so the panel renders something.
+    widget.bindings = [
+      {
+        param_key: 'exposure', label: 'Exposure', control_type: 'slider',
+        target: { node_id: 'n_a', param_key: 'exposure' },
+        value: 0, default: 0,
+        control_schema: { control_type: 'slider', min: -100, max: 100, step: 1 },
+      },
+      {
+        param_key: 'saturation', label: 'Saturation', control_type: 'slider',
+        target: { node_id: 'n_b', param_key: 'saturation' },
+        value: 0, default: 0,
+        control_schema: { control_type: 'slider', min: -100, max: 100, step: 1 },
+      },
+    ] as unknown as Widget['bindings'];
+
+    const { getByText } = render(
+      <RegistryDrivenSectionBody widget={widget} disabled={false} />,
+    );
+    expect(getByText('Light')).toBeTruthy();
+    expect(getByText('Color')).toBeTruthy();
+  });
 });

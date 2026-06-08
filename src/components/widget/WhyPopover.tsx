@@ -6,7 +6,11 @@ import { loadRegistry } from '@/lib/registry/loader';
 function opsForWidget(widget: Widget): { node: WidgetNode; label: string }[] {
   const reg = loadRegistry();
   return widget.nodes.map((node) => {
-    const op = Object.values(reg.ops).find((o) => o.engine.node_type === node.type);
+    let op = node.op_id ? reg.ops[node.op_id] : undefined;
+    if (!op) {
+      // Back-compat: nodes without op_id — match by node_type.
+      op = Object.values(reg.ops).find((o) => o.engine.node_type === node.type);
+    }
     return { node, label: op ? op.display_name : node.type };
   });
 }

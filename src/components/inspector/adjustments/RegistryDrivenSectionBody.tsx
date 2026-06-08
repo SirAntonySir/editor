@@ -60,9 +60,13 @@ function sliceWidgetByOp(widget: Widget): OpSlice[] {
   const reg = loadRegistry();
   const slices: OpSlice[] = [];
   for (const node of widget.nodes) {
-    const op = Object.values(reg.ops).find((o) => o.engine.node_type === node.type);
+    let op = node.op_id ? reg.ops[node.op_id] : undefined;
     if (!op) {
-      console.warn(`RegistryDrivenSectionBody: no registry op for node.type=${node.type}`);
+      // Back-compat: nodes without op_id (e.g. persisted before this feature) — match by node_type.
+      op = Object.values(reg.ops).find((o) => o.engine.node_type === node.type);
+    }
+    if (!op) {
+      console.warn(`RegistryDrivenSectionBody: no registry op for node ${node.id} (type=${node.type}, op_id=${node.op_id ?? 'none'})`);
       continue;
     }
     const bindings = widget.bindings.filter((b) => b.target?.node_id === node.id);

@@ -184,6 +184,7 @@ def _build_widget_multi(
         nodes.append(WidgetNode(
             id=node_id,
             type=op.engine.node_type,
+            op_id=op_id,                # NEW — source registry op id for frontend identification
             params=full_params,
             scope=scope,
             inputs=[],
@@ -261,6 +262,7 @@ def _build_widget(
     node = WidgetNode(
         id=node_id,
         type=op.engine.node_type,
+        op_id=op_id,                # NEW — source registry op id for frontend identification
         params=full_params,
         scope=scope,
         inputs=[],

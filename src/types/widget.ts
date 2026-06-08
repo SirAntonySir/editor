@@ -152,6 +152,7 @@ export type ParamValue = number | string | boolean | CurvesValue;
 export interface WidgetNode {
   id: string;
   type: string;
+  op_id?: string | null;
   params: Record<string, ParamValue>;
   scope: Scope;
   inputs: string[];

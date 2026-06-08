@@ -108,6 +108,19 @@ def test_build_widget_multi_single_op_equivalence():
     assert widget.op_id == "grain"
 
 
+def test_build_widget_multi_nodes_carry_op_id():
+    scope = Scope.model_validate({"kind": "global"})
+    origin = WidgetOrigin(kind="mcp_user_prompt", prompt="test", parent_widget_id=None)
+    widget = _build_widget_multi(
+        widget_name="Mix", category="color",
+        ops=[("color", {}), ("splitTone", {})],
+        intent="t", scope=scope, origin=origin,
+        layer_id="legacy", image_node_layer_ids=None,
+    )
+    assert widget.nodes[0].op_id == "color"
+    assert widget.nodes[1].op_id == "splitTone"
+
+
 def test_build_widget_multi_bindings_target_correct_nodes():
     """A binding from the 2nd op must target the 2nd node, not the 1st."""
     scope = Scope.model_validate({"kind": "global"})

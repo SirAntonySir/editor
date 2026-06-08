@@ -291,6 +291,7 @@ class WidgetNode(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str = Field(min_length=1)
     type: str = Field(min_length=1)
+    op_id: str | None = None    # NEW — source registry op id for frontend identification
     params: dict[str, ParamValue] = Field(default_factory=dict)
     scope: Scope
     inputs: list[str] = Field(default_factory=list)

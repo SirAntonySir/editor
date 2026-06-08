@@ -24,7 +24,7 @@ export function Slider({ schema, value, onChange, label, disabled }: RegistryCon
         value={numValue}
         min={min}
         max={max}
-        step={1}
+        step={schema.step ?? 1}
         defaultValue={typeof schema.default === 'number' ? schema.default : undefined}
         onChange={(v) => onChange(v)}
         formatValue={schema.unit ? (v) => `${Math.round(v)}${schema.unit}` : undefined}

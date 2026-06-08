@@ -68,12 +68,14 @@ def _control_schema_for(op_id: str, param_key: str) -> ControlSchema:
     if param.type == "scalar" and mapped_ct == "slider":
         assert param.range is not None
         payload["min"], payload["max"] = param.range
-        payload["step"] = 1
+        payload["step"] = param.step if param.step is not None else 1
         if param.unit:
             payload["unit"] = param.unit
     elif param.type == "curve_points":
         payload["min_points"] = param.min_points or 2
         payload["max_points"] = param.max_points or 16
+    elif param.type == "enum" and param.values:
+        payload["options"] = [{"value": v, "label": v} for v in param.values]
     return ControlSchema.model_validate(payload)
 
 
@@ -165,7 +167,8 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
         anthropic = deps.get_anthropic_client()
         image_context = doc.image_context.model_dump(mode="json")
 
-        plan_result = anthropic.plan_widget_stack(
+        plan_result = await asyncio.to_thread(
+            anthropic.plan_widget_stack,
             intent=input.intent,
             scope=input.scope,
             image_context=image_context,

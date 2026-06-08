@@ -37,7 +37,7 @@ export function KelvinStrip({ schema, value, onChange, label, disabled }: Regist
         value={numValue}
         min={min}
         max={max}
-        step={schema.unit ? 50 : 1}
+        step={schema.step ?? 1}
         defaultValue={typeof schema.default === 'number' ? schema.default : undefined}
         trackGradient={kelvinGradient()}
         onChange={(v) => onChange(v)}

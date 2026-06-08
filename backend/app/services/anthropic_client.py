@@ -854,7 +854,11 @@ class AnthropicClient:
         )
         _log_cache_stats("plan_widget_stack", session_id, response)
         text = response.content[0].text
-        return json.loads(text)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            # Trigger fallback path in _handle_llm_path
+            return {"plan": []}
 
     # ------------------------------------------------------------------
     # Phase 2 resolver: per-op numeric param resolution

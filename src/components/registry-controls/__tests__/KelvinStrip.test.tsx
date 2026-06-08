@@ -9,6 +9,7 @@ const baseSchema = {
   range: [2000, 12000] as [number, number],
   default: 6500,
   unit: 'K',
+  step: 50,
 };
 
 describe('KelvinStrip control', () => {

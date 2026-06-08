@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -69,23 +70,109 @@ def _control_schema_for(op_id: str, param_key: str) -> ControlSchema:
     return ControlSchema.model_validate(payload)
 
 
+def _build_widget_multi(
+    *, widget_name: str | None,
+    category: str | None,
+    ops: list[tuple[str, dict[str, Any]]],
+    intent: str,
+    scope: Scope,
+    origin: WidgetOrigin,
+    layer_id: str,
+    image_node_layer_ids: list[str] | None,
+) -> Widget:
+    """Build a single Widget composed of one or more ops. One WidgetNode per op."""
+    if not ops:
+        raise ValueError("_build_widget_multi requires at least one op")
+
+    reg = get_registry()
+    widget_id = f"w_{uuid.uuid4().hex[:8]}"
+
+    nodes: list[WidgetNode] = []
+    bindings: list[ControlBinding] = []
+    for op_id, params in ops:
+        if op_id not in reg.ops:
+            raise ValueError(f"unknown op id: {op_id!r}")
+        op = reg.ops[op_id]
+        node_id = f"n_{uuid.uuid4().hex[:6]}"
+
+        # Merge defaults into params for this op.
+        full_params = {
+            key: params.get(key, p.default) for key, p in op.params.items()
+        }
+
+        nodes.append(WidgetNode(
+            id=node_id,
+            type=op.engine.node_type,
+            params=full_params,
+            scope=scope,
+            inputs=[],
+            widget_id=widget_id,
+            layer_id=(image_node_layer_ids[0] if image_node_layer_ids else layer_id),
+            layer_ids=image_node_layer_ids,
+        ))
+
+        for b in op.bindings:
+            bindings.append(ControlBinding(
+                param_key=b.param_key,
+                label=b.label,
+                control_type=b.control_type,
+                control_schema=_control_schema_for(op_id, b.param_key),
+                value=full_params[b.param_key],
+                default=op.params[b.param_key].default,
+                target=NodeParamTarget(node_id=node_id, param_key=b.param_key),
+            ))
+
+    return Widget(
+        id=widget_id,
+        intent=intent,
+        scope=scope,
+        origin=origin,
+        op_id=ops[0][0],          # first op's id for back-compat
+        composed=False,
+        nodes=nodes,
+        bindings=bindings,
+        preview=WidgetPreview(kind="none", auto_before_after=False),
+        rejected_attempts=[],
+        status="active",
+        revision=1,
+        display_name=widget_name,
+        category=category,
+    )
+
+
 def _build_widget(
     *, op_id: str, params: dict, intent: str, scope: Scope,
     origin: WidgetOrigin, layer_id: str, image_node_layer_ids: list[str] | None,
     exposed_param_keys: set[str] | None = None,
+    display_name: str | None = None, category: str | None = None,
 ) -> Widget:
-    """Build a widget from a registry op.
+    """Build a single-op widget.
 
     If ``exposed_param_keys`` is given, only bindings whose ``param_key`` is in
     that set are included in the widget's controls. The node still receives ALL
     op params at their defaults so the shader pipeline stays complete.
+
+    For the common case (no param filtering), this is a thin wrapper around
+    ``_build_widget_multi``.
     """
+    if exposed_param_keys is None:
+        return _build_widget_multi(
+            widget_name=display_name,
+            category=category,
+            ops=[(op_id, params)],
+            intent=intent,
+            scope=scope,
+            origin=origin,
+            layer_id=layer_id,
+            image_node_layer_ids=image_node_layer_ids,
+        )
+
+    # Param-filtered path (used by preset spawning with per-band exposure).
     reg = get_registry()
     op = reg.ops[op_id]
     widget_id = f"w_{uuid.uuid4().hex[:8]}"
     node_id = f"n_{uuid.uuid4().hex[:6]}"
 
-    # Merge defaults into params (any unspecified key gets its default).
     full_params = {
         key: params.get(key, p.default) for key, p in op.params.items()
     }
@@ -103,7 +190,7 @@ def _build_widget(
 
     bindings: list[ControlBinding] = []
     for b in op.bindings:
-        if exposed_param_keys is not None and b.param_key not in exposed_param_keys:
+        if b.param_key not in exposed_param_keys:
             continue
         bindings.append(ControlBinding(
             param_key=b.param_key,
@@ -128,6 +215,8 @@ def _build_widget(
         rejected_attempts=[],
         status="active",
         revision=1,
+        display_name=display_name,
+        category=category,
     )
 
 

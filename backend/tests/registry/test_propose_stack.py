@@ -6,8 +6,77 @@ from __future__ import annotations
 
 import pytest
 
+from app.schemas.widget import Scope, WidgetOrigin
 from app.state.document import SessionDocument
-from app.tools.widgets.propose_stack import ProposeStackTool, _Input
+from app.tools.widgets.propose_stack import ProposeStackTool, _Input, _build_widget_multi
+
+
+def test_build_widget_multi_two_ops():
+    scope = Scope.model_validate({"kind": "global"})
+    origin = WidgetOrigin(kind="mcp_user_prompt", prompt="test", parent_widget_id=None)
+    widget = _build_widget_multi(
+        widget_name="Warm fade",
+        category="color",
+        ops=[
+            ("color",     {"saturation": -15}),
+            ("splitTone", {"shadow_hue": 200, "shadow_sat": 30}),
+        ],
+        intent="vintage",
+        scope=scope, origin=origin,
+        layer_id="legacy",
+        image_node_layer_ids=None,
+    )
+    # One widget with two nodes
+    assert widget.display_name == "Warm fade"
+    assert widget.category == "color"
+    assert len(widget.nodes) == 2
+    # Nodes carry their op-specific types
+    node_types = {n.type for n in widget.nodes}
+    assert node_types == {"basic", "splitTone"}    # `color` op's engine.node_type is "basic"
+    # Bindings concatenated (count == sum of params on each op)
+    assert len(widget.bindings) == len(widget.nodes[0].params) + len(widget.nodes[1].params)
+    # widget.op_id is the FIRST op's id
+    assert widget.op_id == "color"
+
+
+def test_build_widget_multi_single_op_equivalence():
+    """The single-op wrapper produces a widget identical to today's _build_widget."""
+    scope = Scope.model_validate({"kind": "global"})
+    origin = WidgetOrigin(kind="tool_invoked", prompt=None, parent_widget_id=None)
+    widget = _build_widget_multi(
+        widget_name=None, category=None,
+        ops=[("grain", {"amount": 18})],
+        intent="grain", scope=scope, origin=origin,
+        layer_id="legacy", image_node_layer_ids=None,
+    )
+    assert widget.display_name is None
+    assert widget.category is None
+    assert len(widget.nodes) == 1
+    assert widget.nodes[0].type == "grain"
+    assert widget.op_id == "grain"
+
+
+def test_build_widget_multi_bindings_target_correct_nodes():
+    """A binding from the 2nd op must target the 2nd node, not the 1st."""
+    scope = Scope.model_validate({"kind": "global"})
+    origin = WidgetOrigin(kind="mcp_user_prompt", prompt="t", parent_widget_id=None)
+    widget = _build_widget_multi(
+        widget_name="Mixed", category=None,
+        ops=[
+            ("color",     {"saturation": 0}),
+            ("splitTone", {}),
+        ],
+        intent="t", scope=scope, origin=origin,
+        layer_id="legacy", image_node_layer_ids=None,
+    )
+    color_node_id = widget.nodes[0].id
+    split_node_id = widget.nodes[1].id
+    for b in widget.bindings:
+        # color params target node 0; splitTone params target node 1
+        if b.param_key in ("saturation", "vibrance", "hue"):
+            assert b.target.node_id == color_node_id, f"{b.param_key} should target color node"
+        else:
+            assert b.target.node_id == split_node_id, f"{b.param_key} should target splitTone node"
 
 
 @pytest.mark.asyncio

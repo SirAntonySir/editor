@@ -59,6 +59,32 @@ class OpEngineConfig(BaseModel):
     node_type: str
 
 
+class CompoundAnchor(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    position: float = Field(ge=0.0, le=1.0)
+    name: str
+    values: dict[str, float]
+
+
+class OpCompoundConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    driver: str
+    interpolation: Literal["catmull_rom_1d"] = "catmull_rom_1d"
+    anchors: list[CompoundAnchor] = Field(min_length=2)
+
+    @model_validator(mode="after")
+    def _checks(self) -> OpCompoundConfig:
+        positions = [a.position for a in self.anchors]
+        if positions != sorted(positions) or len(set(positions)) != len(positions):
+            raise ValueError("anchors must have strictly increasing positions")
+        all_keys = {k for a in self.anchors for k in a.values.keys()}
+        for a in self.anchors:
+            missing = all_keys - set(a.values.keys())
+            if missing:
+                raise ValueError(f"anchor {a.name!r} missing keys {missing}")
+        return self
+
+
 class RegistryOp(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str
@@ -69,12 +95,25 @@ class RegistryOp(BaseModel):
     bindings: list[OpBinding]
     engine: OpEngineConfig
     tool_defaults: list[str] | None = None  # curated subset of param keys for toolrail widget
+    compound: OpCompoundConfig | None = None
 
     @model_validator(mode="after")
     def _bindings_reference_params(self) -> RegistryOp:
         for b in self.bindings:
             if b.param_key not in self.params:
                 raise ValueError(f"binding param_key {b.param_key!r} not in params")
+        # compound validation
+        if self.compound:
+            if self.compound.driver not in self.params:
+                raise ValueError(
+                    f"compound driver {self.compound.driver!r} not in params"
+                )
+            for a in self.compound.anchors:
+                for k in a.values:
+                    if k not in self.params:
+                        raise ValueError(
+                            f"anchor value key {k!r} not in op.params"
+                        )
         return self
 
 

@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.registry.schema import RegistryOp, RegistryPreset, OpParamSchema
+from app.registry.schema import RegistryOp, RegistryPreset, OpParamSchema, OpCompoundConfig
 
 
 def test_minimal_op_validates():
@@ -102,6 +102,113 @@ def test_registry_op_category_optional():
         "engine": {"shader": "x", "render_order": 0, "node_type": "x"},
     })
     assert op.category is None
+
+
+def test_compound_block_validates():
+    op = RegistryOp.model_validate({
+        "id": "tod", "display_name": "Time of Day",
+        "category": "tone",
+        "llm": {"description": "d", "typical_use": "u", "semantic_tags": []},
+        "params": {
+            "position": {"type": "scalar", "range": [0, 1], "default": 0.3, "step": 0.001},
+            "k": {"type": "scalar", "range": [0, 100], "default": 50},
+        },
+        "bindings": [
+            {"param_key": "position", "control_type": "slider", "label": "Time"},
+            {"param_key": "k", "control_type": "slider", "label": "K"},
+        ],
+        "engine": {"shader": "compound", "render_order": 5, "node_type": "compound"},
+        "compound": {
+            "driver": "position",
+            "interpolation": "catmull_rom_1d",
+            "anchors": [
+                {"position": 0.0, "name": "a", "values": {"k": 10}},
+                {"position": 1.0, "name": "b", "values": {"k": 90}},
+            ],
+        },
+    })
+    assert op.compound is not None
+    assert op.compound.driver == "position"
+    assert len(op.compound.anchors) == 2
+
+
+def test_compound_rejects_unsorted_anchors():
+    with pytest.raises(ValidationError):
+        RegistryOp.model_validate({
+            "id": "tod", "display_name": "T", "category": "tone",
+            "llm": {"description": "d", "typical_use": "u", "semantic_tags": []},
+            "params": {
+                "position": {"type": "scalar", "range": [0, 1], "default": 0.3},
+                "k": {"type": "scalar", "range": [0, 100], "default": 50},
+            },
+            "bindings": [
+                {"param_key": "position", "control_type": "slider", "label": "T"},
+                {"param_key": "k", "control_type": "slider", "label": "K"},
+            ],
+            "engine": {"shader": "compound", "render_order": 5, "node_type": "compound"},
+            "compound": {
+                "driver": "position", "interpolation": "catmull_rom_1d",
+                "anchors": [
+                    {"position": 0.5, "name": "b", "values": {"k": 90}},
+                    {"position": 0.0, "name": "a", "values": {"k": 10}},
+                ],
+            },
+        })
+
+
+def test_compound_rejects_driver_not_in_params():
+    with pytest.raises(ValidationError):
+        RegistryOp.model_validate({
+            "id": "tod", "display_name": "T", "category": "tone",
+            "llm": {"description": "d", "typical_use": "u", "semantic_tags": []},
+            "params": {
+                "k": {"type": "scalar", "range": [0, 100], "default": 50},
+            },
+            "bindings": [
+                {"param_key": "k", "control_type": "slider", "label": "K"},
+            ],
+            "engine": {"shader": "compound", "render_order": 5, "node_type": "compound"},
+            "compound": {
+                "driver": "nonexistent", "interpolation": "catmull_rom_1d",
+                "anchors": [
+                    {"position": 0.0, "name": "a", "values": {"k": 10}},
+                    {"position": 1.0, "name": "b", "values": {"k": 90}},
+                ],
+            },
+        })
+
+
+def test_compound_rejects_anchor_value_key_not_in_params():
+    with pytest.raises(ValidationError):
+        RegistryOp.model_validate({
+            "id": "tod", "display_name": "T", "category": "tone",
+            "llm": {"description": "d", "typical_use": "u", "semantic_tags": []},
+            "params": {
+                "position": {"type": "scalar", "range": [0, 1], "default": 0.3},
+            },
+            "bindings": [
+                {"param_key": "position", "control_type": "slider", "label": "T"},
+            ],
+            "engine": {"shader": "compound", "render_order": 5, "node_type": "compound"},
+            "compound": {
+                "driver": "position", "interpolation": "catmull_rom_1d",
+                "anchors": [
+                    {"position": 0.0, "name": "a", "values": {"unknown_key": 10}},
+                    {"position": 1.0, "name": "b", "values": {"unknown_key": 90}},
+                ],
+            },
+        })
+
+
+def test_compound_optional():
+    op = RegistryOp.model_validate({
+        "id": "x", "display_name": "X", "category": "tone",
+        "llm": {"description": "d", "typical_use": "u", "semantic_tags": []},
+        "params": {"a": {"type": "scalar", "range": [0, 1], "default": 0}},
+        "bindings": [{"param_key": "a", "control_type": "slider", "label": "A"}],
+        "engine": {"shader": "x", "render_order": 0, "node_type": "x"},
+    })
+    assert op.compound is None
 
 
 def test_preset_validates():

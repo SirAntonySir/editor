@@ -56,6 +56,34 @@ export const OpEngineConfigSchema = z.object({
   node_type: z.string(),
 }).strict();
 
+export const CompoundAnchorSchema = z.object({
+  position: z.number().min(0).max(1),
+  name: z.string(),
+  values: z.record(z.string(), z.number()),
+}).strict();
+
+export const OpCompoundConfigSchema = z.object({
+  driver: z.string(),
+  interpolation: z.literal('catmull_rom_1d').default('catmull_rom_1d'),
+  anchors: z.array(CompoundAnchorSchema).min(2),
+}).strict().superRefine((c, ctx) => {
+  const positions = c.anchors.map(a => a.position);
+  const sorted = [...positions].sort((a, b) => a - b);
+  if (positions.some((p, i) => p !== sorted[i]) ||
+      new Set(positions).size !== positions.length) {
+    ctx.addIssue({ code: 'custom', message: 'anchors must have strictly increasing positions' });
+  }
+  const allKeys = new Set<string>();
+  for (const a of c.anchors) for (const k of Object.keys(a.values)) allKeys.add(k);
+  for (const a of c.anchors) {
+    for (const k of allKeys) {
+      if (!(k in a.values)) {
+        ctx.addIssue({ code: 'custom', message: `anchor "${a.name}" missing key "${k}"` });
+      }
+    }
+  }
+});
+
 export const RegistryOpSchema = z.object({
   id: z.string(),
   display_name: z.string(),
@@ -69,6 +97,7 @@ export const RegistryOpSchema = z.object({
    * Defaults to all binding param_keys when absent.
    */
   tool_defaults: z.array(z.string()).optional(),
+  compound: OpCompoundConfigSchema.optional(),
 }).strict().superRefine((op, ctx) => {
   for (const b of op.bindings) {
     if (!(b.param_key in op.params)) {
@@ -76,6 +105,25 @@ export const RegistryOpSchema = z.object({
         code: 'custom',
         message: `binding param_key "${b.param_key}" not in params`,
       });
+    }
+  }
+  // compound validation
+  if (op.compound) {
+    if (!(op.compound.driver in op.params)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `compound driver "${op.compound.driver}" not in params`,
+      });
+    }
+    for (const a of op.compound.anchors) {
+      for (const k of Object.keys(a.values)) {
+        if (!(k in op.params)) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `anchor value key "${k}" not in op.params`,
+          });
+        }
+      }
     }
   }
 });
@@ -99,3 +147,5 @@ export type RegistryOp = z.infer<typeof RegistryOpSchema>;
 export type RegistryPreset = z.infer<typeof RegistryPresetSchema>;
 export type OpParam = z.infer<typeof OpParamSchema>;
 export type OpBinding = z.infer<typeof OpBindingSchema>;
+export type CompoundAnchor = z.infer<typeof CompoundAnchorSchema>;
+export type OpCompoundConfig = z.infer<typeof OpCompoundConfigSchema>;

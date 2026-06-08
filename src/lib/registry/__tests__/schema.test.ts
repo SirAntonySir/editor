@@ -70,6 +70,67 @@ describe('RegistryOpSchema category', () => {
   });
 });
 
+describe('RegistryOpSchema compound block', () => {
+  const baseOp = {
+    id: 'x', display_name: 'X', category: 'tone',
+    llm: { description: 'd', typical_use: 'u', semantic_tags: [] },
+    params: {
+      position: { type: 'scalar', range: [0, 1], default: 0.3 },
+      k: { type: 'scalar', range: [0, 100], default: 50 },
+    },
+    bindings: [
+      { param_key: 'position', control_type: 'slider', label: 'T' },
+      { param_key: 'k', control_type: 'slider', label: 'K' },
+    ],
+    engine: { shader: 'compound', render_order: 5, node_type: 'compound' },
+  };
+
+  it('accepts a valid compound block', () => {
+    const parsed = RegistryOpSchema.parse({
+      ...baseOp,
+      compound: {
+        driver: 'position', interpolation: 'catmull_rom_1d',
+        anchors: [
+          { position: 0.0, name: 'a', values: { k: 10 } },
+          { position: 1.0, name: 'b', values: { k: 90 } },
+        ],
+      },
+    });
+    expect(parsed.compound?.driver).toBe('position');
+  });
+
+  it('rejects unsorted anchors', () => {
+    expect(() => RegistryOpSchema.parse({
+      ...baseOp,
+      compound: {
+        driver: 'position', interpolation: 'catmull_rom_1d',
+        anchors: [
+          { position: 0.5, name: 'b', values: { k: 90 } },
+          { position: 0.0, name: 'a', values: { k: 10 } },
+        ],
+      },
+    })).toThrow();
+  });
+
+  it('rejects driver not in params', () => {
+    expect(() => RegistryOpSchema.parse({
+      ...baseOp,
+      compound: {
+        driver: 'bogus', interpolation: 'catmull_rom_1d',
+        anchors: [
+          { position: 0.0, name: 'a', values: { k: 10 } },
+          { position: 1.0, name: 'b', values: { k: 90 } },
+        ],
+      },
+    })).toThrow();
+  });
+
+  it('treats compound as optional', () => {
+    const parsed = RegistryOpSchema.parse(baseOp);
+    expect(parsed.compound).toBeUndefined();
+  });
+});
+
 describe('strict mode parity', () => {
   it('rejects extra keys on RegistryOpSchema', () => {
     expect(() => RegistryOpSchema.parse({

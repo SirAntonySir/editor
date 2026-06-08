@@ -57,6 +57,30 @@ def test_curve_points_param_schema():
     assert schema.type == "curve_points"
 
 
+def test_op_param_scalar_requires_range():
+    with pytest.raises(ValidationError):
+        OpParamSchema.model_validate({"type": "scalar", "default": 0})
+
+
+def test_op_param_enum_requires_values():
+    with pytest.raises(ValidationError):
+        OpParamSchema.model_validate({"type": "enum", "default": "a"})
+
+
+def test_op_param_curve_points_rejects_empty_default():
+    with pytest.raises(ValidationError):
+        OpParamSchema.model_validate({
+            "type": "curve_points", "default": [], "min_points": 2, "max_points": 16,
+        })
+
+
+def test_op_param_curve_points_rejects_malformed_default():
+    with pytest.raises(ValidationError):
+        OpParamSchema.model_validate({
+            "type": "curve_points", "default": [[1], [2, 3]], "min_points": 2, "max_points": 16,
+        })
+
+
 def test_preset_validates():
     preset = RegistryPreset.model_validate({
         "id": "vintage",

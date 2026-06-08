@@ -31,8 +31,8 @@ class OpParamSchema(BaseModel):
             raise ValueError("enum params require `values`")
         if self.type == "curve_points":
             pts = self.default
-            if not isinstance(pts, list) or any(not (isinstance(p, list) and len(p) == 2) for p in pts):
-                raise ValueError("curve_points default must be a list of [x, y] pairs")
+            if not isinstance(pts, list) or len(pts) < 2 or any(not (isinstance(p, list) and len(p) == 2) for p in pts):
+                raise ValueError("curve_points default must be a list of at least 2 [x, y] pairs")
         return self
 
 

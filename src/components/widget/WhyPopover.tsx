@@ -1,6 +1,15 @@
 import { type ReactNode } from 'react';
 import * as Popover from '@radix-ui/react-popover';
-import type { Widget } from '@/types/widget';
+import type { Widget, WidgetNode } from '@/types/widget';
+import { loadRegistry } from '@/lib/registry/loader';
+
+function opsForWidget(widget: Widget): { node: WidgetNode; label: string }[] {
+  const reg = loadRegistry();
+  return widget.nodes.map((node) => {
+    const op = Object.values(reg.ops).find((o) => o.engine.node_type === node.type);
+    return { node, label: op ? op.display_name : node.type };
+  });
+}
 
 interface WhyPopoverProps {
   open: boolean;
@@ -38,6 +47,21 @@ export function WhyPopover({ open, widget, onOpenChange, children }: WhyPopoverP
               </span>
             )}
           </div>
+          {widget.nodes.length > 1 && (
+            <div className="mt-2 pt-2 border-t border-separator">
+              <p className="text-[9px] font-medium text-text-secondary mb-1">Ops in this widget</p>
+              <div className="flex flex-col gap-0.5">
+                {opsForWidget(widget).map(({ node, label }) => (
+                  <span
+                    key={node.id}
+                    className="text-[10px] text-text-primary bg-surface-secondary border border-separator rounded-[3px] px-1.5 py-0.5 self-start"
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

@@ -5,6 +5,15 @@ afterEach(cleanup);
 import { WidgetShellHeader } from './WidgetShellHeader';
 import { makeAiWidget, makeToolWidget, makeGlobalWidget } from './__fixtures__/widgets';
 
+const baseProps = {
+  expanded: false,
+  dirty: false,
+  hidden: false,
+  onToggle: () => {},
+  onClose: () => {},
+  onToggleHidden: () => {},
+};
+
 describe('WidgetShellHeader', () => {
   it('renders AI badge for ai variant', () => {
     render(<WidgetShellHeader widget={makeAiWidget()} expanded={false} dirty={false} hidden={false} onToggle={() => {}} onClose={() => {}} onToggleHidden={() => {}} />);
@@ -139,5 +148,37 @@ describe('WidgetShellHeader', () => {
     fireEvent.click(screen.getByRole('button', { name: /hide widget/i }));
     expect(onToggleHidden).toHaveBeenCalledTimes(1);
     expect(onToggle).not.toHaveBeenCalled();
+  });
+});
+
+describe('WidgetShellHeader title resolution', () => {
+  it('uses display_name when present', () => {
+    render(
+      <WidgetShellHeader
+        widget={makeAiWidget({ display_name: 'Warm shift' })}
+        {...baseProps}
+      />,
+    );
+    expect(screen.getByText('Warm shift')).toBeInTheDocument();
+  });
+
+  it('falls back to registry op display_name when display_name is null and single-op', () => {
+    render(
+      <WidgetShellHeader
+        widget={makeToolWidget({ display_name: null, op_id: 'kelvin' })}
+        {...baseProps}
+      />,
+    );
+    expect(screen.getByText('White Balance')).toBeInTheDocument();
+  });
+
+  it('falls back to intent for unknown op_id (no registry match)', () => {
+    render(
+      <WidgetShellHeader
+        widget={makeAiWidget({ display_name: null, op_id: 'unknown_op', intent: 'make it warmer' })}
+        {...baseProps}
+      />,
+    );
+    expect(screen.getByText('make it warmer')).toBeInTheDocument();
   });
 });

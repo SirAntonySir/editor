@@ -24,6 +24,10 @@ const DEFAULT_POINTS: Record<Channel, CurvePoint[]> = {
 interface CurveEditorProps {
   value: CurvesValue;
   onChange: (next: CurvesValue) => void;
+  /** When set, hides the channel-selector tabs and locks the editor to this
+   *  single channel. Used by the registry-driven panel (Option A: 4 separate
+   *  CurveEditor instances, one per binding). */
+  channel?: Channel;
 }
 
 /** Normalise a CurvesValue: defaults each missing channel to the identity
@@ -42,8 +46,12 @@ function normalizeCurvesValue(v: unknown): CurvesValue {
   };
 }
 
-export function CurveEditor({ value, onChange }: CurveEditorProps) {
-  const [channel, setChannel] = useState<Channel>('rgb');
+export function CurveEditor({ value, onChange, channel: lockedChannel }: CurveEditorProps) {
+  const [internalChannel, setInternalChannel] = useState<Channel>('rgb');
+  // When `lockedChannel` is provided the component is single-channel: the
+  // tabs are hidden and the active channel is always the locked one.
+  const channel: Channel = lockedChannel ?? internalChannel;
+  const setChannel = lockedChannel ? (_: Channel) => { /* no-op when locked */ } : setInternalChannel;
   const svgRef = useRef<SVGSVGElement>(null);
   const draggingIdx = useRef<number | null>(null);
 
@@ -132,21 +140,29 @@ export function CurveEditor({ value, onChange }: CurveEditorProps) {
     }
   };
 
-  const isDefault = CHANNELS.every(
+  // In single-channel mode, only check/reset the locked channel so the reset
+  // button doesn't revert channels owned by sibling CurveEditor instances.
+  const channelsToCheck = lockedChannel ? [lockedChannel] : CHANNELS;
+  const isDefault = channelsToCheck.every(
     (ch) =>
       safeValue[ch].length === DEFAULT_POINTS[ch].length &&
       safeValue[ch].every((p, i) => p.x === DEFAULT_POINTS[ch][i].x && p.y === DEFAULT_POINTS[ch][i].y),
   );
 
   const handleReset = () => {
-    // Deep-copy: IDENTITY_CURVES is a shared exported constant — never hand its
-    // inner arrays out as the live value.
-    onChange({
-      rgb: [...IDENTITY_CURVES.rgb],
-      red: [...IDENTITY_CURVES.red],
-      green: [...IDENTITY_CURVES.green],
-      blue: [...IDENTITY_CURVES.blue],
-    });
+    if (lockedChannel) {
+      // Only reset this channel; preserve the other channels as-is.
+      onChange({ ...safeValue, [lockedChannel]: [...IDENTITY_CURVES[lockedChannel]] });
+    } else {
+      // Deep-copy: IDENTITY_CURVES is a shared exported constant — never hand its
+      // inner arrays out as the live value.
+      onChange({
+        rgb: [...IDENTITY_CURVES.rgb],
+        red: [...IDENTITY_CURVES.red],
+        green: [...IDENTITY_CURVES.green],
+        blue: [...IDENTITY_CURVES.blue],
+      });
+    }
   };
 
   // Build SVG path from spline (200×200 viewBox)
@@ -161,22 +177,24 @@ export function CurveEditor({ value, onChange }: CurveEditorProps) {
 
   return (
     <div className="flex flex-col gap-1 px-1.5 py-1">
-      {/* Channel tab buttons */}
-      <div className="flex gap-1">
-        {CHANNELS.map((ch) => (
-          <button
-            key={ch}
-            onClick={() => setChannel(ch)}
-            className={`px-2 py-0.5 text-xs rounded capitalize transition-colors ${
-              channel === ch
-                ? 'bg-accent text-white'
-                : 'text-text-secondary hover:bg-surface-secondary'
-            }`}
-          >
-            {ch === 'rgb' ? 'RGB' : ch}
-          </button>
-        ))}
-      </div>
+      {/* Channel tab buttons — hidden when a channel is locked from outside */}
+      {!lockedChannel && (
+        <div className="flex gap-1">
+          {CHANNELS.map((ch) => (
+            <button
+              key={ch}
+              onClick={() => setChannel(ch)}
+              className={`px-2 py-0.5 text-xs rounded capitalize transition-colors ${
+                channel === ch
+                  ? 'bg-accent text-white'
+                  : 'text-text-secondary hover:bg-surface-secondary'
+              }`}
+            >
+              {ch === 'rgb' ? 'RGB' : ch}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Curve SVG editor */}
       <svg

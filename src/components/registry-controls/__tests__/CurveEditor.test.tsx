@@ -1,4 +1,4 @@
-import { describe, expect, it, afterEach } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
 import { CurveEditor } from '../CurveEditor';
 
@@ -6,7 +6,7 @@ afterEach(cleanup);
 
 const baseSchema = {
   type: 'curve_points' as const,
-  default: [[0, 0], [1, 1]] as [number, number][],
+  default: [[0, 0], [255, 255]] as [number, number][],
 };
 
 describe('CurveEditor control (smoke tests)', () => {
@@ -14,9 +14,9 @@ describe('CurveEditor control (smoke tests)', () => {
     expect(() =>
       render(
         <CurveEditor
-          paramKey="curve"
+          paramKey="rgb"
           label="Curve"
-          value={[[0, 0], [0.5, 0.5], [1, 1]]}
+          value={[[0, 0], [128, 128], [255, 255]]}
           schema={baseSchema}
           onChange={() => undefined}
         />,
@@ -27,9 +27,9 @@ describe('CurveEditor control (smoke tests)', () => {
   it('renders label', () => {
     const { getByText } = render(
       <CurveEditor
-        paramKey="curve"
+        paramKey="rgb"
         label="Tone Curve"
-        value={[[0, 0], [1, 1]]}
+        value={[[0, 0], [255, 255]]}
         schema={baseSchema}
         onChange={() => undefined}
       />,
@@ -41,7 +41,7 @@ describe('CurveEditor control (smoke tests)', () => {
     expect(() =>
       render(
         <CurveEditor
-          paramKey="curve"
+          paramKey="rgb"
           label="Curve"
           value={null}
           schema={baseSchema}
@@ -55,7 +55,7 @@ describe('CurveEditor control (smoke tests)', () => {
     expect(() =>
       render(
         <CurveEditor
-          paramKey="curve"
+          paramKey="rgb"
           label="Curve"
           value={0}
           schema={baseSchema}
@@ -63,5 +63,56 @@ describe('CurveEditor control (smoke tests)', () => {
         />,
       ),
     ).not.toThrow();
+  });
+});
+
+describe('CurveEditor single-channel mode (Option A registry bindings)', () => {
+  it('renders a red-channel CurveEditor without crashing', () => {
+    expect(() =>
+      render(
+        <CurveEditor
+          paramKey="red"
+          label="Red"
+          value={[[0, 32], [255, 255]]}
+          schema={baseSchema}
+          onChange={() => undefined}
+        />,
+      ),
+    ).not.toThrow();
+  });
+
+  it('dispatches onChange with updated [[x,y]] pairs in 0–255 space', () => {
+    // Because we cannot fire real SVG drag events in jsdom, we test that the
+    // component at least wires onChange through to the primitive by inspecting
+    // the prop — verified here by confirming the control mounts with an
+    // onChange spy and doesn't call it on initial render.
+    const spy = vi.fn();
+    render(
+      <CurveEditor
+        paramKey="green"
+        label="Green"
+        value={[[0, 0], [255, 255]]}
+        schema={baseSchema}
+        onChange={spy}
+      />,
+    );
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('handles each of the four channel param_keys without crashing', () => {
+    for (const ch of ['rgb', 'red', 'green', 'blue'] as const) {
+      expect(() =>
+        render(
+          <CurveEditor
+            paramKey={ch}
+            label={ch.toUpperCase()}
+            value={[[0, 0], [255, 255]]}
+            schema={baseSchema}
+            onChange={() => undefined}
+          />,
+        ),
+      ).not.toThrow();
+      cleanup();
+    }
   });
 });

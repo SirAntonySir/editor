@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search } from 'lucide-react';
+import { Search, Loader2, AlertCircle } from 'lucide-react';
 import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
@@ -22,6 +22,8 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
+  const [pending, setPending] = useState<string | null>(null);
+  const [errorState, setErrorState] = useState<{ message: string; hint?: string } | null>(null);
 
   const imageNodes = useEditorStore((s) => s.imageNodes);
   const layers = useEditorStore((s) => s.layers);
@@ -59,6 +61,8 @@ export function CommandPalette() {
       if (initial) setActiveImageNode(initial);
       setQuery('');
       setActiveIndex(0);
+      setPending(null);
+      setErrorState(null);
       setOpen(true);
     }
     window.addEventListener('spawn-palette:open', onOpen);
@@ -71,22 +75,40 @@ export function CommandPalette() {
   }, [nodeIds, activeImageNodeId, setActiveImageNode]);
 
   const run = useCallback(
-    (cmd: PaletteCommand | undefined) => {
+    async (cmd: PaletteCommand | undefined) => {
       if (!cmd) return;
       if (cmd.kind === 'tool' && cmd.toolName) {
         spawnToolWidget(cmd.toolName);
-      } else if (cmd.kind === 'ai') {
+        setOpen(false);
+        return;
+      }
+      if (cmd.kind === 'ai') {
+        if (pending) return; // already in flight — ignore double-submit
         // Mirrors the former AskAiInput behavior: only mask scope is forwarded;
         // all other scopes collapse to global for AI prompts.
         const active = useEditorStore.getState().activeScope ?? { kind: 'global' as const };
         const scope: Scope = active.kind === 'mask'
           ? { kind: 'mask', mask_id: active.mask_id }
           : { kind: 'global' };
-        void proposeFromPalette(query.trim(), scope);
+        const submitted = query.trim();
+        setPending(submitted);
+        setErrorState(null);
+        const result = await proposeFromPalette(submitted, scope);
+        // If the user ESC'd while the request was in flight, the dialog
+        // unmounts and the setStates below short-circuit harmlessly.
+        if (result.ok) {
+          setPending(null);
+          setOpen(false);
+        } else {
+          setPending(null);
+          setErrorState({
+            message: result.error.message,
+            hint: result.error.recovery_hint,
+          });
+        }
       }
-      setOpen(false);
     },
-    [query],
+    [query, pending],
   );
 
   const onKeyDown = useCallback(
@@ -102,8 +124,8 @@ export function CommandPalette() {
         cycleTarget();
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        if ((e.metaKey || e.ctrlKey) && aiCommand) run(aiCommand);
-        else run(flat[activeIndex]);
+        if ((e.metaKey || e.ctrlKey) && aiCommand) void run(aiCommand);
+        else void run(flat[activeIndex]);
       }
     },
     [flat, activeIndex, aiCommand, cycleTarget, run],
@@ -136,13 +158,16 @@ export function CommandPalette() {
                 <Dialog.Title className="sr-only">Command palette</Dialog.Title>
                 {/* Search row + target chip */}
                 <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-separator">
-                  <Search size={14} className="text-text-secondary" />
+                  {pending
+                    ? <Loader2 size={14} className="text-text-secondary animate-spin" />
+                    : <Search size={14} className="text-text-secondary" />}
                   <input
                     autoFocus
                     value={query}
-                    onChange={(e) => { setQuery(e.target.value); setActiveIndex(0); }}
-                    placeholder="Search tools or ask AI…"
-                    className="flex-1 bg-transparent outline-none text-xs text-text-primary placeholder:text-text-secondary"
+                    onChange={(e) => { setQuery(e.target.value); setActiveIndex(0); if (errorState) setErrorState(null); }}
+                    placeholder={pending ? `Sending “${pending}”…` : 'Search tools or ask AI…'}
+                    disabled={!!pending}
+                    className="flex-1 bg-transparent outline-none text-xs text-text-primary placeholder:text-text-secondary disabled:opacity-60"
                   />
                   {targetLabel && (
                     <button
@@ -155,6 +180,19 @@ export function CommandPalette() {
                     </button>
                   )}
                 </div>
+
+                {errorState && (
+                  <div className="flex items-start gap-2 px-3.5 py-2 border-b border-separator bg-[color-mix(in_srgb,var(--color-danger,#e5484d)_8%,transparent)]">
+                    <AlertCircle size={12} className="mt-[2px] flex-none text-[var(--color-danger,#e5484d)]" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] text-text-primary">{errorState.message}</div>
+                      {errorState.hint && (
+                        <div className="text-[10px] text-text-secondary mt-0.5">Hint: {errorState.hint}</div>
+                      )}
+                      <div className="text-[10px] text-text-secondary mt-1">Press Enter to retry.</div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Results */}
                 <div className="py-1.5 max-h-[50vh] overflow-y-auto">

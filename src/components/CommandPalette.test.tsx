@@ -12,7 +12,7 @@ import { spawnToolWidget } from '@/lib/toolrail-spawn';
 import { proposeFromPalette } from '@/lib/palette-actions';
 
 vi.mock('@/lib/toolrail-spawn', () => ({ spawnToolWidget: vi.fn(() => true) }));
-vi.mock('@/lib/palette-actions', () => ({ proposeFromPalette: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('@/lib/palette-actions', () => ({ proposeFromPalette: vi.fn().mockResolvedValue({ ok: true }) }));
 
 function open() {
   act(() => { window.dispatchEvent(new CustomEvent('spawn-palette:open')); });

@@ -26,13 +26,12 @@ function seedLayer() {
 }
 
 describe('proposeFromPalette', () => {
-  it('no-ops when no session or no layer', async () => {
+  it('returns a structured error when no session or no layer', async () => {
     const { backendTools } = await import('@/lib/backend-tools');
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    await proposeFromPalette('warmer');
+    const result = await proposeFromPalette('warmer');
     expect(backendTools.propose_widget).not.toHaveBeenCalled();
-    expect(warnSpy).toHaveBeenCalledWith('[palette] no session or layer, ignoring submit');
-    warnSpy.mockRestore();
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe('no_session');
   });
 
   it('calls propose_widget with intent + scope + prompt + layer_id + origin when session + layer are set', async () => {
@@ -63,14 +62,24 @@ describe('proposeFromPalette', () => {
     });
   });
 
-  it('logs error when propose_widget returns ok:false', async () => {
+  it('returns a structured error when propose_widget returns ok:false', async () => {
     const { backendTools } = await import('@/lib/backend-tools');
-    vi.mocked(backendTools.propose_widget).mockResolvedValueOnce({ ok: false, error: { code: 'BAD', message: 'nope' } } as never);
+    vi.mocked(backendTools.propose_widget).mockResolvedValueOnce({ ok: false, error: { code: 'BAD', message: 'nope', retryable: true, recovery_hint: 'try again' } } as never);
     useBackendState.setState({ sessionId: 's1' });
     seedLayer();
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    await proposeFromPalette('warmer');
-    expect(errSpy).toHaveBeenCalled();
-    errSpy.mockRestore();
+    const result = await proposeFromPalette('warmer');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('BAD');
+      expect(result.error.message).toBe('nope');
+      expect(result.error.recovery_hint).toBe('try again');
+    }
+  });
+
+  it('returns ok:true on success', async () => {
+    useBackendState.setState({ sessionId: 's1' });
+    seedLayer();
+    const result = await proposeFromPalette('warmer');
+    expect(result.ok).toBe(true);
   });
 });

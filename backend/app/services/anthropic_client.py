@@ -328,16 +328,41 @@ and any WidgetNode additions it needs. Return only via the emit_new_binding tool
 
 _PLANNER_SYSTEM_PROMPT = """You are a photo-editing composition planner.
 
-Given a user intent and image context, return a stack of 1–6 raw photo-editing
-operations that, applied together, achieve the intent. Each op becomes a
-separate widget the user can refine independently.
+Given a user intent and image context, return a stack of 1–6 conceptually-grouped
+photo-editing widgets. Each widget can carry 1–5 raw ops that belong together
+conceptually. Each widget becomes ONE card on the user's canvas they can
+independently refine.
 
 Rules:
+- Group conceptually-related ops into the same widget. Use the `category`
+  field as a strong default: ops with the same category usually belong
+  together unless you have a specific reason to split.
+- Give each widget a short, descriptive `widget_name` (2–4 words) describing
+  the EFFECT, not the op (e.g. "Lifted blacks", not "Levels op").
 - Prefer raw ops over presets unless the intent matches a preset closely.
-- You may name a preset, in which case its ops will be unfolded as a starting
-  point (you may add/remove ops afterward).
-- Order ops by render_order (smaller = applied earlier).
-- Return strict JSON. Do not include markdown fences."""
+- You may unfold a preset's ops as starting points and modify them.
+- Order widgets by intent priority (most defining effect first).
+- Return strict JSON. Do not include markdown fences.
+
+Example for "vintage film":
+{
+  "plan": [
+    {
+      "widget_name": "Lifted blacks", "category": "tone",
+      "ops": [{"op_id": "levels", "rationale": "raise inBlack to 12 for film fade"}]
+    },
+    {
+      "widget_name": "Warm fade", "category": "color",
+      "ops": [
+        {"op_id": "color",     "rationale": "drop saturation -15"},
+        {"op_id": "splitTone", "rationale": "warm shadows, cool highlights"}
+      ]
+    },
+    {"widget_name": "Film grain", "category": "texture",
+     "ops": [{"op_id": "grain", "rationale": "fine 18% grain"}]}
+  ],
+  "overall_rationale": "vintage film: faded blacks + warm desaturated color + grain"
+}"""
 
 
 _FLESH_BINDING_TOOL = {
@@ -796,6 +821,7 @@ class AnthropicClient:
         ops_catalog = [
             {
                 "id": op.id,
+                "category": op.category,         # NEW
                 "description": op.llm.description,
                 "typical_use": op.llm.typical_use,
                 "semantic_tags": op.llm.semantic_tags,
@@ -833,10 +859,19 @@ class AnthropicClient:
                         f"SCOPE: {scope}\n"
                         f"IMAGE CONTEXT: {image_context}\n"
                         f"EXISTING WIDGETS (avoid duplicating): {existing_widgets}\n\n"
-                        "Return JSON: "
-                        '{"plan": [{"op_id": "...", "rationale": "...", '
-                        '"preset_anchor": null, "starting_params": null}], '
-                        '"overall_rationale": "...", "chosen_preset": null}'
+                        "Return JSON in this exact shape:\n"
+                        '{\n'
+                        '  "plan": [\n'
+                        '    {\n'
+                        '      "widget_name": "<2-4 words describing the effect>",\n'
+                        '      "category": "<tone|color|detail|texture|effect>",\n'
+                        '      "ops": [\n'
+                        '        {"op_id": "<id from catalog>", "rationale": "<one line>", "starting_params": {<optional>}}\n'
+                        '      ]\n'
+                        '    }\n'
+                        '  ],\n'
+                        '  "overall_rationale": "<one sentence>"\n'
+                        '}'
                     ),
                 },
             ],

@@ -326,6 +326,19 @@ _FLESH_BINDING_PROMPT = """You are extending a fused widget with a new binding. 
 Given the existing widget and the user's request, emit one new ControlBinding \
 and any WidgetNode additions it needs. Return only via the emit_new_binding tool."""
 
+_PLANNER_SYSTEM_PROMPT = """You are a photo-editing composition planner.
+
+Given a user intent and image context, return a stack of 1–6 raw photo-editing
+operations that, applied together, achieve the intent. Each op becomes a
+separate widget the user can refine independently.
+
+Rules:
+- Prefer raw ops over presets unless the intent matches a preset closely.
+- You may name a preset, in which case its ops will be unfolded as a starting
+  point (you may add/remove ops afterward).
+- Order ops by render_order (smaller = applied earlier).
+- Return strict JSON. Do not include markdown fences."""
+
 
 _FLESH_BINDING_TOOL = {
     "name": "emit_new_binding",
@@ -759,6 +772,89 @@ class AnthropicClient:
             if getattr(block, "type", None) == "tool_use" and block.name == "emit_new_binding":
                 return dict(block.input)
         raise RuntimeError("flesh_out_binding: no tool_use returned")
+
+    # ------------------------------------------------------------------
+    # Phase 1 planner: compose an op stack for a user intent
+    # ------------------------------------------------------------------
+
+    def plan_widget_stack(
+        self,
+        *,
+        intent: str,
+        scope: dict,
+        image_context: dict,
+        existing_widgets: list[dict],
+        registry,
+        session_id: str | None = None,
+    ) -> dict:
+        """Phase 1: ask Claude to compose a stack of op_ids for this intent.
+
+        Returns: {plan: [{op_id, rationale, preset_anchor?}], overall_rationale, chosen_preset?}
+        """
+        import json
+
+        ops_catalog = [
+            {
+                "id": op.id,
+                "description": op.llm.description,
+                "typical_use": op.llm.typical_use,
+                "semantic_tags": op.llm.semantic_tags,
+                "params": list(op.params.keys()),
+                "render_order": op.engine.render_order,
+            }
+            for op in registry.ops.values()
+        ]
+        presets_catalog = [
+            {
+                "id": p.id,
+                "description": p.description,
+                "typical_use": p.typical_use,
+                "semantic_tags": p.semantic_tags,
+                "ops_summary": [pop.op_id for pop in p.ops],
+            }
+            for p in registry.presets.values()
+        ]
+
+        messages = [{
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": (
+                        "AVAILABLE OPS:\n" + str(ops_catalog) + "\n\n"
+                        "AVAILABLE PRESETS:\n" + str(presets_catalog)
+                    ),
+                    "cache_control": {"type": "ephemeral"},
+                },
+                {
+                    "type": "text",
+                    "text": (
+                        f"USER INTENT: {intent}\n"
+                        f"SCOPE: {scope}\n"
+                        f"IMAGE CONTEXT: {image_context}\n"
+                        f"EXISTING WIDGETS (avoid duplicating): {existing_widgets}\n\n"
+                        "Return JSON: "
+                        '{"plan": [{"op_id": "...", "rationale": "...", '
+                        '"preset_anchor": null, "starting_params": null}], '
+                        '"overall_rationale": "...", "chosen_preset": null}'
+                    ),
+                },
+            ],
+        }]
+
+        response = self._client.messages.create(
+            model=self._model,
+            max_tokens=2048,
+            system=[{
+                "type": "text",
+                "text": _PLANNER_SYSTEM_PROMPT,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            messages=messages,
+        )
+        _log_cache_stats("plan_widget_stack", session_id, response)
+        text = response.content[0].text
+        return json.loads(text)
 
     def augment_context_soft_fields(
         self,

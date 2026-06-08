@@ -146,8 +146,81 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
         if input.origin == "tool_invoked":
             return self._handle_tool_invoked(doc, input, scope)
 
-        # Phase 1/2 LLM paths land in Tasks 9 + 10.
-        raise NotImplementedError("planner path lands in Task 9")
+        if doc.image_context is None:
+            from app.tools.widgets.propose_widget import _MissingContext
+            raise _MissingContext("call analyze_image first")
+
+        return await self._handle_llm_path(doc, input, scope)
+
+    async def _handle_llm_path(
+        self, doc: SessionDocument, input: _Input, scope: Scope,
+    ) -> _Output:
+        from app.api import deps
+        from app.registry.loader import get_registry
+
+        reg = get_registry()
+        anthropic = deps.get_anthropic_client()
+
+        plan_result = anthropic.plan_widget_stack(
+            intent=input.intent,
+            scope=input.scope,
+            image_context=doc.image_context.model_dump(mode="json"),
+            existing_widgets=[
+                {"op_id": w.fused_tool_id or "unknown"} for w in doc.widgets.values()
+            ],
+            registry=reg,
+            session_id=doc.session_id,
+        )
+
+        planned_ops = plan_result.get("plan", [])
+        if not planned_ops:
+            # Fallback: keyword-matched preset, else first preset.
+            planned_ops = self._fallback_plan(input.intent, reg)
+
+        # Phase 2 resolve lands in Task 10. For now, use registry defaults +
+        # starting_params if provided.
+        image_node_layer_ids = None
+        if scope.root.kind == "image_node":
+            image_node_layer_ids = list(scope.root.layer_ids)
+
+        origin = WidgetOrigin(
+            kind=input.origin,
+            prompt=input.prompt or input.intent,
+            parent_widget_id=None,
+        )
+
+        widgets: list[Widget] = []
+        for entry in planned_ops:
+            op_id = entry.get("op_id")
+            if op_id not in reg.ops:
+                continue
+            starting = entry.get("starting_params") or {}
+            widget = _build_widget(
+                op_id=op_id,
+                params=starting,
+                intent=input.intent,
+                scope=scope,
+                origin=origin,
+                layer_id=input.layer_id,
+                image_node_layer_ids=image_node_layer_ids,
+            )
+            doc.add_widget(widget)
+            widgets.append(widget)
+
+        return _Output(widgets=[w.model_dump(mode="json") for w in widgets])
+
+    def _fallback_plan(self, intent: str, registry) -> list[dict]:
+        """Keyword match intent to a preset, else first preset's ops."""
+        lower = intent.lower()
+        for preset_id, preset in registry.presets.items():
+            if preset_id in lower or any(tag in lower for tag in preset.semantic_tags):
+                return [{"op_id": p.op_id, "starting_params": p.params}
+                        for p in preset.ops]
+        if registry.presets:
+            first = next(iter(registry.presets.values()))
+            return [{"op_id": p.op_id, "starting_params": p.params}
+                    for p in first.ops]
+        return []
 
     def _handle_tool_invoked(
         self, doc: SessionDocument, input: _Input, scope: Scope,

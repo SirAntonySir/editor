@@ -27,7 +27,6 @@ import { HslTool } from '@/tools/hsl-tool';
 import { TimeOfDayTool } from '@/tools/time-of-day-tool';
 import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
 import { SuggestionChips } from '@/components/ui/SuggestionChips';
-import { AnalyzeSuggestionsGate } from '@/components/AnalyzeSuggestionsGate';
 import { useBackendState } from '@/store/backend-state-slice';
 import { Upload } from 'lucide-react';
 
@@ -206,7 +205,6 @@ function EditorContent() {
 
       <BackendStatusBar />
       <SuggestionChips />
-      <AnalyzeSuggestionsGate />
 
       {/* Main canvas area */}
       <MainLayout

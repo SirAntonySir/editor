@@ -22,6 +22,7 @@ export function SuggestionChips() {
   const widgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
   const sessionId = useBackendState((s) => s.sessionId);
   const resolve = useBackendState((s) => s.resolvePendingSuggestion);
+  const addAccepted = useBackendState((s) => s.addAcceptedSuggestion);
   const rf = useReactFlow();
 
   const pending: Widget[] = [];
@@ -33,6 +34,9 @@ export function SuggestionChips() {
     const { x, y, zoom } = rf.getViewport();
     const screen = { w: window.innerWidth, h: window.innerHeight };
     tetherWorkspaceWidgetOnEngage(widget, { pan: { x, y }, zoom, screen });
+    // Mark as accepted so the post-resolve auto-tether hook skips this id
+    // and doesn't overwrite the placement we just computed.
+    addAccepted(widget.id);
     resolve(widget.id);
   }
 

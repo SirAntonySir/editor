@@ -207,6 +207,13 @@ export const useBackendState = create<BackendState>()(
           case 'widget.created': {
             const w = payload.widget as Widget;
             s.snapshot.widgets.push(w);
+            // Autonomous AI suggestions must wait for user Allow/Deny via
+            // SuggestionChips before they reach the inspector or canvas, so
+            // gate them as pending the moment they arrive — not on the rising
+            // edge of mcpAnalyzeComplete (which races with widget.created).
+            if (w.origin.kind === 'mcp_autonomous') {
+              s.pendingSuggestionIds.add(w.id);
+            }
             tetherWorkspaceWidget(w);
             break;
           }

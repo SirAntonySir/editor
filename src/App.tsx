@@ -22,7 +22,6 @@ import { initLayerLifecycle } from '@/core/layer-lifecycle';
 import { initEditorStatePersistence } from '@/core/editor-state-persistence';
 import { CurvesTool } from '@/tools/curves-tool';
 import { LevelsTool } from '@/tools/levels-tool';
-import { FiltersTool } from '@/tools/filters-tool';
 import { HslTool } from '@/tools/hsl-tool';
 import { TimeOfDayTool } from '@/tools/time-of-day-tool';
 import { useBackendState } from '@/store/backend-state-slice';
@@ -62,7 +61,6 @@ for (const def of ProcessingRegistry.getAll()) {
 CanvasToolRegistry.register(HslTool);
 CanvasToolRegistry.register(CurvesTool);
 CanvasToolRegistry.register(LevelsTool);
-CanvasToolRegistry.register(FiltersTool);
 CanvasToolRegistry.register(TimeOfDayTool);
 
 /** Main canvas area */

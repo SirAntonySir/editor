@@ -14,20 +14,21 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-it('renders all tool-group sections (10 tools across 4 groups)', () => {
+it('renders all tool-group sections (9 tools across 4 groups) and the Presets section', () => {
   render(<AdjustmentsAccordion />);
   for (const label of [
     // Group 1: tonal / luminance
     'Light', 'Levels', 'Curves',
-    // Group 2: colour
-    'Color', 'White Balance', 'HSL',
+    // Group 2: colour (Color appears in both tool list and Presets popover buttons)
+    'White Balance', 'HSL',
     // Group 3: detail
     'Sharpen', 'Clarity', 'Blur',
-    // Group 4: filters
-    'Filters',
   ]) {
     expect(screen.getByText(label)).toBeTruthy();
   }
+  // Color appears in both the tool section and the presets category button
+  expect(screen.getAllByText('Color').length).toBeGreaterThanOrEqual(1);
+  expect(screen.getByText('Presets')).toBeTruthy();
 });
 
 it('does not render the standalone Colour Band row (moved into HSL popover)', () => {

@@ -6,6 +6,7 @@ import type { ProcessingDefinition } from '@/types/processing';
 import type { Widget } from '@/types/widget';
 import { ToolSection } from './ToolSection';
 import { AiSection } from './AiSection';
+import { PresetsSection } from './PresetsSection';
 
 // Stable empty reference so the selector below doesn't return a fresh literal
 // each render (avoids useSyncExternalStore re-render churn when snapshot is null).
@@ -14,9 +15,7 @@ const EMPTY_WIDGETS: Widget[] = [];
 // Per-def label overrides for the accordion. Most defs use their own `.label`
 // directly; a few need a slightly different toolrail-style name here. Empty
 // today now that "White Balance" is the canonical name for the kelvin def.
-const SECTION_LABELS: Record<string, string> = {
-  filter: 'Filters',
-};
+const SECTION_LABELS: Record<string, string> = {};
 
 // Tool grouping. Each inner array is a contiguous group of rows; only the
 // gaps BETWEEN groups get a separator. Within a group rows have no internal
@@ -31,7 +30,6 @@ const TOOL_GROUPS: string[][] = [
   ['color', 'kelvin', 'hsl'],
   ['sharpen', 'clarity', 'blur'],
   ['splitTone', 'vignette', 'grain'],
-  ['filter'],
 ];
 
 function sectionDef(def: ProcessingDefinition): ProcessingDefinition {
@@ -91,6 +89,12 @@ export function AdjustmentsAccordion() {
           ))}
         </div>
       ))}
+      <div className="border-t border-separator">
+        <div className="text-[10px] uppercase tracking-wide text-text-secondary px-2 pt-2 pb-1">
+          Presets
+        </div>
+        <PresetsSection />
+      </div>
     </ScrollArea>
   );
 }

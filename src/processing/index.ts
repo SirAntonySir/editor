@@ -3,7 +3,6 @@ import { buildRegistryProcessingDefs } from './registry-ops';
 import { hslProcessing } from './hsl';
 import { curvesProcessing } from './curves';
 import { levelsProcessing } from './levels';
-import { filtersProcessing } from './filters';
 
 export function registerAllProcessing(): void {
   // Registry-driven ops (light, color, kelvin, sharpen, blur, clarity,
@@ -18,12 +17,10 @@ export function registerAllProcessing(): void {
   ProcessingRegistry.register(hslProcessing);
   ProcessingRegistry.register(curvesProcessing);
   ProcessingRegistry.register(levelsProcessing);
-  ProcessingRegistry.register(filtersProcessing);
 }
 
 export {
   hslProcessing,
   curvesProcessing,
   levelsProcessing,
-  filtersProcessing,
 };

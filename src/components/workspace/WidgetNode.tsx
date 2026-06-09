@@ -1,9 +1,9 @@
 import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
 import { useEffect, useRef, useState } from 'react';
 import { WidgetShell } from '@/components/widget/WidgetShell';
-import { useChromeScale } from '@/hooks/useChromeScale';
 import { useChromeVisible } from '@/hooks/useChromeVisible';
 import type { Widget } from '@/types/widget';
+import { MarkerDot } from './MarkerDot';
 
 export interface WidgetNodeData extends Record<string, unknown> {
   widget: Widget;
@@ -16,19 +16,17 @@ interface WidgetNodeProps {
 }
 
 export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
-  const scale = useChromeScale();
   const chromeVisible = useChromeVisible();
+
   // Anchor edge handles to the visual centre of the shell header so tethers
   // connect at the header band. Two source handles (left + right) let edges
   // exit on the side facing the connected image node.
-  const headerY = `${10 * scale}px`;
+  const headerY = '10px';
 
-  // Measure the WidgetShell's natural (unscaled) box so the bottom + right
-  // source handles can anchor at the *visible* edges of the scaled shell.
-  // Without this, React Flow's default `.react-flow__handle-bottom { bottom: 0 }`
-  // anchors to the RF node wrapper's measured layout, which on the rendered
-  // canvas reads smaller than the visible shell extent — tether endpoints
-  // attach inside the widget instead of at its bottom-right corner.
+  // Measure the WidgetShell's natural CSS box so the bottom + right source
+  // handles can anchor at its actual extent. Widgets now live in canvas space
+  // (Figma model): React Flow's zoom transform handles screen-pixel conversion,
+  // so handle positions are in unscaled CSS pixels.
   const innerRef = useRef<HTMLDivElement | null>(null);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number }>({
     w: 226, // WIDGET_SHELL_MIN_WIDTH fallback (kept literal to avoid an import cycle)
@@ -47,10 +45,7 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
   const updateNodeInternals = useUpdateNodeInternals();
   useEffect(() => {
     updateNodeInternals(id);
-  }, [id, scale, naturalSize.w, naturalSize.h, updateNodeInternals]);
-
-  const scaledH = naturalSize.h * scale;
-  const scaledW = naturalSize.w * scale;
+  }, [id, naturalSize.w, naturalSize.h, updateNodeInternals]);
 
   return (
     <>
@@ -64,7 +59,7 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
         type="source"
         position={Position.Bottom}
         id="tether-out-bottom"
-        style={{ left: '50%', top: `${scaledH}px`, opacity: 0 }}
+        style={{ left: '50%', top: `${naturalSize.h}px`, opacity: 0 }}
       />
       <Handle
         type="source"
@@ -76,15 +71,14 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
         type="source"
         position={Position.Right}
         id="tether-out-right"
-        style={{ top: headerY, left: `${scaledW}px`, opacity: 0 }}
+        style={{ top: headerY, left: `${naturalSize.w}px`, opacity: 0 }}
       />
-      {chromeVisible && (
-        <div
-          ref={innerRef}
-          style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}
-        >
+      {chromeVisible ? (
+        <div ref={innerRef}>
           <WidgetShell widget={data.widget} selected={selected} />
         </div>
+      ) : (
+        <MarkerDot widget={data.widget} />
       )}
     </>
   );

@@ -46,7 +46,12 @@ function arcPath(startDeg: number, endDeg: number, r: number): string {
 
 export function CircularDial({ anchors, position, onPositionChange }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const [dragging, setDragging] = useState(false);
+  // While dragging we track the raw cursor angle locally so the indicator
+  // can follow the cursor smoothly across the seam, even when the underlying
+  // position prop snaps (e.g. season: positions span [0, 1] with no cyclic
+  // gap, so the seam quarter-arc would otherwise pin the indicator to
+  // angles[last]). On release we fall back to the prop-derived angle.
+  const [dragAngle, setDragAngle] = useState<number | null>(null);
 
   const anchorsLike = useMemo(
     () => anchors.map((a) => {
@@ -59,10 +64,12 @@ export function CircularDial({ anchors, position, onPositionChange }: Props) {
   const angles = useMemo(() => anchorAngles(anchors.length), [anchors.length]);
   const wedgeSpan = 360 / Math.max(1, anchors.length);
 
-  const indicatorAngle = useMemo(
+  const propAngle = useMemo(
     () => positionToIndicatorAngle(anchorsLike, position),
     [anchorsLike, position],
   );
+  // While dragging, the cursor wins. Otherwise the prop drives the indicator.
+  const indicatorAngle = dragAngle ?? propAngle;
   const [indicatorX, indicatorY] = polar(indicatorAngle, TRACK_RADIUS);
 
   // Highlight the wedge whose angular slice the indicator currently sits in.
@@ -75,16 +82,9 @@ export function CircularDial({ anchors, position, onPositionChange }: Props) {
     onPositionChange(anchors[i].position[0]);
   }, [anchors, onPositionChange]);
 
-  // Drag: convert pointer position → angle → position.
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    setDragging(true);
-    (e.target as Element).setPointerCapture?.(e.pointerId);
-  }, []);
-
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!dragging || !svgRef.current) return;
+  function cursorAngle(e: React.PointerEvent): number | null {
+    if (!svgRef.current) return null;
     const rect = svgRef.current.getBoundingClientRect();
-    // SVG viewBox is 320x320; convert client coords to viewBox coords.
     const sx = ((e.clientX - rect.left) / rect.width) * VIEWBOX;
     const sy = ((e.clientY - rect.top) / rect.height) * VIEWBOX;
     const dx = sx - CENTER;
@@ -92,14 +92,30 @@ export function CircularDial({ anchors, position, onPositionChange }: Props) {
     // atan2 returns radians where 0 = +x (right). We want 0 = top, clockwise.
     let deg = Math.atan2(dy, dx) * 180 / Math.PI + 90;
     if (deg < 0) deg += 360;
-    const next = angleToPosition(anchorsLike, deg);
-    onPositionChange(next);
-  }, [dragging, anchorsLike, onPositionChange]);
+    return deg;
+  }
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    const deg = cursorAngle(e);
+    if (deg == null) return;
+    setDragAngle(deg);
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (dragAngle == null) return;
+    const deg = cursorAngle(e);
+    if (deg == null) return;
+    setDragAngle(deg);
+    onPositionChange(angleToPosition(anchorsLike, deg));
+  }, [dragAngle, anchorsLike, onPositionChange]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    setDragging(false);
+    setDragAngle(null);
     (e.target as Element).releasePointerCapture?.(e.pointerId);
   }, []);
+
+  const dragging = dragAngle != null;
 
   // Active arc on outer ring
   const activeStart = angles[activeIdx] - wedgeSpan / 2;

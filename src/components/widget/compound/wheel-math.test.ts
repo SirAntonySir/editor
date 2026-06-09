@@ -127,6 +127,25 @@ describe('angleToPosition', () => {
       expect(p).toBeLessThanOrEqual(1);
     }
   });
+
+  describe('degenerate seam (positions span full [0, 1])', () => {
+    // For season-style configs (positions [0, 0.33, 0.66, 1.0]), the cyclic
+    // seam in position space is zero-width: positions[0]+1 - positions[last] = 0.
+    // The non-cyclic interpolator can't smoothly blend across the seam, so
+    // angleToPosition snaps to the nearest endpoint at the midpoint instead of
+    // pinning all seam angles to positions[last].
+    it('snaps to positions[last] for the first half of the seam slice', () => {
+      // Angles 271..314 are closer to angles[last]=270 than to angles[0]+360.
+      expect(angleToPosition(seasonAnchors, 280)).toBeCloseTo(1.0, 3);
+      expect(angleToPosition(seasonAnchors, 314)).toBeCloseTo(1.0, 3);
+    });
+
+    it('snaps to positions[0] for the second half of the seam slice', () => {
+      // Angles 316..359 are closer to angles[0]+360=360.
+      expect(angleToPosition(seasonAnchors, 316)).toBeCloseTo(0.0, 3);
+      expect(angleToPosition(seasonAnchors, 359)).toBeCloseTo(0.0, 3);
+    });
+  });
 });
 
 describe('activeWedgeIndexFromAngle', () => {

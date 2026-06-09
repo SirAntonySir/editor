@@ -120,7 +120,15 @@ export function angleToPosition(
   const aExt = a < angles[0] ? a + 360 : a;
   if (aExt > startAngle && aExt < endAngle) {
     const frac = (aExt - startAngle) / (endAngle - startAngle);
-    const rawPos = positions[last] + frac * ((positions[0] + 1) - positions[last]);
+    const seamWidth = (positions[0] + 1) - positions[last];
+    // Degenerate seam (e.g. season: positions=[0, 0.33, 0.66, 1]). With a
+    // non-cyclic 1-D interpolator there's no smooth position-space transition
+    // here, so snap to the nearest endpoint at the midpoint instead of
+    // pinning every seam angle to positions[last].
+    if (seamWidth <= 1e-9) {
+      return frac < 0.5 ? positions[last] : positions[0];
+    }
+    const rawPos = positions[last] + frac * seamWidth;
     if (rawPos >= 1 - 1e-9 && rawPos <= 1 + 1e-9) return 1;
     return wrap01(rawPos);
   }

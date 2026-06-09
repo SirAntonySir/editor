@@ -60,12 +60,14 @@ export const CompoundAnchorSchema = z.object({
   position: z.number().min(0).max(1),
   name: z.string(),
   values: z.record(z.string(), z.number()),
+  color: z.string().optional(),       // CSS color string for wheel wedge
 }).strict();
 
 export const OpCompoundConfigSchema = z.object({
   driver: z.string(),
   interpolation: z.literal('catmull_rom_1d').default('catmull_rom_1d'),
   anchors: z.array(CompoundAnchorSchema).min(2),
+  topology: z.enum(['linear', 'wheel']).default('linear'),
 }).strict().superRefine((c, ctx) => {
   const positions = c.anchors.map(a => a.position);
   const sorted = [...positions].sort((a, b) => a - b);

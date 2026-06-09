@@ -64,6 +64,7 @@ class CompoundAnchor(BaseModel):
     position: float = Field(ge=0.0, le=1.0)
     name: str
     values: dict[str, float]
+    color: str | None = None    # CSS color string for wheel wedge
 
 
 class OpCompoundConfig(BaseModel):
@@ -71,6 +72,7 @@ class OpCompoundConfig(BaseModel):
     driver: str
     interpolation: Literal["catmull_rom_1d"] = "catmull_rom_1d"
     anchors: list[CompoundAnchor] = Field(min_length=2)
+    topology: Literal["linear", "wheel"] = "linear"
 
     @model_validator(mode="after")
     def _checks(self) -> OpCompoundConfig:

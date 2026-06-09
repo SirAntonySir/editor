@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.registry.schema import RegistryOp, RegistryPreset, OpParamSchema, OpCompoundConfig
+from app.registry.schema import RegistryOp, RegistryPreset, OpParamSchema, OpCompoundConfig, CompoundAnchor
 
 
 def test_minimal_op_validates():
@@ -209,6 +209,90 @@ def test_compound_optional():
         "engine": {"shader": "x", "render_order": 0, "node_type": "x"},
     })
     assert op.compound is None
+
+
+def test_compound_topology_defaults_to_linear():
+    op = RegistryOp.model_validate({
+        "id": "x", "display_name": "X", "category": "mood",
+        "llm": {"description": "d", "typical_use": "u", "semantic_tags": []},
+        "params": {
+            "p": {"type": "scalar", "range": [0, 1], "default": 0.5},
+            "k": {"type": "scalar", "range": [0, 100], "default": 50},
+        },
+        "bindings": [
+            {"param_key": "p", "control_type": "slider", "label": "P"},
+            {"param_key": "k", "control_type": "slider", "label": "K"},
+        ],
+        "engine": {"shader": "compound", "render_order": 5, "node_type": "compound"},
+        "compound": {
+            "driver": "p", "interpolation": "catmull_rom_1d",
+            "anchors": [
+                {"position": 0.0, "name": "a", "values": {"k": 10}},
+                {"position": 1.0, "name": "b", "values": {"k": 90}},
+            ],
+        },
+    })
+    assert op.compound.topology == "linear"
+
+
+def test_compound_topology_accepts_wheel():
+    op = RegistryOp.model_validate({
+        "id": "x", "display_name": "X", "category": "mood",
+        "llm": {"description": "d", "typical_use": "u", "semantic_tags": []},
+        "params": {
+            "p": {"type": "scalar", "range": [0, 1], "default": 0.5},
+            "k": {"type": "scalar", "range": [0, 100], "default": 50},
+        },
+        "bindings": [
+            {"param_key": "p", "control_type": "slider", "label": "P"},
+            {"param_key": "k", "control_type": "slider", "label": "K"},
+        ],
+        "engine": {"shader": "compound", "render_order": 5, "node_type": "compound"},
+        "compound": {
+            "driver": "p", "interpolation": "catmull_rom_1d", "topology": "wheel",
+            "anchors": [
+                {"position": 0.0, "name": "a", "values": {"k": 10}},
+                {"position": 1.0, "name": "b", "values": {"k": 90}},
+            ],
+        },
+    })
+    assert op.compound.topology == "wheel"
+
+
+def test_compound_topology_rejects_unknown():
+    with pytest.raises(ValidationError):
+        RegistryOp.model_validate({
+            "id": "x", "display_name": "X", "category": "mood",
+            "llm": {"description": "d", "typical_use": "u", "semantic_tags": []},
+            "params": {
+                "p": {"type": "scalar", "range": [0, 1], "default": 0.5},
+                "k": {"type": "scalar", "range": [0, 100], "default": 50},
+            },
+            "bindings": [
+                {"param_key": "p", "control_type": "slider", "label": "P"},
+                {"param_key": "k", "control_type": "slider", "label": "K"},
+            ],
+            "engine": {"shader": "compound", "render_order": 5, "node_type": "compound"},
+            "compound": {
+                "driver": "p", "interpolation": "catmull_rom_1d", "topology": "radial-grid",
+                "anchors": [
+                    {"position": 0.0, "name": "a", "values": {"k": 10}},
+                    {"position": 1.0, "name": "b", "values": {"k": 90}},
+                ],
+            },
+        })
+
+
+def test_compound_anchor_color_optional():
+    """Color is optional. Both null and a CSS string are accepted."""
+    a1 = CompoundAnchor.model_validate(
+        {"position": 0.0, "name": "x", "values": {"k": 1}}
+    )
+    assert a1.color is None
+    a2 = CompoundAnchor.model_validate(
+        {"position": 0.0, "name": "x", "values": {"k": 1}, "color": "#22c55e"}
+    )
+    assert a2.color == "#22c55e"
 
 
 def test_preset_validates():

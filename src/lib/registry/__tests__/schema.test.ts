@@ -131,6 +131,78 @@ describe('RegistryOpSchema compound block', () => {
   });
 });
 
+describe('OpCompoundConfigSchema topology', () => {
+  const baseOp = {
+    id: 'x', display_name: 'X', category: 'mood',
+    llm: { description: 'd', typical_use: 'u', semantic_tags: [] },
+    params: {
+      p: { type: 'scalar', range: [0, 1], default: 0.5 },
+      k: { type: 'scalar', range: [0, 100], default: 50 },
+    },
+    bindings: [
+      { param_key: 'p', control_type: 'slider', label: 'P' },
+      { param_key: 'k', control_type: 'slider', label: 'K' },
+    ],
+    engine: { shader: 'compound', render_order: 5, node_type: 'compound' },
+  };
+
+  it('defaults topology to linear', () => {
+    const parsed = RegistryOpSchema.parse({
+      ...baseOp,
+      compound: {
+        driver: 'p', interpolation: 'catmull_rom_1d',
+        anchors: [
+          { position: 0.0, name: 'a', values: { k: 10 } },
+          { position: 1.0, name: 'b', values: { k: 90 } },
+        ],
+      },
+    });
+    expect(parsed.compound?.topology).toBe('linear');
+  });
+
+  it('accepts wheel topology', () => {
+    const parsed = RegistryOpSchema.parse({
+      ...baseOp,
+      compound: {
+        driver: 'p', interpolation: 'catmull_rom_1d', topology: 'wheel',
+        anchors: [
+          { position: 0.0, name: 'a', values: { k: 10 } },
+          { position: 1.0, name: 'b', values: { k: 90 } },
+        ],
+      },
+    });
+    expect(parsed.compound?.topology).toBe('wheel');
+  });
+
+  it('rejects unknown topology', () => {
+    expect(() => RegistryOpSchema.parse({
+      ...baseOp,
+      compound: {
+        driver: 'p', interpolation: 'catmull_rom_1d', topology: 'radial-grid',
+        anchors: [
+          { position: 0.0, name: 'a', values: { k: 10 } },
+          { position: 1.0, name: 'b', values: { k: 90 } },
+        ],
+      },
+    })).toThrow();
+  });
+
+  it('accepts optional color on CompoundAnchor', () => {
+    const parsed = RegistryOpSchema.parse({
+      ...baseOp,
+      compound: {
+        driver: 'p', interpolation: 'catmull_rom_1d',
+        anchors: [
+          { position: 0.0, name: 'a', color: '#22c55e', values: { k: 10 } },
+          { position: 1.0, name: 'b', values: { k: 90 } },
+        ],
+      },
+    });
+    expect(parsed.compound?.anchors[0].color).toBe('#22c55e');
+    expect(parsed.compound?.anchors[1].color).toBeUndefined();
+  });
+});
+
 describe('strict mode parity', () => {
   it('rejects extra keys on RegistryOpSchema', () => {
     expect(() => RegistryOpSchema.parse({

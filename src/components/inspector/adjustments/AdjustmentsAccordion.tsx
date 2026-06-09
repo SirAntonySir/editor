@@ -55,10 +55,7 @@ export function AdjustmentsAccordion() {
   // decide where to drop separators. Defs not in TOOL_GROUPS are ignored —
   // adding a new processing def requires adding it to a group explicitly.
   const allDefs = new Map(
-    [
-      ...ProcessingRegistry.getByCategory('adjust'),
-      ...ProcessingRegistry.getByCategory('filter'),
-    ].map((d) => [d.id, d]),
+    ProcessingRegistry.getByCategory('adjust').map((d) => [d.id, d]),
   );
   const groups = TOOL_GROUPS.map((ids) =>
     ids.map((id) => allDefs.get(id)).filter((d): d is ProcessingDefinition => Boolean(d)),

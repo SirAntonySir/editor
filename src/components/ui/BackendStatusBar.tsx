@@ -44,9 +44,9 @@ function StatusContent({ status }: { status: BackendStatus }) {
  *  that flips the inspector to its Info tab (where the full step list lives). */
 function AnalyzingLine({ text }: { text: string }) {
   return (
-    <div className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-text-secondary">
+    <div className="flex items-center gap-1.5 px-3 py-1.5 w-full text-[11px] text-text-secondary">
       <Loader2 size={12} className="animate-spin shrink-0" />
-      <span className="truncate max-w-[260px]">{text}</span>
+      <span className="flex-1 truncate">{text}</span>
       <button
         type="button"
         onClick={() => usePreferencesStore.getState().showImageContext()}
@@ -107,7 +107,7 @@ export function BackendStatusBar() {
             background: 'color-mix(in srgb, var(--color-surface) 88%, transparent)',
           }}
           className="overlay pointer-events-auto overflow-hidden
-            backdrop-blur-md flex items-center"
+            backdrop-blur-md flex items-center min-w-[300px]"
           role="status"
           aria-live="polite"
           aria-label={`Analyzing image: ${analyzingText}`}
@@ -125,7 +125,7 @@ export function BackendStatusBar() {
           style={{
             background: 'color-mix(in srgb, var(--color-surface) 88%, transparent)',
           }}
-          className="overlay pointer-events-auto overflow-hidden backdrop-blur-md"
+          className="overlay pointer-events-auto overflow-hidden backdrop-blur-md min-w-[300px]"
           role="status"
           aria-live="polite"
         >

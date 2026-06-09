@@ -18,6 +18,7 @@ import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { renderImageNodeComposite } from '@/lib/image-node-renderer';
 import { computeEffectiveSize } from '@/lib/image-node-geometry';
+import { activeCanvasBus } from '@/lib/active-canvas-bus';
 import type { Widget } from '@/types/widget';
 
 const EMPTY_WIDGETS: Widget[] = [];
@@ -180,7 +181,11 @@ export function useImageNodeRender({
       bypassAdjustments,
       overrideRotate: previewActive && cropPreview ? cropPreview.rotate : undefined,
       overrideCrop:   previewActive && cropPreview ? cropPreview.crop   : undefined,
+      renderScale,
     });
+    // Publish post-render so listeners (Info-tab live mechanical, etc.) see
+    // the composite. Always publish — the bus consumer filters by active id.
+    activeCanvasBus.publish(imageNodeId, canvas);
   }, [
     imageNodeId,
     layerIds,

@@ -60,6 +60,7 @@ export function applyGeometry(
 }
 
 const internalCache = new Map<string, HTMLCanvasElement>();
+const scratchCache = new Map<string, HTMLCanvasElement>();
 
 /** Returns a cached internal canvas for the given image-node id, sized at
  *  `w × h`. Reuses the same canvas instance across calls; resizes if dims
@@ -75,10 +76,31 @@ export function getInternalCanvas(imageNodeId: string, w: number, h: number): HT
   return canvas;
 }
 
+/** Returns a cached scratch canvas for the given image-node id, sized at
+ *  `w × h`. Used by the renderer to downscale a layer's source bitmap before
+ *  feeding it to the WebGL pipeline so shaders run at the active LOD
+ *  resolution instead of full source resolution. One scratch per image-node;
+ *  reused serially across layers in a single render pass. */
+export function getScratchCanvas(imageNodeId: string, w: number, h: number): HTMLCanvasElement {
+  let canvas = scratchCache.get(imageNodeId);
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    scratchCache.set(imageNodeId, canvas);
+  }
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
+  return canvas;
+}
+
 /** Drop one entry or the whole cache. Called by `editorDocument.closeDocument()`. */
 export function clearInternalCanvasCache(imageNodeId?: string): void {
-  if (imageNodeId) internalCache.delete(imageNodeId);
-  else internalCache.clear();
+  if (imageNodeId) {
+    internalCache.delete(imageNodeId);
+    scratchCache.delete(imageNodeId);
+  } else {
+    internalCache.clear();
+    scratchCache.clear();
+  }
 }
 
 /** Effective output dimensions for the visible canvas given source dims,

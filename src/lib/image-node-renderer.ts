@@ -18,7 +18,7 @@
 
 import { CanvasRegistry } from './canvas-registry';
 import { PipelineManager } from './pipeline-manager';
-import { applyGeometry, getInternalCanvas, type Crop, type Rotate } from './image-node-geometry';
+import { applyGeometry, getInternalCanvas, getScratchCanvas, type Crop, type Rotate } from './image-node-geometry';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { nodeToAdjustment } from './node-to-adjustment';
@@ -93,6 +93,41 @@ export interface RenderImageNodeCompositeArgs {
    * "use snapshot"; `null` suppresses the snapshot value; a value replaces it.
    */
   overrideCrop?: { x: number; y: number; w: number; h: number } | null;
+  /**
+   * LOD render scale in (0, 1]. Internal cache canvas + WebGL pipeline + the
+   * geometry pass all run at `source × renderScale` instead of full source
+   * resolution. Defaults to 1 (no reduction). The caller quantizes zoom into a
+   * small set of octaves so allocations / FBO resizes happen rarely.
+   */
+  renderScale?: number;
+}
+
+function clampRenderScale(scale: number | undefined): number {
+  if (scale == null || !Number.isFinite(scale) || scale >= 1) return 1;
+  return Math.max(scale, 1 / 64);
+}
+
+/** Draw `source` into `dest` at dest's full dims and return it. */
+function downscaleInto(
+  dest: HTMLCanvasElement,
+  source: HTMLCanvasElement | OffscreenCanvas,
+): HTMLCanvasElement {
+  const dctx = dest.getContext('2d');
+  if (!dctx) return dest;
+  dctx.clearRect(0, 0, dest.width, dest.height);
+  dctx.drawImage(source, 0, 0, dest.width, dest.height);
+  return dest;
+}
+
+/** Scale crop rect from source-pixel units into scaled-internal-pixel units. */
+function scaleCrop(crop: Crop | undefined, scale: number): Crop | undefined {
+  if (!crop || scale === 1) return crop;
+  return {
+    x: crop.x * scale,
+    y: crop.y * scale,
+    w: crop.w * scale,
+    h: crop.h * scale,
+  };
 }
 
 /** Apply any optimistic patch to a node's params; returns the node unchanged when no patch matches. */
@@ -128,7 +163,10 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   const visibleCtx = visible.getContext('2d');
   if (!visibleCtx) return;
 
-  const internal = getInternalCanvas(args.imageNodeId, args.sourceWidth, args.sourceHeight);
+  const renderScale = clampRenderScale(args.renderScale);
+  const scaledW = Math.max(1, Math.round(args.sourceWidth * renderScale));
+  const scaledH = Math.max(1, Math.round(args.sourceHeight * renderScale));
+  const internal = getInternalCanvas(args.imageNodeId, scaledW, scaledH);
   const ctx = internal.getContext('2d');
   if (!ctx) return;
 
@@ -182,9 +220,19 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
 
     let rendered: HTMLCanvasElement | OffscreenCanvas;
     if (adjustments.length === 0) {
+      // No shader pass — `drawImage` below downsamples the source directly
+      // into the scaled internal canvas, so feeding the full-res source here
+      // is fine (the GPU downsample is cheap and one-shot).
       rendered = source;
     } else {
-      PipelineManager.setSourceCanvas(source);
+      // Downscale the source bitmap into a scratch canvas first so the WebGL
+      // pipeline allocates FBOs at `scaledW × scaledH` instead of full source
+      // dims. Without this, every shader pass runs at full source resolution
+      // even when the visible canvas is tiny — defeating the LOD entirely.
+      const pipelineInput = renderScale < 1
+        ? downscaleInto(getScratchCanvas(args.imageNodeId, scaledW, scaledH), source)
+        : source;
+      PipelineManager.setSourceCanvas(pipelineInput);
       rendered = PipelineManager.renderSync(adjustments);
     }
 
@@ -226,10 +274,16 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   void widgets; // widgets still passed through for future use
 
   // ---- Geometry pass: internal → visible at effective dims ----------------
+  // `internal` is at scaled-source dims, so the crop rect (which is in source
+  // pixel units) needs to be scaled too — otherwise applyGeometry samples the
+  // wrong sub-window of the working canvas.
   const fromSnapshot = readTransforms(opGraph, args.imageNodeId);
+  const rawCrop = args.overrideCrop !== undefined
+    ? args.overrideCrop ?? undefined
+    : fromSnapshot.crop;
   const transforms = {
     rotate: args.overrideRotate !== undefined ? args.overrideRotate ?? undefined : fromSnapshot.rotate,
-    crop:   args.overrideCrop   !== undefined ? args.overrideCrop   ?? undefined : fromSnapshot.crop,
+    crop: scaleCrop(rawCrop, renderScale),
   };
 
   applyGeometry(internal, visible, transforms);

@@ -516,4 +516,98 @@ describe('renderImageNodeComposite', () => {
     const [src] = drawSpy.mock.calls[0];
     expect(src).not.toBe(fakeWorking);
   });
+
+  it('allocates the internal canvas at scaled dims when renderScale < 1', () => {
+    setLayers([{ id: 'L1', visible: true, opacity: 1, blendMode: 'normal', order: 0 }]);
+    const visible = makeCanvas();
+
+    renderImageNodeComposite({
+      canvas: visible,
+      imageNodeId: 'in-scale',
+      layerIds: ['L1'],
+      sourceWidth: 800,
+      sourceHeight: 600,
+      opGraph: undefined,
+      widgets: [],
+      renderScale: 0.25,
+    });
+
+    // Internal cache should be sized to source × 0.25 = 200 × 150.
+    const internal = getInternalCanvas('in-scale', 200, 150);
+    expect(internal.width).toBe(200);
+    expect(internal.height).toBe(150);
+  });
+
+  it('feeds the WebGL pipeline a downscaled source (not the full-res bitmap) when renderScale < 1', () => {
+    setLayers([{ id: 'L1', visible: true, opacity: 1, blendMode: 'normal', order: 0 }]);
+    const visible = makeCanvas();
+
+    renderImageNodeComposite({
+      canvas: visible,
+      imageNodeId: 'in-pipe',
+      layerIds: ['L1'],
+      sourceWidth: 800,
+      sourceHeight: 600,
+      opGraph: {
+        id: 'g',
+        userGoal: '',
+        nodes: [
+          {
+            id: 'n1',
+            type: 'basic',
+            params: { exposure: 0.5 },
+            scope: { kind: 'global' },
+            inputs: [],
+            layer_id: 'L1',
+          },
+        ],
+        panelBindings: [],
+        metadata: {},
+      },
+      widgets: [],
+      renderScale: 0.25,
+    });
+
+    expect(pipelineSetSourceCanvas).toHaveBeenCalledTimes(1);
+    const [pipelineSource] = pipelineSetSourceCanvas.mock.calls[0];
+    // Must NOT be the full-resolution source bitmap — that would defeat the LOD.
+    expect(pipelineSource).not.toBe(fakeWorking);
+    // The scratch canvas must be sized at source × 0.25.
+    const src = pipelineSource as HTMLCanvasElement;
+    expect(src.width).toBe(200);
+    expect(src.height).toBe(150);
+  });
+
+  it('feeds the WebGL pipeline the source directly when renderScale = 1', () => {
+    setLayers([{ id: 'L1', visible: true, opacity: 1, blendMode: 'normal', order: 0 }]);
+    const visible = makeCanvas();
+
+    renderImageNodeComposite({
+      canvas: visible,
+      imageNodeId: 'in-full',
+      layerIds: ['L1'],
+      sourceWidth: 8,
+      sourceHeight: 8,
+      opGraph: {
+        id: 'g',
+        userGoal: '',
+        nodes: [
+          {
+            id: 'n1',
+            type: 'basic',
+            params: { exposure: 0.5 },
+            scope: { kind: 'global' },
+            inputs: [],
+            layer_id: 'L1',
+          },
+        ],
+        panelBindings: [],
+        metadata: {},
+      },
+      widgets: [],
+      renderScale: 1,
+    });
+
+    expect(pipelineSetSourceCanvas).toHaveBeenCalledWith(fakeWorking);
+  });
 });

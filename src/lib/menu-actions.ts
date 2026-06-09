@@ -107,7 +107,7 @@ export function useMenuActions(): MenuAction[] {
     { id: 'edit:redo',   group: 'Edit', label: 'Redo',
       shortcut: ['mod', 'shift', 'Z'], disabled: !canRedo, run: () => editorDocument.redo() },
     { id: 'edit:revert', group: 'Edit', label: 'Revert to Original',
-      shortcut: ['mod', 'shift', 'R'], disabled: !hasLayers, run: revertToOriginal },
+      shortcut: ['mod', 'alt', 'R'], disabled: !hasLayers, run: revertToOriginal },
     { id: 'edit:prefs',  group: 'Edit', label: 'Preferences…',
       shortcut: ['mod', ','], run: () => usePreferencesStore.getState().setShowPreferences(true) },
 
@@ -148,7 +148,7 @@ export function useMenuActions(): MenuAction[] {
     { id: 'ai:analyze', group: 'AI',
       label: hasContext ? 'Re-analyze image' : 'Analyze image',
       aliases: ['get context', 'analyze with ai', 'reanalyze', 'image context'],
-      shortcut: ['mod', 'shift', 'A'],
+      shortcut: ['mod', 'alt', 'A'],
       disabled: !hasLayers || analysing,
       run: () => { void analyseFirstImageLayer(); } },
   ], [

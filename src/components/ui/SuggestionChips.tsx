@@ -29,35 +29,21 @@ export function SuggestionChips() {
     if (pendingIds.has(w.id) && w.status === 'active') pending.push(w);
   }
 
+  // One pill per pending widget — the dock's flex-col stacks them above the
+  // cmd+K bar. Width matches the command-trigger pill (300px) so they form
+  // a tidy column.
   return (
-    <AnimatePresence initial={false}>
-      {pending.length > 0 && (
-        <motion.div
-          key="suggestion-chips"
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: 'auto', opacity: 1 }}
-          exit={{ height: 0, opacity: 0 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="flex-none overflow-hidden border-b border-separator bg-ai/10"
-          role="region"
-          aria-label="AI suggestions awaiting approval"
-        >
-          <div className="flex items-center gap-2 px-3 py-1.5 overflow-x-auto">
-            <Sparkles size={13} className="text-ai shrink-0" aria-hidden />
-            <span className="text-[10px] uppercase tracking-wide text-text-secondary shrink-0">
-              {pending.length} pending
-            </span>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <AnimatePresence initial={false}>
-                {pending.map((w) => (
-                  <SuggestionChip key={w.id} widget={w} />
-                ))}
-              </AnimatePresence>
-            </div>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <div
+      className="flex flex-col items-center gap-2"
+      role="region"
+      aria-label="AI suggestions awaiting approval"
+    >
+      <AnimatePresence initial={false}>
+        {pending.map((w) => (
+          <SuggestionChip key={w.id} widget={w} />
+        ))}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -103,13 +89,18 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
   return (
     <motion.div
       layout
-      initial={{ scale: 0.9, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      exit={{ scale: 0.9, opacity: 0 }}
-      transition={{ duration: 0.15 }}
-      className="inline-flex items-center gap-0.5 rounded-[var(--radius-button)] bg-surface border border-separator pl-2 pr-0.5 py-0.5 text-[11px]"
+      initial={{ opacity: 0, y: 8, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 8, scale: 0.97 }}
+      transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }}
+      style={{
+        background: 'color-mix(in srgb, var(--color-surface) 88%, transparent)',
+      }}
+      className="overlay ai-snake-border pointer-events-auto backdrop-blur-md
+        flex items-center gap-1.5 min-w-[300px] pl-3 pr-1.5 py-1.5 text-[11px]"
     >
-      <span className="max-w-[180px] truncate text-text-primary" title={widget.intent}>
+      <Sparkles size={12} className="text-ai shrink-0" aria-hidden />
+      <span className="flex-1 min-w-0 truncate text-text-primary" title={widget.intent}>
         {widget.intent}
       </span>
 

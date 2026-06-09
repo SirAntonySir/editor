@@ -11,6 +11,7 @@ import {
   type BackendStatusKind,
 } from '@/hooks/useBackendStatus';
 import { useBackendState } from '@/store/backend-state-slice';
+import { usePreferencesStore } from '@/store/preferences-store';
 import { representativePhaseLabel } from '@/components/ui/PhaseSteps';
 import { useAiSession } from '@/hooks/useImageContext';
 
@@ -19,13 +20,6 @@ const COLORS: Record<BackendStatusKind, string> = {
   success: 'text-emerald-400',
   info: 'text-text-secondary',
   error: 'text-red-400',
-};
-
-const STRIP_BG: Record<BackendStatusKind, string> = {
-  progress: 'bg-surface-secondary',
-  success: 'bg-emerald-500/10',
-  info: 'bg-surface-secondary',
-  error: 'bg-red-500/10',
 };
 
 function StatusContent({ status }: { status: BackendStatus }) {
@@ -50,13 +44,14 @@ function StatusContent({ status }: { status: BackendStatus }) {
  *  that flips the inspector to its Info tab (where the full step list lives). */
 function AnalyzingLine({ text }: { text: string }) {
   return (
-    <div className="relative flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] text-text-secondary">
+    <div className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-text-secondary">
       <Loader2 size={12} className="animate-spin shrink-0" />
-      <span className="truncate">{text}</span>
+      <span className="truncate max-w-[260px]">{text}</span>
       <button
         type="button"
         onClick={() => usePreferencesStore.getState().showImageContext()}
-        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm px-2 py-1 text-[10px] font-medium text-accent transition-colors hover:bg-surface hover:text-accent-hover"
+        className="ml-1 rounded-sm px-1.5 py-0.5 text-[10px] font-medium text-accent
+          transition-colors hover:bg-surface-secondary hover:text-accent-hover"
       >
         More info
       </button>
@@ -103,11 +98,16 @@ export function BackendStatusBar() {
       {inAnalyze ? (
         <motion.div
           key="analyzing"
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: 'auto', opacity: 1 }}
-          exit={{ height: 0, opacity: 0 }}
-          transition={{ duration: 0.22, ease: 'easeOut' }}
-          className="flex-none overflow-hidden border-b border-separator bg-surface-secondary"
+          layout
+          initial={{ opacity: 0, y: 8, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 8, scale: 0.97 }}
+          transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }}
+          style={{
+            background: 'color-mix(in srgb, var(--color-surface) 88%, transparent)',
+          }}
+          className="overlay pointer-events-auto overflow-hidden
+            backdrop-blur-md flex items-center"
           role="status"
           aria-live="polite"
           aria-label={`Analyzing image: ${analyzingText}`}
@@ -117,16 +117,20 @@ export function BackendStatusBar() {
       ) : status ? (
         <motion.div
           key="strip"
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: 22, opacity: 1 }}
-          exit={{ height: 0, opacity: 0 }}
-          transition={{ duration: 0.18, ease: 'easeOut' }}
-          className={`flex-none overflow-hidden border-b border-separator ${STRIP_BG[status.kind]}`}
+          layout
+          initial={{ opacity: 0, y: 8, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 8, scale: 0.97 }}
+          transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+          style={{
+            background: 'color-mix(in srgb, var(--color-surface) 88%, transparent)',
+          }}
+          className="overlay pointer-events-auto overflow-hidden backdrop-blur-md"
           role="status"
           aria-live="polite"
         >
           <div
-            className={`h-full flex items-center justify-center gap-1.5 px-3 text-[11px] ${COLORS[status.kind]}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] ${COLORS[status.kind]}`}
           >
             <StatusContent status={status} />
           </div>

@@ -3,6 +3,7 @@ import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
 import { revertToOriginal } from '@/lib/revert';
+import { openImageFromPicker } from '@/lib/open-file';
 import { editorDocument } from '@/core/document';
 
 const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent);
@@ -11,6 +12,7 @@ interface ShortcutEntry {
   key: string;
   ctrl?: boolean;
   shift?: boolean;
+  alt?: boolean;
   action: () => void;
   label: string;
 }
@@ -49,6 +51,12 @@ function buildShortcuts(): ShortcutEntry[] {
 
   // Global shortcuts
   shortcuts.push({
+    key: 'o',
+    ctrl: true,
+    action: () => openImageFromPicker(),
+    label: 'Open…',
+  });
+  shortcuts.push({
     key: 'z',
     ctrl: true,
     action: () => editorDocument.undo(),
@@ -62,10 +70,11 @@ function buildShortcuts(): ShortcutEntry[] {
     label: 'Redo',
   });
 
+  // Cmd+Shift+R is the browser's hard-reload — not preventable. Use Cmd+Alt+R.
   shortcuts.push({
     key: 'r',
     ctrl: true,
-    shift: true,
+    alt: true,
     action: () => revertToOriginal(),
     label: 'Revert to Original',
   });
@@ -90,11 +99,12 @@ function buildShortcuts(): ShortcutEntry[] {
   // Analyze image (AI) — same handler the AI menu and the Cmd+K AI-recovery
   // banner call. Gated softly: skip if there are no layers or if a previous
   // analyze is still in flight (the underlying hook is idempotent but the
-  // shortcut shouldn't queue duplicates).
+  // shortcut shouldn't queue duplicates). Cmd+Shift+A is Chrome's tab-search
+  // (not preventable), so we use Cmd+Alt+A.
   shortcuts.push({
     key: 'a',
     ctrl: true,
-    shift: true,
+    alt: true,
     action: () => {
       const layers = useEditorStore.getState().layers;
       if (layers.length === 0) return;
@@ -123,16 +133,19 @@ export function installKeyboardShortcuts(): () => void {
 
     const ctrl = isMac ? e.metaKey : e.ctrlKey;
     const shift = e.shiftKey;
+    const alt = e.altKey;
     const key = e.key.toLowerCase();
 
     for (const shortcut of shortcuts) {
       const needsCtrl = shortcut.ctrl ?? false;
       const needsShift = shortcut.shift ?? false;
+      const needsAlt = shortcut.alt ?? false;
 
       if (
         key === shortcut.key &&
         ctrl === needsCtrl &&
-        shift === needsShift
+        shift === needsShift &&
+        alt === needsAlt
       ) {
         e.preventDefault();
         shortcut.action();
@@ -148,9 +161,11 @@ export function installKeyboardShortcuts(): () => void {
 export function getShortcutEntries(): { key: string; label: string; display: string }[] {
   const shortcuts = buildShortcuts();
   const mod = isMac ? 'Cmd' : 'Ctrl';
+  const altLabel = isMac ? 'Option' : 'Alt';
   return shortcuts.map((s) => {
     const parts: string[] = [];
     if (s.ctrl) parts.push(mod);
+    if (s.alt) parts.push(altLabel);
     if (s.shift) parts.push('Shift');
     parts.push(s.key.toUpperCase());
     return { key: s.key, label: s.label, display: parts.join('+') };

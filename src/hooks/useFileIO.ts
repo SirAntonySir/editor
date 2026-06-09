@@ -1,28 +1,12 @@
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import { exportImage, saveAs } from '@/lib/export';
 import { editorDocument } from '@/core/document';
-import { useAiSession } from '@/hooks/useImageContext';
+import { openImageFromPicker } from '@/lib/open-file';
 
 export function useFileIO() {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const handleOpen = useCallback(() => {
-    fileInputRef.current?.click();
+    openImageFromPicker();
   }, []);
-
-  const handleFileChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        await editorDocument.openImage(file);
-        // Fire-and-forget AI analysis on new image open.
-        createImageBitmap(file).then((bitmap) => useAiSession.getState().uploadAndAnalyse(bitmap));
-      }
-      // reset so same file can be re-selected
-      e.target.value = '';
-    },
-    [],
-  );
 
   const handleClose = useCallback(() => {
     editorDocument.newDocument();
@@ -38,5 +22,5 @@ export function useFileIO() {
     [],
   );
 
-  return { fileInputRef, handleOpen, handleFileChange, handleClose, handleExport };
+  return { handleOpen, handleClose, handleExport };
 }

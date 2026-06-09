@@ -5,7 +5,7 @@ import { EditorProvider, useEditor } from '@/components/EditorProvider';
 import { CanvasWorkspace } from '@/components/workspace/CanvasWorkspace';
 
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
-import { CommandTrigger } from '@/components/ui/CommandTrigger';
+import { FloatingDock } from '@/components/ui/FloatingDock';
 import { CommandPalette } from '@/components/CommandPalette';
 import { MenuBar } from '@/components/toolbar/MenuBar';
 import { RightSidebar } from '@/components/panels/RightSidebar';
@@ -25,8 +25,6 @@ import { LevelsTool } from '@/tools/levels-tool';
 import { FiltersTool } from '@/tools/filters-tool';
 import { HslTool } from '@/tools/hsl-tool';
 import { TimeOfDayTool } from '@/tools/time-of-day-tool';
-import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
-import { SuggestionChips } from '@/components/ui/SuggestionChips';
 import { useBackendState } from '@/store/backend-state-slice';
 import { Upload } from 'lucide-react';
 
@@ -72,13 +70,11 @@ function MainLayout({
   layers,
   toolDef,
   toolContext,
-  activeTool,
   handleFileOpen,
 }: {
   layers: unknown[];
   toolDef: ReturnType<ReturnType<typeof useEditor>['getActiveTool']>;
   toolContext: ReturnType<typeof useEditor>['toolContext'];
-  activeTool: string;
   handleFileOpen: () => void;
 }) {
   return (
@@ -123,18 +119,6 @@ function MainLayout({
           )}
         </AnimatePresence>
 
-        {/* Status bar — bottom-right of canvas column */}
-        <div className="absolute bottom-0 right-0 z-20 flex items-center gap-2
-          px-2 py-0.5 text-xs text-text-secondary bg-surface border-t border-l border-separator rounded-tl-sm">
-          <ScopeDisplay />
-          <span className="text-separator">|</span>
-          <span className="capitalize">{activeTool}</span>
-          <span className="text-separator">|</span>
-          <ZoomDisplay />
-        </div>
-
-        {/* Floating command bar — opens the palette (⌘K) */}
-        <CommandTrigger />
       </div>
 
       <RightSidebar />
@@ -144,7 +128,6 @@ function MainLayout({
 
 function EditorContent() {
   const { toolContext, getActiveTool } = useEditor();
-  const activeTool = useEditorStore((s) => s.activeTool);
   const layers = useEditorStore((s) => s.layers);
   const showPreferences = usePreferencesStore((s) => s.showPreferences);
   const toolDef = getActiveTool();
@@ -203,17 +186,17 @@ function EditorContent() {
         <MenuBar />
       </div>
 
-      <BackendStatusBar />
-      <SuggestionChips />
-
       {/* Main canvas area */}
       <MainLayout
         layers={layers}
         toolDef={toolDef}
         toolContext={toolContext}
-        activeTool={activeTool}
         handleFileOpen={handleFileOpen}
       />
+
+      {/* Floating dock: suggestion chips · backend status · cmd+K · ambient
+          caption. One canvas-aligned stack at bottom-center. */}
+      <FloatingDock />
 
       {/* Preferences overlay */}
       <AnimatePresence>
@@ -221,22 +204,6 @@ function EditorContent() {
       </AnimatePresence>
     </div>
   );
-}
-
-function ZoomDisplay() {
-  const zoom = useEditorStore((s) => s.zoom);
-  return <span className="num">{Math.round(zoom * 100)}%</span>;
-}
-
-function ScopeDisplay() {
-  const activeScope = useEditorStore((s) => s.activeScope);
-  if (!activeScope || activeScope.kind === 'global') {
-    return <span style={{ color: 'var(--color-accent)' }}>image</span>;
-  }
-  if (activeScope.kind === 'mask') {
-    return <span style={{ color: '#ff9f0a' }}>segment</span>;
-  }
-  return <span>—</span>;
 }
 
 // Apply persisted preferences on initial load

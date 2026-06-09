@@ -96,19 +96,12 @@ function TriggerButton({ children }: { children: React.ReactNode }) {
 /* ------------------------------------------------------------------ */
 
 export function MenuBar() {
-  const { fileInputRef, handleOpen, handleFileChange, handleClose, handleExport } = useFileIO();
+  const { handleOpen, handleClose, handleExport } = useFileIO();
   const { transformImage } = useImageTransform();
   const { applyZoom, fitOnScreen, zoomIn, zoomOut } = useCanvasZoom();
 
   return (
     <>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleFileChange}
-      />
       <div className="flex items-center w-full">
         <Menubar.Root className="flex items-center gap-0 text-sm text-text-primary">
           <FileMenu onOpen={handleOpen} onExport={handleExport} onClose={handleClose} />
@@ -196,7 +189,7 @@ function EditMenu() {
             Redo
           </Item>
           <Sep />
-          <Item keys={['mod', 'shift', 'R']} disabled={!hasLayers} onSelect={revertToOriginal}>
+          <Item keys={['mod', 'alt', 'R']} disabled={!hasLayers} onSelect={revertToOriginal}>
             Revert to Original
           </Item>
           <Sep />
@@ -445,7 +438,7 @@ function AiMenu() {
           <Item
             onSelect={handleReanalyse}
             disabled={!hasLayers || analysing}
-            keys={['mod', 'shift', 'A']}
+            keys={['mod', 'alt', 'A']}
           >
             {hasContext ? 'Re-analyze image' : 'Analyze image'}
           </Item>
@@ -543,7 +536,7 @@ function UndoRedoButtons() {
           </Tooltip.Trigger>
           <Tooltip.Portal>
             <Tooltip.Content className="overlay px-1.5 py-0.5 text-[10px] text-text-primary z-[60]" sideOffset={6}>
-              Revert to Original <Kbd keys={['mod', 'shift', 'R']} className="inline-flex ml-1" />
+              Revert to Original <Kbd keys={['mod', 'alt', 'R']} className="inline-flex ml-1" />
             </Tooltip.Content>
           </Tooltip.Portal>
         </Tooltip.Root>

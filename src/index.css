@@ -103,6 +103,55 @@ html, body, #root {
   box-shadow: var(--overlay-shadow, var(--shadow-overlay));
 }
 
+/* Running snake border: a violet conic-gradient "head" sweeps clockwise
+ * along the pill's edge. We register --ai-snake-angle as a real <angle>
+ * via @property so the conic gradient can be tweened (without @property,
+ * the browser snaps frame-to-frame and there's no animation).
+ *
+ * Geometry:
+ *   ::before is the sharp ring — `inset: 0`, `padding: 1px`, conic background
+ *   masked with `xor` so only the 1px border-edge ring is visible.
+ *   drop-shadow gives a small violet bloom along the visible portion so it
+ *   reads as a glowing trail rather than a sharp line.
+ */
+@property --ai-snake-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes ai-snake-spin {
+  to { --ai-snake-angle: 360deg; }
+}
+.ai-snake-border {
+  position: relative;
+}
+.ai-snake-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--ai-snake-angle, 0deg),
+    transparent 0deg,
+    transparent 240deg,
+    var(--color-ai) 310deg,
+    var(--color-ai) 350deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+          mask-composite: exclude;
+  pointer-events: none;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--color-ai) 70%, transparent));
+  animation: ai-snake-spin 3s linear infinite;
+}
+
 /* AI-composed widget shell: violet outline + soft glow so AI widgets stand
  * apart from tool-invoked ones on the canvas. Layered shadow keeps the
  * regular overlay drop and adds a 1px inner ring + 12px outer bloom in the

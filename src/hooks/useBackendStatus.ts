@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAiSession } from '@/hooks/useImageContext';
 import {
   useBackendState,
@@ -17,7 +17,6 @@ export interface BackendStatus {
   ephemeral: boolean;
 }
 
-const READY_DISMISS_MS = 3000;
 const TOAST_DISMISS_MS = 4000;
 
 const PHASE_LABELS: Record<PhaseName, string> = {
@@ -38,7 +37,9 @@ const PHASE_LABELS: Record<PhaseName, string> = {
  *  2. AI uploading / analysing  (coarse progress, persistent)
  *  3. AI error                  (error, persistent until status changes)
  *  4. Latest toast              (info/error, auto-dismissed)
- *  5. AI ready                  (success, auto-dismissed)
+ *
+ * The "AI ready" success was retired — SuggestionChips already signals
+ * completion by appearing in the row under the status bar.
  */
 export function useBackendStatus(): BackendStatus | null {
   const aiStatus = useAiSession((s) => s.status);
@@ -59,21 +60,6 @@ export function useBackendStatus(): BackendStatus | null {
     const h = setTimeout(() => setToastMsg(null), TOAST_DISMISS_MS);
     return () => clearTimeout(h);
   }, [toastMsg]);
-
-  // Auto-dismiss "ready" after a short window.
-  // We track the epoch (how many times status reached 'ready') so we can reset
-  // dismissal without calling setState synchronously in an effect body.
-  const [readyEpoch, setReadyEpoch] = useState(0);
-  const [dismissedEpoch, setDismissedEpoch] = useState(0);
-  const readyDismissed = dismissedEpoch >= readyEpoch && readyEpoch > 0;
-
-  useEffect(() => {
-    if (aiStatus !== 'ready') return;
-    // Bump the epoch so any previous dismissal is invalidated.
-    startTransition(() => setReadyEpoch((n) => n + 1));
-    const h = setTimeout(() => setDismissedEpoch((n) => n + 1), READY_DISMISS_MS);
-    return () => clearTimeout(h);
-  }, [aiStatus]);
 
   const rep = representativePhase(phases);
   if (rep && !mcpComplete) {
@@ -99,12 +85,6 @@ export function useBackendStatus(): BackendStatus | null {
       text: toastMsg.text,
       ephemeral: true,
     };
-  }
-
-  // Only show "ready" once MCP is also done — the legacy /api/analyze returns
-  // ~2s before widget_mint completes, so we'd otherwise lie to the user.
-  if (aiStatus === 'ready' && mcpComplete && !readyDismissed) {
-    return { kind: 'success', text: 'Image context ready', ephemeral: true };
   }
 
   return null;

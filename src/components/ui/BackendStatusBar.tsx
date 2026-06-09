@@ -1,11 +1,9 @@
-import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   CircleX,
   Info,
   Loader2,
   Sparkles,
-  X,
 } from 'lucide-react';
 import {
   useBackendStatus,
@@ -15,10 +13,6 @@ import {
 import { useBackendState } from '@/store/backend-state-slice';
 import { representativePhaseLabel } from '@/components/ui/PhaseSteps';
 import { useAiSession } from '@/hooks/useImageContext';
-import { usePreferencesStore } from '@/store/preferences-store';
-
-/** The "Image context ready" line auto-dismisses this long after it appears. */
-const READY_AUTODISMISS_MS = 4000;
 
 const COLORS: Record<BackendStatusKind, string> = {
   progress: 'text-text-secondary',
@@ -70,45 +64,14 @@ function AnalyzingLine({ text }: { text: string }) {
   );
 }
 
-function ReadyLine({
-  onShowContext,
-  onDismiss,
-}: {
-  onShowContext: () => void;
-  onDismiss: () => void;
-}) {
-  return (
-    <div className="relative flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] text-emerald-400">
-      <Sparkles size={12} className="shrink-0" />
-      <span className="truncate">Image context ready</span>
-      <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1">
-        <button
-          type="button"
-          onClick={onShowContext}
-          className="rounded-sm px-2 py-1 text-[10px] font-medium text-accent transition-colors hover:bg-surface hover:text-accent-hover"
-        >
-          Show context
-        </button>
-        <button
-          type="button"
-          onClick={onDismiss}
-          aria-label="Dismiss"
-          className="rounded-sm p-1 text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
-        >
-          <X size={12} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 /**
- * Slides in under the toolbar when the backend has something to show. All
- * states are a single line — the full 6-step progress lives in the inspector's
- * Info tab, reachable via "More info" / "Show context".
+ * Slides in under the toolbar when the backend has something to show.
  * - During analyze: spinner + the current phase label.
- * - After analyze completes: a persistent "ready" line that stays until dismissed.
  * - Otherwise: thin single-line strip (toast / error).
+ *
+ * The "Image context ready" line was retired once SuggestionChips landed —
+ * the pending chips themselves are the cue that analyze finished, and the
+ * inspector Info tab is one click away when the user wants the full context.
  */
 export function BackendStatusBar() {
   const phases = useBackendState((s) => s.phases);
@@ -118,33 +81,8 @@ export function BackendStatusBar() {
 
   const preAnalyze = aiStatus === 'uploading' || aiStatus === 'analysing';
   // Live analyze: the pre-phase upload window, or phases streaming before
-  // widget_mint completes. Once mcpAnalyzeComplete the live row gives way to
-  // the persistent "ready" line.
+  // widget_mint completes.
   const inAnalyze = preAnalyze || (phases !== null && !mcpComplete);
-
-  // Persistent "ready" line. Triggered on the REAL completion signal
-  // (mcpAnalyzeComplete = widget_mint done), with an aiStatus === 'ready'
-  // fallback for the cached-context path where analyze_image early-returns and
-  // emits no phases. Re-armed by resetting dismissal on every transition to
-  // 'ready'.
-  const [readyDismissed, setReadyDismissed] = useState(false);
-  useEffect(() => {
-    let prev = useAiSession.getState().status;
-    return useAiSession.subscribe((state) => {
-      if (state.status === 'ready' && prev !== 'ready') setReadyDismissed(false);
-      prev = state.status;
-    });
-  }, []);
-
-  const showReady =
-    !inAnalyze && !readyDismissed && (mcpComplete || aiStatus === 'ready');
-
-  // Auto-dismiss the "ready" line a beat after it appears, so it doesn't linger.
-  useEffect(() => {
-    if (!showReady) return;
-    const t = setTimeout(() => setReadyDismissed(true), READY_AUTODISMISS_MS);
-    return () => clearTimeout(t);
-  }, [showReady]);
 
   // While mcpComplete is true the map holds a finished run's all-done state. A
   // re-upload re-enters the pre-phase window before its first event arrives, so
@@ -159,18 +97,6 @@ export function BackendStatusBar() {
     : aiStatus === 'analysing'
     ? 'Connecting to backend…'
     : 'Analyzing image…';
-
-  // The auto-dismissing "Image context ready" success from useBackendStatus is
-  // replaced by the persistent ready line — skip the strip in that case.
-  const stripStatus =
-    status && !(showReady && status.kind === 'success') ? status : null;
-
-  const handleShowContext = () => {
-    // Open the sidebar + select the Info tab, then clear this banner — its job
-    // is done once the user has gone to view the context.
-    usePreferencesStore.getState().showImageContext();
-    setReadyDismissed(true);
-  };
 
   return (
     <AnimatePresence initial={false} mode="popLayout">
@@ -188,38 +114,21 @@ export function BackendStatusBar() {
         >
           <AnalyzingLine text={analyzingText} />
         </motion.div>
-      ) : showReady ? (
-        <motion.div
-          key="ready"
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: 'auto', opacity: 1 }}
-          exit={{ height: 0, opacity: 0 }}
-          transition={{ duration: 0.22, ease: 'easeOut' }}
-          className="flex-none overflow-hidden border-b border-separator bg-emerald-500/10"
-          role="status"
-          aria-live="polite"
-          aria-label="Image context ready"
-        >
-          <ReadyLine
-            onShowContext={handleShowContext}
-            onDismiss={() => setReadyDismissed(true)}
-          />
-        </motion.div>
-      ) : stripStatus ? (
+      ) : status ? (
         <motion.div
           key="strip"
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: 22, opacity: 1 }}
           exit={{ height: 0, opacity: 0 }}
           transition={{ duration: 0.18, ease: 'easeOut' }}
-          className={`flex-none overflow-hidden border-b border-separator ${STRIP_BG[stripStatus.kind]}`}
+          className={`flex-none overflow-hidden border-b border-separator ${STRIP_BG[status.kind]}`}
           role="status"
           aria-live="polite"
         >
           <div
-            className={`h-full flex items-center justify-center gap-1.5 px-3 text-[11px] ${COLORS[stripStatus.kind]}`}
+            className={`h-full flex items-center justify-center gap-1.5 px-3 text-[11px] ${COLORS[status.kind]}`}
           >
-            <StatusContent status={stripStatus} />
+            <StatusContent status={status} />
           </div>
         </motion.div>
       ) : null}

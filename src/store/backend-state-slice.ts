@@ -100,6 +100,11 @@ interface BackendState {
    *  inspector AI section and the canvas until the user resolves them via the
    *  per-widget chips. Surfaced via SuggestionChips → resolvePendingSuggestion. */
   pendingSuggestionIds: Set<string>;
+  /** Subset of pendingSuggestionIds whose effect the user is previewing on
+   *  the canvas via the chip eye icon. Pending widgets whose id is in this
+   *  set are NOT filtered out of the render, so the user can see what their
+   *  adjustments would do before committing. Empty by default. */
+  previewingSuggestionIds: Set<string>;
   sseStatus: SseStatus;
   /** Per-phase status of the in-flight (or just-completed) analyze run; null before any analyze. */
   phases: PhaseMap | null;
@@ -114,8 +119,12 @@ interface BackendState {
   /** Replace the pending-suggestion set with the supplied ids. Called by the
    *  AnalyzeSuggestionsGate on the rising edge of mcpAnalyzeComplete. */
   markPendingSuggestions: (ids: string[]) => void;
-  /** Remove one id from the pending set after the user allowed or denied it. */
+  /** Remove one id from the pending set after the user allowed or denied it.
+   *  Also clears the matching preview flag. */
   resolvePendingSuggestion: (id: string) => void;
+  /** Toggle whether one pending suggestion's effect is shown on the canvas
+   *  preview. Caller passes true for ON, false for OFF. */
+  setPreviewSuggestion: (id: string, on: boolean) => void;
   setSseStatus: (status: SseStatus) => void;
   setSnapshot: (snapshot: SessionStateSnapshot) => void;
   setSessionId: (sessionId: string | null) => void;
@@ -129,6 +138,7 @@ export const useBackendState = create<BackendState>()(
     optimistic: new Map(),
     acceptedSuggestions: new Set(),
     pendingSuggestionIds: new Set(),
+    previewingSuggestionIds: new Set(),
     sseStatus: 'idle',
     phases: null,
     mcpAnalyzeComplete: false,
@@ -325,6 +335,13 @@ export const useBackendState = create<BackendState>()(
     resolvePendingSuggestion: (id) =>
       set((s) => {
         s.pendingSuggestionIds.delete(id);
+        s.previewingSuggestionIds.delete(id);
+      }),
+
+    setPreviewSuggestion: (id, on) =>
+      set((s) => {
+        if (on) s.previewingSuggestionIds.add(id);
+        else s.previewingSuggestionIds.delete(id);
       }),
 
     setSseStatus: (status) => set((s) => { s.sseStatus = status; }),
@@ -353,6 +370,7 @@ export const useBackendState = create<BackendState>()(
         s.optimistic = new Map();
         s.acceptedSuggestions = new Set();
         s.pendingSuggestionIds = new Set();
+        s.previewingSuggestionIds = new Set();
         s.sseStatus = 'idle';
         s.phases = null;
         s.mcpAnalyzeComplete = false;

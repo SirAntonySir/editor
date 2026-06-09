@@ -1,4 +1,4 @@
-import { Check, Sparkles, X } from 'lucide-react';
+import { Check, Eye, Sparkles, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useReactFlow } from '@xyflow/react';
 import { useBackendState } from '@/store/backend-state-slice';
@@ -23,6 +23,8 @@ export function SuggestionChips() {
   const sessionId = useBackendState((s) => s.sessionId);
   const resolve = useBackendState((s) => s.resolvePendingSuggestion);
   const addAccepted = useBackendState((s) => s.addAcceptedSuggestion);
+  const previewingIds = useBackendState((s) => s.previewingSuggestionIds);
+  const setPreview = useBackendState((s) => s.setPreviewSuggestion);
   const rf = useReactFlow();
 
   const pending: Widget[] = [];
@@ -85,10 +87,24 @@ export function SuggestionChips() {
                     </span>
                     <button
                       type="button"
+                      onClick={() => setPreview(w.id, !previewingIds.has(w.id))}
+                      title={previewingIds.has(w.id) ? 'Hide preview' : 'Preview on canvas'}
+                      aria-label={`${previewingIds.has(w.id) ? 'Hide preview of' : 'Preview'} suggestion: ${w.intent}`}
+                      aria-pressed={previewingIds.has(w.id)}
+                      className={`ml-1 inline-flex items-center justify-center p-0.5 rounded-[3px] ${
+                        previewingIds.has(w.id)
+                          ? 'bg-ai/20 text-ai'
+                          : 'text-text-secondary hover:text-text-primary hover:bg-surface-secondary'
+                      }`}
+                    >
+                      <Eye size={11} aria-hidden />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleDeny(w)}
                       title="Deny"
                       aria-label={`Deny suggestion: ${w.intent}`}
-                      className="ml-1 inline-flex items-center justify-center p-0.5 rounded-[3px] text-text-secondary hover:text-text-primary hover:bg-surface-secondary"
+                      className="inline-flex items-center justify-center p-0.5 rounded-[3px] text-text-secondary hover:text-text-primary hover:bg-surface-secondary"
                     >
                       <X size={11} aria-hidden />
                     </button>

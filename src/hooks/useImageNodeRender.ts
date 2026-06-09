@@ -78,6 +78,12 @@ export function useImageNodeRender({
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   const hiddenWidgetIds = useEditorStore((s) => s.hiddenWidgetIds);
   const hiddenCanonNodeIds = useEditorStore((s) => s.hiddenCanonNodeIds);
+  // Pending suggestion widgets are hidden from the render so their adjustments
+  // don't live-apply before the user clicks Allow on the chip — unless the
+  // user is previewing one via the chip's eye icon, in which case its id sits
+  // in previewingSuggestionIds and is unmuted here.
+  const pendingSuggestionIds = useBackendState((s) => s.pendingSuggestionIds);
+  const previewingSuggestionIds = useBackendState((s) => s.previewingSuggestionIds);
 
   // Subscribe to the RF viewport zoom. `renderScale` is derived from the ratio
   // of target screen pixels (display × zoom × dpr) to source pixels and
@@ -175,7 +181,11 @@ export function useImageNodeRender({
 
     const hiddenNodeIds = new Set<string>();
     for (const w of widgets) {
-      if (!hiddenWidgetIds.has(w.id)) continue;
+      // Hide if the user explicitly hid the widget, OR it's a pending
+      // suggestion that the user isn't previewing.
+      const isPendingSilenced =
+        pendingSuggestionIds.has(w.id) && !previewingSuggestionIds.has(w.id);
+      if (!hiddenWidgetIds.has(w.id) && !isPendingSilenced) continue;
       for (const n of w.nodes) {
         if (n.layer_id) {
           hiddenNodeIds.add(`canon:${n.layer_id}:${n.type}`);
@@ -227,6 +237,8 @@ export function useImageNodeRender({
     activeImageNodeId,
     hiddenWidgetIds,
     hiddenCanonNodeIds,
+    pendingSuggestionIds,
+    previewingSuggestionIds,
     bypassAdjustments,
     previewActive,
     cropPreview,

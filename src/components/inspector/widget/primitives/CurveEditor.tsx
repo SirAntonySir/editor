@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { evaluateCubicSpline, type CurvePoint } from '@/lib/curves';
+import { RotateCcw } from 'lucide-react';
+import { evaluateCubicSpline, DEFAULT_CURVE_POINTS, type CurvePoint } from '@/lib/curves';
 import { IDENTITY_CURVES } from '@/types/widget';
 import type { CurvesValue } from '@/types/widget';
 
@@ -11,6 +12,13 @@ const CHANNEL_COLORS: Record<Channel, string> = {
   red: '#ff4444',
   green: '#44bb44',
   blue: '#4488ff',
+};
+
+const DEFAULT_POINTS: Record<Channel, CurvePoint[]> = {
+  rgb: [...DEFAULT_CURVE_POINTS],
+  red: [...DEFAULT_CURVE_POINTS],
+  green: [...DEFAULT_CURVE_POINTS],
+  blue: [...DEFAULT_CURVE_POINTS],
 };
 
 interface CurveEditorProps {
@@ -132,6 +140,31 @@ export function CurveEditor({ value, onChange, channel: lockedChannel }: CurveEd
     }
   };
 
+  // In single-channel mode, only check/reset the locked channel so the reset
+  // button doesn't revert channels owned by sibling CurveEditor instances.
+  const channelsToCheck = lockedChannel ? [lockedChannel] : CHANNELS;
+  const isDefault = channelsToCheck.every(
+    (ch) =>
+      safeValue[ch].length === DEFAULT_POINTS[ch].length &&
+      safeValue[ch].every((p, i) => p.x === DEFAULT_POINTS[ch][i].x && p.y === DEFAULT_POINTS[ch][i].y),
+  );
+
+  const handleReset = () => {
+    if (lockedChannel) {
+      // Only reset this channel; preserve the other channels as-is.
+      onChange({ ...safeValue, [lockedChannel]: [...IDENTITY_CURVES[lockedChannel]] });
+    } else {
+      // Deep-copy: IDENTITY_CURVES is a shared exported constant — never hand its
+      // inner arrays out as the live value.
+      onChange({
+        rgb: [...IDENTITY_CURVES.rgb],
+        red: [...IDENTITY_CURVES.red],
+        green: [...IDENTITY_CURVES.green],
+        blue: [...IDENTITY_CURVES.blue],
+      });
+    }
+  };
+
   // Build SVG path from spline (200×200 viewBox)
   const lut = evaluateCubicSpline(points);
   const pathData = Array.from(lut)
@@ -198,6 +231,17 @@ export function CurveEditor({ value, onChange, channel: lockedChannel }: CurveEd
         ))}
       </svg>
 
+      {/* Reset button — only shown when any channel differs from identity */}
+      {!isDefault && (
+        <button
+          onClick={handleReset}
+          className="flex items-center justify-center gap-1 px-2 py-1 text-[10px] text-text-secondary hover:text-text-primary
+            bg-surface-secondary hover:bg-surface-secondary/80 rounded transition-colors cursor-default"
+        >
+          <RotateCcw size={10} />
+          Reset
+        </button>
+      )}
     </div>
   );
 }

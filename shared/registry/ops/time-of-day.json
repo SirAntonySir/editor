@@ -1,7 +1,7 @@
 {
   "id": "time-of-day",
   "display_name": "Time of Day",
-  "category": "tone",
+  "category": "mood",
   "llm": {
     "description": "1-D dial that re-lights the image across the day arc — dawn, noon, golden hour, blue hour, night. Compiles to coordinated white balance, exposure, contrast, saturation, and vignette.",
     "typical_use": "User says 'make it night', 'golden hour', 'dawn light', 'blue hour', 'sunset'.",

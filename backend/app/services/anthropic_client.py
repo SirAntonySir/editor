@@ -347,6 +347,9 @@ Rules:
   Example: "make it night" → time-of-day with position=1.0. Do NOT manually
   compose individual tone+color+vignette ops when a compound dial op covers
   the intent — the dial does that math from its anchor table automatically.
+  Multiple compound dials may stack when the intent spans more than one
+  dial axis (e.g., "winter sunset" = season + time-of-day, "vintage stormy"
+  = age + weather). Prefer ONE dial when the intent fits a single axis.
 - Order widgets by intent priority (most defining effect first).
 - Return strict JSON. Do not include markdown fences.
 
@@ -374,7 +377,7 @@ Example for "make it a night scene" (COMPOUND DIAL):
 {
   "plan": [
     {
-      "widget_name": "Night scene", "category": "tone",
+      "widget_name": "Night scene", "category": "mood",
       "ops": [{
         "op_id": "time-of-day",
         "rationale": "user wants night — set time-of-day position to 1.0 (night anchor)",

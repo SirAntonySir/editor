@@ -104,3 +104,26 @@ def test_plan_widget_stack_catalog_surfaces_compound_dial(monkeypatch):
     system_blob = str(captured["system"])
     assert "COMPOUND DIAL OPS" in system_blob
     assert "compound_dial" in system_blob
+
+
+def test_planner_prompt_lists_mood_category(monkeypatch):
+    """The planner system prompt must include `mood` as a valid category."""
+    client = AnthropicClient(api_key="test", model="claude-opus-4-7")
+
+    captured: dict = {}
+    def fake_create(**kwargs):
+        captured["system"] = kwargs.get("system")
+        resp = MagicMock()
+        resp.content = [MagicMock(text='{"plan": []}')]
+        return resp
+    monkeypatch.setattr(client._client.messages, "create", fake_create)
+
+    reg = reload_registry()
+    client.plan_widget_stack(
+        intent="any", scope={"kind": "global"}, image_context={},
+        existing_widgets=[], registry=reg, session_id="s1",
+    )
+    system_blob = str(captured["system"])
+    assert "mood" in system_blob
+    # Multi-dial stacking sentence
+    assert "Multiple compound dials may stack" in system_blob

@@ -25,7 +25,7 @@ def test_loader_finds_presets():
 
 def test_all_ops_have_category():
     reg = load_registry()
-    expected_categories = {"tone", "color", "detail", "texture", "effect"}
+    expected_categories = {"tone", "color", "detail", "texture", "effect", "mood"}
     for op_id, op in reg.ops.items():
         assert op.category is not None, f"op {op_id} missing category"
         assert op.category in expected_categories, (

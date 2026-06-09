@@ -262,3 +262,28 @@ html, body, #root {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ─── Leaflet (Metadata map) chrome tweaks ───
+ * Leaflet ships its own opinionated styling; this tightens the parts that
+ * collide with the editor's flat overlay aesthetic. Only loaded once any
+ * MetadataMap mounts, so unused pages don't pay the cost.
+ */
+.leaflet-container {
+  background: var(--color-surface-secondary);
+  font-family: inherit;
+  font-size: 10px;
+}
+.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--color-surface) 80%, transparent);
+  color: var(--color-text-secondary);
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 2px 0 0 0;
+  margin: 0 !important;
+}
+.leaflet-control-attribution a {
+  color: var(--color-text-primary);
+}
+/* The default "Ukraine flag" run in Leaflet 1.9's attribution is busy in a
+ * sidebar this small — hide it; the OSM credit stays. */
+.leaflet-attribution-flag { display: none !important; }

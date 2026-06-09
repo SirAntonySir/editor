@@ -1,6 +1,7 @@
 {
   "id": "complementary_grade",
   "display_name": "Complementary grade",
+  "category": "color",
   "source": "builtin",
   "description": "Push the classic orange\u2194blue complementary pair in HSL \u2014 warms reds and oranges, cools blues and aquas. Drives a teal-and-orange axis without committing to the full LUT.",
   "typical_use": "User says 'complementary grade', 'orange and blue', 'warm-cool split', 'cinematic colour split'.",

@@ -1,6 +1,7 @@
 {
   "id": "dreamy",
   "display_name": "Dreamy",
+  "category": "mood",
   "source": "builtin",
   "description": "Soft dreamy look \u2014 lift shadows, soften highlights, drop contrast and saturation slightly, negative clarity for a hazy feel.",
   "typical_use": "User says 'dreamy', 'soft', 'hazy', 'ethereal', 'fairytale'.",

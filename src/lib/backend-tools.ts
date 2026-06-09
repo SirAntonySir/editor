@@ -51,6 +51,10 @@ export const backendTools = {
     scope: Scope;
     origin: 'mcp_user_prompt' | 'mcp_autonomous' | 'tool_invoked';
     forced_ops?: string[];
+    /** Per-op initial param overrides; only honored for the `tool_invoked`
+     *  / `forced_ops` path. Used by Auto Light / Auto Color / etc to spawn
+     *  widgets at mechanically-derived starting values. */
+    forced_params?: Record<string, Record<string, number | string | boolean>>;
     preset_id?: string;
     prompt?: string;
     layer_id?: string;

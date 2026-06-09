@@ -1,6 +1,7 @@
 {
   "id": "cast_correct",
   "display_name": "Fix color cast",
+  "category": "color",
   "source": "builtin",
   "description": "Corrects colour cast \u2014 neutral white balance shift plus saturation channel blend.",
   "typical_use": "Use when the user wants to remove a colour cast or fix white balance.",

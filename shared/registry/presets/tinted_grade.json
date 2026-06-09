@@ -1,6 +1,7 @@
 {
   "id": "tinted_grade",
   "display_name": "Tinted grade",
+  "category": "color",
   "source": "builtin",
   "description": "Subtle tinted grade \u2014 small kelvin shift plus a green/magenta tint with reduced saturation. The colourist's 'just a touch of colour' polish.",
   "typical_use": "User says 'subtle tint', 'colour cast for mood', 'gentle grade', 'splash of colour'.",

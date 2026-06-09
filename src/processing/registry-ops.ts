@@ -11,28 +11,17 @@ import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import { loadRegistry } from '@/lib/registry/loader';
 import type { ProcessingDefinition, ParamDefinition } from '@/types/processing';
 
-/** Material icon name per op id. */
-const ICON_MAP: Record<string, string> = {
-  light:         'light_mode',
-  color:         'palette',
-  kelvin:        'thermostat',
-  sharpen:       'deblur',
-  blur:          'blur_on',
-  clarity:       'auto_awesome',
-  grain:         'grain',
-  splitTone:     'gradient',
-  vignette:      'vignette',
-  'time-of-day': 'wb_twilight',
-};
+/** Ops with bespoke Inspector panels — registered separately in
+ *  `src/processing/index.ts`. They participate in the WebGL pipeline but
+ *  don't use the registry-driven section body. */
+const BESPOKE_PANEL_OPS = new Set(['curves', 'hsl', 'levels', 'filters']);
 
 /**
- * Build ProcessingDefinition objects for all registry ops that have a known
- * icon mapping and only scalar params (i.e. not curves/hsl/levels/filters).
- *
- * Ops NOT in ICON_MAP are skipped — they have bespoke Panel files:
- *   curves, hsl, levels, filters (registered separately in index.ts)
- * Compound ops (time-of-day) are included here; ToolSection dispatches them
- * to CompoundWidgetBody when a compound widget is active.
+ * Build ProcessingDefinition objects for all registry ops EXCEPT those with
+ * bespoke panel files. The icon is read from each op's `icon` field
+ * (Material icon name); ops without one fall back to `tune`.
+ * Compound ops (time-of-day) are included; ToolSection dispatches them to
+ * CompoundWidgetBody when a compound widget is active.
  */
 export function buildRegistryProcessingDefs(): ProcessingDefinition[] {
   const reg = loadRegistry();
@@ -45,10 +34,9 @@ export function buildRegistryProcessingDefs(): ProcessingDefinition[] {
   );
 
   for (const [id, op] of sortedOps) {
-    const iconName = ICON_MAP[id];
-    if (!iconName) continue; // bespoke or non-standard op — handled elsewhere
+    if (BESPOKE_PANEL_OPS.has(id)) continue; // handled by curves.tsx / hsl.tsx / etc.
 
-    const Icon = createMaterialIcon(iconName);
+    const Icon = createMaterialIcon(op.icon ?? 'tune');
 
     // Build ParamDefinition array from registry op scalar params (in binding order).
     const params: ParamDefinition[] = op.bindings

@@ -1,6 +1,7 @@
 {
   "id": "bw_low_key",
   "display_name": "B&W low-key",
+  "category": "bw",
   "source": "builtin",
   "description": "Moody low-key black-and-white \u2014 full desaturation, dropped shadows, muted whites for a dark, brooding monochrome look.",
   "typical_use": "User says 'low key B&W', 'moody black and white', 'dark monochrome'.",

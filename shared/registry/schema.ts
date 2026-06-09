@@ -89,7 +89,9 @@ export const OpCompoundConfigSchema = z.object({
 export const RegistryOpSchema = z.object({
   id: z.string(),
   display_name: z.string(),
-  category: z.string().optional(),     // NEW — planner grouping hint
+  category: z.string().optional(),     // planner grouping hint + Cmd+K section header
+  /** Material icon name. Resolved at render time via `createMaterialIcon`. */
+  icon: z.string().optional(),
   llm: OpLlmMetadataSchema,
   params: z.record(z.string(), OpParamSchema),
   bindings: z.array(OpBindingSchema),
@@ -139,6 +141,10 @@ export const RegistryPresetSchema = z.object({
   id: z.string(),
   display_name: z.string(),
   source: PresetSourceSchema.default('builtin'),
+  /** Cmd+K grouping (tone / color / bw / film / mood / detail / look). */
+  category: z.string().optional(),
+  /** Material icon name. Optional; falls back to a default sparkle. */
+  icon: z.string().optional(),
   description: z.string(),
   typical_use: z.string(),
   semantic_tags: z.array(z.string()).default([]),

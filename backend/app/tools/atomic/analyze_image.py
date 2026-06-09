@@ -149,23 +149,33 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
             _phase_mechanical(), _phase_sam_embed(), _phase_ai_context(),
         )
 
-        # Soft fields and region stats run sequentially (depend on base_ctx + arr).
-        soft = client.augment_context_soft_fields(
-            image_bytes=doc.image_bytes,
-            mime_type=doc.mime_type,
-            base_context_json=base_ctx.model_dump(mode="json"),
-            cheap_pass_summary={
-                "median_luma": cheap.median_luma,
-                "clipped_shadows_pct": cheap.clipped_shadows_pct,
-                "clipped_highlights_pct": cheap.clipped_highlights_pct,
-                "contrast_p10_p90": cheap.contrast_p10_p90,
-                "cast_strength": cheap.cast_strength,
-                "cast_direction": list(cheap.cast_direction),
-            },
-            session_id=doc.session_id,
+        # Soft fields are an Opus round-trip (~4–8s). Original code awaited
+        # the sync method directly on the event loop, blocking every other
+        # request for that whole window. Drop it on the default executor.
+        loop = asyncio.get_running_loop()
+        soft = await loop.run_in_executor(
+            None,
+            lambda: client.augment_context_soft_fields(
+                image_bytes=doc.image_bytes,
+                mime_type=doc.mime_type,
+                base_context_json=base_ctx.model_dump(mode="json"),
+                cheap_pass_summary={
+                    "median_luma": cheap.median_luma,
+                    "clipped_shadows_pct": cheap.clipped_shadows_pct,
+                    "clipped_highlights_pct": cheap.clipped_highlights_pct,
+                    "contrast_p10_p90": cheap.contrast_p10_p90,
+                    "cast_strength": cheap.cast_strength,
+                    "cast_direction": list(cheap.cast_direction),
+                },
+                session_id=doc.session_id,
+            ),
         )
 
-        region_stats = _compute_region_stats(arr, base_ctx, soft.region_soft_fields)
+        # Region stats are pure numpy/cv2 but can take 100+ms on large
+        # images; same executor treatment for event-loop hygiene.
+        region_stats = await loop.run_in_executor(
+            None, _compute_region_stats, arr, base_ctx, soft.region_soft_fields,
+        )
         ctx = EnrichedImageContext(
             **base_ctx.model_dump(),
             luma_histogram=cheap.luma_histogram,
@@ -278,7 +288,13 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
 
     Every minted widget's nodes are stamped with ``layer_id`` (the frontend's
     real layer id) so the renderer applies them — the fused framework leaves
-    nodes on the "legacy" default otherwise."""
+    nodes on the "legacy" default otherwise.
+
+    Resolves run in parallel: selection (templates + dedup) is pure, fast,
+    and runs first; then every pick fires its resolver concurrently. Each
+    resolver makes a sync Anthropic call, so we route through
+    ``asyncio.to_thread`` to get real wall-clock concurrency rather than
+    serial waiting on the event loop."""
 
     def _stamp(widget) -> None:
         for node in widget.nodes:
@@ -303,7 +319,7 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
                 result.add((hint, b.target.param_key))
         return result
 
-    def _scope_for(problem) -> Scope:
+    def _scope_for(_problem) -> Scope:
         # Currently SAM is gated off (see _sam_enabled), so region masks
         # are not precomputed and a `named_region` scope has nothing to
         # apply through — the resulting widget shows on the canvas but
@@ -329,17 +345,15 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
 
     # Target band: aim for at least TARGET autonomous suggestions, but allow up
     # to MAX from the problem-driven pass if Claude flagged that many issues.
-    # Counts hover at exactly TARGET only when the analyze pass yields fewer
-    # than TARGET problems and the character-match top-up has to fill the gap;
-    # rich images can land 3-5 suggestions naturally.
     TARGET_AUTONOMOUS_SUGGESTIONS = 3
     MAX_AUTONOMOUS_SUGGESTIONS = 5
+    origin = WidgetOrigin(kind="mcp_autonomous", prompt=None)
+    loop = asyncio.get_running_loop()
 
-    def _count_autonomous_active() -> int:
-        return sum(
-            1 for w in doc.widgets.values()
-            if w.origin.kind == "mcp_autonomous" and w.status == "active"
-        )
+    initial_count = sum(
+        1 for w in doc.widgets.values()
+        if w.origin.kind == "mcp_autonomous" and w.status == "active"
+    )
 
     # Two-layer dedup, tracked across problem-driven + top-up passes:
     #   - `used_fused_ids` — no widget shares its fused_tool_id with another;
@@ -351,8 +365,31 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
     #     candidates fall through to their next suggestion.
     used_fused_ids: set[str] = set()
     used_targets: set[tuple[str, str]] = set()
+
+    async def _resolve(template, intent: str, scope: Scope):
+        # Each fused template's `resolve()` is `async def` but internally
+        # makes a SYNC Anthropic SDK call. Awaiting one on the event loop
+        # blocks every other concurrent task — gather wouldn't actually
+        # parallelise. Run each in its own worker thread so the concurrent
+        # picks share wall-clock.
+        try:
+            return await asyncio.to_thread(
+                _run_fused_tool_sync,
+                run_fused_tool, template, intent, scope, ctx, anthropic, origin,
+            )
+        except Exception:
+            return None
+
+    # ---- Problem-driven pass: select first, resolve in parallel ----------
+    # Selection is the part that needs to be sequential — each pick's dedup
+    # decisions depend on previous picks' canonical targets. But selection
+    # is pure registry lookups, microseconds total. The resolves are the
+    # multi-second LLM calls — those fire concurrently.
+    Pick = tuple  # (template, intent, scope, fused_id, targets)
+    picks: list = []
+    problem_budget = MAX_AUTONOMOUS_SUGGESTIONS - initial_count
     for problem in ctx.problems:
-        if _count_autonomous_active() >= MAX_AUTONOMOUS_SUGGESTIONS:
+        if len(picks) >= problem_budget:
             break
         if problem.severity < 0.5:
             continue
@@ -372,33 +409,29 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
             # tool was hand-picked to match the problem, so naming the widget
             # after the problem reads naturally ("strong color cast"). When
             # we fall through to a later suggestion the tool no longer
-            # matches the problem name (e.g. exposure_balance for an
-            # uneven_white_balance fall-through has only light sliders),
-            # so we label it after the TOOL instead to keep the title and
-            # the controls aligned. The problem context still lives in
-            # `widget.reasoning` / the Why popover.
+            # matches the problem name, so we label it after the TOOL
+            # instead. Problem context still lives in `widget.reasoning`.
             intent = (
                 problem.kind.replace("_", " ") if tool_index == 0 else template.label
             )
-            origin = WidgetOrigin(kind="mcp_autonomous", prompt=None)
-            try:
-                widget = await run_fused_tool(
-                    template, intent=intent,
-                    scope=scope, ctx=ctx, prior=None, instruction=None,
-                    anthropic=anthropic, origin=origin,
-                )
-            except Exception:
-                continue
-            _stamp(widget)
-            doc.add_widget(widget)
+            picks.append(Pick((template, intent, scope, fused_id, targets)))
             used_fused_ids.add(fused_id)
             used_targets |= targets
             break  # one per problem
 
-    # Top up via image-character match only when the problem-driven pass
-    # produced fewer than TARGET widgets. Once TARGET is met, additional
-    # problem-driven suggestions can push the count up to MAX naturally.
-    if _count_autonomous_active() >= TARGET_AUTONOMOUS_SUGGESTIONS:
+    resolved = await asyncio.gather(
+        *[_resolve(t, i, s) for (t, i, s, _fid, _tgts) in picks]
+    )
+    successful = 0
+    for widget in resolved:
+        if widget is None:
+            continue
+        _stamp(widget)
+        doc.add_widget(widget)
+        successful += 1
+
+    # ---- Top up via image-character match only when needed --------------
+    if initial_count + successful >= TARGET_AUTONOMOUS_SUGGESTIONS:
         return
 
     already_used = {
@@ -409,49 +442,65 @@ async def _mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "leg
         rule.fused_tool_id for rule in doc.dismissals
         if rule.scope_signature == "global"
     }
-    needed = TARGET_AUTONOMOUS_SUGGESTIONS - _count_autonomous_active()
+    needed = TARGET_AUTONOMOUS_SUGGESTIONS - (initial_count + successful)
     exclude = list(already_used | dismissed_global)
-    candidates = anthropic.suggest_fused_tools_for_character(
-        grade_character=ctx.grade_character,
-        lighting=ctx.lighting,
-        dominant_tones=ctx.dominant_tones,
-        subjects=ctx.subjects,
-        exclude=exclude,
-        n=needed,
-        session_id=doc.session_id,
+    candidates = await loop.run_in_executor(
+        None,
+        lambda: anthropic.suggest_fused_tools_for_character(
+            grade_character=ctx.grade_character,
+            lighting=ctx.lighting,
+            dominant_tones=ctx.dominant_tones,
+            subjects=ctx.subjects,
+            exclude=exclude,
+            n=needed,
+            session_id=doc.session_id,
+        ),
     )
 
     global_scope = Scope.model_validate({"kind": "global"})
+    topup_picks: list = []
     for fused_id in candidates:
-        if _count_autonomous_active() >= TARGET_AUTONOMOUS_SUGGESTIONS:
+        if len(topup_picks) >= needed:
             break
         if fused_id not in templates or fused_id in already_used:
             continue
         template = templates[fused_id]
-        # Same knob-collision check the problem-driven pass uses — a
-        # character-match pick that fights existing widgets for the same
-        # canonical params is also a dupe we don't want.
         targets = _canonical_targets(template)
         if targets & used_targets:
             continue
         if _dismissed(fused_id, global_scope):
             continue
-        origin = WidgetOrigin(kind="mcp_autonomous", prompt=None)
-        intent = template.label
-        try:
-            widget = await run_fused_tool(
-                template, intent=intent, scope=global_scope,
-                ctx=ctx, prior=None, instruction=None,
-                anthropic=anthropic, origin=origin,
-            )
-        except Exception:
-            continue
+        topup_picks.append((template, template.label, global_scope, fused_id, targets))
+        used_targets |= targets
+        already_used.add(fused_id)
+
+    topup_resolved = await asyncio.gather(
+        *[_resolve(t, i, s) for (t, i, s, _fid, _tgts) in topup_picks]
+    )
+    for widget in topup_resolved:
         if widget is None:
             continue
         _stamp(widget)
         doc.add_widget(widget)
-        already_used.add(fused_id)
-        used_targets |= targets
+
+
+def _run_fused_tool_sync(run_fused_tool, template, intent, scope, ctx, anthropic, origin):
+    """Bridge from a worker thread back into `run_fused_tool` (async). Each
+    thread spins its own event loop via `asyncio.run` — the Anthropic SDK
+    call inside the resolver blocks that loop, not the caller's. Cheap:
+    loop setup is ~1ms vs the multi-second LLM round-trip we're protecting."""
+    return asyncio.run(
+        run_fused_tool(
+            template,
+            intent=intent,
+            scope=scope,
+            ctx=ctx,
+            prior=None,
+            instruction=None,
+            anthropic=anthropic,
+            origin=origin,
+        )
+    )
 
 
 def _compute_region_stats(

@@ -10,13 +10,14 @@ import type {
   InteractionSession,
 } from './types';
 import type { EditorState } from '@/store';
-import type { Point, TetherEdgeState } from '@/types/workspace';
+import type { InfoNodeContent, InfoNodeState, Point, Size, TetherEdgeState } from '@/types/workspace';
 import { pixelStore } from './pixel-store';
 import * as history from './history';
 import { putSource } from './pixel-source-store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { clearInternalCanvasCache } from '@/lib/image-node-geometry';
+import { parseImageMetadata } from '@/lib/image-metadata';
 
 const DEBOUNCE_MS = 2000;
 
@@ -62,7 +63,8 @@ function statesChanged(a: SerializableState, b: SerializableState): boolean {
     !deepEqual(a.layers, b.layers) ||
     !deepEqual(a.imageNodes, b.imageNodes) ||
     !deepEqual(a.widgetNodes, b.widgetNodes) ||
-    !deepEqual(a.tetherEdges, b.tetherEdges);
+    !deepEqual(a.tetherEdges, b.tetherEdges) ||
+    !deepEqual(a.infoNodes, b.infoNodes);
 }
 
 // ─── State capture / restore ────────────────────────────────────────
@@ -77,6 +79,7 @@ function captureState(): SerializableState | null {
     imageNodes: structuredClone(s.imageNodes),
     widgetNodes: structuredClone(s.widgetNodes),
     tetherEdges: structuredClone(s.tetherEdges),
+    infoNodes: structuredClone(s.infoNodes),
     activeImageNodeId: s.activeImageNodeId,
   };
 }
@@ -90,6 +93,8 @@ function restoreState(snapshot: SerializableState): void {
     imageNodes: snapshot.imageNodes,
     widgetNodes: snapshot.widgetNodes,
     tetherEdges: snapshot.tetherEdges,
+    // Tolerate older snapshots that pre-date the infoNodes field.
+    infoNodes: snapshot.infoNodes ?? {},
     activeImageNodeId: snapshot.activeImageNodeId,
   });
 }
@@ -170,6 +175,11 @@ async function openImage(file: File): Promise<void> {
   const ctx = offscreen.getContext('2d');
   if (ctx) ctx.drawImage(bitmap, 0, 0);
 
+  // EXIF / GPS parse — best-effort, swallows errors. Runs in parallel with
+  // the canvas decode above (which has already completed by the time we
+  // await here). Net cost: ~few ms for a typical 5–25 MB JPEG.
+  const metadata = (await parseImageMetadata(file)) ?? undefined;
+
   // Reset state
   pixelStore.clear();
   history.clear();
@@ -188,6 +198,12 @@ async function openImage(file: File): Promise<void> {
     modifiedAt: Date.now(),
     width: bitmap.width,
     height: bitmap.height,
+    // Native File fields — kept so the Info tab can show format + size
+    // without re-reading the blob. Empty `file.type` falls back to undefined
+    // (some sources like clipboard paste leave it blank).
+    mimeType: file.type || undefined,
+    fileSize: file.size,
+    metadata,
   };
 
   if (store) {
@@ -364,6 +380,37 @@ const workspace = {
   setWidgetPosition(id: string, position: Point): void {
     recordSnapshot('Move widget', () =>
       useEditorStore.getState().setWidgetPosition(id, position),
+    );
+  },
+
+  // ─── Info widgets (frontend-only — undo/redo via SerializableState) ──
+  addInfoNode(
+    content: InfoNodeContent,
+    options?: { position?: Point; size?: Size; title?: string; targetImageNodeId?: string },
+  ): string | undefined {
+    return recordSnapshot('Pin info widget', () =>
+      useEditorStore.getState().addInfoNode(content, options),
+    );
+  },
+
+  setInfoNodePosition(id: string, position: Point): void {
+    recordSnapshot('Move info widget', () =>
+      useEditorStore.getState().setInfoNodePosition(id, position),
+    );
+  },
+
+  updateInfoNode(
+    id: string,
+    patch: Partial<Pick<InfoNodeState, 'content' | 'title' | 'size'>>,
+  ): void {
+    recordSnapshot('Update info widget', () =>
+      useEditorStore.getState().updateInfoNode(id, patch),
+    );
+  },
+
+  removeInfoNode(id: string): void {
+    recordSnapshot('Remove info widget', () =>
+      useEditorStore.getState().removeInfoNode(id),
     );
   },
 

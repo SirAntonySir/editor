@@ -1,6 +1,7 @@
 {
   "id": "subject_pop",
   "display_name": "Subject pop",
+  "category": "detail",
   "source": "builtin",
   "description": "Makes a subject or region pop \u2014 local contrast and saturation boost.",
   "typical_use": "Use when the user wants to make a subject, person, or region stand out.",

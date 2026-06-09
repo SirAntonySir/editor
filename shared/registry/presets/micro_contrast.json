@@ -1,6 +1,7 @@
 {
   "id": "micro_contrast",
   "display_name": "Micro contrast",
+  "category": "tone",
   "source": "builtin",
   "description": "Single-knob local-contrast polish via clarity. Adds (or removes) midtone definition without the full sharpen + contrast bundle.",
   "typical_use": "User says 'micro contrast', 'local contrast', 'clarity', 'a bit more definition'.",

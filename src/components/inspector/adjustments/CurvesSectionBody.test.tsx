@@ -20,9 +20,23 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
-it('writes the canonical curve on edit', () => {
+it('writes per-channel canonical params on edit (matches the canvas curves widget shape)', () => {
   render(<CurvesSectionBody layerId="L1" />);
   fireEvent.click(screen.getByText('edit-curve'));
   vi.advanceTimersByTime(300);
-  expect(backendTools.set_param).toHaveBeenCalledWith('s1', expect.objectContaining({ layer_id: 'L1', op: 'curves', param: 'curves' }));
+  // Only the RGB channel changed in the mock — the other three keep their
+  // identity values, so the body must NOT write them.
+  expect(backendTools.set_param).toHaveBeenCalledWith(
+    's1',
+    expect.objectContaining({
+      layer_id: 'L1', op: 'curves', param: 'rgb',
+      value: [[0, 0], [127.5, 178.5], [255, 255]],
+    }),
+  );
+  // Other channels stay at identity → no set_param call for them.
+  for (const ch of ['red', 'green', 'blue']) {
+    expect(backendTools.set_param).not.toHaveBeenCalledWith(
+      's1', expect.objectContaining({ op: 'curves', param: ch }),
+    );
+  }
 });

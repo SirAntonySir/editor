@@ -18,7 +18,7 @@ export function RegionsSection({ ctx }: Props) {
   // the partial-streaming case without crashing.
   const statsByLabel = new Map((ctx.region_stats ?? []).map((s) => [s.label, s]));
   return (
-    <section className="px-3 py-2.5 border-b border-separator">
+    <section className="px-3 py-2.5">
       <SectionHeader icon={MapPin} label="Regions" count={ctx.candidate_regions.length} />
       <div className="flex flex-col gap-1.5">
         {ctx.candidate_regions.map((r) => (

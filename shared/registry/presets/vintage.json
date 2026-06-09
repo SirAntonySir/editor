@@ -1,6 +1,7 @@
 {
   "id": "vintage",
   "display_name": "Vintage",
+  "category": "film",
   "source": "builtin",
   "description": "Vintage film look \u2014 lifted blacks, slightly muted whites, desaturated palette with warm red/yellow hue rotation.",
   "typical_use": "User says 'vintage', 'retro', '70s', 'old film', 'nostalgic'.",

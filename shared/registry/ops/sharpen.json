@@ -1,6 +1,7 @@
 {
   "id": "sharpen",
   "display_name": "Sharpen",
+  "icon": "deblur",
   "category": "detail",
   "llm": {
     "description": "Edge sharpening via local contrast enhancement.",

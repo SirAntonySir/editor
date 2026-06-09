@@ -14,7 +14,7 @@ export function SemanticSection({ ctx }: Props) {
     ['Grade', ctx.grade_character && ctx.grade_character !== 'neutral' ? ctx.grade_character : null],
   ];
   return (
-    <section className="px-3 py-2.5 border-b border-separator">
+    <section className="px-3 py-2.5">
       <SectionHeader icon={Tag} label="Semantic" />
       {ctx.subjects.length > 0 && <Chips items={ctx.subjects} />}
       {ctx.dominant_tones.length > 0 && <Chips items={ctx.dominant_tones} muted />}

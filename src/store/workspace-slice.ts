@@ -1,6 +1,8 @@
 import type { StateCreator } from 'zustand';
 import type {
   ImageNodeState,
+  InfoNodeContent,
+  InfoNodeState,
   Point,
   Size,
   TetherEdgeState,
@@ -30,10 +32,51 @@ function deriveDisplaySize(sourceSize: Size, displayWidth: number): Size {
   return { w: displayWidth, h: displayWidth / aspect };
 }
 
+/** Reasonable default canvas size per info-widget kind. Height is a hint
+ *  (shells size to content); width matters more for visual widgets where
+ *  bars / plots want a minimum readable strip. */
+function defaultSizeFor(kind: InfoNodeContent['kind']): Size {
+  switch (kind) {
+    case 'histogram': return { w: 320, h: 180 };
+    case 'palette':   return { w: 320, h: 120 };
+    case 'cast':      return { w: 220, h: 160 };
+    case 'stats':     return { w: 280, h: 120 };
+  }
+}
+
+/** Deep-clone the discriminated content union so the store never holds a
+ *  live alias to the caller's payload (which might be a slice of a larger
+ *  mutable object somewhere in the app). */
+function cloneContent(c: InfoNodeContent): InfoNodeContent {
+  switch (c.kind) {
+    case 'stats':
+      return { kind: 'stats', items: c.items.map((i) => ({ ...i })) };
+    case 'histogram':
+      return {
+        kind: 'histogram',
+        bins: {
+          r:   c.bins.r ? [...c.bins.r] : undefined,
+          g:   c.bins.g ? [...c.bins.g] : undefined,
+          b:   c.bins.b ? [...c.bins.b] : undefined,
+          lum: [...c.bins.lum],
+        },
+      };
+    case 'palette':
+      return {
+        kind: 'palette',
+        palette: { swatches: c.palette.swatches.map((s) => ({ ...s, rgb: [...s.rgb] as [number, number, number] })) },
+      };
+    case 'cast':
+      return { kind: 'cast', cast: { ...c.cast } };
+  }
+}
+
 export interface WorkspaceSlice {
   imageNodes: Record<string, ImageNodeState>;
   widgetNodes: Record<string, WidgetNodeState>;
   tetherEdges: Record<string, TetherEdgeState>;
+  /** Frontend-only info widgets pinned to the canvas (chips, stat cards). */
+  infoNodes: Record<string, InfoNodeState>;
   workspaceViewport: WorkspaceViewport;
   activeImageNodeId: string | null;
 
@@ -86,6 +129,34 @@ export interface WorkspaceSlice {
    */
   setActiveImageNode: (activeImageNodeId: string | null) => void;
   setWorkspaceViewport: (v: WorkspaceViewport) => void;
+
+  // ─── Info widgets (chips / stat cards / visualisations on the canvas) ──
+  /**
+   * Create a frontend-only info widget at the given position. The
+   * `content` arg is a discriminated union: 'stats' for chip grids,
+   * 'histogram' / 'palette' / 'cast' for visual snapshots. All payloads
+   * are frozen at pin time — the widget keeps showing what the user saw
+   * even if the underlying mechanical context drifts.
+   */
+  addInfoNode: (
+    content: InfoNodeContent,
+    options?: {
+      position?: Point;
+      size?: Size;
+      title?: string;
+      /** Image node this widget tethers to. Drawn as an edge on the
+       *  workspace. Omit to spawn an untethered widget. */
+      targetImageNodeId?: string;
+    },
+  ) => string;
+  /** Move an info widget to a new canvas position (drag-stop persists here). */
+  setInfoNodePosition: (id: string, position: Point) => void;
+  /** Replace an info widget's content or title (e.g. when the user adds
+   *  another chip to an existing 'stats' widget). */
+  updateInfoNode: (id: string, patch: Partial<Pick<InfoNodeState, 'content' | 'title' | 'size'>>) => void;
+  /** Delete an info widget by id. */
+  removeInfoNode: (id: string) => void;
+
   resetWorkspace: () => void;
 }
 
@@ -93,6 +164,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
   imageNodes: {},
   widgetNodes: {},
   tetherEdges: {},
+  infoNodes: {},
   workspaceViewport: { zoom: 1, pan: { x: 0, y: 0 } },
   activeImageNodeId: null,
   _nextNodeSeq: 1,
@@ -222,11 +294,51 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       state.workspaceViewport = v;
     }),
 
+  // ─── Info widgets ─────────────────────────────────────────────────
+  addInfoNode: (content, options) => {
+    let id = '';
+    set((state) => {
+      id = `info-${state._nextNodeSeq++}`;
+      state.infoNodes[id] = {
+        id,
+        position: options?.position ?? { x: 200, y: 200 },
+        // Default size hint depends on the kind — stats/cast cards stay
+        // narrow; histogram + palette want a wider strip.
+        size: options?.size ?? defaultSizeFor(content.kind),
+        title: options?.title,
+        // Structured-clone-equivalent: spread the payload so the store
+        // never aliases the caller's references.
+        content: cloneContent(content),
+        targetImageNodeId: options?.targetImageNodeId,
+      };
+    });
+    return id;
+  },
+  setInfoNodePosition: (id, position) =>
+    set((state) => {
+      const n = state.infoNodes[id];
+      if (!n) return;
+      n.position = position;
+    }),
+  updateInfoNode: (id, patch) =>
+    set((state) => {
+      const n = state.infoNodes[id];
+      if (!n) return;
+      if (patch.content !== undefined) n.content = cloneContent(patch.content);
+      if (patch.title !== undefined) n.title = patch.title;
+      if (patch.size !== undefined) n.size = patch.size;
+    }),
+  removeInfoNode: (id) =>
+    set((state) => {
+      delete state.infoNodes[id];
+    }),
+
   resetWorkspace: () =>
     set((state) => {
       state.imageNodes = {};
       state.widgetNodes = {};
       state.tetherEdges = {};
+      state.infoNodes = {};
       state.workspaceViewport = { zoom: 1, pan: { x: 0, y: 0 } };
       state.activeImageNodeId = null;
       state._nextNodeSeq = 1;

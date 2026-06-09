@@ -1,6 +1,7 @@
 {
   "id": "warm_grade",
   "display_name": "Warm grade",
+  "category": "color",
   "source": "builtin",
   "description": "Subjective 'warmer' \u2014 coordinated kelvin shift, highlight warmth, slight saturation.",
   "typical_use": "Use when the user asks to warm up the image, the subject, or a region.",

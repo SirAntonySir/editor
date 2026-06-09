@@ -1,6 +1,7 @@
 {
   "id": "tone_magenta",
   "display_name": "Adjust magenta tones",
+  "category": "color",
   "source": "builtin",
   "description": "Shift the magenta colour family in HSL space \u2014 covers magenta, pink, fuchsia. Tunes hue / saturation / luminance for that band only.",
   "typical_use": "User says 'magenta tones are off', 'too much magenta', 'desaturate the magentas', or names any synonym above.",

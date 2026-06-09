@@ -1,7 +1,7 @@
 import { CanvasToolRegistry } from './canvas-tool-registry';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
-import { useAiSession } from '@/hooks/useImageContext';
+import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
 import { revertToOriginal } from '@/lib/revert';
 import { editorDocument } from '@/core/document';
 
@@ -85,6 +85,24 @@ function buildShortcuts(): ShortcutEntry[] {
     ctrl: true,
     action: () => usePreferencesStore.getState().toggleRightSidebar(),
     label: 'Toggle Right Sidebar',
+  });
+
+  // Analyze image (AI) — same handler the AI menu and the Cmd+K AI-recovery
+  // banner call. Gated softly: skip if there are no layers or if a previous
+  // analyze is still in flight (the underlying hook is idempotent but the
+  // shortcut shouldn't queue duplicates).
+  shortcuts.push({
+    key: 'a',
+    ctrl: true,
+    shift: true,
+    action: () => {
+      const layers = useEditorStore.getState().layers;
+      if (layers.length === 0) return;
+      const status = useAiSession.getState().status;
+      if (status === 'uploading' || status === 'analysing') return;
+      void analyseFirstImageLayer();
+    },
+    label: 'Analyze image',
   });
 
   return shortcuts;

@@ -1,6 +1,7 @@
 {
   "id": "deepen_blacks",
   "display_name": "Deepen blacks",
+  "category": "tone",
   "source": "builtin",
   "description": "Drop the darkest tones for more punch \u2014 negative `blacks` plus a small positive `inBlack` from levels to crush slightly.",
   "typical_use": "User says 'deepen blacks', 'crush shadows', 'darker blacks', 'more punch in shadows'.",

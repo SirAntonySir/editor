@@ -1,6 +1,7 @@
 {
   "id": "gritty",
   "display_name": "Gritty",
+  "category": "mood",
   "source": "builtin",
   "description": "Gritty hard-edged look \u2014 strong contrast, desaturated palette, heavy sharpen and positive clarity for visible texture.",
   "typical_use": "User says 'gritty', 'raw', 'hard', 'documentary', 'textured'.",

@@ -1,6 +1,7 @@
 {
   "id": "clarity",
   "display_name": "Clarity",
+  "icon": "auto_awesome",
   "category": "detail",
   "llm": {
     "description": "Mid-tone local contrast. Positive sharpens texture; negative softens for hazy look.",

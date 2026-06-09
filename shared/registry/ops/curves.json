@@ -1,6 +1,7 @@
 {
   "id": "curves",
   "display_name": "Curves",
+  "icon": "ssid_chart",
   "category": "tone",
   "llm": {
     "description": "Per-channel tone curves (rgb, red, green, blue), each a list of [x, y] points in 0–255 space. Use for fine-grained contrast and color shaping.",

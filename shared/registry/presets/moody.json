@@ -1,6 +1,7 @@
 {
   "id": "moody",
   "display_name": "Moody",
+  "category": "mood",
   "source": "builtin",
   "description": "Moody, brooding look \u2014 drop exposure, raise contrast, desaturate, and pull the shadows down slightly.",
   "typical_use": "User says 'moody', 'brooding', 'darker mood', 'cinematic darkness'.",

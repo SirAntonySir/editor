@@ -49,8 +49,10 @@ describe('imageNodeLabel', () => {
   it("uses the node's first layer name", () => {
     expect(imageNodeLabel(node('in-1', ['l1']), [layer('l1', 'Foto.jpg')])).toBe('Foto.jpg');
   });
-  it('falls back to the node id when no layer matches', () => {
-    expect(imageNodeLabel(node('in-2', ['lx']), [])).toBe('in-2');
+  it('falls back to a friendly label when no layer matches (never the raw node uuid)', () => {
+    // Previous behaviour returned the node id, which surfaced raw UUIDs in
+    // the palette's target chip — looked broken. Now we use a stable label.
+    expect(imageNodeLabel(node('in-2', ['lx']), [])).toBe('Untitled image');
   });
 });
 

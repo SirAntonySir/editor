@@ -1,6 +1,7 @@
 {
   "id": "analogous_grade",
   "display_name": "Analogous grade",
+  "category": "color",
   "source": "builtin",
   "description": "Coordinated hue shift across the warm trio (red / orange / yellow) for an analogous colour grade. Subtle hue rotations only.",
   "typical_use": "User says 'analogous grade', 'warm trio', 'unified warm tones', 'narrow palette'.",

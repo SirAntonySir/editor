@@ -20,9 +20,10 @@ import { WidgetNode, type WidgetNodeData } from './WidgetNode';
 import { TetherEdge, type TetherEdgeType } from './TetherEdge';
 import { pickTetherHandles } from './tether-handles';
 import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
+import { InfoNode, type InfoNodeData } from './InfoNode';
 import type { Widget } from '@/types/widget';
 
-const nodeTypes = { image: ImageNode, widget: WidgetNode };
+const nodeTypes = { image: ImageNode, widget: WidgetNode, info: InfoNode };
 const edgeTypes = { tether: TetherEdge };
 
 /**
@@ -48,6 +49,10 @@ function WorkspaceKeyHandler() {
       for (const node of selectedNodes) {
         if (node.type === 'image') {
           editorDocument.workspace.removeImageNode(node.id);
+        } else if (node.type === 'info') {
+          // Frontend-only info widgets — remove straight off the store
+          // (recorded into history for undo).
+          editorDocument.workspace.removeInfoNode(node.id);
         } else if (node.type === 'widget') {
           if (sessionId) {
             // Backend will SSE the deletion back to us. Undoing a backend
@@ -94,11 +99,13 @@ const EMPTY_WIDGETS: Widget[] = [];
 
 type ImageNodeType = Node<ImageNodeData, 'image'>;
 type WidgetNodeType = Node<WidgetNodeData, 'widget'>;
-type WorkspaceNode = ImageNodeType | WidgetNodeType;
+type InfoNodeType  = Node<InfoNodeData, 'info'>;
+type WorkspaceNode = ImageNodeType | WidgetNodeType | InfoNodeType;
 
 export function CanvasWorkspace() {
   const imageNodes = useEditorStore((s) => s.imageNodes);
   const widgetNodes = useEditorStore((s) => s.widgetNodes);
+  const infoNodes = useEditorStore((s) => s.infoNodes);
   const layers = useEditorStore((s) => s.layers);
   const documentMeta = useEditorStore((s) => s.documentMeta);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
@@ -121,6 +128,18 @@ export function CanvasWorkspace() {
       );
     }
   }, [imageNodes, layers, documentMeta, addImageNode]);
+
+  // Whenever there's at least one image node but none is active, promote the
+  // first to active. This fires for ALL paths an image can arrive through —
+  // freshly auto-created, restored from a saved session, opened via Cmd+O —
+  // not just the auto-create case. The Info tab's live mechanical hook, the
+  // sidebar's Auto buttons, and Cmd+K all gate on `activeImageNodeId`, so a
+  // missing active id is what was leaving the Auto pill perma-disabled.
+  useEffect(() => {
+    if (activeImageNodeId) return;
+    const ids = Object.keys(imageNodes);
+    if (ids.length > 0) setActiveImageNode(ids[0]);
+  }, [imageNodes, activeImageNodeId, setActiveImageNode]);
 
   const storeNodes = useMemo<WorkspaceNode[]>(() => {
     const imgs: ImageNodeType[] = Object.values(imageNodes).map((n) => ({
@@ -150,8 +169,18 @@ export function CanvasWorkspace() {
         dragHandle: '.workspace-drag-handle',
         data: { widget: w },
       }));
-    return [...imgs, ...widgets];
-  }, [imageNodes, widgetNodes, snapshotWidgets]);
+    // Frontend-only info widgets — same drag-handle pattern as image / widget
+    // nodes so the header strip drags while the body's clipboard / Ask AI
+    // buttons stay clickable.
+    const infos: InfoNodeType[] = Object.values(infoNodes).map((n) => ({
+      id: n.id,
+      type: 'info',
+      position: n.position,
+      dragHandle: '.workspace-drag-handle',
+      data: { infoNodeId: n.id },
+    }));
+    return [...imgs, ...widgets, ...infos];
+  }, [imageNodes, widgetNodes, snapshotWidgets, infoNodes]);
 
   // Local RF state mirrors the store. React Flow needs to own positions during
   // drag (via onNodesChange) so the visual position follows the cursor without
@@ -175,16 +204,24 @@ export function CanvasWorkspace() {
     // Build a quick lookup of React Flow's current node positions + measured dims.
     // Using the local `nodes` state (vs the Zustand store) keeps the picker
     // in sync with React Flow's rendered positions, especially right after a drag.
+    // Info nodes now participate too — each gets a tether edge back to the
+    // image it belongs to, same handle-picker as widgets.
     const rfLookup = new Map<string, { position: { x: number; y: number }; size: { w: number; h: number } }>();
     for (const n of nodes) {
-      const w =
-        n.type === 'widget'
-          ? (n.measured?.width ?? WIDGET_SHELL_MIN_WIDTH)
-          : (n.measured?.width ?? (n.data as ImageNodeData).size.w);
-      const h =
-        n.type === 'widget'
-          ? (n.measured?.height ?? 80) // ~collapsed widget; will be replaced once measured
-          : (n.measured?.height ?? (n.data as ImageNodeData).size.h);
+      let w: number;
+      let h: number;
+      if (n.type === 'widget') {
+        w = n.measured?.width  ?? WIDGET_SHELL_MIN_WIDTH;
+        h = n.measured?.height ?? 80; // ~collapsed widget; will be replaced once measured
+      } else if (n.type === 'info') {
+        // Info nodes' size grows with content; prefer measured, fall back
+        // to a sensible default that won't blow up the geometry math.
+        w = n.measured?.width  ?? 280;
+        h = n.measured?.height ?? 80;
+      } else {
+        w = n.measured?.width  ?? (n.data as ImageNodeData).size.w;
+        h = n.measured?.height ?? (n.data as ImageNodeData).size.h;
+      }
       rfLookup.set(n.id, { position: n.position, size: { w, h } });
     }
 
@@ -248,8 +285,42 @@ export function CanvasWorkspace() {
         selectable: false,
       });
     }
+
+    // ─── Info-node tethers ─────────────────────────────────────────
+    // Each info widget that records a `targetImageNodeId` gets a tether to
+    // that image. Reuses the same `pickTetherHandles` routing as widgets so
+    // the visual rhythm of the canvas stays consistent.
+    for (const info of Object.values(infoNodes)) {
+      const targetId = info.targetImageNodeId;
+      if (!targetId || !imageNodes[targetId]) continue;
+      const rfInfo = rfLookup.get(info.id);
+      const rfTarget = rfLookup.get(targetId);
+      if (!rfInfo || !rfTarget) continue;
+
+      const infoCenter = {
+        x: rfInfo.position.x + rfInfo.size.w / 2,
+        y: rfInfo.position.y + rfInfo.size.h / 2,
+      };
+      const imageBounds = {
+        x0: rfTarget.position.x,
+        y0: rfTarget.position.y,
+        x1: rfTarget.position.x + rfTarget.size.w,
+        y1: rfTarget.position.y + rfTarget.size.h,
+      };
+      const { sourceHandle, targetHandle } = pickTetherHandles(infoCenter, imageBounds);
+      out.push({
+        id: `auto-info-${info.id}`,
+        source: info.id,
+        target: targetId,
+        sourceHandle,
+        targetHandle,
+        type: 'tether',
+        data: { scopeKind: 'node' },
+        selectable: false,
+      });
+    }
     return out;
-  }, [snapshotWidgets, imageNodes, widgetNodes, activeImageNodeId, nodes]);
+  }, [snapshotWidgets, imageNodes, widgetNodes, infoNodes, activeImageNodeId, nodes]);
 
   const onNodeDragStop = useCallback(
     (_: unknown, node: Node) => {
@@ -257,6 +328,7 @@ export function CanvasWorkspace() {
       // entry per drag is what we want.
       if (node.type === 'image') editorDocument.workspace.setNodePosition(node.id, node.position);
       else if (node.type === 'widget') editorDocument.workspace.setWidgetPosition(node.id, node.position);
+      else if (node.type === 'info')   editorDocument.workspace.setInfoNodePosition(node.id, node.position);
     },
     [],
   );

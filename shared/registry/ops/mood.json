@@ -1,6 +1,7 @@
 {
   "id": "mood",
   "display_name": "Mood",
+  "icon": "mood",
   "category": "mood",
   "llm": {
     "description": "1-D dial that ramps emotional tension from serene to aggressive. Coordinates contrast, clarity, shadow crush, vignette closure, and split-tone hue shift. Independent of color temperature.",

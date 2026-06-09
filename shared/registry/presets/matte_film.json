@@ -1,6 +1,7 @@
 {
   "id": "matte_film",
   "display_name": "Matte film",
+  "category": "film",
   "source": "builtin",
   "description": "Flat matte film stock \u2014 lifted blacks, dropped whites, gentle contrast reduction. The classic faded-print look.",
   "typical_use": "User says 'matte', 'faded', 'flat film', 'low contrast film'.",

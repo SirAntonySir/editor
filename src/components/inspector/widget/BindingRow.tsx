@@ -70,7 +70,11 @@ export function BindingRow({ binding, effectiveValue, onChange, maskSummaries, p
           label={binding.label}
           value={effectiveValue}
           schema={CURVE_EDITOR_STUB_SCHEMA}
-          onChange={onChange}
+          // RegistryCurveEditor's contract is `(next: unknown) => void` —
+          // the BindingRow callback takes `ControlBinding['value']`. Cast
+          // at the boundary; the underlying writer (set_widget_param) is
+          // already shape-tolerant.
+          onChange={(v: unknown) => onChange(v as ControlBinding['value'])}
         />
       );
   }

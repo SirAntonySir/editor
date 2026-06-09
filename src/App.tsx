@@ -150,19 +150,35 @@ function EditorContent() {
   const showPreferences = usePreferencesStore((s) => s.showPreferences);
   const toolDef = getActiveTool();
 
-  // ⌘K opens the CommandPalette via the 'spawn-palette:open' event.
-  // Disabled when the backend SSE connection is not open.
+  // ⌘K toggles the CommandPalette — opens when closed (gated on SSE) and
+  // closes when already open. ESC still closes via Dialog.Root's built-in
+  // handler. We track open state from the palette's broadcast events to
+  // keep both paths in sync.
   useEffect(() => {
+    let paletteOpen = false;
+    const onOpened = () => { paletteOpen = true; };
+    const onClosed = () => { paletteOpen = false; };
+    window.addEventListener('palette:opened', onOpened);
+    window.addEventListener('palette:closed', onClosed);
+
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
+        if (paletteOpen) {
+          window.dispatchEvent(new CustomEvent('palette:close-request'));
+          return;
+        }
         const { sseStatus } = useBackendState.getState();
         if (sseStatus !== 'open') return;
         window.dispatchEvent(new CustomEvent('spawn-palette:open'));
       }
     }
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('palette:opened', onOpened);
+      window.removeEventListener('palette:closed', onClosed);
+    };
   }, []);
 
   const handleFileOpen = useCallback(() => {

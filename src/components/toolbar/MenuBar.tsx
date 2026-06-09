@@ -13,6 +13,10 @@ import { BackendStatusBadge } from '@/components/ui/BackendStatusBadge';
 import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
 import { useCanvasZoom } from '@/hooks/useCanvasZoom';
 import { useImageTransform } from '@/hooks/useImageTransform';
+import { spawnRegistryOp } from '@/lib/toolrail-spawn';
+import { loadRegistry } from '@/lib/registry/loader';
+import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';
+import { autoLight, autoColor, autoTone, autoContrast } from '@/lib/auto-tune';
 import type { HistoryStoreState } from '@/core/history';
 // EditorMode type only used by disabled ModeBtn — kept for future reference.
 // import type { EditorMode } from '@/store/tool-slice';
@@ -112,7 +116,8 @@ export function MenuBar() {
           <ImageMenu transformImage={transformImage} />
           <LayerMenu />
           <ViewMenu applyZoom={applyZoom} fitOnScreen={fitOnScreen} zoomIn={zoomIn} zoomOut={zoomOut} />
-          <FilterMenu />
+          {/* Filters used to live in their own top-level menu; they're now
+              part of Image → Adjustments via the SSoT registry. */}
           <AiMenu />
           <HelpMenu />
         </Menubar.Root>
@@ -236,11 +241,7 @@ function ImageMenu({ transformImage }: { transformImage: (mode: 'rotateCW' | 'ro
           <Sub label="Adjustments">
             <AdjustmentItems />
           </Sub>
-          <Sub label="Auto">
-            <Item disabled>Auto Tone</Item>
-            <Item disabled>Auto Contrast</Item>
-            <Item disabled>Auto Color</Item>
-          </Sub>
+          <AutoSubmenu />
           <Sep />
           <Item disabled>Image Size...</Item>
           <Item disabled>Canvas Size...</Item>
@@ -263,17 +264,70 @@ function ImageMenu({ transformImage }: { transformImage: (mode: 'rotateCW' | 'ro
   );
 }
 
+/** Image → Auto: mechanically-derived starting values for Light / Color /
+ *  Tone / Contrast. Each item disables when no mechanical snapshot is
+ *  available (image not yet rendered into a canvas). The same handler runs
+ *  whether the user picks via the menu or via Cmd+K. */
+function AutoSubmenu() {
+  const mech = useLiveMechanicalContext();
+  const disabled = !mech;
+  return (
+    <Sub label="Auto">
+      <Item disabled={disabled} onSelect={() => mech && (
+        ((spec) => spawnRegistryOp(spec.opId, spec.intent, spec.params))(autoLight(mech))
+      )}>Auto Light</Item>
+      <Item disabled={disabled} onSelect={() => mech && (
+        ((spec) => spawnRegistryOp(spec.opId, spec.intent, spec.params))(autoColor(mech))
+      )}>Auto Color</Item>
+      <Item disabled={disabled} onSelect={() => mech && (
+        ((spec) => spawnRegistryOp(spec.opId, spec.intent, spec.params))(autoTone(mech))
+      )}>Auto Tone</Item>
+      <Item disabled={disabled} onSelect={() => mech && (
+        ((spec) => spawnRegistryOp(spec.opId, spec.intent, spec.params))(autoContrast(mech))
+      )}>Auto Contrast</Item>
+    </Sub>
+  );
+}
+
+/** Image → Adjustments: every registry op, grouped by `category`. Selecting
+ *  an item spawns the op's widget on the active image node (same path Cmd+K
+ *  takes via `spawnRegistryOp`). Submenu groups when there's >1 category. */
 function AdjustmentItems() {
-  const setActiveTool = useEditorStore((s) => s.setActiveTool);
-  const adjustTools = CanvasToolRegistry.getAll().filter((t) => t.category === 'adjust');
+  const ops = Object.values(loadRegistry().ops);
+  const byCategory = new Map<string, typeof ops>();
+  for (const op of ops) {
+    const cat = op.category ?? 'other';
+    if (!byCategory.has(cat)) byCategory.set(cat, []);
+    byCategory.get(cat)!.push(op);
+  }
+  // Stable category ordering matches Cmd+K.
+  const order = ['tone', 'color', 'detail', 'mood', 'texture', 'effect'];
+  const cats = [
+    ...order.filter((c) => byCategory.has(c)),
+    ...[...byCategory.keys()].filter((c) => !order.includes(c)).sort(),
+  ];
+  const categoryTitle: Record<string, string> = {
+    tone: 'Tone', color: 'Color', detail: 'Detail', mood: 'Mood',
+    texture: 'Texture', effect: 'Effect', other: 'Other',
+  };
 
   return (
     <>
-      {adjustTools.map((tool) => (
-        <Item key={tool.name} keys={tool.shortcut ? [tool.shortcut] : undefined} onSelect={() => setActiveTool(tool.name)}>
-          {tool.label}
-        </Item>
-      ))}
+      {cats.map((cat, i) => {
+        const list = byCategory.get(cat)!
+          .sort((a, b) => a.engine.render_order - b.engine.render_order);
+        return (
+          <Sub key={cat} label={categoryTitle[cat] ?? cat}>
+            {list.map((op) => (
+              <Item key={op.id} onSelect={() => spawnRegistryOp(op.id, op.display_name)}>
+                {op.display_name}
+              </Item>
+            ))}
+            {/* Trailing sep only if not the last group — keeps overflow clean. */}
+            {i < cats.length - 1 ? null : null}
+          </Sub>
+        );
+      })}
     </>
   );
 }
@@ -370,52 +424,6 @@ function ViewMenu({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Filter                                                            */
-/* ------------------------------------------------------------------ */
-
-function FilterMenu() {
-  const setActiveTool = useEditorStore((s) => s.setActiveTool);
-  const filterTools = CanvasToolRegistry.getAll().filter((t) => t.category === 'filter');
-
-  return (
-    <Menubar.Menu>
-      <TriggerButton>Filter</TriggerButton>
-      <Menubar.Portal>
-        <Menubar.Content className={menuContentClass} align="start" sideOffset={4}>
-          {filterTools.length > 0 ? (
-            filterTools.map((tool) => (
-              <Item
-                key={tool.name}
-                keys={tool.shortcut ? [tool.shortcut] : undefined}
-                onSelect={() => setActiveTool(tool.name)}
-              >
-                {tool.label}
-              </Item>
-            ))
-          ) : (
-            <Item disabled>No filters available</Item>
-          )}
-          <Sep />
-          <Sub label="Blur">
-            <Item disabled>Gaussian Blur...</Item>
-            <Item disabled>Motion Blur...</Item>
-            <Item disabled>Lens Blur...</Item>
-          </Sub>
-          <Sub label="Sharpen">
-            <Item disabled>Sharpen</Item>
-            <Item disabled>Unsharp Mask...</Item>
-          </Sub>
-          <Sub label="Noise">
-            <Item disabled>Add Noise...</Item>
-            <Item disabled>Reduce Noise...</Item>
-          </Sub>
-        </Menubar.Content>
-      </Menubar.Portal>
-    </Menubar.Menu>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /*  AI                                                                */
 /* ------------------------------------------------------------------ */
 
@@ -437,6 +445,7 @@ function AiMenu() {
           <Item
             onSelect={handleReanalyse}
             disabled={!hasLayers || analysing}
+            keys={['mod', 'shift', 'A']}
           >
             {hasContext ? 'Re-analyze image' : 'Analyze image'}
           </Item>

@@ -18,11 +18,30 @@ const LightToolStub: ToolDefinition = {
   onActivate: () => {},
 };
 import { toast } from '@/components/ui/Toast';
-import { spawnToolWidget } from '@/lib/toolrail-spawn';
+import { spawnRegistryOp, spawnRegistryPreset } from '@/lib/toolrail-spawn';
 import { proposeFromPalette } from '@/lib/palette-actions';
+import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
 
-vi.mock('@/lib/toolrail-spawn', () => ({ spawnToolWidget: vi.fn(() => true) }));
+vi.mock('@/lib/toolrail-spawn', () => ({
+  // CommandPalette routes registry-driven picks through these helpers;
+  // we mock both even when a test only exercises one path so the dynamic
+  // imports inside the component don't reach the real backend.
+  spawnRegistryOp:     vi.fn(),
+  spawnRegistryPreset: vi.fn(),
+  spawnToolWidget:     vi.fn(() => true),
+}));
 vi.mock('@/lib/palette-actions', () => ({ proposeFromPalette: vi.fn().mockResolvedValue({ ok: true }) }));
+
+// CommandPalette now auto-runs analyze when AI is invoked without context.
+// We mock the analyzer so test runs don't hit the network; tests that
+// exercise the AI path set up `useAiSession` to either have or lack context.
+vi.mock('@/hooks/useImageContext', async (importActual) => {
+  const actual = await importActual<typeof import('@/hooks/useImageContext')>();
+  return {
+    ...actual,
+    analyseFirstImageLayer: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 function open() {
   act(() => { window.dispatchEvent(new CustomEvent('spawn-palette:open')); });
@@ -68,30 +87,68 @@ describe('CommandPalette open + gating', () => {
 });
 
 describe('CommandPalette execution', () => {
-  it('runs the highlighted tool with Enter and closes', async () => {
+  it('runs the highlighted op with Enter and closes', async () => {
     useEditorStore.getState().addImageNode(['l1']);
     render(<CommandPalette />);
     open();
     await userEvent.type(screen.getByPlaceholderText(/search tools/i), 'light{Enter}');
-    expect(spawnToolWidget).toHaveBeenCalledWith('light');
+    // Registry-driven path: spawnRegistryOp receives the op id + label.
+    expect(spawnRegistryOp).toHaveBeenCalledWith('light', expect.any(String));
     await waitFor(() => expect(screen.queryByPlaceholderText(/search tools/i)).toBeNull());
   });
 
-  it('clicking a tool row spawns it', async () => {
+  it('clicking an op row spawns it', async () => {
     useEditorStore.getState().addImageNode(['l1']);
     render(<CommandPalette />);
     open();
     await userEvent.click(screen.getByText('Curves'));
-    expect(spawnToolWidget).toHaveBeenCalledWith('curves');
+    expect(spawnRegistryOp).toHaveBeenCalledWith('curves', expect.any(String));
   });
 
-  it('Cmd+Enter sends the query to the AI', async () => {
+  it('clicking a preset row spawns it via the preset path', async () => {
     useEditorStore.getState().addImageNode(['l1']);
+    render(<CommandPalette />);
+    open();
+    // "Golden hour" is a builtin preset in the registry. Tests rely on this
+    // staying in registry/presets/golden_hour.json.
+    await userEvent.click(screen.getByText('Golden hour'));
+    expect(spawnRegistryPreset).toHaveBeenCalledWith('golden_hour', expect.any(String));
+  });
+
+  it('Cmd+Enter sends the query to the AI (when context already exists)', async () => {
+    useEditorStore.getState().addImageNode(['l1']);
+    // Pre-populate AI context so the auto-analyze branch is skipped.
+    useAiSession.setState({ context: { subjects: [], lighting: 'flat', dominantTones: [], mood: '', candidateRegions: [], modelName: '', modelVersion: '', generatedAt: '' } as unknown as never });
     render(<CommandPalette />);
     open();
     const input = screen.getByPlaceholderText(/search tools/i);
     await userEvent.type(input, 'make it warmer');
     await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
-    expect(proposeFromPalette).toHaveBeenCalledWith('make it warmer', expect.objectContaining({ kind: 'global' }));
+    // proposeFromPalette now accepts an optional third arg for attached
+    // context items (from the chip-menu / context-attachment strip). An
+    // empty array is sent when no chips were attached.
+    expect(proposeFromPalette).toHaveBeenCalledWith(
+      'make it warmer', expect.objectContaining({ kind: 'global' }), [],
+    );
+    expect(analyseFirstImageLayer).not.toHaveBeenCalled();
+  });
+
+  it('Cmd+Enter without context auto-runs analyze before sending to the AI', async () => {
+    useEditorStore.getState().addImageNode(['l1']);
+    // Set a context AFTER analyze "resolves" so the guard inside the AI run
+    // doesn't bail. Vitest mocks resolve synchronously in microtasks.
+    useAiSession.setState({ context: null });
+    (analyseFirstImageLayer as unknown as { mockImplementation: (f: () => Promise<void>) => void }).mockImplementation(async () => {
+      useAiSession.setState({ context: { subjects: [], lighting: 'flat', dominantTones: [], mood: '', candidateRegions: [], modelName: '', modelVersion: '', generatedAt: '' } as unknown as never });
+    });
+    render(<CommandPalette />);
+    open();
+    const input = screen.getByPlaceholderText(/search tools/i);
+    await userEvent.type(input, 'make it warmer');
+    await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
+    await waitFor(() => expect(analyseFirstImageLayer).toHaveBeenCalled());
+    await waitFor(() => expect(proposeFromPalette).toHaveBeenCalledWith(
+      'make it warmer', expect.objectContaining({ kind: 'global' }), [],
+    ));
   });
 });

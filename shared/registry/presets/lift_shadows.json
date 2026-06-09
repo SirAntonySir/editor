@@ -1,6 +1,7 @@
 {
   "id": "lift_shadows",
   "display_name": "Lift shadows",
+  "category": "tone",
   "source": "builtin",
   "description": "Open up blocked-up shadows \u2014 positive `shadows` and `blacks`. Use when shadow detail is hidden in the dark.",
   "typical_use": "User says 'shadows are blocked', 'open up shadows', 'lift the darks', 'too dark'.",

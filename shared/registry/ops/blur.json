@@ -1,6 +1,7 @@
 {
   "id": "blur",
   "display_name": "Blur",
+  "icon": "blur_on",
   "category": "detail",
   "llm": {
     "description": "Gaussian-like blur radius.",

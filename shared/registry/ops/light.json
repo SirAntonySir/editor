@@ -1,6 +1,7 @@
 {
   "id": "light",
   "display_name": "Light",
+  "icon": "light_mode",
   "category": "tone",
   "llm": {
     "description": "Tonal range controls — exposure, contrast, and per-zone tweaks (highlights, shadows, whites, blacks, brightness).",

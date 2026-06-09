@@ -1,6 +1,7 @@
 {
   "id": "age",
   "display_name": "Age",
+  "icon": "hourglass_bottom",
   "category": "mood",
   "llm": {
     "description": "1-D dial that ages an image from fresh to antique. Defining mechanic is lifted blacks + crushed whites (levels), monotonic grain ramp, and warm hue shifts on orange/yellow. Vignettes heavy at the antique end.",

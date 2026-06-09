@@ -1,6 +1,7 @@
 {
   "id": "overcast",
   "display_name": "Overcast",
+  "category": "mood",
   "source": "builtin",
   "description": "Overcast diffuse-sky look \u2014 drop saturation, drop contrast. The flat-grey-day softness.",
   "typical_use": "User says 'overcast', 'cloudy', 'grey day', 'diffused light'.",

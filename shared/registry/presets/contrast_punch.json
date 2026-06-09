@@ -1,6 +1,7 @@
 {
   "id": "contrast_punch",
   "display_name": "Contrast punch",
+  "category": "tone",
   "source": "builtin",
   "description": "Generic contrast boost \u2014 positive contrast plus a small blacks/whites push for extra depth on flat images.",
   "typical_use": "User says 'more contrast', 'flat needs depth', 'punchier', 'more punch'.",

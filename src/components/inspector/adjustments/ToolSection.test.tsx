@@ -1,10 +1,22 @@
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { it, expect, describe, beforeEach, afterEach } from 'vitest';
+import { it, expect, describe, beforeEach, afterEach, vi } from 'vitest';
 import { ToolSection } from './ToolSection';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
+import { backendTools } from '@/lib/backend-tools';
 import type { ProcessingDefinition } from '@/types/processing';
 import { Sun } from 'lucide-react';
+
+vi.mock('@/lib/backend-tools', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/backend-tools')>();
+  return {
+    ...actual,
+    backendTools: {
+      ...actual.backendTools,
+      set_param: vi.fn().mockResolvedValue({ ok: true }),
+    },
+  };
+});
 
 const lightDef = {
   id: 'light',
@@ -62,6 +74,18 @@ it('hides the badge entirely when no slider has been touched', () => {
   } as never);
   render(<ToolSection def={lightDef} layerId="L1" />);
   expect(screen.queryByTestId('touched-count')).toBeNull();
+});
+
+it('clicking the count badge resets each param to its default (no expand toggle)', () => {
+  render(<ToolSection def={lightDef} layerId="L1" />);
+  const before = useEditorStore.getState().expandedSectionIds.has('light');
+  fireEvent.click(screen.getByTestId('touched-count'));
+  // set_param fires once per param at its default value.
+  expect(backendTools.set_param).toHaveBeenCalledWith(
+    's1', { layer_id: 'L1', op: 'basic', param: 'exposure', value: 0 },
+  );
+  // Click on the badge must NOT bubble to the disclosure toggle.
+  expect(useEditorStore.getState().expandedSectionIds.has('light')).toBe(before);
 });
 
 it('clicking the header expands and renders the scalar body', () => {

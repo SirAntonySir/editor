@@ -1,6 +1,7 @@
 {
   "id": "weather",
   "display_name": "Weather",
+  "icon": "cloud",
   "category": "mood",
   "llm": {
     "description": "1-D dial that re-lights the image across weather conditions — sunny, partly cloudy, overcast, fog, rain. Compiles to coordinated kelvin, exposure, contrast, haze (negative clarity), and grain (for rain texture).",

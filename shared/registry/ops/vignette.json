@@ -1,6 +1,7 @@
 {
   "id": "vignette",
   "display_name": "Vignette",
+  "icon": "vignette",
   "category": "effect",
   "llm": {
     "description": "Edge darkening (negative amount) or lightening with controllable midpoint, feather, and roundness.",

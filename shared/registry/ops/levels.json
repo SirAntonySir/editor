@@ -1,6 +1,7 @@
 {
   "id": "levels",
   "display_name": "Levels",
+  "icon": "tune",
   "category": "tone",
   "llm": {
     "description": "Input/output black and white points plus gamma. Use to remap tonal range, lift blacks, or crush whites.",

@@ -1,6 +1,7 @@
 {
   "id": "tone_blue",
   "display_name": "Adjust blue tones",
+  "category": "color",
   "source": "builtin",
   "description": "Shift the blue colour family in HSL space \u2014 covers blue, blues, bluish, navy, indigo. Tunes hue / saturation / luminance for that band only.",
   "typical_use": "User says 'blue tones are off', 'too much blue', 'desaturate the blues', or names any synonym above.",

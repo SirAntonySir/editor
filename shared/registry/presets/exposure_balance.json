@@ -1,6 +1,7 @@
 {
   "id": "exposure_balance",
   "display_name": "Balance exposure",
+  "category": "tone",
   "source": "builtin",
   "description": "Balances tonal range \u2014 lift shadows, recover highlights, set white/black points.",
   "typical_use": "Use when the user wants to balance exposure, recover clipped areas, or improve tonal range.",

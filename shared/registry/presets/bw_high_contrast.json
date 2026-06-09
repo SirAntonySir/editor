@@ -1,6 +1,7 @@
 {
   "id": "bw_high_contrast",
   "display_name": "B&W high-contrast",
+  "category": "bw",
   "source": "builtin",
   "description": "High-contrast black-and-white \u2014 full desaturation plus aggressive contrast, deeper blacks, brighter whites.",
   "typical_use": "User says 'high contrast B&W', 'punchy black and white', 'monochrome contrast'.",

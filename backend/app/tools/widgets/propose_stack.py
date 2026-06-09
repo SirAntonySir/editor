@@ -27,6 +27,11 @@ class _Input(BaseModel):
     origin: WidgetOriginKind = "mcp_user_prompt"
     layer_id: str = "legacy"
     forced_ops: list[str] | None = None     # bypass Phase 1
+    # Per-op initial param overrides for the tool_invoked / forced_ops path.
+    # Used by the frontend's auto-tune flow to spawn widgets with mechanically
+    # derived starting values rather than registry defaults. Unknown params
+    # are dropped silently by `_build_widget` via param-schema filtering.
+    forced_params: dict[str, dict[str, Any]] | None = None
     preset_id: str | None = None            # unfold a registry preset directly
     prompt: str | None = None
 
@@ -503,12 +508,17 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             image_node_layer_ids = list(scope.root.layer_ids)
 
         origin = WidgetOrigin(kind="tool_invoked", prompt=None, parent_widget_id=None)
+        forced_params = input.forced_params or {}
         widgets: list[Widget] = []
         for op_id in input.forced_ops:
             if op_id not in reg.ops:
                 raise ValueError(f"unknown op id: {op_id!r}")
+            # forced_params provides per-op initial values (auto-tune path).
+            # Keys not present in the op fall back to registry defaults via
+            # _build_widget's param-merge.
+            op_params = forced_params.get(op_id, {})
             widget = _build_widget(
-                op_id=op_id, params={}, intent=input.intent, scope=scope,
+                op_id=op_id, params=op_params, intent=input.intent, scope=scope,
                 origin=origin, layer_id=input.layer_id,
                 image_node_layer_ids=image_node_layer_ids,
             )

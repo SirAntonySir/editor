@@ -1,6 +1,7 @@
 {
   "id": "monochrome_tint",
   "display_name": "Monochrome tint",
+  "category": "bw",
   "source": "builtin",
   "description": "Pin saturation to zero, then wash the image in a single hue via kelvin + tint. Sepia, blueprint, cyanotype variants live here.",
   "typical_use": "User says 'sepia', 'cyanotype', 'tinted B&W', 'monochrome with colour wash'.",

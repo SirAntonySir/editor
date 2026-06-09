@@ -1,6 +1,7 @@
 {
   "id": "portrait_glow",
   "display_name": "Portrait glow",
+  "category": "mood",
   "source": "builtin",
   "description": "Soft portrait glow \u2014 reduces clarity and adds a gentle warmth nudge for flattering skin.",
   "typical_use": "Use when the user wants a soft, glowing, or flattering portrait look.",

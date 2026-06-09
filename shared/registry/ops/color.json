@@ -1,6 +1,7 @@
 {
   "id": "color",
   "display_name": "Color",
+  "icon": "palette",
   "category": "color",
   "llm": {
     "description": "Global color intensity — saturation and vibrance (vibrance is skin-protected). Hue rotates colors uniformly.",

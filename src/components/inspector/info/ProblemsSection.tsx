@@ -11,7 +11,7 @@ interface Props {
  *  placeholder slot. Splits out of the old combined RegionsSection. */
 export function ProblemsSection({ ctx }: Props) {
   return (
-    <section className="px-3 py-2.5 border-b border-separator">
+    <section className="px-3 py-2.5">
       <SectionHeader icon={AlertTriangle} label="Problems" count={ctx.problems.length} />
       {ctx.problems.length === 0 ? (
         <div className="text-[10px] text-text-secondary">No issues detected.</div>

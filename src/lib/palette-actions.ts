@@ -15,13 +15,34 @@ export type ProposeResult =
       };
     };
 
+export interface PaletteContextItem {
+  label: string;
+  value: string;
+}
+
+/** Build a structured `Image context:` preamble out of attached chips. The
+ *  backend's planner reads the user prompt verbatim; embedding the context
+ *  as a bulleted preamble keeps it readable in logs and makes the model
+ *  treat it as fact rather than instruction. Returns an empty string when
+ *  no items are attached. */
+function _formatContextPreamble(items: PaletteContextItem[]): string {
+  if (items.length === 0) return '';
+  const lines = items.map((c) => `- ${c.label}: ${c.value}`);
+  return `Image context (pinned by user):\n${lines.join('\n')}\n\n`;
+}
+
 /** Palette propose flow via `propose_stack`. The backend resolves the intent
  *  into 1–6 widgets; each appears in the inspector via the SSE `widget.created`
  *  event — no client-side layer materialization needed. Returns a structured
- *  result so the caller can surface success / failure to the user. */
+ *  result so the caller can surface success / failure to the user.
+ *
+ *  `contextItems` (optional) are surfaced to the LLM as a structured preamble
+ *  attached above the user prompt. Used by the Cmd+K context-attachment
+ *  strip when the user pinned chips from the Info tab. */
 export async function proposeFromPalette(
   text: string,
   scope: Scope = { kind: 'global' },
+  contextItems: PaletteContextItem[] = [],
 ): Promise<ProposeResult> {
   const sid = useBackendState.getState().sessionId;
   const layerId = useEditorStore.getState().activeLayerId;
@@ -34,11 +55,13 @@ export async function proposeFromPalette(
       },
     };
   }
+  const preamble = _formatContextPreamble(contextItems);
+  const enriched = `${preamble}${text}`;
   try {
     const env = await backendTools.proposeStack(sid, {
-      intent: text,
+      intent: enriched,
       scope,
-      prompt: text,
+      prompt: enriched,
       layer_id: layerId,
       origin: 'mcp_user_prompt',
     });

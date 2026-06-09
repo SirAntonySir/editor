@@ -1,6 +1,7 @@
 {
   "id": "kelvin",
   "display_name": "White Balance",
+  "icon": "thermostat",
   "category": "color",
   "llm": {
     "description": "Color temperature and tint — corrects or shifts overall warmth and green/magenta cast.",

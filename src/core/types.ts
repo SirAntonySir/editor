@@ -1,9 +1,11 @@
 import type { Layer } from '@/store/layer-slice';
 import type {
   ImageNodeState,
+  InfoNodeState,
   TetherEdgeState,
   WidgetNodeState,
 } from '@/types/workspace';
+import type { ImageMetadata } from '@/lib/image-metadata';
 
 // ─── Document metadata ──────────────────────────────────────────────
 
@@ -14,6 +16,16 @@ export interface DocumentMeta {
   modifiedAt: number;
   width: number;
   height: number;
+  /** Source file MIME type (e.g. "image/jpeg"). Drives the File chip in the
+   *  Info tab. Captured at openImage from the File object. */
+  mimeType?: string;
+  /** Source file size in bytes. Pure informational — never used for any
+   *  pipeline decision. */
+  fileSize?: number;
+  /** Parsed EXIF + GPS, when the source file carried any. Absent when the
+   *  image has no EXIF (raw bitmap, screenshot, etc.). The Info tab's
+   *  Metadata section reads this directly. */
+  metadata?: ImageMetadata;
 }
 
 // ─── Serializable state snapshot ────────────────────────────────────
@@ -34,6 +46,10 @@ export interface SerializableState {
   imageNodes: Record<string, ImageNodeState>;
   widgetNodes: Record<string, WidgetNodeState>;
   tetherEdges: Record<string, TetherEdgeState>;
+  /** Frontend-only info widgets pinned to the canvas (chips, palette
+   *  snapshots, etc.). Captured here so undo/redo rolls them. Don't touch
+   *  pixels; never round-trip through the backend operation_graph. */
+  infoNodes: Record<string, InfoNodeState>;
   activeImageNodeId: string | null;
 }
 

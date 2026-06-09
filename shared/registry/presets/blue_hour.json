@@ -1,6 +1,7 @@
 {
   "id": "blue_hour",
   "display_name": "Blue hour",
+  "category": "mood",
   "source": "builtin",
   "description": "Cool blue-hour twilight \u2014 push kelvin cool, deepen shadows, boost saturation. Evokes pre-dawn / dusk.",
   "typical_use": "User says 'blue hour', 'twilight', 'pre-dawn', 'evening cool'.",

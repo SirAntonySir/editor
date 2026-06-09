@@ -91,7 +91,8 @@ class RegistryOp(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str
     display_name: str
-    category: str | None = None    # NEW — planner grouping hint
+    category: str | None = None    # planner grouping hint + Cmd+K section header
+    icon: str | None = None        # Material icon name (frontend-only, opaque here)
     llm: OpLlmMetadata
     params: dict[str, OpParamSchema]
     bindings: list[OpBinding]
@@ -130,6 +131,8 @@ class RegistryPreset(BaseModel):
     id: str
     display_name: str
     source: PRESET_SOURCE = "builtin"
+    category: str | None = None    # Cmd+K grouping
+    icon: str | None = None        # Material icon name (frontend-only, opaque here)
     description: str
     typical_use: str
     semantic_tags: list[str] = Field(default_factory=list)

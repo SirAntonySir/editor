@@ -42,9 +42,10 @@ it('typing a new value into the number field writes canonical', () => {
   expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layer_id: 'L1', op: 'basic', param: 'exposure', value: 20 });
 });
 
-it('Reset writes the default for every param', () => {
+// The per-section Reset button used to live in ScalarSectionBody as a
+// trailing row. It's been consolidated into the clickable touched-count
+// badge in `ToolSection` — see ToolSection.test.tsx for that coverage.
+it('no longer renders an inline Reset button (consolidated into the count badge)', () => {
   render(<ScalarSectionBody layerId="L1" op="basic" params={params} />);
-  fireEvent.click(screen.getByText('Reset'));
-  vi.advanceTimersByTime(300);
-  expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layer_id: 'L1', op: 'basic', param: 'exposure', value: 0 });
+  expect(screen.queryByText('Reset')).toBeNull();
 });

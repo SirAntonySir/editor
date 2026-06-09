@@ -1,6 +1,7 @@
 {
   "id": "time-of-day",
   "display_name": "Time of Day",
+  "icon": "wb_twilight",
   "category": "mood",
   "llm": {
     "description": "1-D dial that re-lights the image across the day arc — dawn, noon, golden hour, blue hour, night. Compiles to coordinated white balance, exposure, contrast, saturation, and vignette.",

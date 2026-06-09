@@ -1,6 +1,7 @@
 {
   "id": "contrast_drop",
   "display_name": "Contrast drop",
+  "category": "tone",
   "source": "builtin",
   "description": "Reduce global contrast and lift the black point \u2014 softens an overly-punchy image.",
   "typical_use": "User says 'too contrasty', 'soften contrast', 'lower contrast', 'less punch'.",

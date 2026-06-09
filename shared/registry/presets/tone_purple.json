@@ -1,6 +1,7 @@
 {
   "id": "tone_purple",
   "display_name": "Adjust purple tones",
+  "category": "color",
   "source": "builtin",
   "description": "Shift the purple colour family in HSL space \u2014 covers purple, violet, lavender, plum. Tunes hue / saturation / luminance for that band only.",
   "typical_use": "User says 'purple tones are off', 'too much purple', 'desaturate the purples', or names any synonym above.",

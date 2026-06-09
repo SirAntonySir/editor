@@ -1,6 +1,7 @@
 {
   "id": "season",
   "display_name": "Season",
+  "icon": "park",
   "category": "mood",
   "llm": {
     "description": "1-D dial that shifts an image across the four seasons via kelvin, vibrance/saturation, per-band HSL (green/orange/blue), and split-tone. Spring/summer push greens and freshness; autumn pushes orange foliage; winter cools and desaturates.",

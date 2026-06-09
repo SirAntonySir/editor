@@ -59,8 +59,6 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
     layerId, nodeType, widget.id, driverKey, driverDefault,
   );
 
-  const sessionId = useBackendState((s) => s.sessionId);
-
   // Live values for the cards: prefer optimistic compound patch, fall back to
   // widget bindings, fall back to fresh interpolation.
   const optimisticBundle = useBackendState(

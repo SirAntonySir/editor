@@ -21,7 +21,7 @@ function SkeletonShell({
   children: ReactNode;
 }) {
   return (
-    <section className="px-3 py-2.5 border-b border-separator last:border-b-0">
+    <section className="px-3 py-2.5">
       <div className="flex items-center gap-1.5 mb-2 text-text-secondary">
         <Icon size={11} className="opacity-60" />
         <span className="text-[9px] uppercase tracking-[0.08em] font-medium">{label}</span>

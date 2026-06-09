@@ -24,7 +24,7 @@ function makeWidget(): Widget {
   };
 }
 
-describe('tetherWorkspaceWidget: spawn collapsed', () => {
+describe('tetherWorkspaceWidget: spawn expanded', () => {
   beforeEach(() => {
     useEditorStore.setState((s) => ({
       ...s,
@@ -42,9 +42,9 @@ describe('tetherWorkspaceWidget: spawn collapsed', () => {
     }));
   });
 
-  it('does NOT auto-expand the widget on spawn', () => {
+  it('auto-expands the widget on spawn so its controls are immediately usable', () => {
     tetherWorkspaceWidget(makeWidget());
     const expanded = useEditorStore.getState().expandedWidgetIds;
-    expect(expanded.has('w_test')).toBe(false);
+    expect(expanded.has('w_test')).toBe(true);
   });
 });

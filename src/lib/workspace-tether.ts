@@ -86,6 +86,9 @@ function buildTetherForWidget(widget: Widget, viewport?: Viewport): void {
     });
   });
 
+  // Spawn expanded so the user can interact with the controls immediately.
+  // Expansion is UI-only state, so it sits outside the undo batch above.
+  editor.expandWidget(widget.id);
 }
 
 /**

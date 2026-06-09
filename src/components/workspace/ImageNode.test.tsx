@@ -149,7 +149,7 @@ describe('zoom-invariant chrome', () => {
     renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected={false} />);
     const overlay = document.querySelector('.overlay') as HTMLElement;
     expect(overlay).toBeTruthy();
-    // useChromeScale defaults to 1 at workspace zoom >= 1 (the test env's default).
+    // CSS custom properties are written at workspace zoom >= 1 (the test env's default).
     const style = overlay.style;
     expect(style.getPropertyValue('--chrome-scale')).toBe('1');
     expect(style.getPropertyValue('--overlay-border-width')).toBe('1px');

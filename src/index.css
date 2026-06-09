@@ -119,7 +119,7 @@ html, body, #root {
  * widgets). AI widgets keep widget-shell-ai's violet glow on selection;
  * this class is not applied to them. Bloom geometry uses --chrome-scale
  * so the on-screen size stays constant at any workspace zoom. ImageNode
- * sets --chrome-scale via useChromeScale(); WidgetShell omits the override
+ * writes --chrome-scale; WidgetShell omits the override
  * (WidgetNode's outer transform already counter-scales the whole shell). */
 .workspace-node-selected {
   border-color: var(--color-accent);

@@ -36,3 +36,44 @@ describe('TetherEdge', () => {
     expect(path?.classList.contains('tether-march')).toBe(true);
   });
 });
+
+const defaultEdgeProps = {
+  id: 'te-1',
+  source: 'w',
+  target: 'i',
+  sourceX: 100,
+  sourceY: 50,
+  targetX: 300,
+  targetY: 50,
+  sourcePosition: Position.Right,
+  targetPosition: Position.Left,
+  data: { scopeKind: 'layer' as const },
+};
+
+describe('TetherEdge canvas-space stroke', () => {
+  it('renders stroke-width as a constant 1.5 (no chromeScale multiplier)', () => {
+    const { container } = render(
+      <ReactFlowProvider>
+        <svg><TetherEdge {...defaultEdgeProps} /></svg>
+      </ReactFlowProvider>,
+    );
+    const path = container.querySelector('path');
+    expect(path).not.toBeNull();
+    // BaseEdge applies stroke-width via the style attribute on the path.
+    const styleAttr = (path as SVGPathElement).getAttribute('style') ?? '';
+    expect(styleAttr).toMatch(/stroke-width:\s*1\.5(\s|;|$)/);
+  });
+
+  it('renders endpoint dots with constant radius 3 (no chromeScale multiplier)', () => {
+    const { container } = render(
+      <ReactFlowProvider>
+        <svg><TetherEdge {...defaultEdgeProps} /></svg>
+      </ReactFlowProvider>,
+    );
+    const circles = container.querySelectorAll('circle');
+    expect(circles.length).toBe(2);
+    for (const c of Array.from(circles)) {
+      expect(c.getAttribute('r')).toBe('3');
+    }
+  });
+});

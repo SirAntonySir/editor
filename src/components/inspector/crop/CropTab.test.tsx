@@ -24,7 +24,7 @@ vi.mock('@/lib/canvas-registry', () => {
   };
 });
 
-function seedActive(imageNodeId = 'in-1') {
+function seedActive(imageNodeId = 'in-1', dims = { w: 800, h: 600 }) {
   useEditorStore.setState({
     activeImageNodeId: imageNodeId,
     imageNodes: {
@@ -32,7 +32,10 @@ function seedActive(imageNodeId = 'in-1') {
         id: imageNodeId,
         layerIds: ['L1'],
         position: { x: 0, y: 0 },
-        size: { w: 800, h: 600 },
+        size: dims,
+        // CropTab reads `sourceSize` (the natural pixel dims) for crop
+        // geometry. The display `size` is independent — seed both.
+        sourceSize: dims,
       },
     },
   } as never);
@@ -50,6 +53,26 @@ describe('CropTab initial state', () => {
     expect(readout).toHaveTextContent('800 × 600');
     // Free is the initial aspect.
     expect(screen.getByRole('button', { name: 'Free' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('initializes crop to sourceSize, not display size (figma-scaling regression)', () => {
+    // A 6000×4000 source displayed at 600×400 in canvas space — pre-fix the
+    // crop rect followed `size` (display box) instead of `sourceSize`.
+    useEditorStore.setState({
+      activeImageNodeId: 'in-1',
+      imageNodes: {
+        'in-1': {
+          id: 'in-1',
+          layerIds: ['L1'],
+          position: { x: 0, y: 0 },
+          size: { w: 600, h: 400 },
+          sourceSize: { w: 6000, h: 4000 },
+        },
+      },
+    } as never);
+    render(<CropTab />);
+    const readout = screen.getByTestId('crop-readout');
+    expect(readout).toHaveTextContent('6000 × 4000');
   });
 
   it('reads existing crop from snapshot', () => {

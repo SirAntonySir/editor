@@ -70,8 +70,12 @@ export function CropTab() {
   });
 
   const imageNode = activeImageNodeId ? imageNodes[activeImageNodeId] : undefined;
-  const sw = imageNode?.size.w ?? 0;
-  const sh = imageNode?.size.h ?? 0;
+  // Crop geometry is expressed in *source pixel* coordinates. After the
+  // figma-scaling split, `size` is the canvas-space display box (e.g. 600px
+  // wide for a 6000px photo) and `sourceSize` is the natural bitmap. Reading
+  // `size` here would clamp the crop rect to the display box.
+  const sw = imageNode?.sourceSize.w ?? 0;
+  const sh = imageNode?.sourceSize.h ?? 0;
 
   const initialCrop: CropRect = snapshotCrop ?? { x: 0, y: 0, w: sw, h: sh };
   const [crop, setCrop] = useState<CropRect>(initialCrop);

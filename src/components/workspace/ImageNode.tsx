@@ -6,7 +6,6 @@ import * as ContextMenu from '@radix-ui/react-context-menu';
 import { ImageNodeBody } from './ImageNodeBody';
 import { ImageNodeSelectionPopover } from './ImageNodeSelectionPopover';
 import { editorDocument } from '@/core/document';
-import { useChromeScale } from '@/hooks/useChromeScale';
 import { useChromeVisible } from '@/hooks/useChromeVisible';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
@@ -35,7 +34,6 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   const stacked = data.layerIds.length > 1;
   const showStrip = stacked && selected;
   const canSplit = data.layerIds.length >= 2;
-  const chromeScale = useChromeScale();
   const chromeVisible = useChromeVisible();
   const [compareHeld, setCompareHeld] = useState(false);
 
@@ -117,21 +115,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   const updateNodeInternals = useUpdateNodeInternals();
   useEffect(() => {
     updateNodeInternals(id);
-  }, [id, chromeScale, updateNodeInternals]);
-
-  // Strips are CSS-transform-scaled around the appropriate corner so their
-  // on-screen height stays readable at low workspace zoom. Compensate width
-  // so post-scale they still fill the overlay horizontally.
-  const stripScaleTop: React.CSSProperties = {
-    transform: `scale(${chromeScale})`,
-    transformOrigin: 'top left',
-    width: `${100 / chromeScale}%`,
-  };
-  const stripScaleBottom: React.CSSProperties = {
-    transform: `scale(${chromeScale})`,
-    transformOrigin: 'bottom left',
-    width: `${100 / chromeScale}%`,
-  };
+  }, [id, updateNodeInternals]);
 
   function handleTransformDelta(delta: { angle?: number; flip_h?: boolean; flip_v?: boolean }) {
     const sessionId = useBackendState.getState().sessionId;
@@ -241,17 +225,16 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
       <div
         className={`overlay overflow-hidden ${selected ? 'workspace-node-selected' : ''}`}
         style={{
-          ['--chrome-scale' as string]: String(chromeScale),
-          ['--overlay-border-width' as string]: `${chromeScale}px`,
-          ['--overlay-radius' as string]: `${8 * chromeScale}px`,
-          ['--overlay-shadow' as string]: `0 ${4 * chromeScale}px ${14 * chromeScale}px var(--shadow-overlay-color)`,
+          ['--chrome-scale' as string]: '1',
+          ['--overlay-border-width' as string]: '1px',
+          ['--overlay-radius' as string]: '8px',
+          ['--overlay-shadow' as string]: '0 4px 14px var(--shadow-overlay-color)',
         }}
       >
         {chromeVisible && (
           <ImageNodeSelectionPopover layerIds={data.layerIds}>
             <div
               className="workspace-drag-handle flex items-center gap-1.5 px-2 py-1 bg-surface border-b border-separator cursor-grab active:cursor-grabbing"
-              style={stripScaleTop}
             >
               <Image size={11} className="text-text-secondary" aria-hidden />
               <span className="text-[10px] font-medium flex-1 truncate">{data.name ?? 'Image'}</span>
@@ -307,7 +290,6 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
         {chromeVisible && (
           <div
             className="flex items-center gap-1.5 px-2 py-1 text-[9px] text-text-secondary bg-surface border-t border-separator"
-            style={stripScaleBottom}
           >
             <span className="num">{Math.round(size.w)} × {Math.round(size.h)}</span>
             <span className="flex-1" />
@@ -318,7 +300,6 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
           <div
             aria-label="Layer strip"
             className="flex gap-1 px-2 py-1 bg-surface-secondary border-t border-separator"
-            style={stripScaleBottom}
           >
             {data.layerIds.map((lid, i) => (
               <div
@@ -334,9 +315,9 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
       <Handle type="target" position={Position.Bottom}
         id="tether-in-bottom" style={{ left: '50%', opacity: 0 }} />
       <Handle type="target" position={Position.Left}
-        id="tether-in-left"   style={{ top: `${10 * chromeScale}px`, opacity: 0 }} />
+        id="tether-in-left"   style={{ top: '10px', opacity: 0 }} />
       <Handle type="target" position={Position.Right}
-        id="tether-in-right"  style={{ top: `${10 * chromeScale}px`, opacity: 0 }} />
+        id="tether-in-right"  style={{ top: '10px', opacity: 0 }} />
     </div>
   );
 }

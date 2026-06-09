@@ -189,6 +189,19 @@ describe('Crop… menu item', () => {
   });
 });
 
+describe('ImageNode chrome scaling (Figma model)', () => {
+  it('does not apply transform-scale to any chrome element', () => {
+    const { container } = renderInFlow(
+      <ImageNode id="in-1" data={{ ...baseData, name: 'Sky.jpg' }} selected={false} />,
+    );
+    const allElems = container.querySelectorAll('*');
+    for (const el of Array.from(allElems)) {
+      const style = (el as HTMLElement).getAttribute('style') ?? '';
+      expect(style).not.toMatch(/transform:\s*scale\(/);
+    }
+  });
+});
+
 describe('right-click context menu', () => {
   it('right-clicking the image body opens the context menu with the same items', async () => {
     const user = userEvent.setup();

@@ -7,6 +7,7 @@ import { ImageNodeBody } from './ImageNodeBody';
 import { ImageNodeSelectionPopover } from './ImageNodeSelectionPopover';
 import { editorDocument } from '@/core/document';
 import { useChromeVisible } from '@/hooks/useChromeVisible';
+import { useChromeMinFloor } from '@/hooks/useChromeMinFloor';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
@@ -35,6 +36,27 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   const showStrip = stacked && selected;
   const canSplit = data.layerIds.length >= 2;
   const chromeVisible = useChromeVisible();
+  // Chrome strips live in canvas space (Figma model) so they scale with zoom.
+  // Image nodes are normally viewed at small zoom (a 6000-px photo barely
+  // fits on screen at zoom 1), which would shrink the strips below
+  // readability. `useChromeMinFloor` returns 1 at usable zoom and a bounded
+  // counter-scale below the floor — applied as a CSS transform per strip with
+  // a width compensation so the strip still fits the image horizontally.
+  const chromeFloor = useChromeMinFloor(22, 18);
+  const stripScaleTop: React.CSSProperties = chromeFloor === 1
+    ? {}
+    : {
+        transform: `scale(${chromeFloor})`,
+        transformOrigin: 'top left',
+        width: `${100 / chromeFloor}%`,
+      };
+  const stripScaleBottom: React.CSSProperties = chromeFloor === 1
+    ? {}
+    : {
+        transform: `scale(${chromeFloor})`,
+        transformOrigin: 'bottom left',
+        width: `${100 / chromeFloor}%`,
+      };
   const [compareHeld, setCompareHeld] = useState(false);
 
   // Stop native pointerdown bubbling so React Flow's drag-handle never sees it.
@@ -235,6 +257,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
           <ImageNodeSelectionPopover layerIds={data.layerIds}>
             <div
               className="workspace-drag-handle flex items-center gap-1.5 px-2 py-1 bg-surface border-b border-separator cursor-grab active:cursor-grabbing"
+              style={stripScaleTop}
             >
               <Image size={11} className="text-text-secondary" aria-hidden />
               <span className="text-[10px] font-medium flex-1 truncate">{data.name ?? 'Image'}</span>
@@ -290,6 +313,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
         {chromeVisible && (
           <div
             className="flex items-center gap-1.5 px-2 py-1 text-[9px] text-text-secondary bg-surface border-t border-separator"
+            style={stripScaleBottom}
           >
             <span className="num">{Math.round(size.w)} × {Math.round(size.h)}</span>
             <span className="flex-1" />
@@ -300,6 +324,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
           <div
             aria-label="Layer strip"
             className="flex gap-1 px-2 py-1 bg-surface-secondary border-t border-separator"
+            style={stripScaleBottom}
           >
             {data.layerIds.map((lid, i) => (
               <div

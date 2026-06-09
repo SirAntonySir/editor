@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef } from 'react';
 import type { Widget, ControlBinding } from '@/types/widget';
 import { PerceptualDialBody } from '@/components/workspace/PerceptualDialBody';
+import { CircularDial } from './compound/CircularDial';
 import { EditableParamCard } from '@/components/ui/EditableParamCard';
 import { useProcessingParam } from '@/lib/use-processing-param';
 import { interpolate1D } from '@/lib/perceptual-dial/interpolate';
@@ -21,6 +22,11 @@ function toDialAnchors(opId: string): Anchor[] {
     position: [a.position],
     params: a.values,
   }));
+}
+
+export function pickDialComponent(topology: 'linear' | 'wheel' | undefined) {
+  if (topology === 'wheel') return CircularDial;
+  return PerceptualDialBody;
 }
 
 interface CompoundWidgetBodyProps {
@@ -164,14 +170,24 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
     return m;
   }, [op.params]);
 
+  const topology = op.compound?.topology ?? 'linear';
+
   return (
     <div className="flex flex-col gap-2">
-      <PerceptualDialBody
-        topology="1d-slider"
-        anchors={dialAnchors}
-        position={position}
-        onPositionChange={handleChange}
-      />
+      {topology === 'wheel' ? (
+        <CircularDial
+          anchors={dialAnchors}
+          position={position}
+          onPositionChange={handleChange}
+        />
+      ) : (
+        <PerceptualDialBody
+          topology="1d-slider"
+          anchors={dialAnchors}
+          position={position}
+          onPositionChange={handleChange}
+        />
+      )}
       <div className="grid grid-cols-2 gap-1.5 px-2 pb-2">
         {bundleKeys.map((key) => {
           const binding = bindingByKey.get(key);

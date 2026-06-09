@@ -1,7 +1,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
-import { CompoundWidgetBody } from './CompoundWidgetBody';
+import { CompoundWidgetBody, pickDialComponent } from './CompoundWidgetBody';
+import { CircularDial } from './compound/CircularDial';
+import { PerceptualDialBody } from '@/components/workspace/PerceptualDialBody';
 import { makeTimeOfDayWidget } from './__fixtures__/widgets';
 
 vi.mock('@/lib/backend-tools', () => ({
@@ -35,6 +37,18 @@ vi.mock('@/store/backend-state-slice', async () => {
 
 afterEach(cleanup);
 beforeEach(() => { vi.clearAllMocks(); });
+
+describe('pickDialComponent', () => {
+  it('returns PerceptualDialBody for linear topology', () => {
+    expect(pickDialComponent('linear')).toBe(PerceptualDialBody);
+  });
+  it('returns PerceptualDialBody by default (undefined)', () => {
+    expect(pickDialComponent(undefined)).toBe(PerceptualDialBody);
+  });
+  it('returns CircularDial for wheel topology', () => {
+    expect(pickDialComponent('wheel')).toBe(CircularDial);
+  });
+});
 
 describe('CompoundWidgetBody', () => {
   it('renders the driver slider and per-anchor cards for time-of-day', () => {

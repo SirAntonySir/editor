@@ -15,7 +15,9 @@ import { WhyPopover } from './WhyPopover';
 import { BindingRow } from '@/components/inspector/widget/BindingRow';
 import { HslWidgetBody, isHslWidget } from './HslWidgetBody';
 import { LevelsWidgetBody, isFullLevelsWidget } from './LevelsWidgetBody';
+import { CurvesWidgetBody, isCurvesWidget } from './CurvesWidgetBody';
 import { CompoundWidgetBody } from './CompoundWidgetBody';
+import { WidgetAutoButton } from './WidgetAutoButton';
 import { loadRegistry } from '@/lib/registry/loader';
 
 /**
@@ -176,8 +178,17 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
               <LevelsWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
             </div>
           )}
-          {widget.bindings.length > 0 && !loadRegistry().ops[widget.op_id ?? '']?.compound && !isHslWidget(widget) && !isFullLevelsWidget(widget) && (
+          {widget.bindings.length > 0 && isCurvesWidget(widget) && (
+            <div className="py-1">
+              <CurvesWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
+            </div>
+          )}
+          {widget.bindings.length > 0 && !loadRegistry().ops[widget.op_id ?? '']?.compound && !isHslWidget(widget) && !isFullLevelsWidget(widget) && !isCurvesWidget(widget) && (
             <div className="flex flex-col gap-1.5 px-1.5 py-1">
+              {/* Auto-tune pill: mechanical-only baseline values for the
+                  current op. Renders only when the op has an auto recipe
+                  (light / color / kelvin / levels) — silent otherwise. */}
+              <WidgetAutoButton widget={widget} setParam={(k, v) => setParam(k, v)} />
               {widget.bindings.map((b) => {
                 const eff = effectiveValue(b);
                 const node = widget.nodes.find((n) => n.id === b.target.node_id);

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { evaluateCubicSpline, type CurvePoint } from '@/lib/curves';
 import { IDENTITY_CURVES } from '@/types/widget';
 import type { CurvesValue } from '@/types/widget';
@@ -70,56 +70,51 @@ export function CurveEditor({ value, onChange, channel: lockedChannel }: CurveEd
     [safeValue, channel, onChange],
   );
 
-  const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+  // Pointer events with per-SVG capture: each CurveEditor owns its own
+  // pointer stream once a drag starts. This is the fix for multi-editor
+  // layouts (2×2, 4×1) — the previous document-level mouse listeners had
+  // every mounted editor's handler fire for every move, with re-registration
+  // churn on each `points` change.
+  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     const pt = svgToPoint(e.clientX, e.clientY);
-
     const idx = points.findIndex(
       (p) => Math.abs(p.x - pt.x) < 0.04 && Math.abs(p.y - pt.y) < 0.04,
     );
-
     if (idx >= 0) {
       draggingIdx.current = idx;
     } else {
       const newPts = [...points, pt].sort((a, b) => a.x - b.x);
-      const newIdx = newPts.indexOf(pt);
-      draggingIdx.current = newIdx;
+      draggingIdx.current = newPts.indexOf(pt);
       setChannelPoints(newPts);
     }
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
 
-  // Document-level listeners so dragging continues outside the SVG
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (draggingIdx.current === null) return;
-      const pt = svgToPoint(e.clientX, e.clientY);
-      const idx = draggingIdx.current;
+  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (draggingIdx.current === null) return;
+    const pt = svgToPoint(e.clientX, e.clientY);
+    const idx = draggingIdx.current;
+    const newPts = [...points];
+    if (idx === 0) {
+      // Left endpoint: lock x to 0, only y moves
+      newPts[idx] = { x: 0, y: pt.y };
+    } else if (idx === newPts.length - 1) {
+      // Right endpoint: lock x to 1, only y moves
+      newPts[idx] = { x: 1, y: pt.y };
+    } else {
+      newPts[idx] = pt;
+    }
+    setChannelPoints(newPts);
+  };
 
-      const newPts = [...points];
-
-      if (idx === 0) {
-        // Left endpoint: lock x to 0, only y moves
-        newPts[idx] = { x: 0, y: pt.y };
-      } else if (idx === newPts.length - 1) {
-        // Right endpoint: lock x to 1, only y moves
-        newPts[idx] = { x: 1, y: pt.y };
-      } else {
-        newPts[idx] = pt;
-      }
-
-      setChannelPoints(newPts);
-    };
-
-    const handleMouseUp = () => {
-      draggingIdx.current = null;
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [points, svgToPoint, setChannelPoints]);
+  const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    draggingIdx.current = null;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // Browser may have already released capture on pointerup; ignore.
+    }
+  };
 
   const handleDoubleClick = (e: React.MouseEvent<SVGSVGElement>) => {
     const pt = svgToPoint(e.clientX, e.clientY);
@@ -167,8 +162,11 @@ export function CurveEditor({ value, onChange, channel: lockedChannel }: CurveEd
       <svg
         ref={svgRef}
         viewBox="0 0 200 200"
-        className="w-full aspect-square bg-surface-secondary rounded cursor-crosshair"
-        onMouseDown={handleMouseDown}
+        className="w-full aspect-square bg-surface-secondary rounded cursor-crosshair touch-none"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
         onDoubleClick={handleDoubleClick}
       >
         {/* Diagonal reference line */}

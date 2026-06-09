@@ -1,0 +1,45 @@
+{
+  "id": "mood",
+  "display_name": "Mood",
+  "category": "mood",
+  "llm": {
+    "description": "1-D dial that ramps emotional tension from serene to aggressive. Coordinates contrast, clarity, shadow crush, vignette closure, and split-tone hue shift. Independent of color temperature.",
+    "typical_use": "User says 'make it dramatic', 'serene', 'aggressive', 'calm', 'cinematic', 'intense', 'soft mood'.",
+    "semantic_tags": ["mood", "tension", "atmosphere", "cinematic"]
+  },
+  "params": {
+    "mood.position":             { "type": "scalar", "range": [0, 1],         "default": 0.33, "step": 0.001 },
+    "light.contrast":            { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "light.shadows":             { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "light.highlights":          { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "color.vibrance":            { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "color.saturation":          { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "clarity.amount":            { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "splitTone.shadow_hue":      { "type": "scalar", "range": [0, 360],       "default": 200,  "step": 1, "unit": "deg" },
+    "splitTone.highlight_hue":   { "type": "scalar", "range": [0, 360],       "default": 30,   "step": 1, "unit": "deg" },
+    "filters.vignette_amount":   { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 }
+  },
+  "bindings": [
+    { "param_key": "mood.position",            "control_type": "slider", "label": "Intensity" },
+    { "param_key": "light.contrast",           "control_type": "slider", "label": "Contrast" },
+    { "param_key": "light.shadows",            "control_type": "slider", "label": "Shadows" },
+    { "param_key": "light.highlights",         "control_type": "slider", "label": "Highlights" },
+    { "param_key": "color.vibrance",           "control_type": "slider", "label": "Vibrance" },
+    { "param_key": "color.saturation",         "control_type": "slider", "label": "Saturation" },
+    { "param_key": "clarity.amount",           "control_type": "slider", "label": "Clarity" },
+    { "param_key": "splitTone.shadow_hue",     "control_type": "hue_wheel", "label": "Shadow Hue" },
+    { "param_key": "splitTone.highlight_hue",  "control_type": "hue_wheel", "label": "Highlight Hue" },
+    { "param_key": "filters.vignette_amount",  "control_type": "slider", "label": "Vignette" }
+  ],
+  "engine": { "shader": "compound", "render_order": 5, "node_type": "compound" },
+  "compound": {
+    "driver": "mood.position",
+    "interpolation": "catmull_rom_1d",
+    "anchors": [
+      { "position": 0.00, "name": "serene",     "values": { "light.contrast": -15, "light.shadows":  10, "light.highlights":  -5, "color.vibrance": -10, "color.saturation": -10, "clarity.amount": -20, "splitTone.shadow_hue": 200, "splitTone.highlight_hue": 200, "filters.vignette_amount":   0 } },
+      { "position": 0.33, "name": "calm",       "values": { "light.contrast":  -5, "light.shadows":   5, "light.highlights":   0, "color.vibrance":  -5, "color.saturation":  -5, "clarity.amount":  -5, "splitTone.shadow_hue": 200, "splitTone.highlight_hue": 180, "filters.vignette_amount":  -5 } },
+      { "position": 0.66, "name": "dramatic",   "values": { "light.contrast":  30, "light.shadows": -15, "light.highlights": -15, "color.vibrance":  10, "color.saturation":   5, "clarity.amount":  15, "splitTone.shadow_hue": 220, "splitTone.highlight_hue":  30, "filters.vignette_amount": -15 } },
+      { "position": 1.00, "name": "aggressive", "values": { "light.contrast":  50, "light.shadows": -25, "light.highlights": -30, "color.vibrance":  20, "color.saturation":  15, "clarity.amount":  30, "splitTone.shadow_hue":  15, "splitTone.highlight_hue":  30, "filters.vignette_amount": -25 } }
+    ]
+  }
+}

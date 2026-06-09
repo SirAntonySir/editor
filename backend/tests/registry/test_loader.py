@@ -5,7 +5,7 @@ def test_loader_finds_all_ops():
     reg = load_registry()
     expected = {"light", "color", "kelvin", "levels", "hsl", "sharpen",
                 "blur", "clarity", "grain", "vignette", "splitTone", "curves",
-                "time-of-day", "weather"}
+                "time-of-day", "weather", "mood"}
     assert set(reg.ops.keys()) == expected
 
 
@@ -54,6 +54,18 @@ def test_weather_op_loads_with_compound():
     assert len(op.compound.anchors) == 5
     names = [a.name for a in op.compound.anchors]
     assert names == ["sunny", "partly_cloudy", "overcast", "fog", "rain"]
+
+
+def test_mood_op_loads_with_compound():
+    reg = reload_registry()
+    op = reg.ops.get("mood")
+    assert op is not None
+    assert op.category == "mood"
+    assert op.compound is not None
+    assert op.compound.driver == "mood.position"
+    assert len(op.compound.anchors) == 4
+    names = [a.name for a in op.compound.anchors]
+    assert names == ["serene", "calm", "dramatic", "aggressive"]
 
 
 def test_loader_rejects_duplicate_op_id(tmp_path, monkeypatch):

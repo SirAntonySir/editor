@@ -35,11 +35,12 @@
   "compound": {
     "driver": "season.position",
     "interpolation": "catmull_rom_1d",
+    "topology": "wheel",
     "anchors": [
-      { "position": 0.00, "name": "spring", "values": { "kelvin.kelvin": 7000, "color.vibrance":  10, "color.saturation":  5,  "hsl.green_sat":  15, "hsl.orange_sat":   0, "hsl.blue_sat":   5, "light.exposure":  0, "splitTone.highlight_hue":  90, "splitTone.shadow_hue": 200 } },
-      { "position": 0.33, "name": "summer", "values": { "kelvin.kelvin": 7500, "color.vibrance":  15, "color.saturation": 10,  "hsl.green_sat":  10, "hsl.orange_sat":  10, "hsl.blue_sat":  10, "light.exposure":  0, "splitTone.highlight_hue":  60, "splitTone.shadow_hue": 200 } },
-      { "position": 0.66, "name": "autumn", "values": { "kelvin.kelvin": 8500, "color.vibrance":   5, "color.saturation": -5,  "hsl.green_sat": -30, "hsl.orange_sat":  30, "hsl.blue_sat": -10, "light.exposure":  0, "splitTone.highlight_hue":  35, "splitTone.shadow_hue":  20 } },
-      { "position": 1.00, "name": "winter", "values": { "kelvin.kelvin": 5500, "color.vibrance": -15, "color.saturation": -10, "hsl.green_sat": -25, "hsl.orange_sat": -10, "hsl.blue_sat":  15, "light.exposure": -5, "splitTone.highlight_hue": 210, "splitTone.shadow_hue": 220 } }
+      { "position": 0.00, "name": "spring", "color": "#22c55e", "values": { "kelvin.kelvin": 7000, "color.vibrance":  10, "color.saturation":  5,  "hsl.green_sat":  15, "hsl.orange_sat":   0, "hsl.blue_sat":   5, "light.exposure":  0, "splitTone.highlight_hue":  90, "splitTone.shadow_hue": 200 } },
+      { "position": 0.33, "name": "summer", "color": "#eab308", "values": { "kelvin.kelvin": 7500, "color.vibrance":  15, "color.saturation": 10,  "hsl.green_sat":  10, "hsl.orange_sat":  10, "hsl.blue_sat":  10, "light.exposure":  0, "splitTone.highlight_hue":  60, "splitTone.shadow_hue": 200 } },
+      { "position": 0.66, "name": "autumn", "color": "#ea580c", "values": { "kelvin.kelvin": 8500, "color.vibrance":   5, "color.saturation": -5,  "hsl.green_sat": -30, "hsl.orange_sat":  30, "hsl.blue_sat": -10, "light.exposure":  0, "splitTone.highlight_hue":  35, "splitTone.shadow_hue":  20 } },
+      { "position": 1.00, "name": "winter", "color": "#3b82f6", "values": { "kelvin.kelvin": 5500, "color.vibrance": -15, "color.saturation": -10, "hsl.green_sat": -25, "hsl.orange_sat": -10, "hsl.blue_sat":  15, "light.exposure": -5, "splitTone.highlight_hue": 210, "splitTone.shadow_hue": 220 } }
     ]
   }
 }

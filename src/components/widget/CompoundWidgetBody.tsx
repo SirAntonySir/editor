@@ -12,8 +12,9 @@ import { backendTools } from '@/lib/backend-tools';
 
 const DEBOUNCE_MS = 300;
 
-/** Convert registry compound anchors → legacy PerceptualDialBody `Anchor[]`. */
-function toDialAnchors(opId: string): Anchor[] {
+/** Convert registry compound anchors → legacy PerceptualDialBody `Anchor[]`.
+ *  Also carries optional `color` for wheel topology wedge coloring. */
+function toDialAnchors(opId: string): Array<Anchor & { color?: string }> {
   const op = loadRegistry().ops[opId];
   if (!op?.compound) return [];
   return op.compound.anchors.map((a) => ({
@@ -21,6 +22,7 @@ function toDialAnchors(opId: string): Anchor[] {
     label: a.name.charAt(0).toUpperCase() + a.name.slice(1),
     position: [a.position],
     params: a.values,
+    color: a.color ?? undefined,
   }));
 }
 

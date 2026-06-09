@@ -63,7 +63,10 @@ export function CircularDial({ anchors, position, onPositionChange }: Props) {
   const [dragging, setDragging] = useState(false);
 
   const anchorsLike = useMemo(
-    () => anchors.map(a => ({ position: a.position[0], name: a.label, color: undefined as string | undefined })),
+    () => anchors.map((a) => {
+      const ext = a as Anchor & { color?: string };
+      return { position: a.position[0], name: a.label, color: ext.color };
+    }),
     [anchors],
   );
 
@@ -111,6 +114,12 @@ export function CircularDial({ anchors, position, onPositionChange }: Props) {
   // Active arc on outer ring
   const activeStart = angles[activeIdx] - wedgeSpan / 2;
   const activeEnd = angles[activeIdx] + wedgeSpan / 2;
+  const activeAnchorExt = anchors[activeIdx] as Anchor & { color?: string } | undefined;
+  const activeColor = resolveWedgeColor(
+    { name: '', color: activeAnchorExt?.color },
+    activeIdx,
+    AUTO_PALETTE,
+  );
 
   return (
     <svg
@@ -125,8 +134,9 @@ export function CircularDial({ anchors, position, onPositionChange }: Props) {
       {anchors.map((anchor, i) => {
         const startDeg = angles[i] - wedgeSpan / 2;
         const endDeg = angles[i] + wedgeSpan / 2;
+        const ext = anchor as Anchor & { color?: string };
         const color = resolveWedgeColor(
-          { name: anchor.label, color: undefined },
+          { name: anchor.label, color: ext.color },
           i,
           AUTO_PALETTE,
         );
@@ -174,7 +184,7 @@ export function CircularDial({ anchors, position, onPositionChange }: Props) {
       <path
         d={arcPath(activeStart, activeEnd, TRACK_RADIUS)}
         fill="none"
-        stroke={resolveWedgeColor({ name: '', color: undefined }, activeIdx, AUTO_PALETTE)}
+        stroke={activeColor}
         strokeWidth={6}
         strokeLinecap="round"
         style={{ filter: 'drop-shadow(0 0 6px currentColor)', opacity: 0.9 }}

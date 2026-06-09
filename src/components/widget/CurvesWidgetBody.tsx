@@ -29,16 +29,35 @@ function channelLabel(ch: Channel): string {
   return ch === 'rgb' ? 'RGB' : ch.charAt(0).toUpperCase() + ch.slice(1);
 }
 
-/** True when the widget's bindings cover the four curves channels (rgb/red/
- *  green/blue) via control_type='curve_editor'. Used by WidgetShell to pick
- *  this custom body over the generic BindingRow grid. */
+/** Set of control_types that this body knows how to render. `curve_editor`
+ *  is the four-channel registry op (toolrail-spawned). `curve` is the
+ *  single-luma form emitted by AI fused tools (teal_orange / sky_recovery /
+ *  bw_cinematic / ...). */
+const CURVE_CONTROL_TYPES = new Set(['curve', 'curve_editor']);
+
+function curveBindings(widget: Widget): ControlBinding[] {
+  return widget.bindings.filter((b) =>
+    CURVE_CONTROL_TYPES.has(b.control_schema.control_type),
+  );
+}
+
+/** True when the widget should render through CurvesWidgetBody. Two shapes
+ *  are accepted:
+ *   1) Four bindings with `control_type='curve_editor'` covering rgb/red/
+ *      green/blue — the toolrail-spawned form, layout switcher visible.
+ *   2) Exactly one binding with `control_type='curve' | 'curve_editor'` —
+ *      the AI-composed single-luma form, layout switcher hidden. */
 export function isCurvesWidget(widget: Widget): boolean {
-  const channels = new Set<string>();
-  for (const b of widget.bindings) {
-    if (b.control_schema.control_type !== 'curve_editor') continue;
-    channels.add(b.param_key);
-  }
-  return CHANNELS.every((c) => channels.has(c));
+  const curves = curveBindings(widget);
+  // Four-channel form.
+  const channels = new Set(
+    curves
+      .filter((b) => b.control_schema.control_type === 'curve_editor')
+      .map((b) => b.param_key),
+  );
+  if (CHANNELS.every((c) => channels.has(c))) return true;
+  // Single-luma form.
+  return curves.length === 1;
 }
 
 type Layout = 'toggle' | 'grid' | 'stack';
@@ -67,6 +86,15 @@ export function CurvesWidgetBody({ widget, effectiveValue, setParam }: CurvesWid
     }
     return m;
   }, [widget.bindings]);
+
+  /** AI-composed widgets ship one curve binding (typically `points`/luma).
+   *  When the four-channel set isn't present, we fall back to that single
+   *  binding and treat it as the rgb channel for display. */
+  const singleLumaBinding = useMemo<ControlBinding | null>(() => {
+    if (CHANNELS.every((c) => bindingByChannel.has(c))) return null;
+    const curves = curveBindings(widget);
+    return curves.length === 1 ? curves[0] : null;
+  }, [widget, bindingByChannel]);
 
   // Compose a CurvesValue from all four bindings — feeds Toggle mode, where
   // the unlocked CurveEditor switches channels via its own tab bar.
@@ -116,6 +144,32 @@ export function CurvesWidgetBody({ widget, effectiveValue, setParam }: CurvesWid
           setParam(b.param_key, pointsToPairs(next[ch]) as unknown as ControlValue)
         }
       />
+    );
+  }
+
+  // Single-luma form: render one editor with no channel/layout chrome.
+  if (singleLumaBinding) {
+    const v = effectiveValue(singleLumaBinding);
+    const pts: CurvePoint[] = isXYPairArray(v) ? pairsToPoints(v) : [...IDENTITY_CURVES.rgb];
+    const value: CurvesValue = {
+      rgb:   pts,
+      red:   [...IDENTITY_CURVES.red],
+      green: [...IDENTITY_CURVES.green],
+      blue:  [...IDENTITY_CURVES.blue],
+    };
+    return (
+      <div className="px-1.5 py-1">
+        <CurveEditor
+          value={value}
+          channel="rgb"
+          onChange={(next) =>
+            setParam(
+              singleLumaBinding.param_key,
+              pointsToPairs(next.rgb) as unknown as ControlValue,
+            )
+          }
+        />
+      </div>
     );
   }
 

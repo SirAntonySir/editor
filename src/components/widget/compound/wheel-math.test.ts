@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  activeWedgeIndexFromAngle,
   anchorAngles,
   positionToIndicatorAngle,
   angleToPosition,
@@ -36,14 +37,10 @@ describe('positionToIndicatorAngle', () => {
     expect(positionToIndicatorAngle(seasonAnchors, halfway)).toBeCloseTo(135, 3);
   });
 
-  it('wraps cyclically past the last anchor', () => {
-    // position 0.05 sits in [winter(1.0) → spring(0.0)] segment
-    // winter wedge center is 270°, spring is 360° (= 0° in modulo)
-    // 0.05 / (anchor_distance) of the way through that segment
-    const angle = positionToIndicatorAngle(seasonAnchors, 0.05);
-    // 0.05 sits PAST the last anchor (1.0) wrapped. Expect angle in [270°, 360°) range
-    expect(angle).toBeGreaterThan(270);
-    expect(angle).toBeLessThan(360);
+  it('positions inside the normal segments interpolate against the first segment, not the seam', () => {
+    // seasonAnchors span [0.00, 1.00] without a gap, so position 0.05 sits 5%
+    // through the FIRST segment (0.00 → 0.33), at ~13.6°. NOT in the seam.
+    expect(positionToIndicatorAngle(seasonAnchors, 0.05)).toBeCloseTo(13.636, 2);
   });
 
   it('clamps positions outside [0, 1] to wrapped equivalents', () => {
@@ -53,6 +50,58 @@ describe('positionToIndicatorAngle', () => {
     expect(positionToIndicatorAngle(seasonAnchors, 1.1)).toBeCloseTo(
       positionToIndicatorAngle(seasonAnchors, 0.1), 3,
     );
+  });
+
+  describe('irregular anchor positions (cyclic seam handling)', () => {
+    // Time-of-day style: anchors at [0.10, 0.30, 0.55, 0.80, 1.00] — there's a
+    // genuine cyclic gap from 1.00 → 1.10 (wrapping to 0.10) that the seam
+    // segment must cover. Five anchors → angles [0, 72, 144, 216, 288].
+    const todAnchors = [
+      { position: 0.10, name: 'dawn'   },
+      { position: 0.30, name: 'noon'   },
+      { position: 0.55, name: 'golden' },
+      { position: 0.80, name: 'blue'   },
+      { position: 1.00, name: 'night'  },
+    ];
+
+    it('exact anchor positions map to evenly-spaced wedge centers', () => {
+      expect(positionToIndicatorAngle(todAnchors, 0.10)).toBeCloseTo(0,   3);
+      expect(positionToIndicatorAngle(todAnchors, 0.30)).toBeCloseTo(72,  3);
+      expect(positionToIndicatorAngle(todAnchors, 0.55)).toBeCloseTo(144, 3);
+      expect(positionToIndicatorAngle(todAnchors, 0.80)).toBeCloseTo(216, 3);
+      expect(positionToIndicatorAngle(todAnchors, 1.00)).toBeCloseTo(288, 3);
+    });
+
+    it('positions in the normal segment between two anchors do NOT use the seam', () => {
+      // 0.90 sits halfway between blue(0.80) and night(1.00). Expect halfway
+      // between angles[3]=216 and angles[4]=288, i.e. 252°. The old buggy
+      // seam test caught 0.90 in [0.9, 1.0] as "seam" and produced wrong angle.
+      expect(positionToIndicatorAngle(todAnchors, 0.90)).toBeCloseTo(252, 3);
+    });
+
+    it('positions inside the cyclic seam map between angles[last] and angles[0]+360', () => {
+      // 0.05 wraps to 1.05 in extended space, halfway through the seam
+      // (1.00, 1.10). Expect halfway between 288° and 360°, i.e. 324°.
+      expect(positionToIndicatorAngle(todAnchors, 0.05)).toBeCloseTo(324, 3);
+    });
+
+    it('inverse round-trips at anchor positions', () => {
+      for (const a of todAnchors) {
+        const angle = positionToIndicatorAngle(todAnchors, a.position);
+        expect(angleToPosition(todAnchors, angle)).toBeCloseTo(a.position, 3);
+      }
+    });
+
+    it('inverse round-trips inside the seam', () => {
+      // 0.05 → 324° → 0.05.
+      const angle = positionToIndicatorAngle(todAnchors, 0.05);
+      expect(angleToPosition(todAnchors, angle)).toBeCloseTo(0.05, 3);
+    });
+
+    it('inverse round-trips inside a normal segment', () => {
+      const angle = positionToIndicatorAngle(todAnchors, 0.90);
+      expect(angleToPosition(todAnchors, angle)).toBeCloseTo(0.90, 3);
+    });
   });
 });
 
@@ -77,6 +126,42 @@ describe('angleToPosition', () => {
       expect(p).toBeGreaterThanOrEqual(0);
       expect(p).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('activeWedgeIndexFromAngle', () => {
+  it('returns 0 at angle 0 (top, wedge 0 centered there)', () => {
+    expect(activeWedgeIndexFromAngle(4, 0)).toBe(0);
+    expect(activeWedgeIndexFromAngle(5, 0)).toBe(0);
+  });
+
+  it('switches wedge exactly at the visual boundary halfway between centers', () => {
+    // N=4: wedge centers [0, 90, 180, 270], boundaries at [45, 135, 225, 315].
+    expect(activeWedgeIndexFromAngle(4, 44.999)).toBe(0);
+    expect(activeWedgeIndexFromAngle(4, 45)).toBe(1);
+    expect(activeWedgeIndexFromAngle(4, 134.999)).toBe(1);
+    expect(activeWedgeIndexFromAngle(4, 135)).toBe(2);
+  });
+
+  it('wraps wedge 0 across the seam (covers [315, 360) ∪ [0, 45))', () => {
+    expect(activeWedgeIndexFromAngle(4, 320)).toBe(0);
+    expect(activeWedgeIndexFromAngle(4, 359)).toBe(0);
+    expect(activeWedgeIndexFromAngle(4, 30)).toBe(0);
+  });
+
+  it('handles N=5 with 72° wedges', () => {
+    // boundaries at [36, 108, 180, 252, 324]
+    expect(activeWedgeIndexFromAngle(5, 0)).toBe(0);
+    expect(activeWedgeIndexFromAngle(5, 35.999)).toBe(0);
+    expect(activeWedgeIndexFromAngle(5, 36)).toBe(1);
+    expect(activeWedgeIndexFromAngle(5, 107.999)).toBe(1);
+    expect(activeWedgeIndexFromAngle(5, 108)).toBe(2);
+    expect(activeWedgeIndexFromAngle(5, 323.999)).toBe(4);
+    expect(activeWedgeIndexFromAngle(5, 324)).toBe(0);
+  });
+
+  it('returns -1 when there are no anchors', () => {
+    expect(activeWedgeIndexFromAngle(0, 0)).toBe(-1);
   });
 });
 

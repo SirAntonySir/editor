@@ -28,19 +28,18 @@ function wrap01(t: number): number {
 
 /** Position → indicator angle (degrees, returned in [0, 360)).
  *
- *  Design:
- *  - Anchors are evenly spaced around the wheel in *angle* space: angle[i] = i/N * 360.
- *  - The cyclic seam segment connects anchors[last] → anchors[0] (crossing the 1.0/0.0
- *    boundary). The seam is given even width 1/N in position space, symmetric around the
- *    0/1 boundary: it covers [1 - 1/(2N), 1] ∪ [0, 1/(2N)) in normalised position space.
- *  - Exact anchor position matches (t === positions[i]) always return angles[i] directly.
- *  - For positions inside the seam (but not exact anchor matches), linear interpolation
- *    runs from angles[last]=270° to angles[0]+360=360°.
- *  - For all other positions, the function finds the straddling (i, i+1) pair and
- *    linearly interpolates between angles[i] and angles[i+1] using the actual position
- *    values declared on the anchors.
+ *  Anchors are evenly spaced around the wheel in *angle* space (angle[i] = i/N * 360)
+ *  but typically irregular in *position* space. Each segment between consecutive
+ *  anchors covers a fixed 360/N angle slice, regardless of how wide its position span is.
  *
- *  Cyclic wrap: out-of-range values are wrapped via wrap01 before processing.
+ *  - Exact anchor position matches return angles[i] directly.
+ *  - The cyclic seam segment connects anchors[last] → anchors[0]+1 (extended position
+ *    space), mapping to angles[last] → angles[0]+360. Positions below positions[0] are
+ *    treated as cyclically wrapped (t + 1) for this segment.
+ *  - Other positions land in a normal segment positions[i] ≤ t < positions[i+1] and
+ *    interpolate linearly between angles[i] and angles[i+1].
+ *
+ *  Out-of-range positions are wrapped via wrap01 before processing.
  */
 export function positionToIndicatorAngle(
   anchors: AnchorLike[],
@@ -49,9 +48,7 @@ export function positionToIndicatorAngle(
   if (anchors.length < 2) return 0;
 
   // Wrap to [0, 1) then restore the 1.0 case (exact last-anchor match).
-  let t = wrap01(position);
-  // Special-case: position was exactly 1.0 (or any integer multiple).
-  // wrap01(1.0) = 0.0, but we want 1.0 to match positions[last] if it equals 1.0.
+  const t = wrap01(position);
   const isExact1 = Number.isFinite(position) && Math.abs(position - Math.round(position)) < 1e-12 && position > 0;
 
   const n = anchors.length;
@@ -59,27 +56,22 @@ export function positionToIndicatorAngle(
   const positions = anchors.map(a => a.position ?? 0);
   const last = positions.length - 1;
 
-  // Restore 1.0 if the original position was an exact positive integer (maps to last anchor).
   const tForMatch = isExact1 ? 1.0 : t;
 
-  // 1. Exact anchor match takes priority (handles both 0.0 and 1.0 cleanly).
+  // 1. Exact anchor match takes priority (handles 0.0 and 1.0 cleanly).
   for (let i = 0; i < positions.length; i++) {
     if (Math.abs(tForMatch - positions[i]) < 1e-9) return angles[i];
   }
 
-  // 2. Cyclic seam: even-width segment of 1/N, centered on the 0/1 boundary.
-  //    Covers [0, 1/(2N)) ∪ [1 - 1/(2N), 1) in [0,1) space.
-  const halfStep = 1 / (2 * n);
-  if (t < halfStep || t >= 1 - halfStep) {
-    const startPos   = 1 - halfStep;            // seam start in [0,1) space
-    const endPos     = halfStep;                 // seam end (past the wrap)
-    const startAngle = angles[last];             // e.g. 270° for N=4
-    const endAngle   = angles[0] + 360;          // e.g. 360° for N=4
-
-    // Map t into [startPos, startPos + 1/N) by shifting values < halfStep up by 1.
-    const tShifted = t < halfStep ? t + 1 : t;
-    const frac = (tShifted - startPos) / (1 / n);
-
+  // 2. Cyclic seam: positions in (positions[last], positions[0]+1) extended space.
+  //    Positions below positions[0] are shifted by +1 to land in this interval.
+  const seamStartPos = positions[last];
+  const seamEndPos   = positions[0] + 1;
+  const tExt = t < positions[0] ? t + 1 : t;
+  if (tExt > seamStartPos && tExt < seamEndPos) {
+    const frac = (tExt - seamStartPos) / (seamEndPos - seamStartPos);
+    const startAngle = angles[last];
+    const endAngle   = angles[0] + 360;
     return ((startAngle + frac * (endAngle - startAngle)) % 360 + 360) % 360;
   }
 
@@ -95,12 +87,12 @@ export function positionToIndicatorAngle(
   return angles[last];
 }
 
-/** Inverse: indicator angle → position.
+/** Inverse: indicator angle → position. Mirror of `positionToIndicatorAngle`.
  *
- *  Mirror of positionToIndicatorAngle:
  *  - Exact anchor angle matches return positions[i] directly.
- *  - Seam segment (even 1/N width around 0°/360°) maps back via linear interpolation.
- *  - Normal angle segments map back through the actual position values.
+ *  - Angles in [angles[last], angles[0]+360) (the cyclic seam slice) map to
+ *    positions[last] + frac * (positions[0]+1 - positions[last]), wrapped to [0,1].
+ *  - Other angles land in a normal slice and map through anchor position values.
  *
  *  Always returns a value in [0, 1].
  */
@@ -121,23 +113,19 @@ export function angleToPosition(
     if (Math.abs(a - angles[i]) < 1e-9) return positions[i];
   }
 
-  // 2. Seam segment: even 1/N width in angle space around 0°/360°.
-  //    Covers [360 - 180/N, 360) ∪ [0, 180/N) in normalised angle space.
-  const halfAngleStep = 360 / (2 * n);  // = 180/N
-  if (a < halfAngleStep || a >= 360 - halfAngleStep) {
-    const startAngle = angles[last];       // e.g. 270° for N=4
-    const endAngle   = angles[0] + 360;   // e.g. 360° for N=4
-
-    const aShifted = a < halfAngleStep ? a + 360 : a;
-    const frac = (aShifted - startAngle) / (360 / n);
-
+  // 2. Cyclic seam slice in angle space: [angles[last], angles[0]+360).
+  //    Angles below angles[0] are shifted by +360 to land in this interval.
+  const startAngle = angles[last];
+  const endAngle   = angles[0] + 360;
+  const aExt = a < angles[0] ? a + 360 : a;
+  if (aExt > startAngle && aExt < endAngle) {
+    const frac = (aExt - startAngle) / (endAngle - startAngle);
     const rawPos = positions[last] + frac * ((positions[0] + 1) - positions[last]);
-    // Wrap back to [0, 1]: exact 1.0 is valid (last anchor), values > 1.0 wrap to [0,1).
     if (rawPos >= 1 - 1e-9 && rawPos <= 1 + 1e-9) return 1;
     return wrap01(rawPos);
   }
 
-  // 3. Normal segment.
+  // 3. Normal slice.
   for (let i = 0; i < last; i++) {
     if (angles[i] <= a && a < angles[i + 1]) {
       const frac = (a - angles[i]) / (angles[i + 1] - angles[i]);
@@ -145,6 +133,18 @@ export function angleToPosition(
     }
   }
   return positions[last];
+}
+
+/** Wedge index whose angular slice contains the given indicator angle.
+ *  Wedge i is centered at angles[i] = i * 360/N and spans
+ *  [angles[i] - 360/(2N), angles[i] + 360/(2N)) on the wheel. Wedge 0 wraps
+ *  across the seam. Returns -1 when there are no anchors. */
+export function activeWedgeIndexFromAngle(n: number, indicatorAngleDeg: number): number {
+  if (n <= 0) return -1;
+  const wedgeSpan = 360 / n;
+  const a = ((indicatorAngleDeg % 360) + 360) % 360;
+  const shifted = (a + wedgeSpan / 2) % 360;
+  return Math.floor(shifted / wedgeSpan) % n;
 }
 
 /** Resolve a wedge color: anchor.color if set, else cycle through `palette`. */

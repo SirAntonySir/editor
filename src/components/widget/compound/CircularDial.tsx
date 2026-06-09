@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { Anchor } from '@/lib/perceptual-dial/types';
 import {
+  activeWedgeIndexFromAngle,
   anchorAngles,
   positionToIndicatorAngle,
   angleToPosition,
@@ -43,21 +44,6 @@ function arcPath(startDeg: number, endDeg: number, r: number): string {
   return `M ${sx} ${sy} A ${r} ${r} 0 ${largeArc} 1 ${ex} ${ey}`;
 }
 
-/** Index of the anchor whose evenly-spaced wedge contains the given position.
- *  Used to highlight one wedge as "active" based on which segment position
- *  currently belongs to. Considers cyclic wrap at the seam. */
-function activeWedgeIndex(anchors: Anchor[], position: number): number {
-  if (anchors.length === 0) return -1;
-  const positions = anchors.map(a => a.position[0]);
-  const last = positions.length - 1;
-  const t = ((position % 1) + 1) % 1;
-  if (t < positions[0] || t >= positions[last]) return last;
-  for (let i = 0; i < last; i++) {
-    if (positions[i] <= t && t < positions[i + 1]) return i;
-  }
-  return last;
-}
-
 export function CircularDial({ anchors, position, onPositionChange }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -79,7 +65,11 @@ export function CircularDial({ anchors, position, onPositionChange }: Props) {
   );
   const [indicatorX, indicatorY] = polar(indicatorAngle, TRACK_RADIUS);
 
-  const activeIdx = activeWedgeIndex(anchors, position);
+  // Highlight the wedge whose angular slice the indicator currently sits in.
+  // Driving this from the indicator angle (rather than the raw position) keeps
+  // the highlight switching exactly at the visual wedge boundaries, regardless
+  // of how irregularly anchor positions are distributed in [0, 1].
+  const activeIdx = activeWedgeIndexFromAngle(anchors.length, indicatorAngle);
 
   const handleWedgeClick = useCallback((i: number) => {
     onPositionChange(anchors[i].position[0]);
@@ -125,7 +115,11 @@ export function CircularDial({ anchors, position, onPositionChange }: Props) {
     <svg
       ref={svgRef}
       viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`}
-      className="circular-dial"
+      // `nodrag` + `nopan` opt the dial out of React Flow's pointer-handling
+      // so wedge clicks + indicator drags reach our handlers instead of
+      // triggering node drag / canvas pan. RF treats these classes as
+      // "interactive content — leave it alone".
+      className="circular-dial nodrag nopan"
       style={{ width: 320, height: 320, userSelect: 'none' }}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}

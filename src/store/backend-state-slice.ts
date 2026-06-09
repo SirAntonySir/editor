@@ -95,6 +95,11 @@ interface BackendState {
   snapshot: SessionStateSnapshot | null;
   optimistic: Map<WidgetId, OptimisticPatch>;
   acceptedSuggestions: Set<string>;
+  /** AI-origin widget ids that arrived in the most recent analyze run and have
+   *  not yet been allowed or denied. Pending widgets are hidden from the
+   *  inspector AI section and the canvas until the user resolves them via the
+   *  per-widget chips. Surfaced via SuggestionChips → resolvePendingSuggestion. */
+  pendingSuggestionIds: Set<string>;
   sseStatus: SseStatus;
   /** Per-phase status of the in-flight (or just-completed) analyze run; null before any analyze. */
   phases: PhaseMap | null;
@@ -106,6 +111,11 @@ interface BackendState {
   /** Frontend-only engage: moves a suggestion widget into the acceptedSuggestions set
    *  so it appears on the canvas shell. Does NOT call backendTools.accept_widget. */
   addAcceptedSuggestion: (widgetId: WidgetId) => void;
+  /** Replace the pending-suggestion set with the supplied ids. Called by the
+   *  AnalyzeSuggestionsGate on the rising edge of mcpAnalyzeComplete. */
+  markPendingSuggestions: (ids: string[]) => void;
+  /** Remove one id from the pending set after the user allowed or denied it. */
+  resolvePendingSuggestion: (id: string) => void;
   setSseStatus: (status: SseStatus) => void;
   setSnapshot: (snapshot: SessionStateSnapshot) => void;
   setSessionId: (sessionId: string | null) => void;
@@ -118,6 +128,7 @@ export const useBackendState = create<BackendState>()(
     snapshot: null,
     optimistic: new Map(),
     acceptedSuggestions: new Set(),
+    pendingSuggestionIds: new Set(),
     sseStatus: 'idle',
     phases: null,
     mcpAnalyzeComplete: false,
@@ -299,6 +310,16 @@ export const useBackendState = create<BackendState>()(
         s.acceptedSuggestions.add(widgetId);
       }),
 
+    markPendingSuggestions: (ids) =>
+      set((s) => {
+        s.pendingSuggestionIds = new Set(ids);
+      }),
+
+    resolvePendingSuggestion: (id) =>
+      set((s) => {
+        s.pendingSuggestionIds.delete(id);
+      }),
+
     setSseStatus: (status) => set((s) => { s.sseStatus = status; }),
     setSnapshot: (snapshot) => set((s) => { s.snapshot = snapshot; }),
     setSessionId: (sessionId) =>
@@ -324,6 +345,7 @@ export const useBackendState = create<BackendState>()(
         s.snapshot = null;
         s.optimistic = new Map();
         s.acceptedSuggestions = new Set();
+        s.pendingSuggestionIds = new Set();
         s.sseStatus = 'idle';
         s.phases = null;
         s.mcpAnalyzeComplete = false;

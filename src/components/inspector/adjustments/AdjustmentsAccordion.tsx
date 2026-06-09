@@ -42,8 +42,15 @@ function sectionDef(def: ProcessingDefinition): ProcessingDefinition {
 export function AdjustmentsAccordion() {
   const layerId = useEditorStore((s) => s.activeLayerId);
   const widgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
+  // Pending suggestions are gated by the SuggestionChips row at the top of
+  // the editor; hide them from the inspector AI section so they don't appear
+  // anywhere until the user has clicked Allow.
+  const pendingIds = useBackendState((s) => s.pendingSuggestionIds);
   const aiWidgets = widgets.filter(
-    (w) => (w.status === 'active' || w.status === 'accepted') && w.origin.kind === 'mcp_autonomous',
+    (w) =>
+      (w.status === 'active' || w.status === 'accepted') &&
+      w.origin.kind === 'mcp_autonomous' &&
+      !pendingIds.has(w.id),
   );
 
   // Build the ordered list of (def, isLastInGroup) tuples so the renderer can

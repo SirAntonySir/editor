@@ -26,6 +26,8 @@ import { FiltersTool } from '@/tools/filters-tool';
 import { HslTool } from '@/tools/hsl-tool';
 import { TimeOfDayTool } from '@/tools/time-of-day-tool';
 import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
+import { ConfirmToastBar } from '@/components/ui/ConfirmToast';
+import { AnalyzeSuggestionsGate } from '@/components/AnalyzeSuggestionsGate';
 import { useBackendState } from '@/store/backend-state-slice';
 import { Upload } from 'lucide-react';
 
@@ -187,6 +189,8 @@ function EditorContent() {
       </div>
 
       <BackendStatusBar />
+      <ConfirmToastBar />
+      <AnalyzeSuggestionsGate />
 
       {/* Main canvas area */}
       <MainLayout

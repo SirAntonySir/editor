@@ -6,6 +6,7 @@ def test_registry_loads_all_ops():
     assert set(ENGINE_OPS) == {
         "light", "color", "kelvin", "levels", "hsl", "sharpen", "blur", "clarity",
         "curves", "grain", "vignette", "splitTone", "time-of-day",
+        "weather", "mood", "season", "age",
     }
 
 

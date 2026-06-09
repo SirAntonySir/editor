@@ -96,9 +96,24 @@ def test_plan_widget_stack_catalog_surfaces_compound_dial(monkeypatch):
     assert "time-of-day" in catalog_blob
     assert "compound_dial" in catalog_blob
     assert "time_of_day.position" in catalog_blob
-    # Anchor names should be surfaced so the model picks the right position.
-    for name in ("dawn", "noon", "golden", "blue", "night"):
-        assert name in catalog_blob
+    # All 5 compound dials' anchor names should appear in the catalog.
+    expected_anchor_names = (
+        # time-of-day
+        "dawn", "noon", "golden", "blue", "night",
+        # weather
+        "sunny", "partly_cloudy", "overcast", "fog", "rain",
+        # mood
+        "serene", "calm", "dramatic", "aggressive",
+        # season
+        "spring", "summer", "autumn", "winter",
+        # age
+        "fresh", "retro", "vintage", "antique",
+    )
+    for name in expected_anchor_names:
+        assert name in catalog_blob, f"missing anchor name in catalog: {name}"
+    # All 5 compound op ids should appear too.
+    for op_id in ("time-of-day", "weather", "mood", "season", "age"):
+        assert op_id in catalog_blob, f"missing compound op_id in catalog: {op_id}"
 
     # The system prompt should instruct the model how to use compound dials.
     system_blob = str(captured["system"])

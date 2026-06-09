@@ -13,14 +13,38 @@ describe('workspace-slice', () => {
     const node = useEditorStore.getState().imageNodes[id];
     expect(node.layerIds).toEqual(['l-1']);
     expect(node.position).toEqual({ x: 100, y: 50 });
-    expect(node.size).toEqual({ w: 240, h: 180 });
+    // Default sourceSize = 240×180 → display width caps at 600, aspect 4:3 → 600×450.
+    expect(node.sourceSize).toEqual({ w: 240, h: 180 });
+    expect(node.size).toEqual({ w: 600, h: 450 });
   });
 
-  it('addImageNode persists a caller-provided size', () => {
+  it('addImageNode persists a caller-provided sourceSize and derives display dims at the default canvas width', () => {
     const s = useEditorStore.getState();
     const id = s.addImageNode(['l-1'], { x: 0, y: 0 }, { w: 4000, h: 3000 });
     const node = useEditorStore.getState().imageNodes[id];
-    expect(node.size).toEqual({ w: 4000, h: 3000 });
+    expect(node.sourceSize).toEqual({ w: 4000, h: 3000 });
+    // Display: fixed 600 wide × 600 / (4/3) = 450 tall.
+    expect(node.size).toEqual({ w: 600, h: 450 });
+  });
+
+  it('setImageNodeDisplayWidth resizes the display box and keeps aspect locked to source', () => {
+    const s = useEditorStore.getState();
+    const id = s.addImageNode(['l-1'], { x: 0, y: 0 }, { w: 4000, h: 2000 });
+    s.setImageNodeDisplayWidth(id, 800);
+    const node = useEditorStore.getState().imageNodes[id];
+    // Aspect 2:1 → 800 × 400.
+    expect(node.size).toEqual({ w: 800, h: 400 });
+    // Source remains untouched.
+    expect(node.sourceSize).toEqual({ w: 4000, h: 2000 });
+  });
+
+  it('setImageNodeDisplayWidth clamps to min/max', () => {
+    const s = useEditorStore.getState();
+    const id = s.addImageNode(['l-1'], { x: 0, y: 0 }, { w: 4000, h: 3000 });
+    s.setImageNodeDisplayWidth(id, 50);   // below MIN (120)
+    expect(useEditorStore.getState().imageNodes[id].size.w).toBe(120);
+    s.setImageNodeDisplayWidth(id, 10000); // above MAX (4000)
+    expect(useEditorStore.getState().imageNodes[id].size.w).toBe(4000);
   });
 
   it('splitImageNode peels one layer onto a new node and source survives minus that layer', () => {
@@ -34,14 +58,16 @@ describe('workspace-slice', () => {
     expect(newId).not.toBe(a);
   });
 
-  it('splitImageNode inherits the source node size', () => {
+  it('splitImageNode inherits the source node size + sourceSize', () => {
     const s = useEditorStore.getState();
     const a = s.addImageNode(['L1', 'L2'], { x: 0, y: 0 }, { w: 4000, h: 3000 });
     const newId = s.splitImageNode(a, 'L1');
     const after = useEditorStore.getState();
-    expect(after.imageNodes[newId!].size).toEqual({ w: 4000, h: 3000 });
-    // New node sits to the right of the source by source-width + gap.
-    expect(after.imageNodes[newId!].position.x).toBe(4000 + 24);
+    // Source: 4000×3000 → display 600×450 (default canvas width).
+    expect(after.imageNodes[newId!].size).toEqual({ w: 600, h: 450 });
+    expect(after.imageNodes[newId!].sourceSize).toEqual({ w: 4000, h: 3000 });
+    // New node sits to the right of the source by display-width + gap.
+    expect(after.imageNodes[newId!].position.x).toBe(600 + 24);
   });
 
   it('splitImageNode returns null when the source does not exist', () => {

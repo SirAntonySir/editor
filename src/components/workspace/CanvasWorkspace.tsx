@@ -110,14 +110,14 @@ export function CanvasWorkspace() {
   // when no nodes exist yet. Ensures the workspace shows the open image immediately.
   useEffect(() => {
     if (Object.keys(imageNodes).length === 0 && layers.length > 0) {
-      const size =
+      const sourceSize =
         documentMeta && documentMeta.width > 0 && documentMeta.height > 0
           ? { w: documentMeta.width, h: documentMeta.height }
           : undefined;
       addImageNode(
         layers.map((l) => l.id),
         { x: 100, y: 100 },
-        size,
+        sourceSize,
       );
     }
   }, [imageNodes, layers, documentMeta, addImageNode]);
@@ -132,6 +132,7 @@ export function CanvasWorkspace() {
       data: {
         layerIds: n.layerIds,
         size: n.size,
+        sourceSize: n.sourceSize,
         name: n.layerIds[0] ?? 'Image',
       },
     }));

@@ -27,11 +27,12 @@ const EMPTY_WIDGETS: Widget[] = [];
 const RENDER_SCALES = [0.0625, 0.125, 0.25, 0.5, 1.0] as const;
 
 /**
- * Snap `zoom × dpr` up to the next render scale, capped at 1 (never above
- * source resolution). Returns the scale to multiply source dims by.
+ * Snap an effective scale (target screen pixels / source pixels) up to the
+ * next render scale, capped at 1 (never above source resolution). Returns
+ * the scale to multiply source dims by.
  */
-function quantizeRenderScale(zoom: number, dpr: number): number {
-  const target = Math.max(0, zoom) * dpr;
+function quantizeRenderScale(targetOverSource: number): number {
+  const target = Math.max(0, targetOverSource);
   if (target >= 1) return 1;
   for (const s of RENDER_SCALES) if (target <= s) return s;
   return 1;
@@ -42,6 +43,10 @@ export interface ImageNodeRenderInput {
   layerIds: string[];
   sourceWidth: number;
   sourceHeight: number;
+  /** Canvas-space display dims. Defaults to source dims (legacy behavior) when
+   *  omitted so existing callers / tests keep working. */
+  displayWidth?: number;
+  displayHeight?: number;
   /** When true, the renderer skips every shader pass (press-and-hold compare). */
   bypassAdjustments?: boolean;
 }
@@ -51,6 +56,8 @@ export function useImageNodeRender({
   layerIds,
   sourceWidth,
   sourceHeight,
+  displayWidth,
+  displayHeight,
   bypassAdjustments = false,
 }: ImageNodeRenderInput) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -72,10 +79,11 @@ export function useImageNodeRender({
   const hiddenWidgetIds = useEditorStore((s) => s.hiddenWidgetIds);
   const hiddenCanonNodeIds = useEditorStore((s) => s.hiddenCanonNodeIds);
 
-  // Subscribe to the RF viewport zoom, quantized so the hook only re-runs
-  // when we cross a render-scale octave (not on every wheel tick).
+  // Subscribe to the RF viewport zoom. `renderScale` is derived from the ratio
+  // of target screen pixels (display × zoom × dpr) to source pixels and
+  // quantized to octaves so the effect only re-runs when we cross a level.
   const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-  const renderScale = useStore((s) => quantizeRenderScale(s.transform[2], dpr));
+  const zoom = useStore((s) => s.transform[2]);
 
   // Effective output dims derived from the snapshot's rotate + crop nodes for
   // this image-node. The visible canvas is sized to these; `applyGeometry`
@@ -141,6 +149,19 @@ export function useImageNodeRender({
     effectiveCropRect,
   );
 
+  // CSS dims of the visible canvas. Defaults to effective source dims so any
+  // existing caller that hasn't migrated keeps rendering as before. Once the
+  // call site passes display dims (typical), the visible canvas occupies the
+  // node's canvas-space box and the image-bitmap aspect comes from `eff`.
+  const cssW = displayWidth ?? eff.w;
+  const cssH = displayHeight ?? eff.h;
+
+  // Quantize renderScale to the next octave so the backing has at least the
+  // screen pixels we need (cssW × zoom × dpr), capped at full source res.
+  const renderScale = quantizeRenderScale(
+    eff.w > 0 ? (cssW * Math.max(0, zoom) * dpr) / eff.w : 1,
+  );
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -148,10 +169,9 @@ export function useImageNodeRender({
     const backingH = Math.max(1, Math.round(eff.h * renderScale));
     if (canvas.width !== backingW) canvas.width = backingW;
     if (canvas.height !== backingH) canvas.height = backingH;
-    // Set CSS dims to effective size so layout matches the wrapper, regardless of
-    // backing-store quantisation. Browser scales backing → CSS at display time.
-    if (canvas.style.width !== `${eff.w}px`) canvas.style.width = `${eff.w}px`;
-    if (canvas.style.height !== `${eff.h}px`) canvas.style.height = `${eff.h}px`;
+    // CSS dims are the node's display box; browser scales backing → CSS.
+    if (canvas.style.width !== `${cssW}px`) canvas.style.width = `${cssW}px`;
+    if (canvas.style.height !== `${cssH}px`) canvas.style.height = `${cssH}px`;
 
     const hiddenNodeIds = new Set<string>();
     for (const w of widgets) {
@@ -193,6 +213,8 @@ export function useImageNodeRender({
     sourceHeight,
     eff.w,
     eff.h,
+    cssW,
+    cssH,
     renderScale,
     opGraph,
     widgets,

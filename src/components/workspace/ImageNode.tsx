@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { ImageNodeBody } from './ImageNodeBody';
+import { ImageNodeResizeHandle } from './ImageNodeResizeHandle';
 import { ImageNodeSelectionPopover } from './ImageNodeSelectionPopover';
 import { editorDocument } from '@/core/document';
 import { useChromeVisible } from '@/hooks/useChromeVisible';
@@ -17,7 +18,13 @@ import { computeEffectiveSize, type Crop } from '@/lib/image-node-geometry';
 export interface ImageNodeData extends Record<string, unknown> {
   name?: string;
   layerIds: string[];
+  /** Canvas-space layout box (display dims). Drives outer wrapper sizing,
+   *  React Flow's layout, and CSS dims of the visible canvas. */
   size: { w: number; h: number };
+  /** Source bitmap dimensions in pixels. Drives the WebGL pipeline + crop
+   *  geometry. Independent of `size` so a 6000×4000 photo and a 300×200
+   *  thumbnail render at the same canvas-space box. */
+  sourceSize: { w: number; h: number };
   activeLayerIndex?: number;
 }
 
@@ -132,7 +139,15 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
       ? cropPreview.crop
       : snapshotCrop;
 
-  const size = computeEffectiveSize(data.size, effectiveRotateAngle, effectiveCropRect);
+  // Effective *source* dims after rotate/crop — drives the crop info readout
+  // and the visible canvas's aspect ratio.
+  const effectiveSource = computeEffectiveSize(data.sourceSize, effectiveRotateAngle, effectiveCropRect);
+  // Canvas-space display box. Width comes from data.size (resizable, default
+  // 600); height is derived from width × effective-source aspect so the box
+  // always matches what the image will render as.
+  const aspect = effectiveSource.h > 0 ? effectiveSource.w / effectiveSource.h : 1;
+  const displayW = data.size.w;
+  const displayH = displayW / aspect;
 
   const updateNodeInternals = useUpdateNodeInternals();
   useEffect(() => {
@@ -243,7 +258,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   }
 
   return (
-    <div className="relative" style={{ width: size.w + 2 /* outer border */ }}>
+    <div className="relative" style={{ width: displayW + 2 /* outer border */ }}>
       <div
         className={`overlay overflow-hidden ${selected ? 'workspace-node-selected' : ''}`}
         style={{
@@ -299,8 +314,10 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
             <ImageNodeBody
                 imageNodeId={id}
                 layerIds={data.layerIds}
-                sourceWidth={data.size.w}
-                sourceHeight={data.size.h}
+                sourceWidth={data.sourceSize.w}
+                sourceHeight={data.sourceSize.h}
+                displayWidth={displayW}
+                displayHeight={displayH}
                 bypassAdjustments={compareHeld}
               />
           </ContextMenu.Trigger>
@@ -315,7 +332,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
             className="flex items-center gap-1.5 px-2 py-1 text-[9px] text-text-secondary bg-surface border-t border-separator"
             style={stripScaleBottom}
           >
-            <span className="num">{Math.round(size.w)} × {Math.round(size.h)}</span>
+            <span className="num">{Math.round(effectiveSource.w)} × {Math.round(effectiveSource.h)}</span>
             <span className="flex-1" />
             <span>Layer {(data.activeLayerIndex ?? 0) + 1}/{data.layerIds.length}</span>
           </div>
@@ -343,6 +360,9 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
         id="tether-in-left"   style={{ top: '10px', opacity: 0 }} />
       <Handle type="target" position={Position.Right}
         id="tether-in-right"  style={{ top: '10px', opacity: 0 }} />
+      {selected && (
+        <ImageNodeResizeHandle imageNodeId={id} displayWidth={displayW} />
+      )}
     </div>
   );
 }

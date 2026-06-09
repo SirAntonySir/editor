@@ -8,8 +8,27 @@ import type {
   WorkspaceViewport,
 } from '@/types/workspace';
 
-const DEFAULT_NODE_SIZE: Size = { w: 240, h: 180 };
+/** Default source dims when the caller doesn't pass any (e.g. unit tests). */
+const DEFAULT_SOURCE_SIZE: Size = { w: 240, h: 180 };
+
+/**
+ * Canvas-space width for a newly-created image node. Independent of source
+ * pixel dims so every image enters the workspace at the same visual size.
+ * Height is derived from this width × source aspect ratio.
+ */
+const DEFAULT_IMAGE_NODE_DISPLAY_WIDTH = 600;
+
+/** Lower / upper bounds for interactive resize. Aspect-locked, so only the
+ *  width axis is bounded here; height follows. */
+export const IMAGE_NODE_MIN_DISPLAY_WIDTH = 120;
+export const IMAGE_NODE_MAX_DISPLAY_WIDTH = 4000;
+
 const SPLIT_GAP_PX = 24;
+
+function deriveDisplaySize(sourceSize: Size, displayWidth: number): Size {
+  const aspect = sourceSize.h > 0 ? sourceSize.w / sourceSize.h : 1;
+  return { w: displayWidth, h: displayWidth / aspect };
+}
 
 export interface WorkspaceSlice {
   imageNodes: Record<string, ImageNodeState>;
@@ -22,7 +41,19 @@ export interface WorkspaceSlice {
   _nextNodeSeq: number;
   _nextEdgeSeq: number;
 
-  addImageNode: (layerIds: string[], position?: Point, size?: Size) => string;
+  /**
+   * Create an image node.
+   * @param sourceSize  source bitmap dimensions in pixels. Used by the WebGL
+   *                    pipeline and to derive the initial display height.
+   *                    Defaults to a placeholder if omitted (test fixtures).
+   */
+  addImageNode: (layerIds: string[], position?: Point, sourceSize?: Size) => string;
+  /**
+   * Resize an image node's canvas-space box. Aspect-locked to its source dims:
+   * caller specifies the new width; height is recomputed. Clamped to
+   * [IMAGE_NODE_MIN_DISPLAY_WIDTH, IMAGE_NODE_MAX_DISPLAY_WIDTH].
+   */
+  setImageNodeDisplayWidth: (id: string, width: number) => void;
   /**
    * Peel a single layer off `sourceId`, place it on a new image node, and return the new node's id.
    * Source node survives (minus the migrated layer). Tether edges whose
@@ -67,19 +98,32 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
   _nextNodeSeq: 1,
   _nextEdgeSeq: 1,
 
-  addImageNode: (layerIds, position = { x: 0, y: 0 }, size) => {
+  addImageNode: (layerIds, position = { x: 0, y: 0 }, sourceSize) => {
     let id = '';
     set((state) => {
       id = `in-${state._nextNodeSeq++}`;
+      const src = sourceSize ? { ...sourceSize } : { ...DEFAULT_SOURCE_SIZE };
       state.imageNodes[id] = {
         id,
         layerIds: [...layerIds],
         position,
-        size: size ? { ...size } : { ...DEFAULT_NODE_SIZE },
+        sourceSize: src,
+        size: deriveDisplaySize(src, DEFAULT_IMAGE_NODE_DISPLAY_WIDTH),
       };
     });
     return id;
   },
+
+  setImageNodeDisplayWidth: (id, width) =>
+    set((state) => {
+      const n = state.imageNodes[id];
+      if (!n) return;
+      const clamped = Math.min(
+        IMAGE_NODE_MAX_DISPLAY_WIDTH,
+        Math.max(IMAGE_NODE_MIN_DISPLAY_WIDTH, width),
+      );
+      n.size = deriveDisplaySize(n.sourceSize, clamped);
+    }),
 
   splitImageNode: (sourceId, layerIdToSplit) => {
     let newId: string | null = null;
@@ -98,6 +142,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
         layerIds: [layerIdToSplit],
         position: { x: src.position.x + src.size.w + SPLIT_GAP_PX, y: src.position.y },
         size: { ...src.size },
+        sourceSize: { ...src.sourceSize },
       };
       // Migrate only edges that target the source AND are scoped to the peeled layer.
       for (const edge of Object.values(state.tetherEdges)) {

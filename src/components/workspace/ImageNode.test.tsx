@@ -22,7 +22,11 @@ function renderInFlow(ui: React.ReactNode) {
   return render(<ReactFlowProvider>{ui}</ReactFlowProvider>);
 }
 
-const baseData = { layerIds: ['l-1'], size: { w: 240, h: 180 } };
+const baseData = {
+  layerIds: ['l-1'],
+  size: { w: 240, h: 180 },
+  sourceSize: { w: 240, h: 180 },
+};
 
 describe('ImageNode', () => {
   it('renders header with name and footer with layer counter', () => {
@@ -32,7 +36,7 @@ describe('ImageNode', () => {
   });
 
   it('shows the stack strip ONLY when stacked AND selected', () => {
-    const data = { layerIds: ['l-1', 'l-2'], size: baseData.size, name: 'Stacked' };
+    const data = { layerIds: ['l-1', 'l-2'], size: baseData.size, sourceSize: baseData.sourceSize, name: 'Stacked' };
     const { rerender } = renderInFlow(<ImageNode id="in-1" data={data} selected={false} />);
     expect(screen.queryByLabelText('Layer strip')).not.toBeInTheDocument();
     rerender(<ReactFlowProvider><ImageNode id="in-1" data={data} selected={true} /></ReactFlowProvider>);

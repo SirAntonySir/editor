@@ -35,12 +35,13 @@
   "compound": {
     "driver": "time_of_day.position",
     "interpolation": "catmull_rom_1d",
+    "topology": "wheel",
     "anchors": [
-      { "position": 0.10, "name": "dawn",   "values": { "kelvin.kelvin": 9800, "light.exposure": -30,  "light.contrast": -8, "light.highlights": -15, "light.shadows":  20, "color.vibrance":  5, "hsl.orange_sat":  10, "hsl.blue_sat":  15, "filters.vignette_amount": -10 } },
-      { "position": 0.30, "name": "noon",   "values": { "kelvin.kelvin": 7500, "light.exposure":   0,  "light.contrast": 10, "light.highlights":   0, "light.shadows":   0, "color.vibrance":  0, "hsl.orange_sat":   0, "hsl.blue_sat":  15, "filters.vignette_amount":   0 } },
-      { "position": 0.55, "name": "golden", "values": { "kelvin.kelvin": 9600, "light.exposure":  20,  "light.contrast":  5, "light.highlights": -20, "light.shadows":  10, "color.vibrance": 12, "hsl.orange_sat":  25, "hsl.blue_sat":  -5, "filters.vignette_amount":  -8 } },
-      { "position": 0.80, "name": "blue",   "values": { "kelvin.kelvin": 4500, "light.exposure": -50,  "light.contrast": 15, "light.highlights": -10, "light.shadows":   5, "color.vibrance":  5, "hsl.orange_sat": -25, "hsl.blue_sat":  20, "filters.vignette_amount": -15 } },
-      { "position": 1.00, "name": "night",  "values": { "kelvin.kelvin": 8800, "light.exposure": -120, "light.contrast": 25, "light.highlights": -40, "light.shadows": -10, "color.vibrance":  8, "hsl.orange_sat": -10, "hsl.blue_sat":  15, "filters.vignette_amount": -30 } }
+      { "position": 0.10, "name": "dawn",   "color": "#f59e0b", "values": { "kelvin.kelvin": 9800, "light.exposure": -30,  "light.contrast": -8, "light.highlights": -15, "light.shadows":  20, "color.vibrance":  5, "hsl.orange_sat":  10, "hsl.blue_sat":  15, "filters.vignette_amount": -10 } },
+      { "position": 0.30, "name": "noon",   "color": "#facc15", "values": { "kelvin.kelvin": 7500, "light.exposure":   0,  "light.contrast": 10, "light.highlights":   0, "light.shadows":   0, "color.vibrance":  0, "hsl.orange_sat":   0, "hsl.blue_sat":  15, "filters.vignette_amount":   0 } },
+      { "position": 0.55, "name": "golden", "color": "#ea580c", "values": { "kelvin.kelvin": 9600, "light.exposure":  20,  "light.contrast":  5, "light.highlights": -20, "light.shadows":  10, "color.vibrance": 12, "hsl.orange_sat":  25, "hsl.blue_sat":  -5, "filters.vignette_amount":  -8 } },
+      { "position": 0.80, "name": "blue",   "color": "#3b82f6", "values": { "kelvin.kelvin": 4500, "light.exposure": -50,  "light.contrast": 15, "light.highlights": -10, "light.shadows":   5, "color.vibrance":  5, "hsl.orange_sat": -25, "hsl.blue_sat":  20, "filters.vignette_amount": -15 } },
+      { "position": 1.00, "name": "night",  "color": "#312e81", "values": { "kelvin.kelvin": 8800, "light.exposure": -120, "light.contrast": 25, "light.highlights": -40, "light.shadows": -10, "color.vibrance":  8, "hsl.orange_sat": -10, "hsl.blue_sat":  15, "filters.vignette_amount": -30 } }
     ]
   }
 }

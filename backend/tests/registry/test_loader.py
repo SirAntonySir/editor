@@ -92,6 +92,18 @@ def test_age_op_loads_with_compound():
     assert names == ["fresh", "retro", "vintage", "antique"]
 
 
+def test_time_of_day_uses_wheel_topology_with_colors():
+    reg = reload_registry()
+    op = reg.ops.get("time-of-day")
+    assert op is not None
+    assert op.compound is not None
+    assert op.compound.topology == "wheel"
+    # Each anchor declares its own color.
+    for a in op.compound.anchors:
+        assert a.color is not None, f"anchor {a.name!r} missing color"
+        assert a.color.startswith("#"), f"anchor {a.name!r} color {a.color!r} not a hex string"
+
+
 def test_loader_rejects_duplicate_op_id(tmp_path, monkeypatch):
     # Drop two op files with same id into an isolated registry dir.
     ops_dir = tmp_path / "ops"

@@ -1,0 +1,45 @@
+{
+  "id": "season",
+  "display_name": "Season",
+  "category": "mood",
+  "llm": {
+    "description": "1-D dial that shifts an image across the four seasons via kelvin, vibrance/saturation, per-band HSL (green/orange/blue), and split-tone. Spring/summer push greens and freshness; autumn pushes orange foliage; winter cools and desaturates.",
+    "typical_use": "User says 'make it summer', 'autumn vibes', 'wintery', 'spring fresh', 'fall colors', 'seasonal shift'.",
+    "semantic_tags": ["mood", "season", "atmosphere", "color"]
+  },
+  "params": {
+    "season.position":           { "type": "scalar", "range": [0, 1],         "default": 0.33, "step": 0.001 },
+    "kelvin.kelvin":             { "type": "scalar", "range": [2000, 12000],  "default": 6500, "step": 50, "unit": "K" },
+    "color.vibrance":            { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "color.saturation":          { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "hsl.green_sat":             { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "hsl.orange_sat":            { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "hsl.blue_sat":              { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "light.exposure":            { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 },
+    "splitTone.highlight_hue":   { "type": "scalar", "range": [0, 360],       "default": 30,   "step": 1, "unit": "deg" },
+    "splitTone.shadow_hue":      { "type": "scalar", "range": [0, 360],       "default": 200,  "step": 1, "unit": "deg" }
+  },
+  "bindings": [
+    { "param_key": "season.position",          "control_type": "slider", "label": "Season" },
+    { "param_key": "kelvin.kelvin",            "control_type": "slider", "label": "WB" },
+    { "param_key": "color.vibrance",           "control_type": "slider", "label": "Vibrance" },
+    { "param_key": "color.saturation",         "control_type": "slider", "label": "Saturation" },
+    { "param_key": "hsl.green_sat",            "control_type": "slider", "label": "Green Sat" },
+    { "param_key": "hsl.orange_sat",           "control_type": "slider", "label": "Orange Sat" },
+    { "param_key": "hsl.blue_sat",             "control_type": "slider", "label": "Blue Sat" },
+    { "param_key": "light.exposure",           "control_type": "slider", "label": "Exposure" },
+    { "param_key": "splitTone.highlight_hue",  "control_type": "hue_wheel", "label": "Highlight Hue" },
+    { "param_key": "splitTone.shadow_hue",     "control_type": "hue_wheel", "label": "Shadow Hue" }
+  ],
+  "engine": { "shader": "compound", "render_order": 5, "node_type": "compound" },
+  "compound": {
+    "driver": "season.position",
+    "interpolation": "catmull_rom_1d",
+    "anchors": [
+      { "position": 0.00, "name": "spring", "values": { "kelvin.kelvin": 7000, "color.vibrance":  10, "color.saturation":  5,  "hsl.green_sat":  15, "hsl.orange_sat":   0, "hsl.blue_sat":   5, "light.exposure":  0, "splitTone.highlight_hue":  90, "splitTone.shadow_hue": 200 } },
+      { "position": 0.33, "name": "summer", "values": { "kelvin.kelvin": 7500, "color.vibrance":  15, "color.saturation": 10,  "hsl.green_sat":  10, "hsl.orange_sat":  10, "hsl.blue_sat":  10, "light.exposure":  0, "splitTone.highlight_hue":  60, "splitTone.shadow_hue": 200 } },
+      { "position": 0.66, "name": "autumn", "values": { "kelvin.kelvin": 8500, "color.vibrance":   5, "color.saturation": -5,  "hsl.green_sat": -30, "hsl.orange_sat":  30, "hsl.blue_sat": -10, "light.exposure":  0, "splitTone.highlight_hue":  35, "splitTone.shadow_hue":  20 } },
+      { "position": 1.00, "name": "winter", "values": { "kelvin.kelvin": 5500, "color.vibrance": -15, "color.saturation": -10, "hsl.green_sat": -25, "hsl.orange_sat": -10, "hsl.blue_sat":  15, "light.exposure": -5, "splitTone.highlight_hue": 210, "splitTone.shadow_hue": 220 } }
+    ]
+  }
+}

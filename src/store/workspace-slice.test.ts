@@ -261,4 +261,34 @@ describe('workspace-slice', () => {
     s.setActiveImageNode(null);
     expect(useEditorStore.getState().activeImageNodeId).toBeNull();
   });
+
+  describe('imageNodeMode', () => {
+    beforeEach(() => useEditorStore.getState().resetWorkspace());
+
+    it('defaults to empty record', () => {
+      expect(useEditorStore.getState().imageNodeMode).toEqual({});
+    });
+
+    it('setImageNodeMode persists the mode per node', () => {
+      const id = useEditorStore.getState().addImageNode(['l1']);
+      useEditorStore.getState().setImageNodeMode(id, 'layers');
+      expect(useEditorStore.getState().imageNodeMode[id]).toBe('layers');
+      useEditorStore.getState().setImageNodeMode(id, 'objects');
+      expect(useEditorStore.getState().imageNodeMode[id]).toBe('objects');
+    });
+
+    it('resetWorkspace clears it', () => {
+      const id = useEditorStore.getState().addImageNode(['l1']);
+      useEditorStore.getState().setImageNodeMode(id, 'layers');
+      useEditorStore.getState().resetWorkspace();
+      expect(useEditorStore.getState().imageNodeMode).toEqual({});
+    });
+
+    it('removeImageNode drops the mode entry', () => {
+      const id = useEditorStore.getState().addImageNode(['l1']);
+      useEditorStore.getState().setImageNodeMode(id, 'layers');
+      useEditorStore.getState().removeImageNode(id);
+      expect(useEditorStore.getState().imageNodeMode[id]).toBeUndefined();
+    });
+  });
 });

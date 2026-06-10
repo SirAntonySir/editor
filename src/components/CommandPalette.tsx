@@ -165,10 +165,15 @@ export function CommandPalette() {
   }, [setActiveImageNode, open]);
 
   // Clear attached context whenever the palette closes — opening it from
-  // scratch (plain Cmd+K) should never inherit a stale attachment.
-  useEffect(() => {
+  // scratch (plain Cmd+K) should never inherit a stale attachment. Done
+  // synchronously during render via the canonical previous-prop pattern
+  // (https://react.dev/learn/you-might-not-need-an-effect#resetting-all-state-when-a-prop-changes)
+  // rather than an effect with setState.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
     if (!open) setAttachedContext([]);
-  }, [open]);
+  }
 
   // Broadcast open/close so CommandTrigger can hide itself and Framer's
   // shared-layout morph (layoutId="command-palette-shell") has only one

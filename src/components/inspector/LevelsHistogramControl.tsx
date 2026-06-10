@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { HistogramPlot } from '@/components/ui/HistogramPlot';
 import {
   computeHistogramBins,
@@ -70,17 +70,14 @@ export function LevelsHistogramControl({
   height = 80,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [bins, setBins] = useState<HistogramBins | null>(null);
   const [drag, setDrag] = useState<DragKind>(null);
 
-  // Compute histogram bins when the source changes. Cheap (256×256 sample).
-  useEffect(() => {
-    if (!source) {
-      setBins(null);
-      return;
-    }
-    setBins(computeHistogramBins(source));
-  }, [source]);
+  // Compute histogram bins when the source changes. Cheap (256×256 sample),
+  // and pure — derive instead of running through useState + useEffect.
+  const bins = useMemo<HistogramBins | null>(
+    () => (source ? computeHistogramBins(source) : null),
+    [source],
+  );
 
   function valueAtClientX(clientX: number): number {
     const rect = wrapRef.current?.getBoundingClientRect();

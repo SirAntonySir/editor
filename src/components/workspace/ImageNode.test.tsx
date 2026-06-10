@@ -32,7 +32,7 @@ describe('ImageNode', () => {
   it('renders header with name and footer with layer counter', () => {
     renderInFlow(<ImageNode id="in-1" data={{ ...baseData, name: 'Sky.jpg' }} selected={false} />);
     expect(screen.getByText('Sky.jpg')).toBeInTheDocument();
-    expect(screen.getByText('Layer 1/1')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Layers · 1/ })).toBeInTheDocument();
   });
 
   it('shows the stack strip ONLY when stacked AND selected', () => {

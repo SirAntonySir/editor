@@ -51,14 +51,18 @@ describe('pickDialComponent', () => {
 });
 
 describe('CompoundWidgetBody', () => {
-  it('renders the driver slider and per-anchor cards for time-of-day', () => {
+  it('renders the driver dial for time-of-day (wheel topology)', () => {
+    // time-of-day's compound.topology is 'wheel' → CompoundWidgetBody
+    // renders CircularDial, which paints an <svg>. The body also renders
+    // a grid of EditableParamCard entries for the per-bundle params.
     const { container } = render(
       <ReactFlowProvider>
         <CompoundWidgetBody widget={makeTimeOfDayWidget()} />
       </ReactFlowProvider>,
     );
-    // The driver slider should render (PerceptualDialBody renders an input[type=range]).
-    const sliders = container.querySelectorAll('input[type="range"], [role="slider"]');
-    expect(sliders.length).toBeGreaterThanOrEqual(1);
+    expect(container.querySelector('svg')).not.toBeNull();
+    // FOLLOW-UP: CircularDial should expose role="slider" + aria-valuenow
+    // so this assertion can match every compound topology by accessible
+    // role rather than tag.
   });
 });

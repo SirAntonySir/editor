@@ -6,9 +6,11 @@ import * as ContextMenu from '@radix-ui/react-context-menu';
 import { ImageNodeBody } from './ImageNodeBody';
 import { ImageNodeResizeHandle } from './ImageNodeResizeHandle';
 import { ImageNodeSelectionPopover } from './ImageNodeSelectionPopover';
+import { ObjectModeFooter } from './ObjectModeFooter';
 import { editorDocument } from '@/core/document';
 import { useChromeVisible } from '@/hooks/useChromeVisible';
 import { useChromeMinFloor } from '@/hooks/useChromeMinFloor';
+import { useAiSession } from '@/hooks/useImageContext';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
@@ -133,6 +135,10 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   const inspectorTab = usePreferencesStore((s) => s.inspectorTab);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   const cropPreview = useEditorStore((s) => s.cropPreview);
+  const imageNodeMode = useEditorStore((s) => s.imageNodeMode[id]);
+  const objectCount = useAiSession((s) => s.context?.candidateRegions?.length ?? 0);
+  const currentMode: 'layers' | 'objects' =
+    imageNodeMode ?? (objectCount > 0 ? 'objects' : 'layers');
   const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
 
   const effectiveRotateAngle =
@@ -339,7 +345,13 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
           >
             <span className="num">{Math.round(effectiveSource.w)} × {Math.round(effectiveSource.h)}</span>
             <span className="flex-1" />
-            <span>Layer {(data.activeLayerIndex ?? 0) + 1}/{data.layerIds.length}</span>
+            <ObjectModeFooter
+              imageNodeId={id}
+              layerCount={data.layerIds.length}
+              objectCount={objectCount}
+              currentMode={currentMode}
+            />
+
           </div>
         )}
         {chromeVisible && showStrip && (

@@ -55,6 +55,36 @@ interface CurvesWidgetBodyProps {
   setParam: (paramKey: string, value: ControlValue) => void;
 }
 
+/** Locked single-channel curve editor — used by grid + stack layouts.
+ *  Hoisted to module scope so it isn't redefined per render. */
+interface ChannelEditorProps {
+  ch: Channel;
+  binding: ControlBinding | undefined;
+  effectiveValue: (binding: ControlBinding) => ControlValue;
+  setParam: (paramKey: string, value: ControlValue) => void;
+}
+
+function ChannelEditor({ ch, binding, effectiveValue, setParam }: ChannelEditorProps) {
+  if (!binding) return null;
+  const v = effectiveValue(binding);
+  const pts: CurvePoint[] = isXYPairArray(v) ? pairsToPoints(v) : [...IDENTITY_CURVES[ch]];
+  const channelValue: CurvesValue = {
+    rgb:   ch === 'rgb'   ? pts : [...IDENTITY_CURVES.rgb],
+    red:   ch === 'red'   ? pts : [...IDENTITY_CURVES.red],
+    green: ch === 'green' ? pts : [...IDENTITY_CURVES.green],
+    blue:  ch === 'blue'  ? pts : [...IDENTITY_CURVES.blue],
+  };
+  return (
+    <CurveEditor
+      value={channelValue}
+      channel={ch}
+      onChange={(next) =>
+        setParam(binding.param_key, pointsToPairs(next[ch]) as unknown as ControlValue)
+      }
+    />
+  );
+}
+
 export function CurvesWidgetBody({ widget, effectiveValue, setParam }: CurvesWidgetBodyProps) {
   const [layout, setLayout] = useState<Layout>('toggle');
 
@@ -96,29 +126,6 @@ export function CurvesWidgetBody({ widget, effectiveValue, setParam }: CurvesWid
     }
   }
 
-  // Locked single-channel editor — used by grid + stack.
-  function ChannelEditor({ ch }: { ch: Channel }) {
-    const b = bindingByChannel.get(ch);
-    if (!b) return null;
-    const v = effectiveValue(b);
-    const pts: CurvePoint[] = isXYPairArray(v) ? pairsToPoints(v) : [...IDENTITY_CURVES[ch]];
-    const channelValue: CurvesValue = {
-      rgb:   ch === 'rgb'   ? pts : [...IDENTITY_CURVES.rgb],
-      red:   ch === 'red'   ? pts : [...IDENTITY_CURVES.red],
-      green: ch === 'green' ? pts : [...IDENTITY_CURVES.green],
-      blue:  ch === 'blue'  ? pts : [...IDENTITY_CURVES.blue],
-    };
-    return (
-      <CurveEditor
-        value={channelValue}
-        channel={ch}
-        onChange={(next) =>
-          setParam(b.param_key, pointsToPairs(next[ch]) as unknown as ControlValue)
-        }
-      />
-    );
-  }
-
   return (
     <div className="flex flex-col gap-1.5">
       {/* Layout selector */}
@@ -155,7 +162,12 @@ export function CurvesWidgetBody({ widget, effectiveValue, setParam }: CurvesWid
               <div className="text-[9px] uppercase tracking-wide text-text-secondary px-1">
                 {channelLabel(ch)}
               </div>
-              <ChannelEditor ch={ch} />
+              <ChannelEditor
+                ch={ch}
+                binding={bindingByChannel.get(ch)}
+                effectiveValue={effectiveValue}
+                setParam={setParam}
+              />
             </div>
           ))}
         </div>
@@ -168,7 +180,12 @@ export function CurvesWidgetBody({ widget, effectiveValue, setParam }: CurvesWid
               <div className="text-[9px] uppercase tracking-wide text-text-secondary px-1">
                 {channelLabel(ch)}
               </div>
-              <ChannelEditor ch={ch} />
+              <ChannelEditor
+                ch={ch}
+                binding={bindingByChannel.get(ch)}
+                effectiveValue={effectiveValue}
+                setParam={setParam}
+              />
             </div>
           ))}
         </div>

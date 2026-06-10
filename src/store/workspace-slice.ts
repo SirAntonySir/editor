@@ -80,6 +80,11 @@ export interface WorkspaceSlice {
   workspaceViewport: WorkspaceViewport;
   activeImageNodeId: string | null;
 
+  /** Per-ImageNode UI-only display mode. Absent ⇒ caller's default
+   *  (typically 'objects' when candidateRegions exist, else 'layers').
+   *  UI-only; not part of the snapshot SSoT. */
+  imageNodeMode: Record<string, 'layers' | 'objects'>;
+
   /** Private id sequences. Reset by `resetWorkspace`. */
   _nextNodeSeq: number;
   _nextEdgeSeq: number;
@@ -128,6 +133,7 @@ export interface WorkspaceSlice {
    * The workspace slice does not own selection state.
    */
   setActiveImageNode: (activeImageNodeId: string | null) => void;
+  setImageNodeMode: (id: string, mode: 'layers' | 'objects') => void;
   setWorkspaceViewport: (v: WorkspaceViewport) => void;
 
   // ─── Info widgets (chips / stat cards / visualisations on the canvas) ──
@@ -167,6 +173,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
   infoNodes: {},
   workspaceViewport: { zoom: 1, pan: { x: 0, y: 0 } },
   activeImageNodeId: null,
+  imageNodeMode: {},
   _nextNodeSeq: 1,
   _nextEdgeSeq: 1,
 
@@ -256,6 +263,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       if (state.activeImageNodeId === id) {
         state.activeImageNodeId = null;
       }
+      delete state.imageNodeMode[id];
     }),
 
   setNodePosition: (id, position) =>
@@ -292,6 +300,11 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
   setWorkspaceViewport: (v) =>
     set((state) => {
       state.workspaceViewport = v;
+    }),
+
+  setImageNodeMode: (id, mode) =>
+    set((state) => {
+      state.imageNodeMode[id] = mode;
     }),
 
   // ─── Info widgets ─────────────────────────────────────────────────
@@ -341,6 +354,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       state.infoNodes = {};
       state.workspaceViewport = { zoom: 1, pan: { x: 0, y: 0 } };
       state.activeImageNodeId = null;
+      state.imageNodeMode = {};
       state._nextNodeSeq = 1;
       state._nextEdgeSeq = 1;
     }),

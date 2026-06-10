@@ -21,12 +21,18 @@ import {
 export function useLiveMechanicalContext(): MechanicalSnapshot | null {
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   const [snapshot, setSnapshot] = useState<MechanicalSnapshot | null>(null);
+  // Reset on id change via the official "previous-prop tracking" pattern
+  // (https://react.dev/learn/you-might-not-need-an-effect#resetting-all-state-when-a-prop-changes).
+  // Keeps the reset synchronous with the id change without scheduling it
+  // inside an effect.
+  const [prevId, setPrevId] = useState(activeImageNodeId);
+  if (prevId !== activeImageNodeId) {
+    setPrevId(activeImageNodeId);
+    setSnapshot(null);
+  }
 
   useEffect(() => {
-    if (!activeImageNodeId) {
-      setSnapshot(null);
-      return;
-    }
+    if (!activeImageNodeId) return;
     let pendingCanvas: HTMLCanvasElement | null = null;
     let rafId: number | null = null;
 

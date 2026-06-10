@@ -36,14 +36,18 @@ export function LevelsWidgetBody({
   // Histogram source subscribes to the pipeline so the chart redraws as
   // upstream adjustments tick.
   const layerId = widget.nodes[0]?.layer_id ?? null;
-  const [source, setSource] = useState<HTMLCanvasElement | OffscreenCanvas | null>(null);
+  // Lazy-init + prev-prop reset avoid setState-during-effect. setSource
+  // inside the subscriber callback is the canonical allowed pattern.
+  const [source, setSource] = useState<HTMLCanvasElement | OffscreenCanvas | null>(
+    () => (layerId ? CanvasRegistry.get(layerId) ?? null : null),
+  );
+  const [prevLayerId, setPrevLayerId] = useState(layerId);
+  if (prevLayerId !== layerId) {
+    setPrevLayerId(layerId);
+    setSource(layerId ? CanvasRegistry.get(layerId) ?? null : null);
+  }
   useEffect(() => {
-    if (!layerId) {
-      setSource(null);
-      return;
-    }
-    const working = CanvasRegistry.get(layerId);
-    if (working) setSource(working);
+    if (!layerId) return;
     const unsub = PipelineManager.subscribe((output) => setSource(output));
     return unsub;
   }, [layerId]);

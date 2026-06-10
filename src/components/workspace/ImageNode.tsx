@@ -76,9 +76,14 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
     return () => el.removeEventListener('pointerdown', stopPointerDownNative);
   }, [chromeVisible]);
 
-  useEffect(() => {
+  // Reset compareHeld synchronously when chrome hides (e.g. user pans
+  // away while pressing Compare). Previous-prop pattern avoids
+  // setState-during-effect.
+  const [prevChromeVisible, setPrevChromeVisible] = useState(chromeVisible);
+  if (prevChromeVisible !== chromeVisible) {
+    setPrevChromeVisible(chromeVisible);
     if (!chromeVisible) setCompareHeld(false);
-  }, [chromeVisible]);
+  }
 
   const snapshotRotateAngle = useBackendState((s) => {
     const node = s.snapshot?.operation_graph.nodes.find(

@@ -21,8 +21,51 @@ function pairsToPoints(pairs: XYPair[]): CurvePoint[] {
   return pairs.map(([x, y]) => ({ x: x / 255, y: y / 255 }));
 }
 
+/** Same as `pairsToPoints` but the pairs are already in 0..1 space (the
+ *  convention `op_graph` Node.params uses for fused-tool `points`). */
+function pairsToPoints01(pairs: XYPair[]): CurvePoint[] {
+  return pairs.map(([x, y]) => ({ x, y }));
+}
+
 function pointsToPairs(pts: CurvePoint[]): XYPair[] {
   return pts.map(({ x, y }) => [x * 255, y * 255]);
+}
+
+/** True when every value in a pair-array sits inside 0..1 (with a tiny
+ *  epsilon for float slop). Used to detect the fused-tool 0..1 convention
+ *  vs the registry 0..255 one — they're distinguishable in practice
+ *  because no curve point in 0..1 space ever lands outside [0, 1]. */
+function looksLike01Space(pairs: XYPair[]): boolean {
+  for (const [x, y] of pairs) {
+    if (x < -0.0001 || x > 1.0001) return false;
+    if (y < -0.0001 || y > 1.0001) return false;
+  }
+  return true;
+}
+
+/** Resolve curve points from a binding. AI fused tools emit the actual curve
+ *  in `widget.nodes[node_id].params.points` (0..1 space — same place the
+ *  renderer reads from). The widget's `binding.value` may be empty / a
+ *  default-shaped placeholder, so prefer the node params and fall back to
+ *  binding.value only when the node lacks them. */
+function resolveSingleCurvePoints(
+  widget: Widget,
+  binding: ControlBinding,
+  bindingValue: ControlValue,
+): CurvePoint[] {
+  // Source of truth #1: the op-graph node the binding targets.
+  const node = widget.nodes.find((n) => n.id === binding.target.node_id);
+  const nodeParams = node?.params as Record<string, unknown> | undefined;
+  const fromNode = nodeParams?.[binding.target.param_key];
+  if (isXYPairArray(fromNode)) {
+    return looksLike01Space(fromNode) ? pairsToPoints01(fromNode) : pairsToPoints(fromNode);
+  }
+  // Source of truth #2: the binding's own value. Detect unit space from the
+  // numbers themselves so we read either convention correctly.
+  if (isXYPairArray(bindingValue)) {
+    return looksLike01Space(bindingValue) ? pairsToPoints01(bindingValue) : pairsToPoints(bindingValue);
+  }
+  return [...IDENTITY_CURVES.rgb];
 }
 
 function channelLabel(ch: Channel): string {
@@ -150,7 +193,16 @@ export function CurvesWidgetBody({ widget, effectiveValue, setParam }: CurvesWid
   // Single-luma form: render one editor with no channel/layout chrome.
   if (singleLumaBinding) {
     const v = effectiveValue(singleLumaBinding);
-    const pts: CurvePoint[] = isXYPairArray(v) ? pairsToPoints(v) : [...IDENTITY_CURVES.rgb];
+    const pts = resolveSingleCurvePoints(widget, singleLumaBinding, v);
+    // Detect which unit space the binding round-trips in: if the node's
+    // params.points lives in 0..1, we must write back in 0..1 too, otherwise
+    // the next render flips the curve back to identity.
+    const node = widget.nodes.find((n) => n.id === singleLumaBinding.target.node_id);
+    const nodeParams = node?.params as Record<string, unknown> | undefined;
+    const fromNode = nodeParams?.[singleLumaBinding.target.param_key];
+    const write01 =
+      (isXYPairArray(fromNode) && looksLike01Space(fromNode)) ||
+      (isXYPairArray(v) && looksLike01Space(v));
     const value: CurvesValue = {
       rgb:   pts,
       red:   [...IDENTITY_CURVES.red],
@@ -162,12 +214,12 @@ export function CurvesWidgetBody({ widget, effectiveValue, setParam }: CurvesWid
         <CurveEditor
           value={value}
           channel="rgb"
-          onChange={(next) =>
-            setParam(
-              singleLumaBinding.param_key,
-              pointsToPairs(next.rgb) as unknown as ControlValue,
-            )
-          }
+          onChange={(next) => {
+            const pairs: XYPair[] = write01
+              ? next.rgb.map(({ x, y }) => [x, y])
+              : pointsToPairs(next.rgb);
+            setParam(singleLumaBinding.param_key, pairs as unknown as ControlValue);
+          }}
         />
       </div>
     );

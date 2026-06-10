@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { RegistryOp, OpBinding } from '../../../shared/registry/schema';
 import { CONTROL_MAP } from '../registry-controls';
 
@@ -6,6 +7,10 @@ export interface RegistryDrivenPanelProps {
   values: Record<string, unknown>;
   onParamChange: (paramKey: string, value: unknown) => void;
   disabled?: boolean;
+  /** Renders the Pin (or other) affordance for each binding, slotted next
+   *  to the label by the control primitive. Caller composes per-key — e.g.
+   *  the ToolrailSectionBody wraps each binding in `<SliderPinMenu>`. */
+  renderPinSlot?: (paramKey: string, label: string) => ReactNode;
 }
 
 interface BindingGroup {
@@ -40,6 +45,7 @@ export function RegistryDrivenPanel({
   values,
   onParamChange,
   disabled,
+  renderPinSlot,
 }: RegistryDrivenPanelProps) {
   const groups = groupBindings(op);
   return (
@@ -67,6 +73,7 @@ export function RegistryDrivenPanel({
                   schema={param}
                   onChange={(next) => onParamChange(binding.param_key, next)}
                   disabled={disabled}
+                  pinSlot={renderPinSlot ? renderPinSlot(binding.param_key, binding.label) : undefined}
                 />
               );
             })}

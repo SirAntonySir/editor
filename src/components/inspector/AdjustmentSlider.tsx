@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, type ReactNode } from 'react';
 import * as Slider from '@radix-ui/react-slider';
 import { editorDocument } from '@/core/document';
 
@@ -34,6 +34,12 @@ interface AdjustmentSliderProps {
    * Used by colour-meaningful bipolar controls (HSL). Omitted → unchanged.
    */
   trackGradient?: string;
+  /**
+   * Optional ReactNode rendered immediately after the label (left side of
+   * the row, before the value). Used by the per-slider Pin menu — the
+   * primitive doesn't know about pins, callers supply the affordance.
+   */
+  pinSlot?: ReactNode;
 }
 
 function fillColorFor(provenance: SliderProvenance): string {
@@ -55,6 +61,7 @@ export function AdjustmentSlider({
   provenance = 'hand',
   onCommit,
   trackGradient,
+  pinSlot,
 }: AdjustmentSliderProps) {
   const colorTrack = trackGradient != null;
   const display = formatValue ? formatValue(value) : String(Math.round(value));
@@ -152,9 +159,11 @@ export function AdjustmentSlider({
       : null;
 
   return (
-    <div className="flex flex-col gap-0.5" data-no-drag>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] text-text-secondary truncate">{label}</span>
+    <div className="group flex flex-col gap-0.5" data-no-drag>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-text-secondary truncate min-w-0">{label}</span>
+        {pinSlot}
+        <span className="flex-1" />
         {editing ? (
           <input
             ref={inputRef}

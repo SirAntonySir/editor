@@ -6,6 +6,7 @@ import { backendTools } from '@/lib/backend-tools';
 import { loadRegistry } from '@/lib/registry/loader';
 import { RegistryDrivenPanel } from '../RegistryDrivenPanel';
 import { ScalarSectionBody } from './ScalarSectionBody';
+import { SliderPinMenu } from './SliderPinMenu';
 import { touchKey } from '@/hooks/useParamProvenance';
 import type { ParamDefinition } from '@/types/processing';
 import type { Widget, ControlBinding } from '@/types/widget';
@@ -218,7 +219,7 @@ function ToolrailSectionBodyInner({
 
   if (!registryOp) {
     // Fallback: op not yet in the registry — use the bespoke scalar body.
-    return <ScalarSectionBody layerId={layerId} op={opType} params={params} />;
+    return <ScalarSectionBody toolId={defId} layerId={layerId} op={opType} params={params} />;
   }
 
   return (
@@ -227,6 +228,15 @@ function ToolrailSectionBodyInner({
       values={values}
       onParamChange={onParamChange}
       disabled={offline}
+      renderPinSlot={(paramKey, label) => (
+        <SliderPinMenu
+          toolId={defId}
+          opAdjustmentType={opType}
+          layerId={layerId}
+          paramKey={paramKey}
+          paramLabel={label}
+        />
+      )}
     />
   );
 }

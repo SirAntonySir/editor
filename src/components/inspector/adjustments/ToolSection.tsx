@@ -1,4 +1,4 @@
-import { ChevronRight, ChevronDown, ArrowUpRight, Eye, EyeOff, RotateCcw, Wand2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, Pin, Eye, EyeOff, RotateCcw, Wand2 } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import type { ProcessingDefinition } from '@/types/processing';
@@ -194,11 +194,11 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
             type="button"
             disabled={promoteDisabled}
             onClick={() => promoteToCanvas(sessionId, def.id, layerId)}
-            aria-label="Open on canvas"
-            title="Open on canvas"
+            aria-label="Pin to canvas"
+            title="Pin to canvas"
             className="inline-flex items-center text-text-secondary hover:text-text-primary hover:bg-surface-secondary p-0.5 rounded-[3px] disabled:opacity-40"
           >
-            <ArrowUpRight size={13} aria-hidden />
+            <Pin size={13} aria-hidden />
           </button>
         )}
       </div>
@@ -223,7 +223,7 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
             params={def.params}
           />
         ) : (
-          <ScalarSectionBody layerId={layerId} op={def.adjustmentType} params={def.params} />
+          <ScalarSectionBody toolId={def.id} layerId={layerId} op={def.adjustmentType} params={def.params} />
         )
       )}
     </div>

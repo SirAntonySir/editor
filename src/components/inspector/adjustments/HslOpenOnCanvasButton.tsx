@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUpRight } from 'lucide-react';
+import { Pin } from 'lucide-react';
 import { promoteToCanvas } from './promote';
 import { promoteSingleBand } from '@/lib/colour-band-spawn';
 import { HSL_BANDS, bandDisplayColor } from './hsl-bands';
@@ -47,12 +47,12 @@ export function HslOpenOnCanvasButton({ sessionId, layerId, disabled }: Props) {
         type="button"
         disabled={disabled}
         aria-expanded={open}
-        aria-label="Open on canvas"
-        title="Open HSL on canvas"
+        aria-label="Pin to canvas"
+        title="Pin HSL to canvas"
         onClick={() => setOpen((o) => !o)}
         className="inline-flex items-center text-text-secondary hover:text-text-primary hover:bg-surface-secondary p-0.5 rounded-[3px] disabled:opacity-40"
       >
-        <ArrowUpRight size={13} aria-hidden />
+        <Pin size={13} aria-hidden />
       </button>
       {open && (
         <div className="overlay absolute right-0 top-full z-[60] p-2 w-[170px]">

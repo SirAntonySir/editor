@@ -100,6 +100,14 @@ export interface RenderImageNodeCompositeArgs {
    * small set of octaves so allocations / FBO resizes happen rarely.
    */
   renderScale?: number;
+  /**
+   * Op-graph nodes to splice into the per-layer pass on top of `opGraph.nodes`.
+   * Used by the suggestion-chip eye toggle: the previewed widget's nodes are
+   * injected here so the renderer applies the AI's proposed values even if the
+   * canonical projection is stale or hadn't reached the snapshot yet. Each
+   * extra node overrides any `opGraph.nodes` entry with the same id.
+   */
+  extraNodes?: OperationNode[];
 }
 
 function clampRenderScale(scale: number | undefined): number {
@@ -194,7 +202,19 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
     for (const b of patch.bindings) params[b.paramKey] = b.value;
     return { ...n, params };
   });
-  const nodes = expandCompoundNodes(compoundMerged);
+  // Splice in preview nodes (suggestion-chip eye toggle). Same-id collisions
+  // are resolved by REPLACING the canonical node with the preview's copy, so
+  // pending widgets whose canonical projection lags behind still light up the
+  // canvas with the AI's proposed params.
+  const baseNodes = (() => {
+    const extras = args.extraNodes;
+    if (!extras || extras.length === 0) return compoundMerged;
+    const overrides = new Map(extras.map((n) => [n.id, n] as const));
+    const merged = compoundMerged.map((n) => overrides.get(n.id) ?? n);
+    for (const ex of extras) if (!merged.some((n) => n.id === ex.id)) merged.push(ex);
+    return merged;
+  })();
+  const nodes = expandCompoundNodes(baseNodes);
 
   for (const layerId of layerIds) {
     const layer = layersById.get(layerId);

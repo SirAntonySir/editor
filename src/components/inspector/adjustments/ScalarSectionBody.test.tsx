@@ -23,13 +23,13 @@ afterEach(() => {
 });
 
 it('renders a slider per param', () => {
-  render(<ScalarSectionBody layerId="L1" op="basic" params={params} />);
+  render(<ScalarSectionBody toolId="light" layerId="L1" op="basic" params={params} />);
   // Radix slider exposes its thumb with role="slider".
   expect(screen.getAllByRole('slider').length).toBe(1);
 });
 
 it('typing a new value into the number field writes canonical', () => {
-  render(<ScalarSectionBody layerId="L1" op="basic" params={params} />);
+  render(<ScalarSectionBody toolId="light" layerId="L1" op="basic" params={params} />);
   // The value label scrubs on drag and opens a text input on a plain click
   // (pointer down + up with no movement).
   const num = screen.getByTitle('Drag to scrub · click to type');
@@ -46,6 +46,6 @@ it('typing a new value into the number field writes canonical', () => {
 // trailing row. It's been consolidated into the clickable touched-count
 // badge in `ToolSection` — see ToolSection.test.tsx for that coverage.
 it('no longer renders an inline Reset button (consolidated into the count badge)', () => {
-  render(<ScalarSectionBody layerId="L1" op="basic" params={params} />);
+  render(<ScalarSectionBody toolId="light" layerId="L1" op="basic" params={params} />);
   expect(screen.queryByText('Reset')).toBeNull();
 });

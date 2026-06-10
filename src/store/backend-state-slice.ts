@@ -11,6 +11,7 @@ import { maskStore, type Mask } from '@/core/mask-store';
 import { maskPngBase64ToBytes } from '@/lib/sam/sam-client';
 import { deletePrefix } from '@/core/pixel-source-store';
 import { tetherWorkspaceWidget } from '@/lib/workspace-tether';
+import { useEditorStore } from '@/store';
 
 // Required so immer can produce drafts of Map<WidgetId, OptimisticPatch>.
 enableMapSet();
@@ -223,6 +224,21 @@ export const useBackendState = create<BackendState>()(
             // edge of mcpAnalyzeComplete (which races with widget.created).
             if (w.origin.kind === 'mcp_autonomous') {
               s.pendingSuggestionIds.add(w.id);
+            }
+            // Drain a matching per-slider Pin request (queued before the
+            // backend roundtrip). When one is present, narrow the widget to
+            // just those bindings via `pinnedWidgetParams` so it lands on the
+            // canvas as a one-control shell rather than the full op widget.
+            if (w.origin.kind === 'tool_invoked') {
+              const firstNode = w.nodes[0];
+              const layerId = firstNode?.layer_id;
+              const opType = firstNode?.type;
+              if (layerId && opType) {
+                const keys = useEditorStore.getState().consumePinRequest(layerId, opType);
+                if (keys && keys.length > 0) {
+                  useEditorStore.getState().setPinnedWidgetParams(w.id, keys);
+                }
+              }
             }
             tetherWorkspaceWidget(w);
             break;

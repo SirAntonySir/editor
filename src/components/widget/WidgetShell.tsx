@@ -49,6 +49,13 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
 
   const hidden = useEditorStore((s) => s.hiddenWidgetIds.has(widget.id));
   const toggleHidden = useEditorStore((s) => s.toggleWidgetHidden);
+  // When the user pinned a single slider, only that binding key is shown on
+  // the canvas. The widget's other bindings still exist (the inspector still
+  // edits them) — this is a per-shell display filter.
+  const pinnedParamKeys = useEditorStore((s) => s.pinnedWidgetParams[widget.id]);
+  const visibleBindings = pinnedParamKeys && pinnedParamKeys.length > 0
+    ? widget.bindings.filter((b) => pinnedParamKeys.includes(b.param_key))
+    : widget.bindings;
 
   const showAiAffordances = widget.origin.kind !== 'tool_invoked';
 
@@ -163,33 +170,39 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
         <>
           {/* Inline reasoning banner removed — the footer's "Why?" button
               already exposes the same string in a popover. */}
-          {loadRegistry().ops[widget.op_id ?? '']?.compound && (
+          {/* When a single-param pin filter is active, fall through to the
+              flat BindingRow list regardless of widget shape — the rich
+              bodies (HSL band rail, Levels histogram, Curves editor) expect
+              all bindings to be present, so they're skipped here. */}
+          {!pinnedParamKeys && loadRegistry().ops[widget.op_id ?? '']?.compound && (
             <div className="px-1.5 py-1">
               <CompoundWidgetBody widget={widget} />
             </div>
           )}
-          {widget.bindings.length > 0 && isHslWidget(widget) && (
+          {!pinnedParamKeys && widget.bindings.length > 0 && isHslWidget(widget) && (
             <div className="px-1.5 py-1">
               <HslWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
             </div>
           )}
-          {widget.bindings.length > 0 && isFullLevelsWidget(widget) && (
+          {!pinnedParamKeys && widget.bindings.length > 0 && isFullLevelsWidget(widget) && (
             <div className="px-1.5 py-1">
               <LevelsWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
             </div>
           )}
-          {widget.bindings.length > 0 && isCurvesWidget(widget) && (
+          {!pinnedParamKeys && widget.bindings.length > 0 && isCurvesWidget(widget) && (
             <div className="py-1">
               <CurvesWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
             </div>
           )}
-          {widget.bindings.length > 0 && !loadRegistry().ops[widget.op_id ?? '']?.compound && !isHslWidget(widget) && !isFullLevelsWidget(widget) && !isCurvesWidget(widget) && (
+          {widget.bindings.length > 0 && (pinnedParamKeys || (!loadRegistry().ops[widget.op_id ?? '']?.compound && !isHslWidget(widget) && !isFullLevelsWidget(widget) && !isCurvesWidget(widget))) && (
             <div className="flex flex-col gap-1.5 px-1.5 py-1">
               {/* Auto-tune pill: mechanical-only baseline values for the
                   current op. Renders only when the op has an auto recipe
                   (light / color / kelvin / levels) — silent otherwise. */}
-              <WidgetAutoButton widget={widget} setParam={(k, v) => setParam(k, v)} />
-              {widget.bindings.map((b) => {
+              {visibleBindings.length === widget.bindings.length && (
+                <WidgetAutoButton widget={widget} setParam={(k, v) => setParam(k, v)} />
+              )}
+              {visibleBindings.map((b) => {
                 const eff = effectiveValue(b);
                 const node = widget.nodes.find((n) => n.id === b.target.node_id);
                 const isTouched = node?.layer_id

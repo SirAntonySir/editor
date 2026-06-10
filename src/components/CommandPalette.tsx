@@ -3,7 +3,6 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Loader2, AlertCircle, Sparkles, ArrowRight, Image as ImageIcon, Command as CommandIcon, X as XIcon } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
-import { ScrollArea } from '@/components/ui/ScrollArea';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { toast } from '@/components/ui/Toast';
@@ -332,8 +331,12 @@ export function CommandPalette() {
             >
               <motion.div
                 layoutId="command-palette-shell"
-                className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 overlay p-0
-                  flex flex-col w-[min(44rem,92vw)] max-h-[min(40rem,80vh)] backdrop-blur-md"
+                // Top-anchored so the input keeps its vertical position as the
+                // results list grows/shrinks — the dialog only contracts from
+                // the bottom. Was previously centered (-translate-y-1/2),
+                // which recentered the whole shell on every height change.
+                className="fixed top-[12vh] left-1/2 -translate-x-1/2 z-50 overlay p-0
+                  flex flex-col w-[min(44rem,92vw)] max-h-[min(40rem,76vh)] backdrop-blur-md"
                 style={{
                   background: 'color-mix(in srgb, var(--color-surface) 88%, transparent)',
                   // Shift center left by half the sidebar width so the
@@ -399,9 +402,12 @@ export function CommandPalette() {
                 )}
 
                 {/* Results: registry-driven sections, then the AI command.
-                    Radix ScrollArea keeps the overlay scrollbar from
-                    reflowing rows and matches inspector/info panes. */}
-                <ScrollArea className="flex-1 min-h-0" viewportClassName="py-1.5">
+                    Plain overflow-y-auto here — the Radix ScrollArea hides
+                    its track via h-full on a viewport that needs an explicit
+                    parent height to compute, and the dialog's max-h-only
+                    container doesn't give it one (the symptom: rows just
+                    overflow past the dialog bottom instead of scrolling). */}
+                <div className="flex-1 min-h-0 overflow-y-auto py-1.5">
                   {filteredSections.map((section, sIdx) => (
                     <div key={section.id}>
                       <SectionHeader title={section.title} />
@@ -431,7 +437,7 @@ export function CommandPalette() {
                   {flat.length === 0 && (
                     <div className="px-3.5 py-3 text-xs text-text-secondary">No matches.</div>
                   )}
-                </ScrollArea>
+                </div>
 
                 {/* Footer */}
                 <div className="flex items-center gap-3.5 px-3.5 py-2 border-t border-separator text-[10px] text-text-secondary">

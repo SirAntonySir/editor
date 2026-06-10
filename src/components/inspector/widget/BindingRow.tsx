@@ -1,3 +1,4 @@
+import { Pin } from 'lucide-react';
 import type { ControlBinding, CurvesValue, MaskSummary } from '@/types/widget';
 import { AdjustmentSlider, type SliderProvenance } from '@/components/inspector/AdjustmentSlider';
 import { engineNeutralForBinding } from '@/engine/registry';
@@ -26,25 +27,51 @@ interface BindingRowProps {
   maskSummaries: MaskSummary[];
   /** Slider fill colour — default=grey, ai=violet, hand=accent. */
   provenance?: SliderProvenance;
+  /** When provided, a small Pin button renders at the right of the row.
+   *  Clicking it spawns a one-control widget on the canvas containing just
+   *  this binding (filter applied via `pinnedWidgetParams`). */
+  onPin?: () => void;
+  /** Caller-side disable for the Pin button (e.g. offline / no active layer). */
+  pinDisabled?: boolean;
 }
 
-export function BindingRow({ binding, effectiveValue, onChange, maskSummaries, provenance }: BindingRowProps) {
+export function BindingRow({ binding, effectiveValue, onChange, maskSummaries, provenance, onPin, pinDisabled }: BindingRowProps) {
   const s = binding.control_schema;
+  const pinButton = onPin ? (
+    <button
+      type="button"
+      onClick={onPin}
+      disabled={pinDisabled}
+      title={`Pin "${binding.label}" to canvas`}
+      aria-label={`Pin ${binding.label} to canvas`}
+      className="binding-pin inline-flex items-center text-text-secondary
+        hover:text-text-primary hover:bg-surface-secondary
+        p-0.5 rounded-[3px] disabled:opacity-40 disabled:cursor-not-allowed
+        opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+    >
+      <Pin size={11} aria-hidden />
+    </button>
+  ) : null;
   switch (s.control_type) {
     case 'slider':
       return (
-        <AdjustmentSlider
-          label={binding.label}
-          value={Number(effectiveValue)}
-          min={s.min}
-          max={s.max}
-          step={s.step}
-          defaultValue={Number(binding.default)}
-          neutralValue={engineNeutralForBinding(binding)}
-          provenance={provenance}
-          formatValue={s.unit ? (v) => `${Math.round(v)}${s.unit}` : undefined}
-          onChange={(v) => onChange(v)}
-        />
+        <div className="group relative">
+          <AdjustmentSlider
+            label={binding.label}
+            value={Number(effectiveValue)}
+            min={s.min}
+            max={s.max}
+            step={s.step}
+            defaultValue={Number(binding.default)}
+            neutralValue={engineNeutralForBinding(binding)}
+            provenance={provenance}
+            formatValue={s.unit ? (v) => `${Math.round(v)}${s.unit}` : undefined}
+            onChange={(v) => onChange(v)}
+          />
+          {pinButton && (
+            <div className="absolute right-0 top-0">{pinButton}</div>
+          )}
+        </div>
       );
     case 'toggle':
       return <ToggleControl label={binding.label} value={Boolean(effectiveValue)} default={Boolean(binding.default)} schema={s} onChange={onChange} />;

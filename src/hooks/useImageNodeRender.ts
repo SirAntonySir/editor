@@ -20,6 +20,7 @@ import { renderImageNodeComposite } from '@/lib/image-node-renderer';
 import { computeEffectiveSize } from '@/lib/image-node-geometry';
 import { activeCanvasBus } from '@/lib/active-canvas-bus';
 import type { Widget } from '@/types/widget';
+import type { Node as OperationNode } from '@/types/operation-graph';
 
 const EMPTY_WIDGETS: Widget[] = [];
 
@@ -180,11 +181,32 @@ export function useImageNodeRender({
     if (canvas.style.height !== `${cssH}px`) canvas.style.height = `${cssH}px`;
 
     const hiddenNodeIds = new Set<string>();
+    const extraNodes: OperationNode[] = [];
     for (const w of widgets) {
       // Hide if the user explicitly hid the widget, OR it's a pending
       // suggestion that the user isn't previewing.
-      const isPendingSilenced =
-        pendingSuggestionIds.has(w.id) && !previewingSuggestionIds.has(w.id);
+      const isPending = pendingSuggestionIds.has(w.id);
+      const isPreviewing = previewingSuggestionIds.has(w.id);
+      const isPendingSilenced = isPending && !isPreviewing;
+      // Preview path: splice the widget's own nodes into the render so the
+      // AI's proposed adjustment lights up even if the snapshot's canonical
+      // projection lags or doesn't carry them yet. Synthesize an
+      // OperationNode-shaped record from each WidgetNode using the canonical
+      // id scheme (`canon:<layer>:<type>`), so a co-existing canonical entry
+      // is REPLACED by the preview values in the renderer.
+      if (isPending && isPreviewing) {
+        for (const n of w.nodes) {
+          const id = n.layer_id ? `canon:${n.layer_id}:${n.type}` : n.id;
+          extraNodes.push({
+            id,
+            type: n.type,
+            scope: n.scope,
+            params: n.params as OperationNode['params'],
+            inputs: n.inputs,
+            layer_id: n.layer_id,
+          });
+        }
+      }
       if (!hiddenWidgetIds.has(w.id) && !isPendingSilenced) continue;
       for (const n of w.nodes) {
         if (n.layer_id) {
@@ -208,6 +230,7 @@ export function useImageNodeRender({
       widgets,
       optimistic,
       hiddenNodeIds,
+      extraNodes: extraNodes.length > 0 ? extraNodes : undefined,
       bypassAdjustments,
       overrideRotate: previewActive && cropPreview ? cropPreview.rotate : undefined,
       overrideCrop:   previewActive && cropPreview ? cropPreview.crop   : undefined,

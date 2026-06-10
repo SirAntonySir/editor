@@ -7,10 +7,12 @@ import { ImageNodeBody } from './ImageNodeBody';
 import { ImageNodeResizeHandle } from './ImageNodeResizeHandle';
 import { ImageNodeSelectionPopover } from './ImageNodeSelectionPopover';
 import { ObjectModeFooter } from './ObjectModeFooter';
+import { SegmentHitLayer } from './SegmentHitLayer';
 import { editorDocument } from '@/core/document';
 import { useChromeVisible } from '@/hooks/useChromeVisible';
 import { useChromeMinFloor } from '@/hooks/useChromeMinFloor';
 import { useAiSession } from '@/hooks/useImageContext';
+import { useSegmentInteraction } from '@/hooks/useSegmentInteraction';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
@@ -139,6 +141,8 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   const objectCount = useAiSession((s) => s.context?.candidateRegions?.length ?? 0);
   const currentMode: 'layers' | 'objects' =
     imageNodeMode ?? (objectCount > 0 ? 'objects' : 'layers');
+  // Bridge AI session candidateRegions into the segmentStore keyed by this node.
+  useSegmentInteraction(id);
   const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
 
   const effectiveRotateAngle =
@@ -320,24 +324,33 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
             </div>
           </ImageNodeSelectionPopover>
         )}
-        <ContextMenu.Root>
-          <ContextMenu.Trigger>
-            <ImageNodeBody
-                imageNodeId={id}
-                layerIds={data.layerIds}
-                sourceWidth={data.sourceSize.w}
-                sourceHeight={data.sourceSize.h}
-                displayWidth={displayW}
-                displayHeight={displayH}
-                bypassAdjustments={compareHeld}
-              />
-          </ContextMenu.Trigger>
-          <ContextMenu.Portal>
-            <ContextMenu.Content className="overlay p-1 min-w-[140px] z-50">
-              {renderItems(ContextMenu.Item)}
-            </ContextMenu.Content>
-          </ContextMenu.Portal>
-        </ContextMenu.Root>
+        <div className="relative">
+          <ContextMenu.Root>
+            <ContextMenu.Trigger>
+              <ImageNodeBody
+                  imageNodeId={id}
+                  layerIds={data.layerIds}
+                  sourceWidth={data.sourceSize.w}
+                  sourceHeight={data.sourceSize.h}
+                  displayWidth={displayW}
+                  displayHeight={displayH}
+                  bypassAdjustments={compareHeld}
+                />
+            </ContextMenu.Trigger>
+            <ContextMenu.Portal>
+              <ContextMenu.Content className="overlay p-1 min-w-[140px] z-50">
+                {renderItems(ContextMenu.Item)}
+              </ContextMenu.Content>
+            </ContextMenu.Portal>
+          </ContextMenu.Root>
+          {currentMode === 'objects' && (
+            <SegmentHitLayer
+              imageNodeId={id}
+              widthPx={displayW}
+              heightPx={displayH}
+            />
+          )}
+        </div>
         {chromeVisible && (
           <div
             className="flex items-center gap-1.5 px-2 py-1 text-[9px] text-text-secondary bg-surface border-t border-separator"

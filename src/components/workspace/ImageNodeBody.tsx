@@ -36,7 +36,10 @@ export function ImageNodeBody({
     <canvas
       ref={canvasRef}
       aria-label="Image node body"
-      className="bg-surface-secondary border-y border-separator"
+      // No border + no focus ring: the chrome strips already separate the
+      // canvas from the header/footer, and browser-default focus outlines
+      // on canvas elements read as a stray hardcoded blue rectangle.
+      className="bg-surface-secondary outline-none focus:outline-none"
       style={{ display: 'block' }}
     />
   );

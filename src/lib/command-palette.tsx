@@ -1,9 +1,16 @@
 import type { ComponentType } from 'react';
+import { Sun, Moon, Monitor, Square } from 'lucide-react';
 import type { ToolDefinition } from '@/types/tool';
 import type { ImageNodeState } from '@/types/workspace';
 import type { Layer } from '@/store/layer-slice';
 import { loadRegistry } from '@/lib/registry/loader';
 import { createMaterialIcon } from '@/components/ui/MaterialIcon';
+import {
+  usePreferencesStore,
+  ACCENT_COLORS,
+  type ThemeMode,
+  type RadiusScale,
+} from '@/store/preferences-store';
 
 export type PaletteCommandKind = 'op' | 'preset' | 'tool' | 'menu' | 'ai';
 
@@ -197,6 +204,90 @@ export function buildMenuActionSections(actions: MenuActionLike[]): PaletteSecti
     });
   }
   return out;
+}
+
+// ─── Preferences sections (theme / accent / radius) ──────────────────
+//
+// The dedicated PreferencesPage modal was replaced by these palette commands
+// so the user keeps a single search-driven surface. Each command sets a
+// single preference value via `usePreferencesStore` and stays available for
+// Cmd+K filtering ("theme dark", "accent purple", "radius small").
+//
+// Accent swatches are tiny CSS components built per color so the row reads
+// as a swatch+label without pulling in a Material icon font glyph.
+
+function _accentIconFor(color: string): ComponentType<{ size?: number; className?: string }> {
+  return function AccentSwatchIcon({ size = 12, className = '' }) {
+    return (
+      <span
+        aria-hidden
+        className={`inline-block rounded-full ${className}`}
+        style={{ width: size, height: size, background: color }}
+      />
+    );
+  };
+}
+
+const THEME_OPTIONS: { mode: ThemeMode; label: string; icon: ComponentType<{ size?: number; className?: string }> }[] = [
+  { mode: 'light',  label: 'Light',  icon: Sun },
+  { mode: 'dark',   label: 'Dark',   icon: Moon },
+  { mode: 'system', label: 'System', icon: Monitor },
+];
+
+const RADIUS_OPTIONS: { scale: RadiusScale; label: string }[] = [
+  { scale: 'none',   label: 'None' },
+  { scale: 'small',  label: 'Small' },
+  { scale: 'medium', label: 'Medium' },
+  { scale: 'large',  label: 'Large' },
+  { scale: 'full',   label: 'Full' },
+];
+
+export function buildPreferencesSections(): PaletteSection[] {
+  const sections: PaletteSection[] = [];
+
+  sections.push({
+    id: 'prefs:theme',
+    title: 'Theme',
+    commands: THEME_OPTIONS.map(({ mode, label, icon }) => ({
+      id: `prefs:theme:${mode}`,
+      kind: 'menu' as const,
+      label: `Theme: ${label}`,
+      description: 'Appearance',
+      icon,
+      aliases: ['theme', 'appearance', label.toLowerCase()],
+      run: () => usePreferencesStore.getState().setThemeMode(mode),
+    })),
+  });
+
+  sections.push({
+    id: 'prefs:accent',
+    title: 'Accent',
+    commands: ACCENT_COLORS.map((c) => ({
+      id: `prefs:accent:${c.value}`,
+      kind: 'menu' as const,
+      label: `Accent: ${c.name}`,
+      description: 'Appearance',
+      icon: _accentIconFor(c.value),
+      aliases: ['accent', 'color', 'colour', c.name.toLowerCase()],
+      run: () => usePreferencesStore.getState().setAccentColor(c.value),
+    })),
+  });
+
+  sections.push({
+    id: 'prefs:radius',
+    title: 'Radius',
+    commands: RADIUS_OPTIONS.map(({ scale, label }) => ({
+      id: `prefs:radius:${scale}`,
+      kind: 'menu' as const,
+      label: `Radius: ${label}`,
+      description: 'Appearance',
+      icon: Square,
+      aliases: ['radius', 'corners', 'rounded', label.toLowerCase()],
+      run: () => usePreferencesStore.getState().setRadiusScale(scale),
+    })),
+  });
+
+  return sections;
 }
 
 /** Flatten sections to a single array for keyboard arrow navigation. */

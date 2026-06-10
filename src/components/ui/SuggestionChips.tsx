@@ -34,7 +34,7 @@ export function SuggestionChips() {
   // a tidy column.
   return (
     <div
-      className="flex flex-col items-center gap-2"
+      className="flex flex-col items-center gap-1"
       role="region"
       aria-label="AI suggestions awaiting approval"
     >

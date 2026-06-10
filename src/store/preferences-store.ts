@@ -38,7 +38,6 @@ export interface PreferencesState {
   themeMode: ThemeMode;
   accentColor: string;
   radiusScale: RadiusScale;
-  showPreferences: boolean;
   rightSidebarCollapsed: boolean;
   rightSidebarWidth: number;
   rightSidebarTab: RightSidebarTab;
@@ -47,7 +46,6 @@ export interface PreferencesState {
   setThemeMode: (mode: ThemeMode) => void;
   setAccentColor: (color: string) => void;
   setRadiusScale: (scale: RadiusScale) => void;
-  setShowPreferences: (show: boolean) => void;
   toggleRightSidebar: () => void;
   setRightSidebarWidth: (w: number) => void;
   setRightSidebarTab: (tab: RightSidebarTab) => void;
@@ -71,7 +69,6 @@ export const usePreferencesStore = create<PreferencesState>()(
       themeMode: 'system',
       accentColor: '#0071e3',
       radiusScale: 'medium',
-      showPreferences: false,
       rightSidebarCollapsed: false,
       rightSidebarWidth: 264,
       rightSidebarTab: 'inspector',
@@ -80,7 +77,6 @@ export const usePreferencesStore = create<PreferencesState>()(
       setThemeMode: (mode) => set({ themeMode: mode }),
       setAccentColor: (color) => set({ accentColor: color }),
       setRadiusScale: (scale) => set({ radiusScale: scale }),
-      setShowPreferences: (show) => set({ showPreferences: show }),
       toggleRightSidebar: () =>
         set((s) => ({ rightSidebarCollapsed: !s.rightSidebarCollapsed })),
       setRightSidebarWidth: (w) =>

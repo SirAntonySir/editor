@@ -21,9 +21,10 @@ describe('WidgetShellHeader', () => {
     expect(screen.getByText('Warm up shadows')).toBeInTheDocument();
   });
 
-  it('renders muted dot for tool variant', () => {
+  it('omits any tool-invoked badge for tool variant (header stays minimal)', () => {
     render(<WidgetShellHeader widget={makeToolWidget()} expanded={false} dirty={false} hidden={false} onToggle={() => {}} onClose={() => {}} onToggleHidden={() => {}} />);
-    expect(screen.getByLabelText('Tool-invoked widget')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Tool-invoked widget')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('AI-composed widget')).not.toBeInTheDocument();
   });
 
   it('shows the scope chip with region label when anchored', () => {
@@ -31,9 +32,9 @@ describe('WidgetShellHeader', () => {
     expect(screen.getByText('sky')).toBeInTheDocument();
   });
 
-  it('shows Global when scope is global', () => {
+  it('hides the scope chip when scope is global (default scope adds no info)', () => {
     render(<WidgetShellHeader widget={makeGlobalWidget()} expanded={false} dirty={false} hidden={false} onToggle={() => {}} onClose={() => {}} onToggleHidden={() => {}} />);
-    expect(screen.getByText('Global')).toBeInTheDocument();
+    expect(screen.queryByText(/global/i)).not.toBeInTheDocument();
   });
 
   it('never renders the legacy "Bindings edited" dot, regardless of dirty', () => {
@@ -79,7 +80,7 @@ describe('WidgetShellHeader', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('renders an eye button right of the scope chip and before the chevron', () => {
+  it('renders an eye button right of the scope chip', () => {
     render(
       <WidgetShellHeader
         widget={makeAiWidget()}
@@ -93,15 +94,16 @@ describe('WidgetShellHeader', () => {
     );
     const btn = screen.getByRole('button', { name: /hide widget/i });
     expect(btn).toBeInTheDocument();
-    // Position check: scope chip → eye → chevron.
+    // Position check: scope chip → eye. The chevron is gone — the body's
+    // visibility now is the expand cue.
     const header = btn.closest('[aria-label="Toggle widget"]') as HTMLElement;
     const children = Array.from(header.children) as HTMLElement[];
     const scopeIdx = children.findIndex((c) => c.textContent?.toLowerCase().includes('sky'));
     const eyeIdx = children.indexOf(btn);
-    const chevIdx = children.findIndex((c) => c.textContent === '›' || c.textContent === '⌄');
     expect(scopeIdx).toBeGreaterThanOrEqual(0);
     expect(eyeIdx).toBeGreaterThan(scopeIdx);
-    expect(chevIdx).toBeGreaterThan(eyeIdx);
+    // Chevron must not appear anywhere.
+    expect(children.some((c) => c.textContent === '›' || c.textContent === '⌄')).toBe(false);
   });
 
   it('eye button aria-label flips between Hide and Show based on hidden prop', () => {

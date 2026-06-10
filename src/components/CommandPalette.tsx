@@ -16,6 +16,7 @@ import {
   buildAdjustmentSections,
   buildPresetSections,
   buildMenuActionSections,
+  buildPreferencesSections,
   filterSections,
   flattenSections,
   imageNodeLabel,
@@ -27,10 +28,13 @@ import {
 
 /** Built once at module load — registry is static after Vite eager-glob.
  *  Menu actions are added per-render inside the component because their
- *  closures depend on hook state (canUndo, hasLayers, ...). */
+ *  closures depend on hook state (canUndo, hasLayers, ...). Preferences
+ *  commands sit here too — their `run` closures pull live state at click
+ *  time, so they don't need to be rebuilt on store changes. */
 const STATIC_REGISTRY_SECTIONS: PaletteSection[] = [
   ...buildAdjustmentSections(),
   ...buildPresetSections(),
+  ...buildPreferencesSections(),
 ];
 
 export function CommandPalette() {

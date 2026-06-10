@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, Sparkles, X } from 'lucide-react';
 import type { Widget } from '@/types/widget';
 import { loadRegistry } from '@/lib/registry/loader';
 
@@ -25,20 +25,29 @@ function isAiVariant(widget: Widget): boolean {
   return k === 'mcp_user_prompt' || k === 'mcp_autonomous' || k === 'refine' || k === 'repeat';
 }
 
-function scopeLabel(widget: Widget): string {
+function scopeLabel(widget: Widget): string | null {
   const s = widget.scope;
-  if (s.kind === 'global') return 'Global';
+  // Only surface a scope chip for scopes that aren't the default 'global' —
+  // 90 % of widgets sit at global and the chip just adds noise.
+  if (s.kind === 'global') return null;
   if (s.kind === 'named_region') return s.label;
   if (s.kind === 'mask:proposed') return s.label;
   if (s.kind === 'mask') return s.mask_id.slice(0, 6);
-  if (s.kind === 'image_node') return `Image (${s.layer_ids.length} layer${s.layer_ids.length === 1 ? '' : 's'})`;
-  return '—';
+  if (s.kind === 'image_node') return `Image (${s.layer_ids.length})`;
+  return null;
 }
 
-function scopeDotClass(widget: Widget): string {
-  return widget.scope.kind === 'global' ? 'bg-text-secondary' : 'bg-orange-500';
-}
-
+/**
+ * Slim header: AI badge (only for AI widgets) · title · scope chip (only
+ * when non-global) · eye · close (×, only when expanded).
+ *
+ * The previous header showed a grip-dots column, a `·` tool placeholder,
+ * a permanent "Global" scope chip, and a chevron — all of which doubled
+ * affordances already conveyed elsewhere (the whole row is the drag handle,
+ * the body's visibility communicates expand state, etc.). They've been
+ * removed; the row stays draggable via the surrounding cursor-grab and
+ * the body's expand state is the disclosure cue.
+ */
 export function WidgetShellHeader({
   widget,
   expanded,
@@ -53,6 +62,7 @@ export function WidgetShellHeader({
   // provenance colour.
   void dirty;
   const ai = isAiVariant(widget);
+  const scope = scopeLabel(widget);
   return (
     <div
       role="button"
@@ -65,35 +75,24 @@ export function WidgetShellHeader({
           onToggle();
         }
       }}
-      className="workspace-drag-handle flex items-center gap-1.5 px-1.5 py-1 cursor-grab active:cursor-grabbing select-none"
+      className="workspace-drag-handle flex items-center gap-2 px-2 py-1.5 cursor-grab active:cursor-grabbing select-none"
     >
-      <span className="grip flex flex-col gap-px pr-1 opacity-55" aria-hidden>
-        {[0,1,2].map((r) => (
-          <span key={r} className="flex gap-px">
-            <i className="w-[2px] h-[2px] rounded-full bg-text-secondary" />
-            <i className="w-[2px] h-[2px] rounded-full bg-text-secondary" />
-          </span>
-        ))}
-      </span>
-      {ai ? (
+      {ai && (
         <Sparkles
           size={12}
           className="shrink-0 text-ai"
           aria-label="AI-composed widget"
         />
-      ) : (
-        <span
-          aria-label="Tool-invoked widget"
-          className="inline-flex items-center text-[8px] font-semibold bg-surface-secondary text-text-secondary px-1 rounded-[3px] leading-none py-px"
-        >
-          ·
+      )}
+      <span className="text-[11px] font-medium flex-1 min-w-0 truncate text-text-primary widget-title-ellipsis">
+        {resolveTitle(widget)}
+      </span>
+      {scope && (
+        <span className="inline-flex items-center gap-1 text-[9px] text-text-secondary bg-surface-secondary border border-separator rounded-[3px] px-1.5 py-px leading-[1.4]">
+          <span className="w-[5px] h-[5px] rounded-full bg-orange-500" />
+          {scope}
         </span>
       )}
-      <span className="text-[11px] font-medium flex-1 min-w-0 truncate text-text-primary widget-title-ellipsis">{resolveTitle(widget)}</span>
-      <span className="inline-flex items-center gap-1 text-[9px] text-text-secondary bg-surface-secondary border border-separator rounded-[3px] px-1.5 py-px leading-[1.4]">
-        <span className={`w-[5px] h-[5px] rounded-full ${scopeDotClass(widget)}`} />
-        {scopeLabel(widget)}
-      </span>
       <button
         type="button"
         aria-label={hidden ? 'Show widget' : 'Hide widget'}
@@ -102,14 +101,14 @@ export function WidgetShellHeader({
       >
         {hidden ? <EyeOff size={11} aria-hidden /> : <Eye size={11} aria-hidden />}
       </button>
-      <span className="text-text-secondary text-[11px] leading-none px-0.5" aria-hidden>{expanded ? '⌄' : '›'}</span>
       {expanded && (
         <button
+          type="button"
           aria-label="Close widget"
           onClick={(e) => { e.stopPropagation(); onClose(); }}
-          className="text-text-secondary hover:text-text-primary text-[13px] leading-none px-0.5"
+          className="inline-flex items-center justify-center text-text-secondary hover:text-text-primary px-0.5"
         >
-          ×
+          <X size={11} aria-hidden />
         </button>
       )}
     </div>

@@ -25,7 +25,7 @@ export function FloatingDock() {
     <motion.div
       layout
       className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex flex-col
-        items-center gap-2 pointer-events-none"
+        items-center gap-1 pointer-events-none"
       style={{ marginLeft: -sidebarOffset / 2 }}
       transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }}
     >

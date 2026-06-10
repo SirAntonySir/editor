@@ -82,11 +82,11 @@ function buildShortcuts(): ShortcutEntry[] {
   shortcuts.push({
     key: ',',
     ctrl: true,
-    action: () => {
-      const prefs = usePreferencesStore.getState();
-      prefs.setShowPreferences(!prefs.showPreferences);
-    },
-    label: 'Preferences',
+    // Preferences now live inside the command palette (Theme / Accent /
+    // Radius are searchable entries). Cmd+, opens the palette so users land
+    // one keystroke away from any setting.
+    action: () => window.dispatchEvent(new CustomEvent('spawn-palette:open')),
+    label: 'Preferences (in palette)',
   });
 
   shortcuts.push({

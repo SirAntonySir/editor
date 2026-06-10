@@ -20,7 +20,6 @@ import { useFileIO } from '@/hooks/useFileIO';
 import { useCanvasZoom } from '@/hooks/useCanvasZoom';
 import { useImageTransform } from '@/hooks/useImageTransform';
 import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';
-import { usePreferencesStore } from '@/store/preferences-store';
 import { editorDocument } from '@/core/document';
 import { revertToOriginal } from '@/lib/revert';
 import { spawnRegistryOp } from '@/lib/toolrail-spawn';
@@ -108,8 +107,9 @@ export function useMenuActions(): MenuAction[] {
       shortcut: ['mod', 'shift', 'Z'], disabled: !canRedo, run: () => editorDocument.redo() },
     { id: 'edit:revert', group: 'Edit', label: 'Revert to Original',
       shortcut: ['mod', 'alt', 'R'], disabled: !hasLayers, run: revertToOriginal },
-    { id: 'edit:prefs',  group: 'Edit', label: 'Preferences…',
-      shortcut: ['mod', ','], run: () => usePreferencesStore.getState().setShowPreferences(true) },
+    // Preferences live inside the palette now — see `buildPreferencesSections`.
+    // The legacy modal entry has been removed; Cmd+, just opens the palette
+    // (`spawn-palette:open`) via the keyboard-shortcut layer.
 
     // ── Image ───────────────────────────────────────────────────────
     // Auto-tune: deterministic, mechanical-only (no LLM). Each spawns the

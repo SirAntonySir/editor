@@ -4,7 +4,6 @@ import { useSyncExternalStore } from 'react';
 import { Undo2, Redo2, RotateCcw } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { useEditorStore } from '@/store';
-import { usePreferencesStore } from '@/store/preferences-store';
 import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { revertToOriginal } from '@/lib/revert';
 import { editorDocument } from '@/core/document';
@@ -210,7 +209,7 @@ function EditMenu() {
             Deselect
           </Item>
           <Sep />
-          <Item keys={['mod', ',']} onSelect={() => usePreferencesStore.getState().setShowPreferences(true)}>
+          <Item keys={['mod', ',']} onSelect={() => window.dispatchEvent(new CustomEvent('spawn-palette:open'))}>
             Preferences...
           </Item>
         </Menubar.Content>

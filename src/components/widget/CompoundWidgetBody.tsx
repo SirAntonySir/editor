@@ -45,14 +45,16 @@ interface CompoundWidgetBodyProps {
  */
 export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
   const op = loadRegistry().ops[widget.op_id ?? ''];
-  // Defensive — ToolSection should only dispatch here for compound ops.
-  if (!op?.compound) return null;
 
-  const driverKey = op.compound.driver;
+  // All hooks must run unconditionally on every render, even when `op?.compound`
+  // is absent (the component returns null below in that case). Each hook body
+  // therefore guards on `op?.compound` and falls back to a safe default that
+  // is never consumed in the null branch.
+  const driverKey = op?.compound?.driver ?? '';
   const nodeType = widget.nodes[0]?.type ?? 'compound';
   const layerId = widget.nodes[0]?.layer_id ?? '';
 
-  const driverParam = op.params[driverKey];
+  const driverParam = op?.params[driverKey];
   const driverDefault = (driverParam?.default as number | undefined) ?? 0.5;
 
   const [position, setPosition] = useProcessingParam(
@@ -88,24 +90,15 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
   /** Bundle keys: union of anchor value keys, ordered by op.bindings declaration,
    *  excluding the driver so it doesn't appear as a card. */
   const bundleKeys = useMemo(() => {
+    if (!op?.compound) return [] as string[];
     const anchorKeys = new Set<string>();
-    for (const a of op.compound!.anchors) {
+    for (const a of op.compound.anchors) {
       for (const k of Object.keys(a.values)) anchorKeys.add(k);
     }
     return op.bindings
       .map((b) => b.param_key)
       .filter((k) => k !== driverKey && anchorKeys.has(k));
-  }, [op.bindings, op.compound, driverKey]);
-
-  function readValue(key: string): number {
-    if (optimisticBundle) {
-      const opt = optimisticBundle.bindings.find((b) => b.paramKey === key);
-      if (opt !== undefined && typeof opt.value === 'number') return opt.value;
-    }
-    const binding = bindingByKey.get(key);
-    if (binding && typeof binding.value === 'number') return binding.value;
-    return interpolated[key] ?? 0;
-  }
+  }, [op, driverKey]);
 
   // Dial drag: write an optimistic compound patch (renderer reads via canon key),
   // then debounced set_widget_param handled by useProcessingParam internally.
@@ -160,17 +153,32 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
 
   const labelByKey = useMemo(() => {
     const m: Record<string, string> = {};
+    if (!op) return m;
     for (const b of op.bindings) m[b.param_key] = b.label;
     return m;
-  }, [op.bindings]);
+  }, [op]);
 
   const unitByKey = useMemo(() => {
     const m: Record<string, string | undefined> = {};
+    if (!op) return m;
     for (const [k, p] of Object.entries(op.params)) m[k] = p.unit;
     return m;
-  }, [op.params]);
+  }, [op]);
 
-  const topology = op.compound?.topology ?? 'linear';
+  // Defensive — ToolSection should only dispatch here for compound ops.
+  if (!op?.compound) return null;
+
+  const topology = op.compound.topology ?? 'linear';
+
+  function readValue(key: string): number {
+    if (optimisticBundle) {
+      const opt = optimisticBundle.bindings.find((b) => b.paramKey === key);
+      if (opt !== undefined && typeof opt.value === 'number') return opt.value;
+    }
+    const binding = bindingByKey.get(key);
+    if (binding && typeof binding.value === 'number') return binding.value;
+    return interpolated[key] ?? 0;
+  }
 
   return (
     <div className="flex flex-col gap-2">

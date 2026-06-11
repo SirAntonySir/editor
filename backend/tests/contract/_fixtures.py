@@ -11,6 +11,8 @@ import numpy as np
 import pytest
 
 from app.schemas.image_context import CandidateRegion, ImageContext
+# Internal type at backend/app/services/anthropic_client.py:201.
+from app.services.anthropic_client import _ContextSoftFields
 
 
 _CANNED_CONTEXT = ImageContext(
@@ -48,9 +50,6 @@ def fake_anthropic(monkeypatch):
         return _CANNED_CONTEXT.model_copy(deep=True)
 
     def _augment(*_args, **_kwargs):
-        # Internal type at backend/app/services/anthropic_client.py:201.
-        from app.services.anthropic_client import _ContextSoftFields
-
         return _ContextSoftFields(
             estimated_white_point=(0.5, 0.5, 0.5),
             wb_neutral_confidence=0.8,

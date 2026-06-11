@@ -7,7 +7,7 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 import localPlugin from './tools/eslint-rules/index.js'
 
 export default defineConfig([
-  globalIgnores(['dist', '.worktrees/**']),
+  globalIgnores(['dist', '.worktrees/**', '.claude/worktrees/**']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -41,6 +41,10 @@ export default defineConfig([
       'react-hooks/immutability': 'warn',
       'react-hooks/refs': 'warn',
       'react-hooks/set-state-in-effect': 'warn',
+      // React Compiler optimization skipped when manual memoization
+      // (useCallback/useMemo) can't be preserved. The compiler is advisory at
+      // this stage — keep visible without blocking the gate.
+      'react-hooks/preserve-manual-memoization': 'warn',
       // Overlaps in intent with editor-local/no-nested-component-definition
       // (kept at 'error'), but fires false-positives on legitimate registry
       // lookups (e.g. node-registry.tsx). Keep as 'warn' until P6 sweep.

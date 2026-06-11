@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import io
+import logging
 import os
 import time
 import uuid
+
+_log = logging.getLogger(__name__)
+
 
 import numpy as np
 from PIL import Image
@@ -16,6 +20,7 @@ from app.schemas.image_context import CandidateRegion
 from app.schemas.widget import MaskRecord
 from app.state.context_stats import compute_cheap_pass
 from app.state.document import SessionDocument
+from app.api.analyze import _mask_to_paths
 from app.tools.atomic.select_by_point import _encode_mask_png_b64
 from app.tools.base import BackendTool, ToolPermissions
 
@@ -194,7 +199,6 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
             problems=soft.problems,
         )
         doc.image_context = ctx
-        deps.get_session_store().set_context(doc.session_id, ctx.model_dump(mode="json"))
         # Stream the soft-fields delta — completes Color (white_point /
         # WB confidence), populates Problems, and finalises region_stats so
         # the Regions section gains its skin/sky hints.
@@ -210,8 +214,15 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
 
         # Region mask precompute only runs when SAM is enabled (future re-enable).
         # While SAM is off there is no "Regions" phase at all.
+        # Mutate ctx.candidate_regions in place — `ctx` is what the tool
+        # returns AND what we persist to the session store below, so writing
+        # back to it (rather than the orphan base_ctx copy) is what makes
+        # mask_png_base64 / paths reach the frontend.
         if sam_ok:
-            await _precompute_region_masks(doc, base_ctx.candidate_regions, sam, w_img, h_img)
+            await _precompute_region_masks(doc, ctx.candidate_regions, sam, w_img, h_img)
+        # Persist AFTER precompute so the session-store snapshot also carries
+        # the per-region paths + mask_png_base64.
+        deps.get_session_store().set_context(doc.session_id, ctx.model_dump(mode="json"))
 
         doc._emit_phase_started("widget_mint", index=4, total=TOTAL_PHASES)
         start = time.monotonic()
@@ -267,8 +278,17 @@ async def _precompute_region_masks(
                 label=region.label,
             )
             doc.add_mask(record)
+            # Mirror the mask onto the region itself. masks_index already
+            # carries the PNG, but the frontend's object-mode pipeline
+            # (registerRegionPaths → SegmentHitLayer) reads from
+            # `candidate_regions[i]` directly: mask_png_base64 → maskRef in
+            # maskStore; paths → polygon hit-test in SegmentHitLayer. Without
+            # this, Object mode lights up the counter but no region is
+            # hoverable or clickable.
+            region.mask_png_base64 = png_b64
+            region.paths = _mask_to_paths(mask)
         except Exception as err:
-            print(f"[mask_precompute] failed for region {region.label!r}: {err}")
+            _log.exception("[mask_precompute] failed for region %r: %s", region.label, err)
         finally:
             done_count["n"] += 1
             doc._emit_phase_progress(

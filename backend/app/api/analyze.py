@@ -33,6 +33,13 @@ _POLY_EPSILON_FRAC = 0.0015
 # Drop any contour smaller than this many pixels — SAM occasionally produces
 # stray single-pixel components on edges.
 _MIN_CONTOUR_AREA = 50.0
+# Per-region noise filter: keep the largest polygon and any additional
+# polygon whose area is at least this fraction of the largest. Without it,
+# regions like "church facade lower" emit 30+ tiny polygons (holes between
+# windows, between bricks), all rendered as overlay outlines. Disjoint
+# pieces of comparable size — e.g. sky split by a tall tower — survive
+# because they sit well above the threshold.
+_MIN_POLY_AREA_FRAC = 0.25
 
 # Feature flag: run the Claude-driven pass-2 refinement (annotated composite
 # review + per-region accept/refine/drop + re-run SAM with richer prompts).
@@ -111,22 +118,35 @@ def _mask_to_paths(mask: np.ndarray) -> list[list[list[float]]]:
     Uses cv2.findContours (external contours only, no holes) followed by
     Douglas-Peucker simplification. Coordinates are normalised to 0–1 against
     the mask's own dimensions so the frontend can rescale to any preview size.
-    Polygons smaller than `_MIN_CONTOUR_AREA` pixels are dropped.
+    Polygons are filtered twice: first by absolute area (`_MIN_CONTOUR_AREA`),
+    then relative to the largest polygon in the mask (`_MIN_POLY_AREA_FRAC`).
+    The relative pass collapses noisy per-region clutter — e.g. a facade
+    region whose mask has 30+ small holes between architectural details — to
+    its dominant connected component(s).
     """
     h, w = mask.shape[:2]
     mask_u8 = (mask.astype(np.uint8)) * 255 if mask.dtype == bool else mask.astype(np.uint8)
     contours, _ = cv2.findContours(mask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     epsilon = max(1.0, _POLY_EPSILON_FRAC * max(w, h))
-    paths: list[list[list[float]]] = []
+    candidates: list[tuple[float, list[list[float]]]] = []
     for c in contours:
-        if cv2.contourArea(c) < _MIN_CONTOUR_AREA:
+        area = float(cv2.contourArea(c))
+        if area < _MIN_CONTOUR_AREA:
             continue
         simplified = cv2.approxPolyDP(c, epsilon, closed=True)
         if len(simplified) < 3:
             continue
         poly = [[float(p[0][0]) / w, float(p[0][1]) / h] for p in simplified]
-        paths.append(poly)
-    return paths
+        candidates.append((area, poly))
+    if not candidates:
+        return []
+    max_area = max(area for area, _ in candidates)
+    threshold = max_area * _MIN_POLY_AREA_FRAC
+    # Sort by area descending so the dominant polygon always comes first —
+    # matters for the frontend tooltip / centroid logic which currently
+    # takes the first polygon of a region.
+    candidates.sort(key=lambda t: -t[0])
+    return [poly for area, poly in candidates if area >= threshold]
 
 
 def _denormalise_point(p: list[float], w: int, h: int) -> tuple[float, float]:

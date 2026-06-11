@@ -10,7 +10,7 @@ import type { RegistryControlProps } from './Slider';
  */
 
 /** Build a warm→cool gradient matching approximate blackbody colours */
-function kelvinGradient(): string {
+export function kelvinGradient(): string {
   // Approximate perceptual stops across 2000–12000K
   const stops = [
     'hsl(28 100% 55%)',   // ~2000K — deep amber
@@ -23,7 +23,7 @@ function kelvinGradient(): string {
   return `linear-gradient(90deg, ${stops.join(', ')})`;
 }
 
-export function KelvinStrip({ schema, value, onChange, label, disabled }: RegistryControlProps) {
+export function KelvinStrip({ schema, value, onChange, label, disabled, pinSlot }: RegistryControlProps) {
   if (schema.type !== 'scalar' || !schema.range) {
     throw new Error(`KelvinStrip needs a scalar param with range, got ${schema.type}`);
   }
@@ -42,6 +42,7 @@ export function KelvinStrip({ schema, value, onChange, label, disabled }: Regist
         trackGradient={kelvinGradient()}
         onChange={(v) => onChange(v)}
         formatValue={(v) => `${Math.round(v)}K`}
+        pinSlot={pinSlot}
       />
     </div>
   );

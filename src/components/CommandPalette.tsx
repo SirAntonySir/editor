@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Loader2, AlertCircle, Sparkles, ArrowRight, Image as ImageIcon, Command as CommandIcon, X as XIcon } from 'lucide-react';
@@ -79,9 +79,12 @@ export function CommandPalette() {
     [menuActions],
   );
 
-  // Filter sections by query. The AI row is synthesised separately so it
-  // always appears last when the query is non-empty.
-  const filteredSections = useMemo(
+  // Filter sections by query. Result is partitioned: `primary` holds rows
+  // whose title (or alias / op-id) matched, `secondary` holds rows that only
+  // survived on a description match. The AI "Send as a prompt" row is
+  // synthesised separately and sits *between* the two groups, so the user
+  // sees: tool titles → AI fallback → description-only matches.
+  const { primary: primarySections, secondary: secondarySections } = useMemo(
     () => filterSections(allSections, query),
     [allSections, query],
   );
@@ -97,14 +100,19 @@ export function CommandPalette() {
     [query],
   );
 
-  // Flat command list for arrow navigation. AI lives at the end of the
-  // flattened array so ArrowDown walks past Adjustments / Presets first.
+  // Flat command list for arrow navigation. Order mirrors the rendered
+  // layout: primary rows → AI row → secondary (description-only) rows.
   const flat = useMemo<PaletteCommand[]>(
     () => {
-      const flatItems = flattenSections(filteredSections);
-      return aiCommand ? [...flatItems, aiCommand] : flatItems;
+      const primaryFlat = flattenSections(primarySections);
+      const secondaryFlat = flattenSections(secondarySections);
+      return [
+        ...primaryFlat,
+        ...(aiCommand ? [aiCommand] : []),
+        ...secondaryFlat,
+      ];
     },
-    [filteredSections, aiCommand],
+    [primarySections, secondarySections, aiCommand],
   );
 
   const nodeIds = useMemo(() => Object.keys(imageNodes), [imageNodes]);
@@ -299,17 +307,32 @@ export function CommandPalette() {
 
   // Flat index lookup so each rendered section can know which absolute
   // index its first command sits at — needed to mark the right row as
-  // `active` against the keyboard's `activeIndex`.
-  const sectionStartIndices = useMemo(() => {
+  // `active` against the keyboard's `activeIndex`. Indices walk in render
+  // order: primary sections, then AI row, then secondary sections.
+  const primaryStartIndices = useMemo(() => {
     const map: number[] = [];
     let cursor = 0;
-    for (const s of filteredSections) {
+    for (const s of primarySections) {
       map.push(cursor);
       cursor += s.commands.length;
     }
     return map;
-  }, [filteredSections]);
-  const aiStartIndex = flat.length - 1;
+  }, [primarySections]);
+  const primaryCount = useMemo(
+    () => primarySections.reduce((n, s) => n + s.commands.length, 0),
+    [primarySections],
+  );
+  const aiStartIndex = aiCommand ? primaryCount : -1;
+  const secondaryBase = primaryCount + (aiCommand ? 1 : 0);
+  const secondaryStartIndices = useMemo(() => {
+    const map: number[] = [];
+    let cursor = secondaryBase;
+    for (const s of secondarySections) {
+      map.push(cursor);
+      cursor += s.commands.length;
+    }
+    return map;
+  }, [secondarySections, secondaryBase]);
 
   // Icon for the search bar: shifts to a violet Sparkles when the user has
   // typed something (it's now an AI prompt), to a spinner when in-flight.
@@ -417,11 +440,11 @@ export function CommandPalette() {
                     container doesn't give it one (the symptom: rows just
                     overflow past the dialog bottom instead of scrolling). */}
                 <div className="flex-1 min-h-0 overflow-y-auto py-1.5">
-                  {filteredSections.map((section, sIdx) => (
+                  {primarySections.map((section, sIdx) => (
                     <div key={section.id}>
                       <SectionHeader title={section.title} />
                       {section.commands.map((cmd, cIdx) => {
-                        const absIdx = sectionStartIndices[sIdx] + cIdx;
+                        const absIdx = primaryStartIndices[sIdx] + cIdx;
                         return (
                           <CommandRow
                             key={cmd.id}
@@ -443,6 +466,22 @@ export function CommandPalette() {
                       />
                     </>
                   )}
+                  {secondarySections.map((section, sIdx) => (
+                    <div key={`sec:${section.id}`}>
+                      <SectionHeader title={section.title} />
+                      {section.commands.map((cmd, cIdx) => {
+                        const absIdx = secondaryStartIndices[sIdx] + cIdx;
+                        return (
+                          <CommandRow
+                            key={cmd.id}
+                            command={cmd}
+                            active={absIdx === activeIndex}
+                            onSelect={() => run(cmd)}
+                          />
+                        );
+                      })}
+                    </div>
+                  ))}
                   {flat.length === 0 && (
                     <div className="px-3.5 py-3 text-xs text-text-secondary">No matches.</div>
                   )}
@@ -535,7 +574,7 @@ function SectionHeader({ title, tone = 'default' }: { title: string; tone?: 'def
   const aiTone = tone === 'ai';
   return (
     <div
-      className={`flex items-center gap-1.5 text-[9px] uppercase tracking-wide px-3.5 py-1 mt-1
+      className={`flex items-center gap-1.5 text-[9px] uppercase tracking-wide px-3.5 py-0.5 mt-0.5
         ${aiTone ? 'text-[var(--color-ai)]' : 'text-text-secondary'}`}
     >
       {aiTone && <Sparkles size={9} className="ai-glow-pulse" />}
@@ -557,18 +596,26 @@ function CommandRow({
   const isAi = command.kind === 'ai';
   const isMenu = command.kind === 'menu';
   const disabled = !!command.disabled;
+  const ref = useRef<HTMLButtonElement>(null);
+  // Keep the keyboard-active row inside the scroll viewport. `block: 'nearest'`
+  // is the right default — it only scrolls when the row is actually off-screen,
+  // so clicking a mid-list row doesn't jump the list.
+  useEffect(() => {
+    if (active && ref.current) ref.current.scrollIntoView({ block: 'nearest' });
+  }, [active]);
   return (
     <button
+      ref={ref}
       type="button"
       onClick={disabled ? undefined : onSelect}
       disabled={disabled}
-      className={`flex w-full items-center gap-2.5 px-3.5 py-2 text-left transition-colors
+      className={`flex w-full items-center gap-2.5 px-3.5 py-1.5 text-left transition-colors
         ${active && !disabled ? 'bg-surface-secondary' : 'hover:bg-surface-secondary'}
         ${disabled ? 'opacity-40 cursor-not-allowed' : ''}
         ${isAi ? 'border-l-2 border-[var(--color-ai)]' : ''}`}
     >
       <span
-        className={`w-4 flex justify-center ${isAi ? 'text-[var(--color-ai)]' : 'text-text-secondary'}`}
+        className={`w-4 flex-none flex justify-center ${isAi ? 'text-[var(--color-ai)]' : 'text-text-secondary'}`}
       >
         {isAi ? (
           <Sparkles size={14} className="ai-glow-pulse" />
@@ -583,16 +630,20 @@ function CommandRow({
         )}
       </span>
       <span
-        className={`text-xs flex-none ${isAi ? 'text-[var(--color-ai)] font-medium' : 'text-text-primary'}`}
+        className={`text-xs truncate min-w-0 ${isAi ? 'text-[var(--color-ai)] font-medium' : 'text-text-primary'}`}
       >
         {command.label}
       </span>
+      {/* Description sits flush right — short category tags ("Appearance",
+          "Send as a prompt") read as a right-rail label rather than getting
+          lost between the label and the shortcut chip. */}
       {command.description && (
-        <span className="text-[10px] text-text-secondary truncate min-w-0">
+        <span className="ml-auto flex-none text-[10px] text-text-secondary truncate max-w-[50%] text-right">
           {command.description}
         </span>
       )}
-      {/* Shortcut chip pushes itself flush right via Kbd's `ml-auto`. */}
+      {/* Kbd has `ml-auto` built in, which still pins it right when no
+          description is present. */}
       {command.shortcut && <Kbd keys={command.shortcut} />}
     </button>
   );

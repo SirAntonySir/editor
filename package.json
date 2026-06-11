@@ -6,7 +6,7 @@
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
-    "dev:backend": "cd backend && source .venv/bin/activate && uvicorn app.main:app --reload --host 127.0.0.1 --port 8787",
+    "dev:backend": "cd backend && source .venv/bin/activate && ANALYZE_SAM=1 uvicorn app.main:app --reload --host 127.0.0.1 --port 8787",
     "electron:dev": "concurrently -k -n vite,electron -c cyan,magenta \"vite\" \"wait-on tcp:5173 && unset ELECTRON_RUN_AS_NODE && electron .\"",
     "electron:build": "unset ELECTRON_RUN_AS_NODE && npm run build && electron-builder",
     "build": "tsc -b && vite build",

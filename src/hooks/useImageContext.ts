@@ -7,6 +7,7 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { pixelStore } from '@/core/pixel-store';
 import { maskStore } from '@/core/mask-store';
 import { maskPngBase64ToBytes } from '@/lib/sam/sam-client';
+import { ImageContextSchema } from '@/lib/image-context-schema';
 import type { ImageContext, RegionPolygon } from '@/types/image-context';
 
 const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
@@ -216,10 +217,14 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
         set({ status: 'error', error: envelope.error?.message ?? 'analyze failed' });
         return;
       }
-      // The tool's _Output is the EnrichedImageContext directly. Cast
-      // matches the legacy `analyzeImage` return shape so downstream
-      // (registerRegionPaths, useAiSession.context consumers) is unchanged.
-      const context = envelope.output as unknown as ImageContext;
+      // The tool's _Output is the backend EnrichedImageContext serialized
+      // by pydantic — snake_case fields (`candidate_regions`,
+      // `mask_png_base64`, …). Run it through ImageContextSchema so the
+      // downstream camelCase ImageContext consumers (useAiSession.context,
+      // ObjectModeFooter's `candidateRegions.length`, registerRegionPaths)
+      // see the right field names. A bare cast leaves `candidateRegions`
+      // undefined, which silently broke Object mode.
+      const context = ImageContextSchema.parse(envelope.output);
       console.log('[ImageContext]', context);
       if (activeLayerId) {
         await registerRegionPaths(context, activeLayerId);

@@ -144,28 +144,129 @@ export function buildPresetSections(): PaletteSection[] {
   return sections;
 }
 
-/** Apply a query to a list of sections — drops items that don't match and
- *  prunes empty sections. Matching is case-insensitive substring on label,
- *  description, op/preset id, and any aliases (so users can search "get
- *  context" → matches the Analyze action). */
-export function filterSections(sections: PaletteSection[], query: string): PaletteSection[] {
+/** Levenshtein edit distance with an early-out cap. Returns `maxDist + 1`
+ *  once the running row minimum exceeds the cap, so callers can treat any
+ *  result `> maxDist` as "too far". */
+function _levenshtein(a: string, b: string, maxDist: number): number {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > maxDist) return maxDist + 1;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const n = b.length;
+  let prev = new Array<number>(n + 1);
+  let curr = new Array<number>(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    curr[0] = i;
+    let rowMin = curr[0];
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+      if (curr[j] < rowMin) rowMin = curr[j];
+    }
+    if (rowMin > maxDist) return maxDist + 1;
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
+}
+
+/** Score one (already-lowercased) haystack against one (already-lowercased)
+ *  needle. Higher = better. Tiers (descending):
+ *    1000  prefix match
+ *     800  substring match (later positions score lower)
+ *     400  subsequence — needle chars appear in order, consecutive bonus
+ *     200  Levenshtein within ⌊len/3⌋ on any whitespace/punct word
+ *       0  no match
+ */
+function _scoreField(haystack: string, needle: string): number {
+  if (!haystack || !needle) return 0;
+  const idx = haystack.indexOf(needle);
+  if (idx === 0) return 1000;
+  if (idx > 0) return 800 - Math.min(idx, 100);
+  let hi = 0, lastIdx = -2, bonus = 0, matched = true;
+  for (const c of needle) {
+    const f = haystack.indexOf(c, hi);
+    if (f < 0) { matched = false; break; }
+    if (f === lastIdx + 1) bonus += 3;
+    lastIdx = f;
+    hi = f + 1;
+  }
+  if (matched) return 400 + bonus;
+  if (needle.length >= 3) {
+    const maxDist = Math.max(1, Math.floor(needle.length / 3));
+    for (const word of haystack.split(/[\s\-_:.]+/)) {
+      if (word.length < 2) continue;
+      const d = _levenshtein(word, needle, maxDist);
+      if (d <= maxDist) return 200 - d * 10;
+    }
+  }
+  return 0;
+}
+
+/** Fuzzy score for a command against a needle. Tries each field separately
+ *  and returns the best match — so a typo in the label can still match the
+ *  op id or an alias. Returns 0 for no match. */
+export function fuzzyScore(haystacks: ReadonlyArray<string>, needle: string): number {
+  if (!needle) return 1;
+  const n = needle.toLowerCase();
+  let best = 0;
+  for (const h of haystacks) {
+    const s = _scoreField(h.toLowerCase(), n);
+    if (s > best) best = s;
+  }
+  return best;
+}
+
+/** Score one command against a needle with field-tiered weighting:
+ *    title   — the tool's display name (top priority by user request)
+ *    synonym — aliases + op/preset ids (treated as alt names for the title)
+ *    desc    — the human-prose description (lowest priority)
+ *  `primary` is true when the match came from title OR synonym; false when
+ *  the row only survived on a description match. The palette uses this to
+ *  shove description-only matches below the AI "Send as a prompt" row. */
+function _scoreCommand(c: PaletteCommand, needle: string): { score: number; primary: boolean } {
+  const title = _scoreField(c.label.toLowerCase(), needle);
+  if (title > 0) return { score: title * 100, primary: true };
+  let synonym = 0;
+  if (c.opId)     synonym = Math.max(synonym, _scoreField(c.opId.toLowerCase(), needle));
+  if (c.presetId) synonym = Math.max(synonym, _scoreField(c.presetId.toLowerCase(), needle));
+  for (const a of c.aliases ?? []) synonym = Math.max(synonym, _scoreField(a.toLowerCase(), needle));
+  if (synonym > 0) return { score: synonym * 10, primary: true };
+  const desc = c.description ? _scoreField(c.description.toLowerCase(), needle) : 0;
+  if (desc > 0) return { score: desc, primary: false };
+  return { score: 0, primary: false };
+}
+
+/** Apply a query to a list of sections, partitioning by match strength so
+ *  the palette can render: title-matches → AI fallback → description-only
+ *  matches. Within each bucket, rows sort by fuzzy score (prefix > substring
+ *  > subsequence > Levenshtein). Empty sections are pruned. */
+export function filterSections(
+  sections: PaletteSection[],
+  query: string,
+): { primary: PaletteSection[]; secondary: PaletteSection[] } {
   const q = query.trim().toLowerCase();
-  if (!q) return sections;
-  return sections
-    .map((s) => ({
-      ...s,
-      commands: s.commands.filter((c) => {
-        const haystack = [
-          c.label,
-          c.description ?? '',
-          c.opId ?? '',
-          c.presetId ?? '',
-          ...(c.aliases ?? []),
-        ].join(' ').toLowerCase();
-        return haystack.includes(q);
-      }),
-    }))
-    .filter((s) => s.commands.length > 0);
+  if (!q) return { primary: sections, secondary: [] };
+  const primary: PaletteSection[] = [];
+  const secondary: PaletteSection[] = [];
+  for (const s of sections) {
+    const prim: { c: PaletteCommand; score: number }[] = [];
+    const sec:  { c: PaletteCommand; score: number }[] = [];
+    for (const c of s.commands) {
+      const { score, primary: isPrim } = _scoreCommand(c, q);
+      if (score <= 0) continue;
+      (isPrim ? prim : sec).push({ c, score });
+    }
+    if (prim.length) {
+      prim.sort((a, b) => b.score - a.score);
+      primary.push({ ...s, commands: prim.map((x) => x.c) });
+    }
+    if (sec.length) {
+      sec.sort((a, b) => b.score - a.score);
+      secondary.push({ ...s, commands: sec.map((x) => x.c) });
+    }
+  }
+  return { primary, secondary };
 }
 
 /** Build sections from a flat list of MenuAction-shaped objects, grouped by
@@ -327,9 +428,11 @@ export function buildToolCommands(tools: ToolDefinition[]): PaletteCommand[] {
 export function filterCommands(commands: PaletteCommand[], query: string): PaletteCommand[] {
   const q = query.trim().toLowerCase();
   if (!q) return commands;
-  return commands.filter(
-    (c) => c.label.toLowerCase().includes(q) || c.description.toLowerCase().includes(q),
-  );
+  return commands
+    .map((c) => ({ c, ...(_scoreCommand(c, q)) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((x) => x.c);
 }
 
 // ─── Image-node label + cycling ───────────────────────────────────────

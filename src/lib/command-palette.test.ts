@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildToolCommands,
   filterCommands,
+  fuzzyScore,
   imageNodeLabel,
   resolveInitialTargetId,
   nextTargetId,
@@ -21,6 +22,36 @@ describe('buildToolCommands', () => {
     expect(cmds).toHaveLength(1);
     expect(cmds[0]).toMatchObject({ id: 'tool:light', kind: 'tool', toolName: 'light', label: 'Light' });
     expect(typeof cmds[0].description).toBe('string');
+  });
+});
+
+describe('fuzzyScore', () => {
+  it('scores prefix matches highest, then later substrings, then subsequences', () => {
+    const prefix = fuzzyScore(['Exposure'], 'exp');
+    const mid    = fuzzyScore(['Auto exposure'], 'exp');
+    const subseq = fuzzyScore(['Exposure'], 'epsr');
+    expect(prefix).toBeGreaterThan(mid);
+    expect(mid).toBeGreaterThan(subseq);
+    expect(subseq).toBeGreaterThan(0);
+  });
+  it('tolerates small typos via Levenshtein', () => {
+    expect(fuzzyScore(['Exposure'], 'expsoure')).toBeGreaterThan(0);
+  });
+  it('returns 0 for unrelated queries', () => {
+    expect(fuzzyScore(['Exposure'], 'qzx')).toBe(0);
+  });
+});
+
+describe('filterCommands ranks title over description', () => {
+  const cmds: ReturnType<typeof buildToolCommands> = [
+    // Title-match candidate: label is "Curves"
+    { id: 'tool:curves', kind: 'tool', label: 'Curves', description: 'RGB curves', icon: Icon, toolName: 'curves' },
+    // Description-only match: label is "Light", description contains "curve"
+    { id: 'tool:light', kind: 'tool', label: 'Light', description: 'Curve-like exposure controls', icon: Icon, toolName: 'light' },
+  ];
+  it('puts the title match ahead of the description-only match', () => {
+    const out = filterCommands(cmds, 'curve');
+    expect(out.map((c) => c.toolName)).toEqual(['curves', 'light']);
   });
 });
 

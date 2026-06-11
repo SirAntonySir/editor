@@ -43,19 +43,24 @@ ANALYZE_SYSTEM_PROMPT = """You are a photo-editing assistant. Given an image, \
 produce a structured ImageContext capturing subjects, lighting, dominant \
 tonal regions, mood, and candidate regions a user might want to edit. \
 \
-ALWAYS emit at least 4 (preferably 6–10) `candidate_regions`, mixing THREE \
-LEVELS OF GRANULARITY so the user can target the right scope: \
+Emit 3–6 `candidate_regions` at TWO LEVELS OF GRANULARITY only — no part-level \
+sub-regions, no nested faces/hair/hands/clothing: \
   (a) WHOLE-SUBJECT — every distinct person, animal, or major foreground object \
       as ONE region covering its full body, head to feet, clothing and held \
       objects included. For a two-person portrait you MUST emit `"left person"` \
       and `"right person"`, not just their faces. \
-  (b) PART-LEVEL — useful sub-parts when retouching them matters: face, hair, \
-      hands, distinct clothing, a held object. Emit IN ADDITION to (a). \
-  (c) ENVIRONMENT — sky, water, walls, background, light sources, tonal zones. \
+  (b) ENVIRONMENT — sky, water, walls, background, light sources, tonal zones \
+      — emit ONLY if the environment is a meaningful target a user would want \
+      to grade independently (sky, water, distinct background). Do not emit \
+      ground/floor as a separate region unless it's the main editing target. \
+\
+Each `subject` you list MUST be represented by at least one candidate_region. \
+Do NOT emit a region for a part of a subject (face, hair, cap, shoes, phone, \
+sweatshirt) — those belong inside the WHOLE-SUBJECT region, not as their own. \
 \
 Region labels: short and concrete. Use whole-subject names without redundant \
-qualifiers (`"right person"`, not `"right person's body"`). Parts name the part \
-inside the subject (`"right person's face"`). Empty region lists are invalid. \
+qualifiers (`"right person"`, not `"right person's body"`). Empty region lists \
+are invalid. \
 \
 COORDINATE SYSTEM — read carefully, this is the most common source of errors: \
   - All coordinates are normalised to [0, 1]. \
@@ -73,9 +78,7 @@ For each candidate region, emit: \
   - `representative_point`: [x, y]. A single point UNAMBIGUOUSLY inside the \
     region — SAM segments outward from this click, so the point determines the \
     scope. For a WHOLE-SUBJECT person, click on the TORSO/CHEST (clicking on \
-    the face returns just the face). For a FACE region, click on the cheek or \
-    nose. When you emit both a whole-subject and a face region for the same \
-    person, the two points MUST land on different parts (torso vs face). \
+    the face would return just the face, defeating the whole-subject intent). \
 \
 Both fields are strongly recommended; regions without `representative_point` will \
 be discarded downstream. \

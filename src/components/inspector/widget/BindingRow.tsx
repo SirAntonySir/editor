@@ -9,6 +9,8 @@ import { RegionPickerControl } from './primitives/RegionPickerControl';
 import { MaskThumbnailControl } from './primitives/MaskThumbnailControl';
 import { CurveControl } from './primitives/CurveControl';
 import { CurveEditor as RegistryCurveEditor } from '@/components/registry-controls/CurveEditor';
+import { hueGradient } from '@/components/registry-controls/HueWheel';
+import { kelvinGradient } from '@/components/registry-controls/KelvinStrip';
 import type { OpParam } from '../../../../shared/registry/schema';
 
 // Stub schema for the registry CurveEditor — it only reads channel-locking
@@ -66,6 +68,54 @@ export function BindingRow({ binding, effectiveValue, onChange, maskSummaries, p
             neutralValue={engineNeutralForBinding(binding)}
             provenance={provenance}
             formatValue={s.unit ? (v) => `${Math.round(v)}${s.unit}` : undefined}
+            onChange={(v) => onChange(v)}
+          />
+          {pinButton && (
+            <div className="absolute right-0 top-0">{pinButton}</div>
+          )}
+        </div>
+      );
+    case 'hue_wheel':
+      // Color.hue + splitTone.{shadow,highlight}_hue bindings — render as a
+      // hue-gradient slider. Previously fell through the switch and rendered
+      // nothing, which made the hue control silently disappear from canvas
+      // widgets (slider invisible → user couldn't shift hue from the widget).
+      return (
+        <div className="group relative">
+          <AdjustmentSlider
+            label={binding.label}
+            value={Number(effectiveValue)}
+            min={s.min}
+            max={s.max}
+            step={1}
+            defaultValue={Number(binding.default)}
+            neutralValue={engineNeutralForBinding(binding)}
+            provenance={provenance}
+            trackGradient={hueGradient(s.min, s.max)}
+            formatValue={(v) => `${Math.round(v)}°`}
+            onChange={(v) => onChange(v)}
+          />
+          {pinButton && (
+            <div className="absolute right-0 top-0">{pinButton}</div>
+          )}
+        </div>
+      );
+    case 'kelvin_strip':
+      // kelvin.temperature — warm→cool blackbody-gradient slider. Same
+      // fall-through bug as hue_wheel before this case existed.
+      return (
+        <div className="group relative">
+          <AdjustmentSlider
+            label={binding.label}
+            value={Number(effectiveValue)}
+            min={s.min}
+            max={s.max}
+            step={s.step ?? 1}
+            defaultValue={Number(binding.default)}
+            neutralValue={engineNeutralForBinding(binding)}
+            provenance={provenance}
+            trackGradient={kelvinGradient()}
+            formatValue={(v) => `${Math.round(v)}K`}
             onChange={(v) => onChange(v)}
           />
           {pinButton && (

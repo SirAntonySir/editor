@@ -15,7 +15,7 @@ export function HslSectionBody({ layerId }: { layerId: string }) {
   const sessionId = useBackendState((s) => s.sessionId);
   const offline = useBackendState((s) => s.sseStatus !== 'open');
   const params = useBackendState(
-    (s) => (s.snapshot?.operation_graph.nodes.find((n) => n.id === nodeId)?.params ?? EMPTY) as Record<string, number>,
+    (s) => (s.snapshot?.operationGraph.nodes.find((n) => n.id === nodeId)?.params ?? EMPTY) as Record<string, number>,
   );
   const opt = useBackendState((s) => s.optimistic.get(nodeId));
 

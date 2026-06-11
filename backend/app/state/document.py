@@ -119,7 +119,7 @@ class SessionDocument(BaseModel):
         self._seed_canonical_from_widget(widget)
         return [self._emit("widget.created", {
             "widget": widget.model_dump(mode="json", by_alias=True),
-            "operation_graph": self._op_graph_payload(),
+            "operationGraph": self._op_graph_payload(),
         })]
 
     def update_widget(self, widget: Widget) -> list[StateEvent]:
@@ -129,7 +129,7 @@ class SessionDocument(BaseModel):
         self.widgets[widget.id] = widget
         return [self._emit("widget.updated", {
             "widget": widget.model_dump(mode="json", by_alias=True),
-            "operation_graph": self._op_graph_payload(),
+            "operationGraph": self._op_graph_payload(),
         })]
 
     def dismiss_widget(self, widget_id: str, rule: DismissalRule | None = None) -> list[StateEvent]:
@@ -144,7 +144,7 @@ class SessionDocument(BaseModel):
         self._reset_canonical_from_widget(w)
         events = [self._emit("widget.deleted", {
             "widget_id": widget_id,
-            "operation_graph": self._op_graph_payload(),
+            "operationGraph": self._op_graph_payload(),
         })]
         if rule is not None:
             self.dismissals.append(rule)
@@ -162,7 +162,7 @@ class SessionDocument(BaseModel):
         self._seed_canonical_from_widget(w)
         return [self._emit("widget.restored", {
             "widget_id": widget_id,
-            "operation_graph": self._op_graph_payload(),
+            "operationGraph": self._op_graph_payload(),
         })]
 
     def accept_widget(self, widget_id: str) -> list[StateEvent]:
@@ -173,7 +173,7 @@ class SessionDocument(BaseModel):
         w.updated_at = datetime.now(timezone.utc)
         return [self._emit("widget.accepted", {
             "widget_id": widget_id,
-            "operation_graph": self._op_graph_payload(),
+            "operationGraph": self._op_graph_payload(),
         })]
 
     def set_param(self, layer_id: str, op: str, param: str, value: Any) -> list[StateEvent]:
@@ -181,7 +181,7 @@ class SessionDocument(BaseModel):
         set_param_value(self.canonical, layer_id, op, param, value)
         return [self._emit("canonical.updated", {
             "layer_id": layer_id, "op": op, "param": param, "value": value,
-            "operation_graph": self._op_graph_payload(),
+            "operationGraph": self._op_graph_payload(),
         })]
 
     def set_image_node_transform(
@@ -203,7 +203,7 @@ class SessionDocument(BaseModel):
             }
         return [self._emit("image_node_transform.updated", {
             "image_node_id": image_node_id,
-            "operation_graph": self._op_graph_payload(),
+            "operationGraph": self._op_graph_payload(),
         })]
 
     # ---------------- mask mutations ----------------

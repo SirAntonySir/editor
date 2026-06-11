@@ -188,22 +188,22 @@ export const useBackendState = create<BackendState>()(
             // subsequent partials have something to merge into. The later
             // snapshot fetch overlays the rest of the state (widgets,
             // op_graph, etc.) on top; image_context survives intact.
-            const partial = payload.image_context as
-              | Partial<NonNullable<SessionStateSnapshot['image_context']>>
+            const partial = payload.imageContext as
+              | Partial<NonNullable<SessionStateSnapshot['imageContext']>>
               | undefined;
             if (!partial) return;
             if (s.snapshot) {
-              const existing = s.snapshot.image_context ?? {};
-              s.snapshot.image_context = { ...existing, ...partial } as never;
+              const existing = s.snapshot.imageContext ?? {};
+              s.snapshot.imageContext = { ...existing, ...partial } as never;
               s.snapshot.revision = ev.revision;
             } else {
               s.snapshot = {
-                session_id: '',
+                sessionId: '',
                 revision: ev.revision,
                 widgets: [],
-                masks_index: [],
-                operation_graph: { id: '', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
-                image_context: partial as never,
+                masksIndex: [],
+                operationGraph: { id: '', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+                imageContext: partial as never,
               } as never;
             }
             return;
@@ -285,7 +285,7 @@ export const useBackendState = create<BackendState>()(
             // Push MaskSummary into snapshot.masks_index so the inspector chip
             // cloud sees it.
             if (s.snapshot) {
-              s.snapshot.masks_index.push({
+              s.snapshot.masksIndex.push({
                 id: p.mask_id,
                 width: p.width,
                 height: p.height,
@@ -310,8 +310,8 @@ export const useBackendState = create<BackendState>()(
         // Widget lifecycle events embed the freshly-projected operation_graph
         // (the renderer only knows op_graph nodes). Swap it in so newly
         // created/edited widgets reach the canvas without a full re-fetch.
-        const incomingGraph = (payload as { operation_graph?: SessionStateSnapshot['operation_graph'] }).operation_graph;
-        if (incomingGraph) s.snapshot.operation_graph = incomingGraph;
+        const incomingGraph = (payload as { operationGraph?: SessionStateSnapshot['operationGraph'] }).operationGraph;
+        if (incomingGraph) s.snapshot.operationGraph = incomingGraph;
 
         s.snapshot.revision = ev.revision;
 

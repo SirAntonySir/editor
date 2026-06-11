@@ -178,7 +178,7 @@ function ToolrailSectionBodyInner({
           result[binding.param_key] = hit.value;
           continue;
         }
-        const node = s.snapshot?.operation_graph.nodes.find((n) => n.id === nodeId);
+        const node = s.snapshot?.operationGraph.nodes.find((n) => n.id === nodeId);
         const v = node?.params?.[binding.param_key];
         result[binding.param_key] = v === undefined ? defaultVal : v;
       }

@@ -62,7 +62,7 @@ export function useImageNodeRender({
   bypassAdjustments = false,
 }: ImageNodeRenderInput) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const opGraph = useBackendState((s) => s.snapshot?.operation_graph);
+  const opGraph = useBackendState((s) => s.snapshot?.operationGraph);
   const widgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
   // Re-render when adjustment params or raw pixels change. The optimistic Map
   // identity changes on every applyOptimistic (immer reproduces the map), so
@@ -96,14 +96,14 @@ export function useImageNodeRender({
   // this image-node. The visible canvas is sized to these; `applyGeometry`
   // inside the renderer then maps the internal (source-dims) composite onto it.
   const rotateAngle = useBackendState((s) => {
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${imageNodeId}:rotate`,
     );
     if (!node) return null;
     return (node.params.angle as number) ?? null;
   });
   const cropRectX = useBackendState((s) => {
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${imageNodeId}:crop`,
     );
     if (!node) return null;
@@ -111,7 +111,7 @@ export function useImageNodeRender({
     return p.w != null && p.h != null ? (p.x ?? 0) : null;
   });
   const cropRectY = useBackendState((s) => {
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${imageNodeId}:crop`,
     );
     if (!node) return null;
@@ -119,14 +119,14 @@ export function useImageNodeRender({
     return p.w != null && p.h != null ? (p.y ?? 0) : null;
   });
   const cropRectW = useBackendState((s) => {
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${imageNodeId}:crop`,
     );
     if (!node) return null;
     return (node.params as { w?: number }).w ?? null;
   });
   const cropRectH = useBackendState((s) => {
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${imageNodeId}:crop`,
     );
     if (!node) return null;

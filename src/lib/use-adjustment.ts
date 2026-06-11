@@ -25,7 +25,7 @@ export function useAdjustmentParam(
     if (!activeLayerId || !s.snapshot) return defaultValue;
 
     // Find the first node of the given type on the active layer.
-    const node = s.snapshot.operation_graph.nodes.find(
+    const node = s.snapshot.operationGraph.nodes.find(
       (n) => n.layer_id === activeLayerId && n.type === type,
     );
     if (!node) return defaultValue;

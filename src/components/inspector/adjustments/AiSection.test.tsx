@@ -41,8 +41,8 @@ beforeEach(() => {
     activeImageNodeId: 'img1',
   } as never);
   useBackendState.setState({ sessionId: 's1', sseStatus: 'open', optimistic: new Map(),
-    snapshot: { session_id: 's1', image_context: null, widgets: [widget], masks_index: [],
-      operation_graph: { id: 'g', userGoal: '', nodes: widget.nodes as never, panelBindings: [], metadata: {} }, revision: 1 } as never } as never);
+    snapshot: { sessionId: 's1', imageContext: null, widgets: [widget], masksIndex: [],
+      operationGraph: { id: 'g', userGoal: '', nodes: widget.nodes as never, panelBindings: [], metadata: {} }, revision: 1 } as never } as never);
 });
 afterEach(() => cleanup());
 

@@ -12,8 +12,8 @@ function seed(params: Record<string, number> = {}) {
   useBackendState.setState({
     sessionId: 's1', sseStatus: 'open', optimistic: new Map(),
     snapshot: {
-      session_id: 's1', image_context: null, widgets: [], masks_index: [],
-      operation_graph: {
+      sessionId: 's1', imageContext: null, widgets: [], masksIndex: [],
+      operationGraph: {
         id: 'g', userGoal: '', panelBindings: [], metadata: {},
         nodes: Object.keys(params).length
           ? [{ id: 'canon:L1:hsl', type: 'hsl', layer_id: 'L1', params }]

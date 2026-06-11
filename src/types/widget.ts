@@ -223,11 +223,11 @@ import type { OperationGraph } from './operation-graph';
 import type { ImageContext } from './image-context';
 
 export interface SessionStateSnapshot {
-  session_id: string;
-  image_context: ImageContext | null;
+  sessionId: string;
+  imageContext: ImageContext | null;
   widgets: Widget[];
-  masks_index: MaskSummary[];
-  operation_graph: OperationGraph;
+  masksIndex: MaskSummary[];
+  operationGraph: OperationGraph;
   revision: number;
 }
 

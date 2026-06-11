@@ -110,9 +110,9 @@ def test_widget_created_event_carries_operation_graph() -> None:
     events = doc.add_widget(_widget("w_1", "n_1", {"temperature": 6500}))
     ev = events[0]
     assert ev.kind == "widget.created"
-    assert "operation_graph" in ev.payload
+    assert "operationGraph" in ev.payload
     canon_node_id = "canon:legacy:kelvin"
-    node_ids = [n["id"] for n in ev.payload["operation_graph"]["nodes"]]
+    node_ids = [n["id"] for n in ev.payload["operationGraph"]["nodes"]]
     assert canon_node_id in node_ids
 
 
@@ -128,7 +128,7 @@ def test_widget_updated_event_carries_operation_graph() -> None:
     events = doc.update_widget(updated)
     ev = events[0]
     assert ev.kind == "widget.updated"
-    graph_nodes = ev.payload["operation_graph"]["nodes"]
+    graph_nodes = ev.payload["operationGraph"]["nodes"]
     assert graph_nodes[0]["params"]["temperature"] == 8000
 
 

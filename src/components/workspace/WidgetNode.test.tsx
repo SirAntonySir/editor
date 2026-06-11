@@ -17,8 +17,8 @@ vi.mock('@/store/backend-state-slice', async () => {
     ...actual,
     useBackendState: Object.assign(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (sel: (s: any) => any) => sel({ sessionId: 's-1', optimistic: new Map(), snapshot: { masks_index: [], revision: 1 }, sseStatus: 'open' }),
-      { getState: () => ({ sessionId: 's-1', optimistic: new Map(), snapshot: { masks_index: [], revision: 1 }, sseStatus: 'open' }) },
+      (sel: (s: any) => any) => sel({ sessionId: 's-1', optimistic: new Map(), snapshot: { masksIndex: [], revision: 1 }, sseStatus: 'open' }),
+      { getState: () => ({ sessionId: 's-1', optimistic: new Map(), snapshot: { masksIndex: [], revision: 1 }, sseStatus: 'open' }) },
     ),
   };
 });

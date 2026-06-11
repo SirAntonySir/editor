@@ -43,7 +43,7 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
   const { hoveredWidgetId, setHoveredWidget } = useHoveredWidget();
   const sessionId = useBackendState((s) => s.sessionId);
   const optimistic = useBackendState((s) => s.optimistic);
-  const masks = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
+  const masks = useBackendState((s) => s.snapshot?.masksIndex ?? EMPTY_MASKS);
   const offline = useBackendState((s) => s.sseStatus !== 'open');
   const touched = useEditorStore((s) => s.touchedParams);
 

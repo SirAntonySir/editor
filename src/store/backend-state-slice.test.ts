@@ -25,11 +25,11 @@ function makeWidget(id: string, overrides: Partial<Widget> = {}): Widget {
 
 function baseSnapshot(): SessionStateSnapshot {
   return {
-    session_id: 's1',
-    image_context: null,
+    sessionId: 's1',
+    imageContext: null,
     widgets: [makeWidget('w_1')],
-    masks_index: [],
-    operation_graph: {
+    masksIndex: [],
+    operationGraph: {
       id: 'projected-x',
       userGoal: 'w_1',
       reasoning: null,
@@ -78,7 +78,7 @@ describe('BackendStateSlice', () => {
       kind: 'widget.created',
       payload: {
         widget: makeWidget('w_2'),
-        operation_graph: {
+        operationGraph: {
           id: 'projected-y',
           nodes: [{ id: 'n_new', type: 'basic', layer_id: 'layer-1', params: { exposure: 40 } }],
         },
@@ -87,7 +87,7 @@ describe('BackendStateSlice', () => {
     };
     useBackendState.getState().applyEvent(ev);
     const snap = useBackendState.getState().snapshot!;
-    expect(snap.operation_graph.nodes.map((n) => n.id)).toEqual(['n_new']);
+    expect(snap.operationGraph.nodes.map((n) => n.id)).toEqual(['n_new']);
   });
 
   it('applyEvent widget.updated swaps in the embedded operation_graph', () => {
@@ -97,7 +97,7 @@ describe('BackendStateSlice', () => {
       kind: 'widget.updated',
       payload: {
         widget: makeWidget('w_1', { revision: 2 }),
-        operation_graph: {
+        operationGraph: {
           id: 'projected-z',
           nodes: [{ id: 'n_1', type: 'basic', layer_id: 'layer-1', params: { exposure: 90 } }],
         },
@@ -105,7 +105,7 @@ describe('BackendStateSlice', () => {
       emitted_at: '2026-05-23T00:00:02Z',
     } as StateEvent);
     const snap = useBackendState.getState().snapshot!;
-    expect(snap.operation_graph.nodes[0].params.exposure).toBe(90);
+    expect(snap.operationGraph.nodes[0].params.exposure).toBe(90);
   });
 
   it('applyEvent widget.updated replaces in place', () => {

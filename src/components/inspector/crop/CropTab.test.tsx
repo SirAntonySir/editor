@@ -81,7 +81,7 @@ describe('CropTab initial state', () => {
       sessionId: 'sess-1',
       snapshot: {
         revision: 1,
-        operation_graph: {
+        operationGraph: {
           id: 'g', user_goal: '', reasoning: null, panel_bindings: [], metadata: {},
           nodes: [{
             id: 'transform:in-1:crop', type: 'crop',
@@ -89,7 +89,7 @@ describe('CropTab initial state', () => {
             scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'], widget_id: null,
           }],
         },
-        masks_index: [], widgets: [], image_context: null,
+        masksIndex: [], widgets: [], imageContext: null,
       } as never,
     });
     render(<CropTab />);
@@ -102,7 +102,7 @@ describe('CropTab initial state', () => {
       sessionId: 'sess-1',
       snapshot: {
         revision: 1,
-        operation_graph: {
+        operationGraph: {
           id: 'g', user_goal: '', reasoning: null, panel_bindings: [], metadata: {},
           nodes: [{
             id: 'transform:in-1:rotate', type: 'rotate',
@@ -110,7 +110,7 @@ describe('CropTab initial state', () => {
             scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'], widget_id: null,
           }],
         },
-        masks_index: [], widgets: [], image_context: null,
+        masksIndex: [], widgets: [], imageContext: null,
       } as never,
     });
     render(<CropTab />);
@@ -135,7 +135,7 @@ describe('CropTab cropPreview wiring', () => {
       sessionId: 'sess-1',
       snapshot: {
         revision: 1,
-        operation_graph: {
+        operationGraph: {
           id: 'g', user_goal: '', reasoning: null, panel_bindings: [], metadata: {},
           nodes: [{
             id: 'transform:in-1:rotate', type: 'rotate',
@@ -143,7 +143,7 @@ describe('CropTab cropPreview wiring', () => {
             scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'], widget_id: null,
           }],
         },
-        masks_index: [], widgets: [], image_context: null,
+        masksIndex: [], widgets: [], imageContext: null,
       } as never,
     });
     render(<CropTab />);
@@ -181,7 +181,7 @@ describe('CropTab Apply / Cancel', () => {
       snapshot: {
         ...(s.snapshot ?? {} as never),
         revision: 999,
-        operation_graph: {
+        operationGraph: {
           id: 'g', user_goal: '', reasoning: null, panel_bindings: [], metadata: {},
           nodes: [{
             id: 'transform:in-1:crop', type: 'crop',
@@ -237,7 +237,7 @@ describe('CropTab Apply / Cancel', () => {
       snapshot: {
         ...(s.snapshot ?? {} as never),
         revision: 999,
-        operation_graph: {
+        operationGraph: {
           id: 'g', user_goal: '', reasoning: null, panel_bindings: [], metadata: {},
           nodes: [{
             id: 'transform:in-1:crop', type: 'crop',

@@ -35,11 +35,11 @@ beforeEach(() => {
     sseStatus: 'open',
     optimistic: new Map(),
     snapshot: {
-      session_id: 's1',
-      image_context: null,
+      sessionId: 's1',
+      imageContext: null,
       widgets: [],
-      masks_index: [],
-      operation_graph: {
+      masksIndex: [],
+      operationGraph: {
         id: 'g',
         userGoal: '',
         nodes: [{ id: 'canon:L1:basic', type: 'basic', layer_id: 'L1', params: { exposure: 12 } }],
@@ -65,7 +65,7 @@ it('hides the badge entirely when no slider has been touched', () => {
   useBackendState.setState({
     snapshot: {
       ...useBackendState.getState().snapshot!,
-      operation_graph: {
+      operationGraph: {
         id: 'g', userGoal: '',
         nodes: [{ id: 'canon:L1:basic', type: 'basic', layer_id: 'L1', params: { exposure: 0 } }],
         panelBindings: [], metadata: {},

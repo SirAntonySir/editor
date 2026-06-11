@@ -369,6 +369,6 @@ export async function bindSessionFromFirstImageLayer(): Promise<void> {
  * post-runAnalyse value.
  */
 export function useImageContextSnapshot(): ImageContext | null {
-  return useBackendState((s) => s.snapshot?.image_context ?? null);
+  return useBackendState((s) => s.snapshot?.imageContext ?? null);
 }
 

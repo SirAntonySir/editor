@@ -81,7 +81,7 @@ class PrecomputeRegionsTool(BackendTool[_Input, _Output]):
         # Stream the updated regions so object-mode picks up paths without refetch.
         doc._emit(
             "context.updated",
-            {"image_context": {"candidateRegions": [
+            {"imageContext": {"candidateRegions": [
                 r.model_dump(mode="json", by_alias=True)
                 for r in new_ctx.candidate_regions
             ]}},

@@ -36,7 +36,7 @@ export function AiSection({ widget }: AiSectionProps) {
   const sessionId = useBackendState((s) => s.sessionId);
   const offline = useBackendState((s) => s.sseStatus !== 'open');
   const optimistic = useBackendState((s) => s.optimistic);
-  const maskSummaries = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
+  const maskSummaries = useBackendState((s) => s.snapshot?.masksIndex ?? EMPTY_MASKS);
   const touched = useEditorStore((s) => s.touchedParams);
   const onCanvas = useEditorStore((s) => Boolean(s.widgetNodes[widget.id]));
   const hidden = useEditorStore((s) => s.hiddenWidgetIds.has(widget.id));

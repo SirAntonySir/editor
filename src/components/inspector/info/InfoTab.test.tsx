@@ -8,11 +8,11 @@ import type { ImageContext } from '@/types/image-context';
 
 function setSnapshotWithContext(ctx: ImageContext | null) {
   const snap: SessionStateSnapshot = {
-    session_id: 's1',
-    image_context: ctx,
+    sessionId: 's1',
+    imageContext: ctx,
     widgets: [],
-    masks_index: [],
-    operation_graph: {
+    masksIndex: [],
+    operationGraph: {
       id: 'g',
       userGoal: '',
       nodes: [],

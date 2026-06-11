@@ -32,7 +32,7 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
   const offline = useBackendState((s) => s.sseStatus !== 'open');
   const canonical = useBackendState((s) => {
     const id = layerId ? `canon:${layerId}:${def.adjustmentType}` : '';
-    return (s.snapshot?.operation_graph.nodes.find((n) => n.id === id)?.params ?? EMPTY_PARAMS) as Record<string, unknown>;
+    return (s.snapshot?.operationGraph.nodes.find((n) => n.id === id)?.params ?? EMPTY_PARAMS) as Record<string, unknown>;
   });
   // For compound ops: locate the active widget from the snapshot so the generic
   // CompoundWidgetBody can drive the dial + anchor cards. Only used when the

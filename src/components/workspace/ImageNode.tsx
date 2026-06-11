@@ -90,7 +90,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   }
 
   const snapshotRotateAngle = useBackendState((s) => {
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${id}:rotate`,
     );
     if (!node) return null;
@@ -98,7 +98,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   });
   // Split crop into primitive selectors to avoid Zustand object-identity churn.
   const snapshotCropX = useBackendState((s) => {
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${id}:crop`,
     );
     if (!node) return null;
@@ -106,7 +106,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
     return p.w != null && p.h != null ? (p.x ?? 0) : null;
   });
   const snapshotCropY = useBackendState((s) => {
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${id}:crop`,
     );
     if (!node) return null;
@@ -114,14 +114,14 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
     return p.w != null && p.h != null ? (p.y ?? 0) : null;
   });
   const snapshotCropW = useBackendState((s) => {
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${id}:crop`,
     );
     if (!node) return null;
     return (node.params as { w?: number }).w ?? null;
   });
   const snapshotCropH = useBackendState((s) => {
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${id}:crop`,
     );
     if (!node) return null;
@@ -172,7 +172,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   function handleTransformDelta(delta: { angle?: number; flip_h?: boolean; flip_v?: boolean }) {
     const sessionId = useBackendState.getState().sessionId;
     if (!sessionId) return;
-    const nodes = useBackendState.getState().snapshot?.operation_graph.nodes ?? [];
+    const nodes = useBackendState.getState().snapshot?.operationGraph.nodes ?? [];
     const prevRotate = nodes.find((n) => n.id === `transform:${id}:rotate`)?.params as
       | { angle: number; flip_h: boolean; flip_v: boolean } | undefined;
     const prevCrop = nodes.find((n) => n.id === `transform:${id}:crop`)?.params as

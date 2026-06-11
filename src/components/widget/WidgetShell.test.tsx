@@ -33,9 +33,9 @@ vi.mock('@/store/backend-state-slice', async () => {
     useBackendState: Object.assign(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (selector: (s: any) => any) => selector({
-        sessionId: 's-1', optimistic: new Map(), snapshot: { masks_index: [], revision: 1 }, sseStatus: 'open',
+        sessionId: 's-1', optimistic: new Map(), snapshot: { masksIndex: [], revision: 1 }, sseStatus: 'open',
       }),
-      { getState: () => ({ sessionId: 's-1', optimistic: new Map(), snapshot: { masks_index: [], revision: 1 }, sseStatus: 'open', applyOptimistic: mockApplyOptimistic }) },
+      { getState: () => ({ sessionId: 's-1', optimistic: new Map(), snapshot: { masksIndex: [], revision: 1 }, sseStatus: 'open', applyOptimistic: mockApplyOptimistic }) },
     ),
   };
 });

@@ -90,7 +90,7 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
         # Stream partial — InfoTab semantic chips flip immediately.
         doc._emit(
             "context.updated",
-            {"image_context": base_ctx.model_dump(mode="json", by_alias=True)},
+            {"imageContext": base_ctx.model_dump(mode="json", by_alias=True)},
         )
 
         # Soft fields (LLM, slower) + region_stats (cv2) — region_stats
@@ -124,7 +124,7 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
         # Final SSE delta for the InfoTab — soft fields + region stats.
         doc._emit(
             "context.updated",
-            {"image_context": {
+            {"imageContext": {
                 "estimatedWhitePoint": list(soft.estimated_white_point),
                 "wbNeutralConfidence": soft.wb_neutral_confidence,
                 "gradeCharacter": soft.grade_character,

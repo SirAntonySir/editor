@@ -80,5 +80,5 @@ export function selectPipelineNodes(): PipelineNode[] {
   const snap = useBackendState.getState().snapshot;
   const opt = useBackendState.getState().optimistic;
   if (!snap) return [];
-  return expandCompoundNodes(mergeOptimistic(snap.operation_graph.nodes, opt)).map(toPipelineNode);
+  return expandCompoundNodes(mergeOptimistic(snap.operationGraph.nodes, opt)).map(toPipelineNode);
 }

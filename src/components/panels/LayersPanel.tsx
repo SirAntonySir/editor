@@ -86,7 +86,7 @@ export function LayersPanelBody() {
   const updateLayer = useEditorStore((s) => s.updateLayer);
   const removeLayer = useEditorStore((s) => s.removeLayer);
   // Backend snapshot owns the live mask index; segments nest under their image layer.
-  const masks = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
+  const masks = useBackendState((s) => s.snapshot?.masksIndex ?? EMPTY_MASKS);
 
   const sortedLayers = [...layers].sort((a, b) => b.order - a.order);
 

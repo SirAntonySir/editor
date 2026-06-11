@@ -22,7 +22,7 @@ export function CropTab() {
 
   const snapshotCropX = useBackendState((s) => {
     if (!activeImageNodeId) return null;
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${activeImageNodeId}:crop`,
     );
     if (!node) return null;
@@ -31,7 +31,7 @@ export function CropTab() {
   });
   const snapshotCropY = useBackendState((s) => {
     if (!activeImageNodeId) return null;
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${activeImageNodeId}:crop`,
     );
     if (!node) return null;
@@ -40,7 +40,7 @@ export function CropTab() {
   });
   const snapshotCropW = useBackendState((s) => {
     if (!activeImageNodeId) return null;
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${activeImageNodeId}:crop`,
     );
     if (!node) return null;
@@ -49,7 +49,7 @@ export function CropTab() {
   });
   const snapshotCropH = useBackendState((s) => {
     if (!activeImageNodeId) return null;
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${activeImageNodeId}:crop`,
     );
     if (!node) return null;
@@ -62,7 +62,7 @@ export function CropTab() {
       : null;
   const snapshotAngle = useBackendState((s) => {
     if (!activeImageNodeId) return 0;
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${activeImageNodeId}:rotate`,
     );
     if (!node) return 0;

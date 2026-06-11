@@ -9,8 +9,8 @@ beforeEach(() => {
   registerAllProcessing();
   useEditorStore.setState({ expandedSectionIds: new Set(), activeLayerId: 'L1' } as never);
   useBackendState.setState({ sessionId: 's1', sseStatus: 'open', optimistic: new Map(),
-    snapshot: { session_id: 's1', image_context: null, widgets: [], masks_index: [],
-      operation_graph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, revision: 1 } as never } as never);
+    snapshot: { sessionId: 's1', imageContext: null, widgets: [], masksIndex: [],
+      operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, revision: 1 } as never } as never);
 });
 afterEach(() => cleanup());
 

@@ -31,11 +31,11 @@ function makeWidget(overrides: Partial<Widget> = {}): Widget {
 function setSnapshot(widgets: Widget[]): void {
   const nodes = widgets.flatMap((w) => w.nodes);
   useBackendState.getState().setSnapshot({
-    session_id: 's',
-    image_context: null,
+    sessionId: 's',
+    imageContext: null,
     widgets,
-    masks_index: [],
-    operation_graph: {
+    masksIndex: [],
+    operationGraph: {
       id: 'g',
       userGoal: '',
       nodes,

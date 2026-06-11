@@ -23,7 +23,7 @@ export function useCanonicalParam<T extends ControlValue = number>(
     const opt = s.optimistic.get(nodeId);
     const hit = opt?.bindings.find((b) => b.paramKey === param);
     if (hit) return hit.value as T;
-    const node = s.snapshot?.operation_graph.nodes.find((n) => n.id === nodeId);
+    const node = s.snapshot?.operationGraph.nodes.find((n) => n.id === nodeId);
     const p = node?.params?.[param];
     return (p === undefined ? defaultValue : (p as T));
   });

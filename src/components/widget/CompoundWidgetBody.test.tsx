@@ -21,7 +21,7 @@ vi.mock('@/store/backend-state-slice', async () => {
   const buildState = () => ({
     sessionId: 's-1',
     optimistic: new Map(),
-    snapshot: { masks_index: [], revision: 1, widgets: [], operation_graph: { nodes: [] } },
+    snapshot: { masksIndex: [], revision: 1, widgets: [], operationGraph: { nodes: [] } },
     sseStatus: 'open',
     applyOptimistic: mockApplyOptimistic,
   });

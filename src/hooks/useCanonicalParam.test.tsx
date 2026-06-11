@@ -13,8 +13,8 @@ function seedSnapshot(nodes: { id: string; type: string; layer_id: string; param
     sessionId: 's1',
     sseStatus: 'open',
     snapshot: {
-      session_id: 's1', image_context: null, widgets: [], masks_index: [],
-      operation_graph: { id: 'g', userGoal: '', nodes: nodes as never, panelBindings: [], metadata: {} },
+      sessionId: 's1', imageContext: null, widgets: [], masksIndex: [],
+      operationGraph: { id: 'g', userGoal: '', nodes: nodes as never, panelBindings: [], metadata: {} },
       revision: 1,
     } as never,
     optimistic: new Map(),

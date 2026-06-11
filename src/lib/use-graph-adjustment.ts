@@ -26,7 +26,7 @@ export function useGraphAdjustmentParam(
     }
 
     // Fall back to operation_graph node params.
-    const node = s.snapshot.operation_graph.nodes.find((n) => n.id === adjustmentId);
+    const node = s.snapshot.operationGraph.nodes.find((n) => n.id === adjustmentId);
     if (node && typeof node.params[paramName] === 'number') {
       return node.params[paramName] as number;
     }

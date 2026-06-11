@@ -31,8 +31,8 @@ describe('mergeOptimistic', () => {
   beforeEach(() => {
     useBackendState.setState({
       snapshot: {
-        session_id: 's1',
-        image_context: null,
+        sessionId: 's1',
+        imageContext: null,
         widgets: [
           {
             id: 'w_1',
@@ -61,8 +61,8 @@ describe('mergeOptimistic', () => {
             updated_at: '2026-05-28T00:00:00Z',
           },
         ],
-        masks_index: [],
-        operation_graph: {
+        masksIndex: [],
+        operationGraph: {
           id: 'g1',
           userGoal: 'warmer',
           nodes: baseGraph.nodes,
@@ -109,11 +109,11 @@ describe('selectPipelineNodes (compound expansion)', () => {
     if (!ProcessingRegistry.has('light')) registerAllProcessing();
     useBackendState.setState({
       snapshot: {
-        session_id: 's1',
-        image_context: null,
+        sessionId: 's1',
+        imageContext: null,
         widgets: [],
-        masks_index: [],
-        operation_graph: {
+        masksIndex: [],
+        operationGraph: {
           id: 'g1',
           userGoal: 'time-of-day',
           nodes: [{
@@ -144,8 +144,8 @@ describe('selectPipelineNodes (compound optimistic patches)', () => {
     if (!ProcessingRegistry.has('light')) registerAllProcessing();
     useBackendState.setState({
       snapshot: {
-        session_id: 's1',
-        image_context: null,
+        sessionId: 's1',
+        imageContext: null,
         widgets: [{
           id: 'w_tod',
           intent: 'Time of Day',
@@ -174,8 +174,8 @@ describe('selectPipelineNodes (compound optimistic patches)', () => {
             default: 0.30,
           }],
         }],
-        masks_index: [],
-        operation_graph: {
+        masksIndex: [],
+        operationGraph: {
           id: 'g1',
           userGoal: '',
           nodes: [{

@@ -21,6 +21,7 @@ from .analyze_context import AnalyzeContextTool
 from .prepare_image import PrepareImageTool
 from .precompute_regions import PrecomputeRegionsTool
 from .select_named_region import SelectNamedRegionTool
+from .suggest_widgets import SuggestWidgetsTool
 from .set_image_node_transform import SetImageNodeTransformTool
 
 
@@ -44,6 +45,7 @@ def register_all_atomic_tools(registry: BackendToolRegistry) -> None:
     registry.register(PrepareImageTool())
     registry.register(AnalyzeContextTool())
     registry.register(PrecomputeRegionsTool())
+    registry.register(SuggestWidgetsTool())
     registry.register(ListFusedToolsTool())
     registry.register(PreviewWidgetTool())
     registry.register(SetImageNodeTransformTool())

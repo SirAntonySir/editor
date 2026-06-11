@@ -103,15 +103,15 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
             # Info-tab Histograms + Color sections can flip from skeleton to
             # real data without waiting for ai_context.
             doc._emit("context.updated", {"image_context": {
-                "luma_histogram": list(cheap.luma_histogram),
-                "rgb_histograms": cheap.rgb_histograms,
-                "clipped_shadows_pct": cheap.clipped_shadows_pct,
-                "clipped_highlights_pct": cheap.clipped_highlights_pct,
-                "median_luma": cheap.median_luma,
-                "contrast_p10_p90": cheap.contrast_p10_p90,
-                "color_palette": [s.model_dump(mode="json", by_alias=True) for s in cheap.color_palette],
-                "cast_strength": cheap.cast_strength,
-                "cast_direction": list(cheap.cast_direction),
+                "lumaHistogram": list(cheap.luma_histogram),
+                "rgbHistograms": cheap.rgb_histograms,
+                "clippedShadowsPct": cheap.clipped_shadows_pct,
+                "clippedHighlightsPct": cheap.clipped_highlights_pct,
+                "medianLuma": cheap.median_luma,
+                "contrastP10P90": cheap.contrast_p10_p90,
+                "colorPalette": [s.model_dump(mode="json", by_alias=True) for s in cheap.color_palette],
+                "castStrength": cheap.cast_strength,
+                "castDirection": list(cheap.cast_direction),
             }})
             return cheap
 
@@ -203,11 +203,11 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
         # WB confidence), populates Problems, and finalises region_stats so
         # the Regions section gains its skin/sky hints.
         doc._emit("context.updated", {"image_context": {
-            "estimated_white_point": list(soft.estimated_white_point),
-            "wb_neutral_confidence": soft.wb_neutral_confidence,
-            "grade_character": soft.grade_character,
+            "estimatedWhitePoint": list(soft.estimated_white_point),
+            "wbNeutralConfidence": soft.wb_neutral_confidence,
+            "gradeCharacter": soft.grade_character,
             "problems": [p.model_dump(mode="json", by_alias=True) for p in soft.problems],
-            "region_stats": [r.model_dump(mode="json", by_alias=True) for r in region_stats],
+            "regionStats": [r.model_dump(mode="json", by_alias=True) for r in region_stats],
         }})
         # Terminal "available" ping kept for any consumers that gate on it.
         doc._emit("context.updated", {"available": True})

@@ -33,14 +33,18 @@ async def panel(
     except SessionNotFound:
         raise HTTPException(status_code=404, detail="unknown or expired session")
     if record.context is None:
-        analyze_envelope = await registry.invoke(
-            name="analyze_image", session_id=body.session_id, raw_input={},
-        )
-        if not analyze_envelope.ok:
-            raise HTTPException(
-                status_code=502,
-                detail=analyze_envelope.error.message if analyze_envelope.error else "analyze failed",
+        # Run the 4-tool analyze pipeline: prepare → analyze_context → precompute_regions.
+        # suggest_widgets is intentionally skipped here (the shim is deprecated and the
+        # caller only needs context, not autonomous widget suggestions).
+        for tool_name in ("prepare_image", "analyze_context", "precompute_regions"):
+            analyze_envelope = await registry.invoke(
+                name=tool_name, session_id=body.session_id, raw_input={},
             )
+            if not analyze_envelope.ok:
+                raise HTTPException(
+                    status_code=502,
+                    detail=analyze_envelope.error.message if analyze_envelope.error else f"{tool_name} failed",
+                )
 
     envelope = await registry.invoke(
         name="propose_stack",

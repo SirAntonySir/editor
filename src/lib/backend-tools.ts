@@ -47,9 +47,6 @@ async function invokeTool<T>(
 }
 
 export const backendTools = {
-  analyze_image(sessionId: string, args: { layer_id?: string } = {}) {
-    return invokeTool<ImageContext>('analyze_image', sessionId, args);
-  },
   prepare_image(sessionId: string) {
     return invokeTool<PrepareImageOutput>('prepare_image', sessionId, {});
   },

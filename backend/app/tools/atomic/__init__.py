@@ -1,7 +1,6 @@
 from app.tools.registry import BackendToolRegistry
 
 from .add_note import AddNoteTool
-from .analyze_image import AnalyzeImageTool
 from .apply_adjustment import ApplyAdjustmentTool
 from .clear_selection import ClearSelectionTool
 from .create_session import CreateSessionTool
@@ -41,7 +40,6 @@ def register_all_atomic_tools(registry: BackendToolRegistry) -> None:
     registry.register(HighlightRegionTool())
     registry.register(AddNoteTool())
     registry.register(CreateSessionTool())
-    registry.register(AnalyzeImageTool())
     registry.register(PrepareImageTool())
     registry.register(AnalyzeContextTool())
     registry.register(PrecomputeRegionsTool())

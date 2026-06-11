@@ -92,6 +92,7 @@ def test_panel_returns_operation_graph(client: TestClient, fake_client: MagicMoc
     assert isinstance(body["panelBindings"], list)
     assert len(body["panelBindings"]) > 0
     # Verify the lazy-analyze branch fired (no prior context on the session).
+    # analyze_context internally calls client.analyze_image exactly once.
     assert fake_client.analyze_image.call_count == 1
 
 

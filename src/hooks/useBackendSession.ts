@@ -62,8 +62,9 @@ async function rehydrateMaskBytes(
 
 /**
  * Boots the BackendStateSlice + SSE subscription whenever the AiSession
- * has a session id. Calls analyze_image to populate context + autonomous
- * suggestions. Lives in EditorProvider; one instance per app.
+ * has a session id. Calls the 4-tool analyze pipeline (prepare_image →
+ * analyze_context → precompute_regions → suggest_widgets) to populate
+ * context + autonomous suggestions. Lives in EditorProvider; one instance per app.
  *
  * On boot, if there is no live AiSession yet, the hook checks localStorage
  * for a previously-persisted sessionId and probes the backend. If the session

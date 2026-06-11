@@ -1,9 +1,9 @@
-"""Contract tests: the analyze tool envelope and snapshot shape.
+"""Contract tests: the analyze pipeline envelope and snapshot shape.
 
 These pin the OBSERVABLE wire shape so subsequent refactor phases catch
 regressions. They are deliberately structural (key presence + types),
-not value-based, so they survive Phase 1's casing migration with a
-single search/replace.
+not value-based, so they survive casing migrations with a single
+search/replace.
 """
 
 from __future__ import annotations
@@ -25,22 +25,21 @@ def _post_session(client: TestClient) -> str:
     return resp.json()["session_id"]
 
 
-def test_analyze_envelope_shape(fake_anthropic, fake_sam, monkeypatch):
-    """The analyze_image tool envelope must carry the keys the frontend
-    consumes. Values are not asserted; this is a shape contract."""
+def test_analyze_pipeline_envelope_shape(fake_anthropic, fake_sam, monkeypatch):
+    """The 4-tool analyze pipeline must produce the envelope shape the
+    frontend consumes and persist it into the session snapshot."""
     monkeypatch.setenv("ANALYZE_SAM", "1")
     client = TestClient(app)
     sid = _post_session(client)
 
-    resp = client.post(
-        "/api/tools/analyze_image",
-        json={"session_id": sid, "input": {}},
-    )
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert body["ok"] is True
-    out = body["output"]
-    # Top-level keys the frontend reads (camelCase on the wire as of Phase 1).
+    p = client.post("/api/tools/prepare_image", json={"session_id": sid, "input": {}})
+    assert p.status_code == 200, p.text
+    assert p.json()["ok"] is True
+
+    a = client.post("/api/tools/analyze_context", json={"session_id": sid, "input": {}})
+    assert a.status_code == 200, a.text
+    assert a.json()["ok"] is True
+    out = a.json()["output"]
     for key in (
         "subjects",
         "lighting",
@@ -58,14 +57,9 @@ def test_analyze_envelope_shape(fake_anthropic, fake_sam, monkeypatch):
     for key in ("label", "description", "bbox", "representativePoint"):
         assert key in region, f"missing region key: {key}"
 
-
-def test_state_snapshot_shape(fake_anthropic, fake_sam, monkeypatch):
-    """The /api/state/{sid} snapshot must surface image_context with the
-    same regions list. Pins the SSE-merged shape consumers depend on."""
-    monkeypatch.setenv("ANALYZE_SAM", "1")
-    client = TestClient(app)
-    sid = _post_session(client)
-    client.post("/api/tools/analyze_image", json={"session_id": sid, "input": {}})
+    pr = client.post("/api/tools/precompute_regions", json={"session_id": sid, "input": {}})
+    assert pr.status_code == 200, pr.text
+    assert pr.json()["ok"] is True
 
     snap = client.get(f"/api/state/{sid}").json()
     for key in ("sessionId", "imageContext", "widgets", "masksIndex"):
@@ -73,4 +67,5 @@ def test_state_snapshot_shape(fake_anthropic, fake_sam, monkeypatch):
     ic = snap["imageContext"]
     assert ic is not None
     assert "candidateRegions" in ic
-    assert isinstance(ic["candidateRegions"], list)
+    # After precompute_regions with SAM on, regions carry paths.
+    assert any(r.get("paths") for r in ic["candidateRegions"])

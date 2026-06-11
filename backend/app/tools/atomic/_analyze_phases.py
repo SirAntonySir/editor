@@ -165,12 +165,8 @@ def apply_region_masks(
 
 
 def compute_region_stats(arr: np.ndarray, base: ImageContext, soft_fields) -> list[RegionStats]:
-    """Run the existing region-stats computation. Pure wrapper that returns
-    the list rather than mutating ctx."""
-    # The existing implementation lives in analyze_image.py. Import it here
-    # to avoid duplicating ~50 lines of cv2 code. analyze_image.py stays
-    # until Task 2.7 deletes it; by then this import will be removed in
-    # favour of moving _compute_region_stats to its own module.
-    from app.tools.atomic.analyze_image import _compute_region_stats
+    """Run the region-stats computation. Pure wrapper that delegates to the
+    dedicated module."""
+    from app.state.region_stats import compute_region_stats as _impl
 
-    return _compute_region_stats(arr, base, soft_fields)
+    return _impl(arr, base, soft_fields)

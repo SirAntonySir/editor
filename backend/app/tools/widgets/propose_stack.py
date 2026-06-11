@@ -332,7 +332,7 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
 
         if doc.image_context is None:
             from app.tools.widgets.propose_widget import _MissingContext
-            raise _MissingContext("call analyze_image first")
+            raise _MissingContext("call prepare_image then analyze_context first")
 
         return await self._handle_llm_path(doc, input, scope)
 

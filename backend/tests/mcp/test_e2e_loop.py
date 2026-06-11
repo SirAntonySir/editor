@@ -1,9 +1,9 @@
 """End-to-end MCP wire test.
 
 Walks the full MCP loop over the real /mcp endpoint with a fake AnthropicClient:
-session bootstrap -> initialize -> tools/list -> analyze_image -> propose_stack
--> refine_widget -> delete_widget. Verifies the dismissal rule lands in the
-session document at the end.
+session bootstrap -> initialize -> tools/list -> prepare_image -> analyze_context
+-> precompute_regions -> propose_stack -> refine_widget -> delete_widget.
+Verifies the dismissal rule lands in the session document at the end.
 """
 from __future__ import annotations
 
@@ -154,13 +154,16 @@ async def test_full_mcp_loop_create_propose_refine_delete() -> None:
             names = {t["name"] for t in listing}
             assert {"propose_stack", "propose_widget", "refine_widget", "repeat_widget", "delete_widget"}.issubset(names)
 
-            # 4. analyze_image via MCP — sets record.context satisfying
-            # propose_stack's requires_context permission.
-            env = (await _mcp(ac, sid, "tools/call", {
-                "name": "analyze_image", "arguments": {},
-            }, 3))["result"]
-            outer = json.loads(env["content"][0]["text"])
-            assert outer["ok"] is True
+            # 4. Run the 4-tool analyze pipeline via MCP — sets record.context
+            # satisfying propose_stack's requires_context permission.
+            for req_id, tool_name in enumerate(
+                ("prepare_image", "analyze_context", "precompute_regions"), start=3
+            ):
+                env = (await _mcp(ac, sid, "tools/call", {
+                    "name": tool_name, "arguments": {},
+                }, req_id))["result"]
+                outer = json.loads(env["content"][0]["text"])
+                assert outer["ok"] is True, f"{tool_name} failed: {outer}"
 
             # 5. propose_stack via MCP (migrated from propose_widget for LLM path).
             envp = (await _mcp(ac, sid, "tools/call", {
@@ -169,7 +172,7 @@ async def test_full_mcp_loop_create_propose_refine_delete() -> None:
                     "intent": "warmer",
                     "scope": {"kind": "global"},
                 },
-            }, 4))["result"]
+            }, 6))["result"]
             prop = json.loads(envp["content"][0]["text"])
             assert prop["ok"] is True
             wid = prop["output"]["widgets"][0]["id"]
@@ -182,7 +185,7 @@ async def test_full_mcp_loop_create_propose_refine_delete() -> None:
                     "edits": [],
                     "additions": [{"request": "add a skin-protect toggle"}],
                 },
-            }, 5))["result"]
+            }, 7))["result"]
             refined = json.loads(envr["content"][0]["text"])
             assert refined["ok"] is True
             keys = [b["paramKey"] for b in refined["output"]["widget"]["bindings"]]
@@ -192,7 +195,7 @@ async def test_full_mcp_loop_create_propose_refine_delete() -> None:
             envd = (await _mcp(ac, sid, "tools/call", {
                 "name": "delete_widget",
                 "arguments": {"widget_id": wid, "suppress_similar": True},
-            }, 6))["result"]
+            }, 8))["result"]
             deleted = json.loads(envd["content"][0]["text"])
             assert deleted["ok"] is True
 

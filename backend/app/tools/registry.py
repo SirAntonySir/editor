@@ -42,7 +42,7 @@ def _classify_exception(exc: Exception) -> ToolResponseEnvelope | None:
     if cls_name == "_InvalidInput":
         return _err("invalid_input", str(exc), retryable=False)
     if cls_name == "_MissingContext":
-        return _err("missing_context", str(exc), retryable=True, recovery_hint="call analyze_image")
+        return _err("missing_context", str(exc), retryable=True, recovery_hint="call prepare_image then analyze_context")
     return None
 
 
@@ -105,9 +105,9 @@ class BackendToolRegistry:
         if tool.permissions.requires_context and record.context is None:
             return _err(
                 "missing_context",
-                "call analyze_image first",
+                "call prepare_image then analyze_context first",
                 retryable=True,
-                recovery_hint="call analyze_image",
+                recovery_hint="call prepare_image then analyze_context",
             )
 
         # Acquire write lock for mutate/emit; query tools take no lock.
@@ -115,7 +115,7 @@ class BackendToolRegistry:
             with self._store.with_document_lock(session_id) as doc:
                 # Stream events live as the handler emits them, rather than
                 # flushing in one burst once it returns. Critical for
-                # long-running handlers (analyze_image) whose progress stepper
+                # long-running handlers (analyze_context) whose progress stepper
                 # would otherwise jump straight to done.
                 doc._event_sink = lambda ev: self._bus.publish(session_id, ev)
                 try:

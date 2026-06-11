@@ -42,14 +42,11 @@ class SuggestWidgetsTool(BackendTool[_Input, _Output]):
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         if not isinstance(doc.image_context, EnrichedImageContext):
             return _Output(widget_ids=[])
-        # Lift the existing fan-out unchanged so behavior matches today's
-        # mega-tool path. This import goes away when Task 2.7 deletes
-        # analyze_image.py (the helper moves to its own module then).
-        from app.tools.atomic.analyze_image import _mint_autonomous_suggestions
+        from app.services.autonomous_suggestions import mint_autonomous_suggestions
 
         client = deps.get_anthropic_client()
         before = set(doc.widgets.keys())
-        await _mint_autonomous_suggestions(
+        await mint_autonomous_suggestions(
             doc, doc.image_context, client, input.layer_id,
         )
         after = set(doc.widgets.keys())

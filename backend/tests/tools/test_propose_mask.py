@@ -46,11 +46,12 @@ async def test_propose_mask_happy_path(make_doc) -> None:
     assert record.width == 64
     assert record.height == 48
 
-    # A mask.created event should have been emitted by doc.add_mask, and a
-    # mask.proposed event by the tool itself.
+    # add_mask fires `mask.created`, which is the single SSE the frontend
+    # consumer reads (and which appends to snapshot.masksIndex). A previous
+    # secondary `mask.proposed` emit was removed as redundant — no separate
+    # event to assert here.
     kinds = [ev.kind for ev in doc.history]
     assert "mask.created" in kinds
-    assert "mask.proposed" in kinds
 
 
 @pytest.mark.asyncio

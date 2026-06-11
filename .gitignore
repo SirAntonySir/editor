@@ -37,6 +37,10 @@ backend/**/*.pyc
 backend/.pytest_cache/
 backend/models/
 backend/.sessions/
+# Tests run with cwd=backend so the relative SESSIONS_DIR resolves to
+# a doubly-nested backend/backend/.sessions/ if a test isn't isolated
+# via tmp_path. Ignore both shapes.
+**/.sessions/
 .superpowers/
 
 # Experimental / in-progress files

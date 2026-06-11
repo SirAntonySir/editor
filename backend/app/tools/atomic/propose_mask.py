@@ -92,18 +92,9 @@ class ProposeMaskTool(BackendTool[_Input, _Output]):
             label=label,
         )
 
+        # add_mask already fires `mask.created` SSE which the frontend
+        # handler merges into snapshot.masksIndex. No additional emit
+        # needed — a previous `mask.proposed` event here was redundant.
         doc.add_mask(record)
-
-        # Stream a dedicated mask.proposed event so the snapshot consumer can
-        # append to masksIndex without waiting for the next full snapshot fetch.
-        doc._emit("mask.proposed", {
-            "maskId": mask_id,
-            "imageNodeId": input.image_node_id,
-            "source": source,
-            "label": label,
-            "width": width,
-            "height": height,
-            "origin": input.origin,
-        })
 
         return _Output(mask_id=mask_id)

@@ -268,7 +268,7 @@ def test_state_event_kinds() -> None:
     expected = {
         "widget.created", "widget.updated", "widget.deleted",
         "widget.accepted", "widget.restored",
-        "mask.created", "mask.proposed", "selection.changed",
+        "mask.created", "selection.changed",
         "context.updated", "dismissal.added",
         "note.created",
         "phase.started", "phase.progress", "phase.completed",

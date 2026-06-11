@@ -143,7 +143,7 @@ class SessionDocument(BaseModel):
         # already reflects the removed node. (accept_widget keeps canonical.)
         self._reset_canonical_from_widget(w)
         events = [self._emit("widget.deleted", {
-            "widget_id": widget_id,
+            "widgetId": widget_id,
             "operationGraph": self._op_graph_payload(),
         })]
         if rule is not None:
@@ -161,7 +161,7 @@ class SessionDocument(BaseModel):
         # Restore re-applies the adjustment dismiss() discarded.
         self._seed_canonical_from_widget(w)
         return [self._emit("widget.restored", {
-            "widget_id": widget_id,
+            "widgetId": widget_id,
             "operationGraph": self._op_graph_payload(),
         })]
 
@@ -172,7 +172,7 @@ class SessionDocument(BaseModel):
         w.status = "accepted"
         w.updated_at = datetime.now(timezone.utc)
         return [self._emit("widget.accepted", {
-            "widget_id": widget_id,
+            "widgetId": widget_id,
             "operationGraph": self._op_graph_payload(),
         })]
 

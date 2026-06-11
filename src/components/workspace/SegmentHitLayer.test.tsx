@@ -1,9 +1,18 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import { SegmentHitLayer } from './SegmentHitLayer';
 import { useEditorStore } from '@/store';
-import { segmentStore } from '@/lib/segmentation/segment-store';
 import { useAiSession } from '@/hooks/useImageContext';
+
+vi.mock('@/hooks/useMobileSam', () => ({
+  useMobileSam: () => ({ ready: true, error: null, decode: vi.fn(async () => null) }),
+}));
+
+vi.mock('@/lib/backend-tools', () => ({
+  backendTools: {
+    propose_mask: vi.fn(async () => ({ ok: true, output: { maskId: 'new-mask' } })),
+  },
+}));
 
 const region = (id: string, label: string) => ({
   label,
@@ -15,7 +24,6 @@ const region = (id: string, label: string) => ({
 describe('SegmentHitLayer', () => {
   beforeEach(() => {
     useEditorStore.getState().clearSelection();
-    segmentStore.clearAll();
     // SegmentHitLayer reads directly from useAiSession context.candidateRegions,
     // not segmentStore — seed it here so the component sees the test regions.
     useAiSession.setState({

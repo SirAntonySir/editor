@@ -1,9 +1,12 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditorStore } from '@/store';
 import { polygonsAtPoint } from '@/lib/segmentation/mask-utils';
 import { useAiSession } from '@/hooks/useImageContext';
+import { useMobileSam } from '@/hooks/useMobileSam';
+import { backendTools } from '@/lib/backend-tools';
 import { SegmentOverlay } from './SegmentOverlay';
 import type { RegionPolygon } from '@/types/image-context';
+import type { SamPoint, DecodedMask } from '@/lib/segmentation/mobile-sam-types';
 
 interface SegmentHitLayerProps {
   imageNodeId: string;
@@ -17,6 +20,11 @@ interface HitRegion {
   paths: RegionPolygon[];
 }
 
+interface CandidateState {
+  points: SamPoint[];
+  mask: DecodedMask | null;
+}
+
 function findRegionByMaskId(regions: HitRegion[], maskId: string | undefined): HitRegion | null {
   if (!maskId) return null;
   return regions.find((x) => x.id === maskId) ?? null;
@@ -28,6 +36,26 @@ function clientToNormalised(
 ): [number, number] {
   const rect = el.getBoundingClientRect();
   return [(evt.clientX - rect.left) / rect.width, (evt.clientY - rect.top) / rect.height];
+}
+
+async function maskToPngBase64(mask: DecodedMask): Promise<string> {
+  const canvas = new OffscreenCanvas(mask.width, mask.height);
+  const ctx = canvas.getContext('2d')!;
+  const imgData = ctx.createImageData(mask.width, mask.height);
+  for (let i = 0; i < mask.data.length; i++) {
+    const v = mask.data[i];
+    imgData.data[i * 4] = v;
+    imgData.data[i * 4 + 1] = v;
+    imgData.data[i * 4 + 2] = v;
+    imgData.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(imgData, 0, 0);
+  const blob = await canvas.convertToBlob({ type: 'image/png' });
+  const buf = await blob.arrayBuffer();
+  let binary = '';
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
 }
 
 export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLayerProps) {
@@ -47,6 +75,9 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
       .map((r) => ({ id: r.maskRef!, label: r.label, paths: r.paths! }));
   }, [candidateRegions]);
 
+  const sessionId = useAiSession((s) => s.sessionId);
+  const samCapability = useMobileSam(imageNodeId);
+
   const activeScope = useEditorStore((s) => s.activeScope);
   const hoveredScope = useEditorStore((s) => s.hoveredScope);
   const clickAt = useEditorStore((s) => s.clickAt);
@@ -63,6 +94,39 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
   // Cursor position in local layer coordinates (px) for the tooltip. Null
   // when the cursor isn't over a region.
   const [cursorPx, setCursorPx] = useState<[number, number] | null>(null);
+
+  // Live candidate from MobileSAM (shift/cmd-click flow).
+  const [candidate, setCandidate] = useState<CandidateState | null>(null);
+
+  const cancelCandidate = useCallback(() => setCandidate(null), []);
+
+  const commitCandidate = useCallback(async () => {
+    if (!candidate?.mask || !sessionId) return;
+    const pngBase64 = await maskToPngBase64(candidate.mask);
+    const hasNegativePoint = candidate.points.some((p) => p.label === 0);
+    const env = await backendTools.propose_mask(sessionId, {
+      imageNodeId,
+      pngBase64,
+      paths: [],
+      origin: hasNegativePoint ? 'client_refinement' : 'client_new',
+    });
+    if (env.ok) {
+      // Drop the candidate; the new mask will appear via SSE
+      // `mask.proposed` event merging into snapshot.masksIndex.
+      setCandidate(null);
+    }
+  }, [candidate, sessionId, imageNodeId]);
+
+  // Esc / Enter shortcuts when a candidate is live.
+  useEffect(() => {
+    if (!candidate) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); cancelCandidate(); }
+      if (e.key === 'Enter') { e.preventDefault(); void commitCandidate(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [candidate, commitCandidate, cancelCandidate]);
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -90,14 +154,48 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
   }, [setHoveredScope]);
 
   const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
+    async (e: React.MouseEvent<HTMLDivElement>) => {
       const el = layerRef.current;
       if (!el) return;
       const [nx, ny] = clientToNormalised(e, el);
       const hits = polygonsAtPoint([nx, ny], regions);
+
+      // Shift-click: start a new candidate with one positive point.
+      if (e.shiftKey) {
+        const point: SamPoint = { x: nx, y: ny, label: 1 };
+        const points = [point];
+        const mask = await samCapability.decode(points);
+        setCandidate({ points, mask });
+        // If we got a mask, immediately commit (skip Enter step for single-click new).
+        if (mask && sessionId) {
+          const pngBase64 = await maskToPngBase64(mask);
+          const env = await backendTools.propose_mask(sessionId, {
+            imageNodeId,
+            pngBase64,
+            paths: [],
+            origin: 'client_new',
+          });
+          if (env.ok) {
+            setCandidate(null);
+          }
+        }
+        return;
+      }
+
+      // Cmd-click (or Ctrl-click on non-mac): if a candidate is live, refine it.
+      if ((e.metaKey || e.ctrlKey) && candidate) {
+        const isInsideExisting = hits.length > 0;
+        const point: SamPoint = { x: nx, y: ny, label: isInsideExisting ? 0 : 1 };
+        const points = [...candidate.points, point];
+        const mask = await samCapability.decode(points);
+        setCandidate({ points, mask });
+        return;
+      }
+
+      // Plain click — default behavior unchanged.
       clickAt(nx, ny, hits);
     },
-    [regions, clickAt],
+    [regions, clickAt, candidate, samCapability, sessionId, imageNodeId],
   );
 
   return (
@@ -132,6 +230,13 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
           }}
         >
           {hoveredRegion.label}
+        </div>
+      )}
+      {candidate && (
+        <div
+          className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-1 rounded-[4px] bg-surface text-text-primary text-[10px] leading-none border border-separator shadow-sm whitespace-nowrap"
+        >
+          {candidate.mask ? 'Enter to commit · Esc to cancel · Cmd+click to refine' : 'Segmenting…'}
         </div>
       )}
     </div>

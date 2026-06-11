@@ -12,7 +12,6 @@ import { editorDocument } from '@/core/document';
 import { useChromeVisible } from '@/hooks/useChromeVisible';
 import { useChromeMinFloor } from '@/hooks/useChromeMinFloor';
 import { useAiSession } from '@/hooks/useImageContext';
-import { useSegmentInteraction } from '@/hooks/useSegmentInteraction';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
@@ -141,9 +140,7 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   const objectCount = useAiSession((s) => s.context?.candidateRegions?.length ?? 0);
   const currentMode: 'layers' | 'objects' =
     imageNodeMode ?? (objectCount > 0 ? 'objects' : 'layers');
-  // Bridge AI session candidateRegions into the segmentStore keyed by this node.
-  useSegmentInteraction(id);
-  const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
+const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
 
   const effectiveRotateAngle =
     previewActive && cropPreview && cropPreview.rotate

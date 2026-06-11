@@ -17,6 +17,18 @@ export interface SuggestWidgetsOutput {
   widgetIds: string[];
 }
 
+export interface ProposeMaskInput {
+  imageNodeId: string;
+  pngBase64: string;
+  paths: number[][][];
+  label?: string | null;
+  origin: 'client_refinement' | 'client_new' | 'client_extracted';
+}
+
+export interface ProposeMaskOutput {
+  maskId: string;
+}
+
 const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
 export interface ToolEnvelope<T> {
@@ -128,5 +140,8 @@ export const backendTools = {
     return invokeTool<{ mime_type: string; image_b64: string | null; reason?: string }>(
       'preview_widget', sessionId, args,
     );
+  },
+  propose_mask(sessionId: string, input: ProposeMaskInput) {
+    return invokeTool<ProposeMaskOutput>('propose_mask', sessionId, input as unknown as Record<string, unknown>);
   },
 };

@@ -29,53 +29,20 @@ export function useMobileSam(imageNodeId: string | null): UseMobileSam {
     setReady(false);
     setError(null);
 
+    // Detect capability EAGERLY but defer the encoder run. ORT-Web's WASM
+    // runtime + the ~26 MB ONNX weights only load when the user actually
+    // invokes refinement (first shift/cmd-click). This matches the design
+    // spec's "dynamic import behind first object-mode entry" — entering
+    // object mode no longer pays the bundle cost.
     (async () => {
       try {
         const cap = await detectSamCapability();
         if (cancelled) return;
         capabilityRef.current = cap;
-        if (cap === 'backend') {
-          // Backend fallback path — decode() returns null; caller hits
-          // propose_mask MCP tool instead.
-          setReady(true);
-          return;
-        }
-
-        // Check cache.
-        const cached = _cache.get(imageNodeId);
-        if (cached) {
-          embeddingRef.current = cached;
-          setReady(true);
-          return;
-        }
-
-        // Find this imageNode's first image layer, load the bitmap, run encoder.
-        const imageNode = useEditorStore.getState().imageNodes[imageNodeId];
-        const layerId = imageNode?.layerIds[0];
-        if (!layerId) {
-          throw new Error(`imageNode ${imageNodeId} has no layers`);
-        }
-        const source = CanvasRegistry.getSource(layerId);
-        if (!source) {
-          throw new Error(`no pixel source for layer ${layerId}`);
-        }
-        const bitmap = await createImageBitmap(source);
-        try {
-          const emb = await samEncode(bitmap);
-          if (cancelled) {
-            bitmap.close();
-            return;
-          }
-          _cache.set(imageNodeId, emb);
-          embeddingRef.current = emb;
-          setReady(true);
-        } finally {
-          bitmap.close();
-        }
+        setReady(true);
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err : new Error(String(err)));
-        setReady(false);
       }
     })();
 
@@ -84,9 +51,36 @@ export function useMobileSam(imageNodeId: string | null): UseMobileSam {
 
   const decode = useCallback(async (points: SamPoint[]): Promise<DecodedMask | null> => {
     if (capabilityRef.current === 'backend') return null;
-    if (!embeddingRef.current) return null;
+    if (!imageNodeId) return null;
+
+    // Lazy encoder: on the first decode call for this imageNodeId, fetch
+    // the bitmap from CanvasRegistry, run the encoder, cache the embedding.
+    // Subsequent decodes reuse the cached embedding (~20 ms each).
+    if (!embeddingRef.current) {
+      const cached = _cache.get(imageNodeId);
+      if (cached) {
+        embeddingRef.current = cached;
+      } else {
+        const imageNode = useEditorStore.getState().imageNodes[imageNodeId];
+        const layerId = imageNode?.layerIds[0];
+        if (!layerId) return null;
+        const source = CanvasRegistry.getSource(layerId);
+        if (!source) return null;
+        const bitmap = await createImageBitmap(source);
+        try {
+          const emb = await samEncode(bitmap);
+          _cache.set(imageNodeId, emb);
+          embeddingRef.current = emb;
+        } catch (err) {
+          setError(err instanceof Error ? err : new Error(String(err)));
+          return null;
+        } finally {
+          bitmap.close();
+        }
+      }
+    }
     return samDecode(embeddingRef.current, points);
-  }, []);
+  }, [imageNodeId]);
 
   return { ready, error, decode };
 }

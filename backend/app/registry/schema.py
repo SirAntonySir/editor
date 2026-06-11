@@ -4,6 +4,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas._camel import camel_config
+
 
 PRESET_SOURCE = Literal["builtin", "user", "project"]
 PARAM_TYPE = Literal["scalar", "curve_points", "color_hsv", "enum", "bool"]
@@ -14,7 +16,7 @@ CONTROL_TYPE = Literal[
 
 
 class OpParamSchema(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     type: PARAM_TYPE
     default: Any
     range: tuple[float, float] | None = None
@@ -38,7 +40,7 @@ class OpParamSchema(BaseModel):
 
 
 class OpBinding(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     param_key: str
     control_type: CONTROL_TYPE
     label: str
@@ -46,21 +48,21 @@ class OpBinding(BaseModel):
 
 
 class OpLlmMetadata(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     description: str
     typical_use: str
     semantic_tags: list[str] = Field(default_factory=list)
 
 
 class OpEngineConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     shader: str
     render_order: int
     node_type: str
 
 
 class CompoundAnchor(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     position: float = Field(ge=0.0, le=1.0)
     name: str
     values: dict[str, float]
@@ -68,7 +70,7 @@ class CompoundAnchor(BaseModel):
 
 
 class OpCompoundConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     driver: str
     interpolation: Literal["catmull_rom_1d"] = "catmull_rom_1d"
     anchors: list[CompoundAnchor] = Field(min_length=2)
@@ -88,7 +90,7 @@ class OpCompoundConfig(BaseModel):
 
 
 class RegistryOp(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     id: str
     display_name: str
     category: str | None = None    # planner grouping hint + Cmd+K section header
@@ -121,13 +123,13 @@ class RegistryOp(BaseModel):
 
 
 class PresetOp(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     op_id: str
     params: dict[str, Any]
 
 
 class RegistryPreset(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     id: str
     display_name: str
     source: PRESET_SOURCE = "builtin"

@@ -220,10 +220,11 @@ export interface MaskSummary {
 
 // Re-export the existing OperationGraph type for the snapshot.
 import type { OperationGraph } from './operation-graph';
+import type { ImageContext } from './image-context';
 
 export interface SessionStateSnapshot {
   session_id: string;
-  image_context: unknown | null;     // EnrichedImageContext — opaque to the frontend
+  image_context: ImageContext | null;
   widgets: Widget[];
   masks_index: MaskSummary[];
   operation_graph: OperationGraph;

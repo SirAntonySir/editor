@@ -1,4 +1,5 @@
 import type { Widget, Scope, ControlValue, WidgetOriginKind } from '@/types/widget';
+import type { ImageContext } from '@/types/image-context';
 
 const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
@@ -31,7 +32,7 @@ async function invokeTool<T>(
 
 export const backendTools = {
   analyze_image(sessionId: string, args: { layer_id?: string } = {}) {
-    return invokeTool<{ image_context: unknown }>('analyze_image', sessionId, args);
+    return invokeTool<ImageContext>('analyze_image', sessionId, args);
   },
   list_widgets(sessionId: string) {
     return invokeTool<{ widgets: Widget[] }>('list_widgets', sessionId, {});

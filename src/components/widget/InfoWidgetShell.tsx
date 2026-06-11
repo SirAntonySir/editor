@@ -84,18 +84,18 @@ function projectLive(content: InfoNodeContent, live: LiveSources): InfoNodeConte
       return {
         kind: 'histogram',
         bins: {
-          r:   live.mech.rgb_histograms.r,
-          g:   live.mech.rgb_histograms.g,
-          b:   live.mech.rgb_histograms.b,
-          lum: live.mech.luma_histogram,
+          r:   live.mech.rgbHistograms.r,
+          g:   live.mech.rgbHistograms.g,
+          b:   live.mech.rgbHistograms.b,
+          lum: live.mech.lumaHistogram,
         },
       };
     case 'palette':
-      if (!live.mech || live.mech.color_palette.length === 0) return content;
+      if (!live.mech || live.mech.colorPalette.length === 0) return content;
       return {
         kind: 'palette',
         palette: {
-          swatches: live.mech.color_palette.map((s) => ({
+          swatches: live.mech.colorPalette.map((s) => ({
             rgb: s.rgb,
             weight: s.weight,
           })),
@@ -106,9 +106,9 @@ function projectLive(content: InfoNodeContent, live: LiveSources): InfoNodeConte
       return {
         kind: 'cast',
         cast: {
-          a: live.mech.cast_direction[0],
-          b: live.mech.cast_direction[1],
-          strength: live.mech.cast_strength,
+          a: live.mech.castDirection[0],
+          b: live.mech.castDirection[1],
+          strength: live.mech.castStrength,
         },
       };
   }

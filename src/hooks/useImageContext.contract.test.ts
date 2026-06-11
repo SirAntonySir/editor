@@ -13,21 +13,21 @@ vi.mock('@/lib/backend-tools', () => ({
       output: {
         subjects: ['a person'],
         lighting: 'flat',
-        dominant_tones: ['midtones'],
+        dominantTones: ['midtones'],
         mood: 'test',
-        candidate_regions: [
+        candidateRegions: [
           {
             label: 'person',
             description: 'The subject.',
             bbox: [0.1, 0.1, 0.6, 0.8],
-            representative_point: [0.4, 0.5],
+            representativePoint: [0.4, 0.5],
             paths: [[[0.1, 0.1], [0.6, 0.1], [0.6, 0.8], [0.1, 0.8]]],
-            mask_png_base64: 'iVBORw0KGgoAAAA=',
+            maskPngBase64: 'iVBORw0KGgoAAAA=',
           },
         ],
-        model_name: 'test',
-        model_version: '1',
-        generated_at: '2026-06-11T00:00:00Z',
+        modelName: 'test',
+        modelVersion: '1',
+        generatedAt: '2026-06-11T00:00:00Z',
       },
     })),
   },

@@ -1,23 +1,23 @@
 import { Fragment } from 'react';
 import { Tag } from 'lucide-react';
-import type { EnrichedImageContext } from '@/types/enriched-context';
+import type { ImageContext } from '@/types/image-context';
 import { SectionHeader } from './SectionHeader';
 
 interface Props {
-  ctx: EnrichedImageContext;
+  ctx: ImageContext;
 }
 
 export function SemanticSection({ ctx }: Props) {
   const facts: [string, string | null | undefined][] = [
     ['Lighting', ctx.lighting],
     ['Mood', ctx.mood],
-    ['Grade', ctx.grade_character && ctx.grade_character !== 'neutral' ? ctx.grade_character : null],
+    ['Grade', ctx.gradeCharacter && ctx.gradeCharacter !== 'neutral' ? ctx.gradeCharacter : null],
   ];
   return (
     <section className="px-3 py-2.5">
       <SectionHeader icon={Tag} label="Semantic" />
       {ctx.subjects.length > 0 && <Chips items={ctx.subjects} />}
-      {ctx.dominant_tones.length > 0 && <Chips items={ctx.dominant_tones} muted />}
+      {ctx.dominantTones.length > 0 && <Chips items={ctx.dominantTones} muted />}
       <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
         {facts.map(([k, v]) =>
           v ? (

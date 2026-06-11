@@ -1,4 +1,3 @@
-import { ImageContextSchema } from '@/lib/image-context-schema';
 import type { ImageContext } from '@/types/image-context';
 
 const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
@@ -26,15 +25,14 @@ export async function createSession(blob: Blob): Promise<string> {
 
 export async function analyzeImage(sessionId: string): Promise<ImageContext> {
   const raw = await postJson<unknown>('/api/analyze', { session_id: sessionId });
-  return ImageContextSchema.parse(raw);
+  return raw as ImageContext;
 }
 
 /**
  * Bind a pre-computed ImageContext to a freshly-created backend session.
  * Used to re-establish a session after page-reload without re-calling Claude.
  *
- * The frontend type uses camelCase keys; the backend Pydantic model uses
- * snake_case. Convert here to match the wire format the backend expects.
+ * Both frontend and backend now use camelCase keys on the wire (Phase 1 Task 1.1).
  */
 export async function pushSessionContext(
   sessionId: string,
@@ -43,17 +41,19 @@ export async function pushSessionContext(
   const body = {
     subjects: context.subjects,
     lighting: context.lighting,
-    dominant_tones: context.dominantTones,
+    dominantTones: context.dominantTones,
     mood: context.mood,
-    candidate_regions: context.candidateRegions.map((r) => ({
+    candidateRegions: context.candidateRegions.map((r) => ({
       label: r.label,
       description: r.description,
       bbox: r.bbox ?? null,
-      representative_point: r.representativePoint ?? null,
+      representativePoint: r.representativePoint ?? null,
+      paths: r.paths ?? null,
+      maskPngBase64: r.maskPngBase64 ?? null,
     })),
-    model_name: context.modelName,
-    model_version: context.modelVersion,
-    generated_at: context.generatedAt,
+    modelName: context.modelName,
+    modelVersion: context.modelVersion,
+    generatedAt: context.generatedAt,
   };
   await postJson<unknown>(`/api/session/${sessionId}/context`, body);
 }

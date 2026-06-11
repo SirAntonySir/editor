@@ -10,19 +10,19 @@
  * inspector chrome that needs shape, not pixel-accurate counts.
  */
 
-import type { ColorSwatchData } from '@/types/enriched-context';
+import type { ColorSwatchData } from '@/types/image-context';
 import { computeHistogramBins, type HistogramBins } from './histogram-compute';
 
 export interface MechanicalSnapshot {
-  luma_histogram: number[];
-  rgb_histograms: { r: number[]; g: number[]; b: number[] };
-  clipped_shadows_pct: number;
-  clipped_highlights_pct: number;
-  median_luma: number;
-  contrast_p10_p90: number;
-  color_palette: ColorSwatchData[];
-  cast_strength: number;
-  cast_direction: [number, number];
+  lumaHistogram: number[];
+  rgbHistograms: { r: number[]; g: number[]; b: number[] };
+  clippedShadowsPct: number;
+  clippedHighlightsPct: number;
+  medianLuma: number;
+  contrastP10P90: number;
+  colorPalette: ColorSwatchData[];
+  castStrength: number;
+  castDirection: [number, number];
 }
 
 const SHADOW_CLIP = 4;
@@ -150,24 +150,24 @@ export function computeMechanicalSnapshot(
   const { data } = sampleCtx.getImageData(0, 0, sampleW, sampleH);
 
   return {
-    luma_histogram: Array.from(bins.lum),
-    rgb_histograms: {
+    lumaHistogram: Array.from(bins.lum),
+    rgbHistograms: {
       r: Array.from(bins.r),
       g: Array.from(bins.g),
       b: Array.from(bins.b),
     },
     ...scalarsFromBins(bins),
-    color_palette: computePaletteFromImageData(data),
+    colorPalette: computePaletteFromImageData(data),
     ...castFromImageData(data),
   };
 }
 
 /** Exposed for unit tests + reuse from the hook. */
 export function scalarsFromBins(bins: HistogramBins): {
-  clipped_shadows_pct: number;
-  clipped_highlights_pct: number;
-  median_luma: number;
-  contrast_p10_p90: number;
+  clippedShadowsPct: number;
+  clippedHighlightsPct: number;
+  medianLuma: number;
+  contrastP10P90: number;
 } {
   const lum = bins.lum;
   let total = 0;
@@ -182,16 +182,16 @@ export function scalarsFromBins(bins: HistogramBins): {
     ? percentilesFromBins(lum, [0.1, 0.5, 0.9])
     : [0, 0, 0];
   return {
-    clipped_shadows_pct: total > 0 ? (shadows / total) * 100 : 0,
-    clipped_highlights_pct: total > 0 ? (highlights / total) * 100 : 0,
-    median_luma: median,
-    contrast_p10_p90: p90 - p10,
+    clippedShadowsPct: total > 0 ? (shadows / total) * 100 : 0,
+    clippedHighlightsPct: total > 0 ? (highlights / total) * 100 : 0,
+    medianLuma: median,
+    contrastP10P90: p90 - p10,
   };
 }
 
 function castFromImageData(data: Uint8ClampedArray): {
-  cast_strength: number;
-  cast_direction: [number, number];
+  castStrength: number;
+  castDirection: [number, number];
 } {
   let sumR = 0;
   let sumG = 0;
@@ -203,9 +203,9 @@ function castFromImageData(data: Uint8ClampedArray): {
     sumB += data[i + 2];
     count++;
   }
-  if (count === 0) return { cast_strength: 0, cast_direction: [0, 0] };
+  if (count === 0) return { castStrength: 0, castDirection: [0, 0] };
   const { a, b } = labFromMeanRgb(sumR / count, sumG / count, sumB / count);
   // Matches the backend's normalisation in context_stats.py.
   const strength = Math.min(1, Math.sqrt(a * a + b * b) / 60);
-  return { cast_strength: strength, cast_direction: [a, b] };
+  return { castStrength: strength, castDirection: [a, b] };
 }

@@ -4,8 +4,9 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { InfoTab } from './InfoTab';
 import { makeFullContext, makePartialContext } from './__fixtures__/enriched-context';
 import type { SessionStateSnapshot } from '@/types/widget';
+import type { ImageContext } from '@/types/image-context';
 
-function setSnapshotWithContext(ctx: unknown) {
+function setSnapshotWithContext(ctx: ImageContext | null) {
   const snap: SessionStateSnapshot = {
     session_id: 's1',
     image_context: ctx,
@@ -73,7 +74,7 @@ describe('InfoTab', () => {
     expect(screen.getByText('Color')).not.toBeNull();
     expect(screen.getByText('Regions')).not.toBeNull();
     expect(screen.getByText('Problems')).not.toBeNull();
-    // dominant_tones rendered as chips (regression guard for the casing fix)
+    // dominantTones rendered as chips (regression guard for the casing fix)
     expect(screen.getByText('shadows')).not.toBeNull();
   });
 

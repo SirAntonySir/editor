@@ -1,5 +1,5 @@
 import { Palette, Pin } from 'lucide-react';
-import type { EnrichedImageContext } from '@/types/enriched-context';
+import type { ImageContext } from '@/types/image-context';
 import { Swatch } from '@/components/ui/Swatch';
 import { SectionHeader } from './SectionHeader';
 import { useEditorStore } from '@/store';
@@ -7,7 +7,7 @@ import { editorDocument } from '@/core/document';
 import { toast } from '@/components/ui/Toast';
 
 interface Props {
-  ctx: EnrichedImageContext;
+  ctx: ImageContext;
 }
 
 // Lab a*/b* are theoretically unbounded but typical natural images stay
@@ -20,8 +20,8 @@ export function ColorSection({ ctx }: Props) {
   // point + WB confidence land on the soft-fields delta. Render whatever's
   // present, hold the rest as compact skeleton lines so the section grows
   // into place rather than reflowing when soft arrives.
-  const hasWhitePoint = Array.isArray(ctx.estimated_white_point);
-  const [r, g, b] = hasWhitePoint ? ctx.estimated_white_point : [0, 0, 0];
+  const hasWhitePoint = Array.isArray(ctx.estimatedWhitePoint);
+  const [r, g, b] = hasWhitePoint ? ctx.estimatedWhitePoint! : [0, 0, 0];
 
   function pinAt(): { position: { x: number; y: number }; targetImageNodeId?: string } {
     const editor = useEditorStore.getState();
@@ -36,12 +36,12 @@ export function ColorSection({ ctx }: Props) {
   }
 
   function pinPalette() {
-    if (ctx.color_palette.length === 0) return;
+    if (!ctx.colorPalette || ctx.colorPalette.length === 0) return;
     editorDocument.workspace.addInfoNode(
       {
         kind: 'palette',
         palette: {
-          swatches: ctx.color_palette.map((s) => ({
+          swatches: ctx.colorPalette.map((s) => ({
             rgb: [s.rgb[0], s.rgb[1], s.rgb[2]] as [number, number, number],
             weight: s.weight,
           })),
@@ -53,10 +53,11 @@ export function ColorSection({ ctx }: Props) {
   }
 
   function pinCast() {
+    if (!ctx.castDirection) return;
     editorDocument.workspace.addInfoNode(
       {
         kind: 'cast',
-        cast: { a: ctx.cast_direction[0], b: ctx.cast_direction[1], strength: ctx.cast_strength },
+        cast: { a: ctx.castDirection[0], b: ctx.castDirection[1], strength: ctx.castStrength ?? 0 },
       },
       { ...pinAt(), title: 'Color cast' },
     );
@@ -66,9 +67,9 @@ export function ColorSection({ ctx }: Props) {
   return (
     <section className="px-3 py-2.5">
       <SectionHeader icon={Palette} label="Color" />
-      {ctx.color_palette.length > 0 && (
+      {(ctx.colorPalette?.length ?? 0) > 0 && (
         <div className="relative group flex h-5 mb-2.5 rounded-[3px] overflow-hidden border border-separator">
-          {ctx.color_palette.map((s, i) => (
+          {ctx.colorPalette!.map((s, i) => (
             <div
               key={i}
               style={{
@@ -99,7 +100,7 @@ export function ColorSection({ ctx }: Props) {
         <dd className="text-[10px] text-text-primary text-right">
           {hasWhitePoint ? (
             <span className="inline-flex items-center gap-1">
-              <Swatch rgb={ctx.estimated_white_point} size={10} />
+              <Swatch rgb={ctx.estimatedWhitePoint!} size={10} />
               <span className="tabular-nums">rgb({Math.round(r)}, {Math.round(g)}, {Math.round(b)})</span>
             </span>
           ) : (
@@ -108,16 +109,16 @@ export function ColorSection({ ctx }: Props) {
         </dd>
         <dt className="text-[10px] text-text-secondary">WB confidence</dt>
         <dd className="text-[10px] text-text-primary text-right tabular-nums">
-          {typeof ctx.wb_neutral_confidence === 'number' ? (
-            `${(ctx.wb_neutral_confidence * 100).toFixed(0)}%`
+          {typeof ctx.wbNeutralConfidence === 'number' ? (
+            `${(ctx.wbNeutralConfidence * 100).toFixed(0)}%`
           ) : (
             <span className="inline-block w-10 h-2.5 rounded-sm bg-surface-secondary" aria-hidden />
           )}
         </dd>
       </dl>
-      {ctx.cast_strength > 0 && (
+      {(ctx.castStrength ?? 0) > 0 && ctx.castDirection && (
         <div className="relative group">
-          <CastDot direction={ctx.cast_direction} strength={ctx.cast_strength} />
+          <CastDot direction={ctx.castDirection} strength={ctx.castStrength!} />
           <button
             type="button"
             onClick={pinCast}

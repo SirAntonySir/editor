@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from app.schemas._camel import camel_config
 from app.state.document import SessionDocument
 from app.state.preview_renderer import render_widget_preview
 from app.tools.base import BackendTool, ToolPermissions
@@ -13,6 +14,7 @@ class _UnknownWidget(KeyError):
 
 
 class _Input(BaseModel):
+    model_config = camel_config(extra="forbid")
     widget_id: str
     max_dim: int = Field(default=256, ge=32, le=1024)
 

@@ -4,6 +4,7 @@ import uuid
 
 from pydantic import AliasChoices, BaseModel, Field
 
+from app.schemas._camel import camel_config
 from app.schemas.widget import (
     ControlBinding,
     ControlSchema,
@@ -32,6 +33,7 @@ class _MissingContext(Exception):
 
 
 class _Input(BaseModel):
+    model_config = camel_config(extra="forbid")
     intent: str = Field(min_length=1)
     scope: dict
     op_id: str | None = Field(default=None, validation_alias=AliasChoices("op_id", "fused_tool_id"))

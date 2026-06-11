@@ -46,6 +46,9 @@ describe('useMobileSam', () => {
     vi.mocked(detectSamCapability).mockResolvedValue('webgpu');
     const { result } = renderHook(() => useMobileSam('in-1'));
     await waitFor(() => expect(result.current.ready).toBe(true));
+    // Encoding is lazy — triggered by the first decode call, not on mount.
+    expect(samEncode).toHaveBeenCalledTimes(0);
+    await result.current.decode([{ x: 0.5, y: 0.5, label: 1 }]);
     expect(samEncode).toHaveBeenCalledTimes(1);
     expect(result.current.error).toBeNull();
   });
@@ -54,9 +57,13 @@ describe('useMobileSam', () => {
     vi.mocked(detectSamCapability).mockResolvedValue('webgpu');
     const a = renderHook(() => useMobileSam('in-1'));
     await waitFor(() => expect(a.result.current.ready).toBe(true));
+    // Prime the cache via decode.
+    await a.result.current.decode([{ x: 0.5, y: 0.5, label: 1 }]);
     a.unmount();
     const b = renderHook(() => useMobileSam('in-1'));
     await waitFor(() => expect(b.result.current.ready).toBe(true));
+    // Second decode reuses the cached embedding — encoder called only once total.
+    await b.result.current.decode([{ x: 0.5, y: 0.5, label: 1 }]);
     expect(samEncode).toHaveBeenCalledTimes(1);
   });
 
@@ -82,10 +89,15 @@ describe('useMobileSam', () => {
     vi.mocked(detectSamCapability).mockResolvedValue('webgpu');
     const first = renderHook(() => useMobileSam('in-1'));
     await waitFor(() => expect(first.result.current.ready).toBe(true));
+    // Prime the cache via decode, then clear it.
+    await first.result.current.decode([{ x: 0.5, y: 0.5, label: 1 }]);
+    expect(samEncode).toHaveBeenCalledTimes(1);
     first.unmount();
     clearMobileSamCache('in-1');
     const second = renderHook(() => useMobileSam('in-1'));
     await waitFor(() => expect(second.result.current.ready).toBe(true));
+    // After cache clear, decode must re-encode.
+    await second.result.current.decode([{ x: 0.5, y: 0.5, label: 1 }]);
     expect(samEncode).toHaveBeenCalledTimes(2);
   });
 

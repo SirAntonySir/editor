@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.schemas._camel import camel_config
 from app.registry.loader import get_registry
 from app.schemas.widget import (
     ControlBinding,
@@ -22,6 +23,7 @@ from app.tools.base import BackendTool, ToolPermissions
 
 
 class _Input(BaseModel):
+    model_config = camel_config(extra="forbid")
     intent: str = Field(min_length=1)
     scope: dict
     origin: WidgetOriginKind = "mcp_user_prompt"

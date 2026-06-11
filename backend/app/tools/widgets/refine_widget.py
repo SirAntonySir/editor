@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas._camel import camel_config
 from app.api import deps
 from app.schemas.widget import (
     ControlBinding,
@@ -22,17 +23,20 @@ class _UnknownWidget(KeyError):
 
 
 class BindingEdit(BaseModel):
+    model_config = camel_config(extra="forbid")
     param_key: str
     action: Literal["keep", "remove"]
 
 
 class BindingRequest(BaseModel):
+    model_config = camel_config(extra="forbid")
     request: str = Field(min_length=1)
     control_type_hint: str | None = None
     target_hint: str | None = None
 
 
 class _Input(BaseModel):
+    model_config = camel_config(extra="forbid")
     widget_id: str
     edits: list[BindingEdit] = Field(default_factory=list)
     additions: list[BindingRequest] = Field(default_factory=list)

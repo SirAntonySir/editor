@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from app.schemas._camel import camel_config
 from app.state.document import SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 
 
 class _Input(BaseModel):
+    model_config = camel_config(extra="forbid")
     layer_id: str = Field(min_length=1)
     op: str = Field(min_length=1)
     param: str = Field(min_length=1)

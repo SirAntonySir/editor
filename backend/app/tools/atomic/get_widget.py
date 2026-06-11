@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from app.schemas._camel import camel_config
 from app.state.document import SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 
@@ -12,6 +13,7 @@ class _UnknownWidget(KeyError):
 
 
 class _Input(BaseModel):
+    model_config = camel_config(extra="forbid")
     widget_id: str
 
 

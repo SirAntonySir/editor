@@ -11,7 +11,7 @@ export function useLayerWidgets(layerId: string | null): Widget[] {
   const nodes = useBackendState((s) => s.snapshot?.operationGraph.nodes);
   if (!layerId || !widgets || !nodes) return [];
   const widgetIdsOnLayer = new Set(
-    nodes.filter((n) => n.layer_id === layerId).map((n) => n.widget_id),
+    nodes.filter((n) => n.layerId === layerId).map((n) => n.widgetId),
   );
   return widgets.filter((w) => widgetIdsOnLayer.has(w.id) && w.status !== 'dismissed');
 }

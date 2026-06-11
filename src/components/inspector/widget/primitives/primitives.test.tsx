@@ -14,7 +14,7 @@ describe('SliderControl', () => {
     const onChange = vi.fn();
     render(<SliderControl
       label="Temperature" value={6500} default={5500}
-      schema={{ control_type: 'slider', min: 3000, max: 9000, step: 50 }}
+      schema={{ controlType: 'slider', min: 3000, max: 9000, step: 50 }}
       onChange={onChange} />);
     expect(screen.getByText('Temperature')).toBeDefined();
     const input = screen.getByRole('slider') as HTMLInputElement;
@@ -28,7 +28,7 @@ describe('ToggleControl', () => {
     const onChange = vi.fn();
     render(<ToggleControl
       label="Skin protect" value={true} default={true}
-      schema={{ control_type: 'toggle', on_label: 'Protect', off_label: 'Off' }}
+      schema={{ controlType: 'toggle', on_label: 'Protect', off_label: 'Off' }}
       onChange={onChange} />);
     fireEvent.click(screen.getByRole('switch'));
     expect(onChange).toHaveBeenCalledWith(false);
@@ -41,7 +41,7 @@ describe('ChoiceControl', () => {
     render(<ChoiceControl
       label="Preset" value="warm" default="warm"
       schema={{
-        control_type: 'choice',
+        controlType: 'choice',
         options: [
           { value: 'warm', label: 'Warm' },
           { value: 'cool', label: 'Cool' },
@@ -56,7 +56,7 @@ describe('ColorControl', () => {
   it('renders the current color', () => {
     render(<ColorControl
       label="Tint" value="#ff8800" default="#ffffff"
-      schema={{ control_type: 'color', mode: 'hex' }}
+      schema={{ controlType: 'color', mode: 'hex' }}
       onChange={() => {}} />);
     expect(screen.getByLabelText('Tint')).toBeDefined();
   });
@@ -68,7 +68,7 @@ describe('MaskThumbnailControl', () => {
       label="Skin"
       value="m_1"
       default="m_1"
-      schema={{ control_type: 'mask_thumbnail' }}
+      schema={{ controlType: 'mask_thumbnail' }}
       onChange={() => {}}
       maskSummaries={[{ id: 'm_1', width: 100, height: 100, source: 'sam_point', label: 'Skin' }]}
     />);
@@ -84,7 +84,7 @@ describe('RegionPickerControl', () => {
       label="Region"
       value="m_1"
       default="m_1"
-      schema={{ control_type: 'region_picker' }}
+      schema={{ controlType: 'region_picker' }}
       onChange={onChange}
       maskSummaries={[
         { id: 'm_1', width: 100, height: 100, source: 'sam_point', label: 'Skin' },

@@ -21,7 +21,7 @@ const input = z.object({
       'Registry op ids to force into the stack (e.g. ["light", "color"]). Omit to let the backend planner choose.',
     ),
   prompt: z.string().optional().describe('Verbatim user text to include in the prompt context.'),
-  layer_id: z.string().optional().describe('Layer to target. Defaults to the active layer when omitted.'),
+  layerId: z.string().optional().describe('Layer to target. Defaults to the active layer when omitted.'),
 });
 
 const output = z.object({
@@ -51,9 +51,9 @@ export const proposeStackTool: ToolManifest<typeof input, typeof output> = {
     'The result is delivered asynchronously through SSE widget.created events — the HTTP response confirms the call was accepted. Do not attempt to use the returned widget list to place nodes manually.',
   inputSchema: input,
   outputSchema: output,
-  handler: ({ intent, scope, origin, forced_ops, prompt, layer_id }) => {
+  handler: ({ intent, scope, origin, forced_ops, prompt, layerId }) => {
     const sid = useBackendState.getState().sessionId;
-    const resolvedLayerId = layer_id ?? useEditorStore.getState().activeLayerId ?? undefined;
+    const resolvedLayerId = layerId ?? useEditorStore.getState().activeLayerId ?? undefined;
     if (!sid) return { ok: false, message: 'Backend session not available.' };
 
     const resolvedScope = resolveScope(scope);
@@ -63,7 +63,7 @@ export const proposeStackTool: ToolManifest<typeof input, typeof output> = {
       origin,
       forced_ops,
       prompt,
-      layer_id: resolvedLayerId,
+      layerId: resolvedLayerId,
     });
     return { ok: true, message: `propose_stack accepted for intent: "${intent}".` };
   },

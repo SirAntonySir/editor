@@ -40,12 +40,12 @@ export function buildRegistryProcessingDefs(): ProcessingDefinition[] {
 
     // Build ParamDefinition array from registry op scalar params (in binding order).
     const params: ParamDefinition[] = op.bindings
-      .filter((b) => op.params[b.param_key]?.type === 'scalar')
+      .filter((b) => op.params[b.paramKey]?.type === 'scalar')
       .map((b) => {
-        const p = op.params[b.param_key];
+        const p = op.params[b.paramKey];
         const range = p.range as [number, number];
         return {
-          key: b.param_key,
+          key: b.paramKey,
           label: b.label,
           min: range[0],
           max: range[1],

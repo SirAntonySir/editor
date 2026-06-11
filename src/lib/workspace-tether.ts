@@ -27,7 +27,7 @@ function buildTetherForWidget(widget: Widget, viewport?: Viewport): void {
   // first node — locate the ImageNode containing that layer. Fall back to
   // the active image node if the layer can't be resolved.
   const firstNode = widget.nodes[0];
-  const widgetLayerId = firstNode?.layer_id ?? null;
+  const widgetLayerId = firstNode?.layerId ?? null;
 
   let targetImageNodeId: string | null = null;
   if (widgetLayerId) {

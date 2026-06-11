@@ -9,6 +9,6 @@
     "semantic_tags": ["detail", "clarity", "contrast"]
   },
   "params": { "amount": { "type": "scalar", "range": [-100, 100], "default": 0 } },
-  "bindings": [{ "param_key": "amount", "control_type": "slider", "label": "Amount" }],
+  "bindings": [{ "paramKey": "amount", "controlType": "slider", "label": "Amount" }],
   "engine": { "shader": "clarity", "render_order": 55, "node_type": "clarity" }
 }

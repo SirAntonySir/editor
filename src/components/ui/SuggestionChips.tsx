@@ -76,8 +76,8 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
   function handleDeny() {
     if (sessionId) {
       void backendTools.delete_widget(sessionId, {
-        widget_id: widget.id,
-        suppress_similar: false,
+        widgetId: widget.id,
+        suppressSimilar: false,
       });
     }
     resolve(widget.id);

@@ -39,7 +39,7 @@ export function useProcessingParam(
     if (s.snapshot) {
       const widget = s.snapshot.widgets.find((w) => w.id === adjustmentId);
       if (widget) {
-        const binding = widget.bindings.find((b) => b.param_key === paramName);
+        const binding = widget.bindings.find((b) => b.paramKey === paramName);
         if (binding !== undefined && typeof binding.value === 'number') return binding.value;
       }
 
@@ -72,8 +72,8 @@ export function useProcessingParam(
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         void backendTools.set_widget_param(sessionId, {
-          widget_id: adjustmentId,
-          param_key: paramName,
+          widgetId: adjustmentId,
+          paramKey: paramName,
           value: v,
         });
       }, DEBOUNCE_MS);

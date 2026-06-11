@@ -14,9 +14,9 @@
     "roughness": { "type": "scalar", "range": [0, 100],   "default": 50 }
   },
   "bindings": [
-    { "param_key": "amount",    "control_type": "slider", "label": "Amount" },
-    { "param_key": "size",      "control_type": "slider", "label": "Size" },
-    { "param_key": "roughness", "control_type": "slider", "label": "Roughness" }
+    { "paramKey": "amount",    "controlType": "slider", "label": "Amount" },
+    { "paramKey": "size",      "controlType": "slider", "label": "Size" },
+    { "paramKey": "roughness", "controlType": "slider", "label": "Roughness" }
   ],
   "engine": { "shader": "grain", "render_order": 90, "node_type": "grain" }
 }

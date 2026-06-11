@@ -54,9 +54,9 @@ function resolveSingleCurvePoints(
   bindingValue: ControlValue,
 ): CurvePoint[] {
   // Source of truth #1: the op-graph node the binding targets.
-  const node = widget.nodes.find((n) => n.id === binding.target.node_id);
+  const node = widget.nodes.find((n) => n.id === binding.target.nodeId);
   const nodeParams = node?.params as Record<string, unknown> | undefined;
-  const fromNode = nodeParams?.[binding.target.param_key];
+  const fromNode = nodeParams?.[binding.target.paramKey];
   if (isXYPairArray(fromNode)) {
     return looksLike01Space(fromNode) ? pairsToPoints01(fromNode) : pairsToPoints(fromNode);
   }
@@ -80,23 +80,23 @@ const CURVE_CONTROL_TYPES = new Set(['curve', 'curve_editor']);
 
 function curveBindings(widget: Widget): ControlBinding[] {
   return widget.bindings.filter((b) =>
-    CURVE_CONTROL_TYPES.has(b.control_schema.control_type),
+    CURVE_CONTROL_TYPES.has(b.controlSchema.controlType),
   );
 }
 
 /** True when the widget should render through CurvesWidgetBody. Two shapes
  *  are accepted:
- *   1) Four bindings with `control_type='curve_editor'` covering rgb/red/
+ *   1) Four bindings with `controlType='curve_editor'` covering rgb/red/
  *      green/blue — the toolrail-spawned form, layout switcher visible.
- *   2) Exactly one binding with `control_type='curve' | 'curve_editor'` —
+ *   2) Exactly one binding with `controlType='curve' | 'curve_editor'` —
  *      the AI-composed single-luma form, layout switcher hidden. */
 export function isCurvesWidget(widget: Widget): boolean {
   const curves = curveBindings(widget);
   // Four-channel form.
   const channels = new Set(
     curves
-      .filter((b) => b.control_schema.control_type === 'curve_editor')
-      .map((b) => b.param_key),
+      .filter((b) => b.controlSchema.controlType === 'curve_editor')
+      .map((b) => b.paramKey),
   );
   if (CHANNELS.every((c) => channels.has(c))) return true;
   // Single-luma form.
@@ -141,7 +141,7 @@ function ChannelEditor({ ch, binding, effectiveValue, setParam }: ChannelEditorP
       value={channelValue}
       channel={ch}
       onChange={(next) =>
-        setParam(binding.param_key, pointsToPairs(next[ch]) as unknown as ControlValue)
+        setParam(binding.paramKey, pointsToPairs(next[ch]) as unknown as ControlValue)
       }
     />
   );
@@ -153,8 +153,8 @@ export function CurvesWidgetBody({ widget, effectiveValue, setParam }: CurvesWid
   const bindingByChannel = useMemo(() => {
     const m = new Map<Channel, ControlBinding>();
     for (const b of widget.bindings) {
-      if ((CHANNELS as readonly string[]).includes(b.param_key)) {
-        m.set(b.param_key as Channel, b);
+      if ((CHANNELS as readonly string[]).includes(b.paramKey)) {
+        m.set(b.paramKey as Channel, b);
       }
     }
     return m;
@@ -193,7 +193,7 @@ export function CurvesWidgetBody({ widget, effectiveValue, setParam }: CurvesWid
       if (next[ch] === curvesValue[ch]) continue;
       const b = bindingByChannel.get(ch);
       if (!b) continue;
-      setParam(b.param_key, pointsToPairs(next[ch]) as unknown as ControlValue);
+      setParam(b.paramKey, pointsToPairs(next[ch]) as unknown as ControlValue);
     }
   }
 
@@ -206,9 +206,9 @@ export function CurvesWidgetBody({ widget, effectiveValue, setParam }: CurvesWid
     // Detect which unit space the binding round-trips in: if the node's
     // params.points lives in 0..1, we must write back in 0..1 too, otherwise
     // the next render flips the curve back to identity.
-    const node = widget.nodes.find((n) => n.id === singleLumaBinding.target.node_id);
+    const node = widget.nodes.find((n) => n.id === singleLumaBinding.target.nodeId);
     const nodeParams = node?.params as Record<string, unknown> | undefined;
-    const fromNode = nodeParams?.[singleLumaBinding.target.param_key];
+    const fromNode = nodeParams?.[singleLumaBinding.target.paramKey];
     const write01 =
       (isXYPairArray(fromNode) && looksLike01Space(fromNode)) ||
       (isXYPairArray(v) && looksLike01Space(v));
@@ -227,7 +227,7 @@ export function CurvesWidgetBody({ widget, effectiveValue, setParam }: CurvesWid
             const pairs: XYPair[] = write01
               ? next.rgb.map(({ x, y }) => [x, y])
               : pointsToPairs(next.rgb);
-            setParam(singleLumaBinding.param_key, pairs as unknown as ControlValue);
+            setParam(singleLumaBinding.paramKey, pairs as unknown as ControlValue);
           }}
         />
       </div>

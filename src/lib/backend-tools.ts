@@ -65,9 +65,9 @@ export const backendTools = {
   propose_widget(sessionId: string, args: {
     intent: string;
     scope: Scope;
-    op_id?: string;
+    opId?: string;
     prompt?: string;
-    layer_id: string;
+    layerId: string;
     origin: WidgetOriginKind;
   }) {
     return invokeTool<{ widget: Widget }>('propose_widget', sessionId, args);
@@ -83,48 +83,48 @@ export const backendTools = {
     forced_params?: Record<string, Record<string, number | string | boolean>>;
     preset_id?: string;
     prompt?: string;
-    layer_id?: string;
+    layerId?: string;
   }) {
     return invokeTool<{ widgets: Widget[] }>('propose_stack', sessionId, args);
   },
   refine_widget(sessionId: string, args: {
-    widget_id: string;
-    edits: { param_key: string; instruction: string }[];
+    widgetId: string;
+    edits: { paramKey: string; instruction: string }[];
     additions: { request: string }[];
     instruction?: string;
   }) {
     return invokeTool<{ widget: Widget }>('refine_widget', sessionId, args);
   },
-  repeat_widget(sessionId: string, args: { widget_id: string }) {
+  repeat_widget(sessionId: string, args: { widgetId: string }) {
     return invokeTool<{ widget: Widget }>('repeat_widget', sessionId, args);
   },
-  delete_widget(sessionId: string, args: { widget_id: string; suppress_similar: boolean }) {
-    return invokeTool<{ widget_id: string }>('delete_widget', sessionId, args);
+  delete_widget(sessionId: string, args: { widgetId: string; suppressSimilar: boolean }) {
+    return invokeTool<{ widgetId: string }>('delete_widget', sessionId, args);
   },
-  restore_widget(sessionId: string, args: { widget_id: string }) {
-    return invokeTool<{ widget_id: string }>('restore_widget', sessionId, args);
+  restore_widget(sessionId: string, args: { widgetId: string }) {
+    return invokeTool<{ widgetId: string }>('restore_widget', sessionId, args);
   },
-  accept_widget(sessionId: string, args: { widget_id: string }) {
-    return invokeTool<{ widget_id: string }>('accept_widget', sessionId, args);
+  accept_widget(sessionId: string, args: { widgetId: string }) {
+    return invokeTool<{ widgetId: string }>('accept_widget', sessionId, args);
   },
-  set_widget_param(sessionId: string, args: { widget_id: string; param_key: string; value: ControlValue }) {
+  set_widget_param(sessionId: string, args: { widgetId: string; paramKey: string; value: ControlValue }) {
     return invokeTool<{ widget: Widget }>('set_widget_param', sessionId, args);
   },
-  unlock_widget_param(sessionId: string, args: { widget_id: string; param_key: string }) {
+  unlock_widget_param(sessionId: string, args: { widgetId: string; paramKey: string }) {
     return invokeTool<{ widget: Widget }>('unlock_widget_param', sessionId, args);
   },
-  set_param(sessionId: string, args: { layer_id: string; op: string; param: string; value: ControlValue }) {
+  set_param(sessionId: string, args: { layerId: string; op: string; param: string; value: ControlValue }) {
     return invokeTool<{ ok: boolean }>('set_param', sessionId, args);
   },
   set_image_node_transform(sessionId: string, args: {
-    image_node_id: string;
-    layer_ids: string[];
+    imageNodeId: string;
+    layerIds: string[];
     crop: { x: number; y: number; w: number; h: number } | null;
     rotate: { angle: number; flip_h: boolean; flip_v: boolean } | null;
   }) {
     return invokeTool<{ ok: boolean }>('set_image_node_transform', sessionId, args);
   },
-  preview_widget(sessionId: string, args: { widget_id: string; max_dim?: number }) {
+  preview_widget(sessionId: string, args: { widgetId: string; max_dim?: number }) {
     return invokeTool<{ mime_type: string; image_b64: string | null; reason?: string }>(
       'preview_widget', sessionId, args,
     );

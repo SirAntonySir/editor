@@ -22,7 +22,7 @@ export type ControlType =
   | 'kelvin_strip';
 
 export interface SliderSchema {
-  control_type: 'slider';
+  controlType: 'slider';
   min: number;
   max: number;
   step: number;
@@ -30,31 +30,31 @@ export interface SliderSchema {
 }
 
 export interface ToggleSchema {
-  control_type: 'toggle';
+  controlType: 'toggle';
   on_label: string;
   off_label: string;
 }
 
 export interface ChoiceSchema {
-  control_type: 'choice';
+  controlType: 'choice';
   options: { value: string; label: string; description?: string }[];
 }
 
 export interface ColorSchema {
-  control_type: 'color';
+  controlType: 'color';
   mode: 'rgb' | 'hex';
 }
 
 export interface RegionPickerSchema {
-  control_type: 'region_picker';
+  controlType: 'region_picker';
 }
 
 export interface MaskThumbnailSchema {
-  control_type: 'mask_thumbnail';
+  controlType: 'mask_thumbnail';
 }
 
 export interface CurveSchema {
-  control_type: 'curve';
+  controlType: 'curve';
   min_points?: number;
   max_points?: number;
 }
@@ -62,45 +62,45 @@ export interface CurveSchema {
 // Registry-vocab schema interfaces (aligned with backend registry-vocab additions).
 
 export interface SwatchSchema {
-  control_type: 'swatch';
+  controlType: 'swatch';
   space?: 'rgb' | 'lab' | 'hsl';
   show_alpha?: boolean;
   presets?: number[][];
 }
 
 export interface HueWheelSchema {
-  control_type: 'hue_wheel';
+  controlType: 'hue_wheel';
   min: number;
   max: number;
 }
 
 export interface CurveEditorSchema {
-  control_type: 'curve_editor';
+  controlType: 'curve_editor';
   channel?: 'luma' | 'r' | 'g' | 'b' | null;
   min_points?: number;
   max_points?: number;
 }
 
 export interface PointListSchema {
-  control_type: 'point_list';
+  controlType: 'point_list';
   min_points?: number;
   max_points?: number;
 }
 
 export interface EnumSelectSchema {
-  control_type: 'enum_select';
+  controlType: 'enum_select';
   options: { value: string; label: string }[];
   allow_custom?: boolean;
 }
 
 export interface BoolToggleSchema {
-  control_type: 'bool_toggle';
+  controlType: 'bool_toggle';
   on_label?: string;
   off_label?: string;
 }
 
 export interface KelvinStripSchema {
-  control_type: 'kelvin_strip';
+  controlType: 'kelvin_strip';
   min: number;
   max: number;
   step: number;
@@ -132,16 +132,16 @@ export { IDENTITY_CURVES } from './curve';
 export type ControlValue = number | string | boolean | CurvesValue;
 
 export interface NodeParamTarget {
-  node_id: string;
-  param_key: string;
+  nodeId: string;
+  paramKey: string;
 }
 
 export interface ControlBinding {
-  param_key: string;
+  paramKey: string;
   label: string;
-  control_type: ControlType;
+  controlType: ControlType;
   target: NodeParamTarget;
-  control_schema: ControlSchema;
+  controlSchema: ControlSchema;
   value: ControlValue;
   default: ControlValue;
   reasoning?: string;
@@ -156,8 +156,8 @@ export interface WidgetNode {
   params: Record<string, ParamValue>;
   scope: Scope;
   inputs: string[];
-  widget_id: string;
-  layer_id?: string;
+  widgetId: string;
+  layerId?: string;
 }
 
 export type WidgetOriginKind =
@@ -177,7 +177,7 @@ export type WidgetAnchor =
 export interface WidgetOrigin {
   kind: WidgetOriginKind;
   prompt?: string | null;
-  parent_widget_id?: string | null;
+  parentWidgetId?: string | null;
   anchor?: WidgetAnchor;
 }
 
@@ -206,8 +206,8 @@ export interface Widget {
   locked_params: string[];
   display_name?: string | null;
   category?: string | null;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MaskSummary {
@@ -249,5 +249,5 @@ export interface StateEvent {
   revision: number;
   kind: StateEventKind;
   payload: Record<string, unknown>;
-  emitted_at: string;
+  emittedAt: string;
 }

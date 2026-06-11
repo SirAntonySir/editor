@@ -39,7 +39,7 @@ it('typing a new value into the number field writes canonical', () => {
   fireEvent.change(input, { target: { value: '20' } });
   fireEvent.keyDown(input, { key: 'Enter' });
   vi.advanceTimersByTime(300);
-  expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layer_id: 'L1', op: 'basic', param: 'exposure', value: 20 });
+  expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layerId: 'L1', op: 'basic', param: 'exposure', value: 20 });
 });
 
 // The per-section Reset button used to live in ScalarSectionBody as a

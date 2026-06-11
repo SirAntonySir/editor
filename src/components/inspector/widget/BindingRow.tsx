@@ -38,7 +38,7 @@ interface BindingRowProps {
 }
 
 export function BindingRow({ binding, effectiveValue, onChange, maskSummaries, provenance, onPin, pinDisabled }: BindingRowProps) {
-  const s = binding.control_schema;
+  const s = binding.controlSchema;
   const pinButton = onPin ? (
     <button
       type="button"
@@ -54,7 +54,7 @@ export function BindingRow({ binding, effectiveValue, onChange, maskSummaries, p
       <Pin size={11} aria-hidden />
     </button>
   ) : null;
-  switch (s.control_type) {
+  switch (s.controlType) {
     case 'slider':
       return (
         <div className="group relative">
@@ -143,7 +143,7 @@ export function BindingRow({ binding, effectiveValue, onChange, maskSummaries, p
       // 0–1 translation.
       return (
         <RegistryCurveEditor
-          paramKey={binding.param_key}
+          paramKey={binding.paramKey}
           label={binding.label}
           value={effectiveValue}
           schema={CURVE_EDITOR_STUB_SCHEMA}

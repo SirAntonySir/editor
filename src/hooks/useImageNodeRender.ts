@@ -196,21 +196,21 @@ export function useImageNodeRender({
       // is REPLACED by the preview values in the renderer.
       if (isPending && isPreviewing) {
         for (const n of w.nodes) {
-          const id = n.layer_id ? `canon:${n.layer_id}:${n.type}` : n.id;
+          const id = n.layerId ? `canon:${n.layerId}:${n.type}` : n.id;
           extraNodes.push({
             id,
             type: n.type,
             scope: n.scope,
             params: n.params as OperationNode['params'],
             inputs: n.inputs,
-            layer_id: n.layer_id,
+            layerId: n.layerId,
           });
         }
       }
       if (!hiddenWidgetIds.has(w.id) && !isPendingSilenced) continue;
       for (const n of w.nodes) {
-        if (n.layer_id) {
-          hiddenNodeIds.add(`canon:${n.layer_id}:${n.type}`);
+        if (n.layerId) {
+          hiddenNodeIds.add(`canon:${n.layerId}:${n.type}`);
         } else {
           // Node-scope or layerless nodes — fall back to the widget-internal id;
           // matches the snapshot's id when layer_id isn't set.

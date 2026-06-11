@@ -13,7 +13,7 @@ export function promoteToCanvas(sessionId: string | null, toolId: string, layerI
     intent: toolId,
     scope: { kind: 'global' },
     forced_ops: [toolId],
-    layer_id: layerId,
+    layerId,
     origin: 'tool_invoked',
   });
 }
@@ -37,7 +37,7 @@ export function promoteSingleParamToCanvas(
     intent: `${toolId}:${paramKey}`,
     scope: { kind: 'global' },
     forced_ops: [toolId],
-    layer_id: layerId,
+    layerId,
     origin: 'tool_invoked',
   });
 }

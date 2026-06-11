@@ -16,11 +16,11 @@
     "balance":       { "type": "scalar", "range": [-100, 100], "default": 0 }
   },
   "bindings": [
-    { "param_key": "shadow_hue",    "control_type": "hue_wheel", "label": "Hue",        "group": "Shadows" },
-    { "param_key": "shadow_sat",    "control_type": "slider",    "label": "Saturation", "group": "Shadows" },
-    { "param_key": "highlight_hue", "control_type": "hue_wheel", "label": "Hue",        "group": "Highlights" },
-    { "param_key": "highlight_sat", "control_type": "slider",    "label": "Saturation", "group": "Highlights" },
-    { "param_key": "balance",       "control_type": "slider",    "label": "Balance",    "group": "Balance" }
+    { "paramKey": "shadow_hue",    "controlType": "hue_wheel", "label": "Hue",        "group": "Shadows" },
+    { "paramKey": "shadow_sat",    "controlType": "slider",    "label": "Saturation", "group": "Shadows" },
+    { "paramKey": "highlight_hue", "controlType": "hue_wheel", "label": "Hue",        "group": "Highlights" },
+    { "paramKey": "highlight_sat", "controlType": "slider",    "label": "Saturation", "group": "Highlights" },
+    { "paramKey": "balance",       "controlType": "slider",    "label": "Balance",    "group": "Balance" }
   ],
   "engine": { "shader": "splitTone", "render_order": 30, "node_type": "splitTone" }
 }

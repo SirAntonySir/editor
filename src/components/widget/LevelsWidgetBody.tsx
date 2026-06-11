@@ -18,7 +18,7 @@ interface LevelsWidgetBodyProps {
 export function isFullLevelsWidget(widget: Widget): boolean {
   const hasLevelsNode = widget.nodes.some((n) => n.type === 'levels');
   if (!hasLevelsNode) return false;
-  const keys = new Set(widget.bindings.map((b) => b.param_key));
+  const keys = new Set(widget.bindings.map((b) => b.paramKey));
   return keys.has('inBlack') && keys.has('inWhite') && keys.has('gamma');
 }
 
@@ -35,7 +35,7 @@ export function LevelsWidgetBody({
   // lookup + null guard below must follow, not precede, useState/useEffect.
   // Histogram source subscribes to the pipeline so the chart redraws as
   // upstream adjustments tick.
-  const layerId = widget.nodes[0]?.layer_id ?? null;
+  const layerId = widget.nodes[0]?.layerId ?? null;
   // Lazy-init + prev-prop reset avoid setState-during-effect. setSource
   // inside the subscriber callback is the canonical allowed pattern.
   const [source, setSource] = useState<HTMLCanvasElement | OffscreenCanvas | null>(
@@ -52,7 +52,7 @@ export function LevelsWidgetBody({
     return unsub;
   }, [layerId]);
 
-  const byParam = new Map(widget.bindings.map((b) => [b.param_key, b] as const));
+  const byParam = new Map(widget.bindings.map((b) => [b.paramKey, b] as const));
   const inBlackBinding = byParam.get('inBlack');
   const inWhiteBinding = byParam.get('inWhite');
   const gammaBinding = byParam.get('gamma');

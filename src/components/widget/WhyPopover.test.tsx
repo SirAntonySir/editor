@@ -31,8 +31,8 @@ describe('WhyPopover multi-op widgets', () => {
     const widget = makeAiWidget({
       display_name: 'Warm fade',
       nodes: [
-        { id: 'n_a', type: 'basic',     params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w-1' },
-        { id: 'n_b', type: 'splitTone', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w-1' },
+        { id: 'n_a', type: 'basic',     params: {}, scope: { kind: 'global' }, inputs: [], widgetId: 'w-1' },
+        { id: 'n_b', type: 'splitTone', params: {}, scope: { kind: 'global' }, inputs: [], widgetId: 'w-1' },
       ] as Widget['nodes'],
     });
     render(
@@ -49,7 +49,7 @@ describe('WhyPopover multi-op widgets', () => {
   it('does not render op breakdown for single-node widgets', () => {
     const widget = makeAiWidget({
       nodes: [
-        { id: 'n_a', type: 'grain', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w-1' },
+        { id: 'n_a', type: 'grain', params: {}, scope: { kind: 'global' }, inputs: [], widgetId: 'w-1' },
       ] as Widget['nodes'],
     });
     render(

@@ -39,7 +39,7 @@ export function mergeOptimistic(
     const widget = snap.widgets.find((w) => w.id === widgetId);
     if (!widget) continue;
     for (const bp of patch.bindings) {
-      const binding = widget.bindings.find((b) => b.param_key === bp.paramKey);
+      const binding = widget.bindings.find((b) => b.paramKey === bp.paramKey);
       if (!binding) {
         // Compound-widget fallback: a compound node's optimistic patches use
         // `${op}.${param}` keys that won't match the (typically minimal) widget
@@ -52,8 +52,8 @@ export function mergeOptimistic(
         entry[bp.paramKey] = bp.value;
         continue;
       }
-      const nodeId = binding.target.node_id;
-      const paramKey = binding.target.param_key;
+      const nodeId = binding.target.nodeId;
+      const paramKey = binding.target.paramKey;
       let entry = overrides.get(nodeId);
       if (!entry) {
         entry = {};

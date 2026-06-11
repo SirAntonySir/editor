@@ -20,25 +20,25 @@ function makeMultiOpWidget(): Widget {
     id: 'w_test',
     intent: 'test',
     scope: { kind: 'global' },
-    origin: { kind: 'mcp_user_prompt', prompt: 'test', parent_widget_id: null },
+    origin: { kind: 'mcp_user_prompt', prompt: 'test', parentWidgetId: null },
     op_id: 'color',
     composed: false,
     nodes: [
-      { id: 'n_a', type: 'basic', params: { saturation: 0 }, scope: { kind: 'global' }, inputs: [], widget_id: 'w_test' },
-      { id: 'n_b', type: 'splitTone', params: { shadow_hue: 0 }, scope: { kind: 'global' }, inputs: [], widget_id: 'w_test' },
+      { id: 'n_a', type: 'basic', params: { saturation: 0 }, scope: { kind: 'global' }, inputs: [], widgetId: 'w_test' },
+      { id: 'n_b', type: 'splitTone', params: { shadow_hue: 0 }, scope: { kind: 'global' }, inputs: [], widgetId: 'w_test' },
     ] as unknown as Widget['nodes'],
     bindings: [
       {
-        param_key: 'saturation', label: 'Saturation', control_type: 'slider',
-        target: { node_id: 'n_a', param_key: 'saturation' },
+        paramKey: 'saturation', label: 'Saturation', controlType: 'slider',
+        target: { nodeId: 'n_a', paramKey: 'saturation' },
         value: 0, default: 0,
-        control_schema: { control_type: 'slider', min: -100, max: 100, step: 1 },
+        controlSchema: { controlType: 'slider', min: -100, max: 100, step: 1 },
       },
       {
-        param_key: 'shadow_hue', label: 'Hue', control_type: 'hue_wheel',
-        target: { node_id: 'n_b', param_key: 'shadow_hue' },
+        paramKey: 'shadow_hue', label: 'Hue', controlType: 'hue_wheel',
+        target: { nodeId: 'n_b', paramKey: 'shadow_hue' },
         value: 0, default: 0,
-        control_schema: { control_type: 'hue_wheel', min: 0, max: 360 },
+        controlSchema: { controlType: 'hue_wheel', min: 0, max: 360 },
       },
     ] as unknown as Widget['bindings'],
     preview: { kind: 'none', auto_before_after: false },
@@ -48,8 +48,8 @@ function makeMultiOpWidget(): Widget {
     locked_params: [],
     display_name: 'Warm fade',
     category: 'color',
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
   };
 }
 
@@ -58,14 +58,14 @@ function makeSingleOpWidget(): Widget {
     ...makeMultiOpWidget(),
     op_id: 'grain',
     nodes: [
-      { id: 'n_a', type: 'grain', params: { amount: 0, size: 100, roughness: 50 }, scope: { kind: 'global' }, inputs: [], widget_id: 'w_test' },
+      { id: 'n_a', type: 'grain', params: { amount: 0, size: 100, roughness: 50 }, scope: { kind: 'global' }, inputs: [], widgetId: 'w_test' },
     ] as unknown as Widget['nodes'],
     bindings: [
       {
-        param_key: 'amount', label: 'Amount', control_type: 'slider',
-        target: { node_id: 'n_a', param_key: 'amount' },
+        paramKey: 'amount', label: 'Amount', controlType: 'slider',
+        target: { nodeId: 'n_a', paramKey: 'amount' },
         value: 0, default: 0,
-        control_schema: { control_type: 'slider', min: 0, max: 100, step: 1 },
+        controlSchema: { controlType: 'slider', min: 0, max: 100, step: 1 },
       },
     ] as unknown as Widget['bindings'],
     display_name: 'Film grain',
@@ -115,22 +115,22 @@ describe('RegistryDrivenSectionBody multi-op rendering', () => {
     // light and color both have node_type "basic".
     const widget = makeMultiOpWidget();
     widget.nodes = [
-      { id: 'n_a', type: 'basic', op_id: 'light', params: { exposure: 0 }, scope: { kind: 'global' }, inputs: [], widget_id: 'w_test' },
-      { id: 'n_b', type: 'basic', op_id: 'color', params: { saturation: 0 }, scope: { kind: 'global' }, inputs: [], widget_id: 'w_test' },
+      { id: 'n_a', type: 'basic', op_id: 'light', params: { exposure: 0 }, scope: { kind: 'global' }, inputs: [], widgetId: 'w_test' },
+      { id: 'n_b', type: 'basic', op_id: 'color', params: { saturation: 0 }, scope: { kind: 'global' }, inputs: [], widgetId: 'w_test' },
     ] as unknown as Widget['nodes'];
     // Add minimal bindings so the panel renders something.
     widget.bindings = [
       {
-        param_key: 'exposure', label: 'Exposure', control_type: 'slider',
-        target: { node_id: 'n_a', param_key: 'exposure' },
+        paramKey: 'exposure', label: 'Exposure', controlType: 'slider',
+        target: { nodeId: 'n_a', paramKey: 'exposure' },
         value: 0, default: 0,
-        control_schema: { control_type: 'slider', min: -100, max: 100, step: 1 },
+        controlSchema: { controlType: 'slider', min: -100, max: 100, step: 1 },
       },
       {
-        param_key: 'saturation', label: 'Saturation', control_type: 'slider',
-        target: { node_id: 'n_b', param_key: 'saturation' },
+        paramKey: 'saturation', label: 'Saturation', controlType: 'slider',
+        target: { nodeId: 'n_b', paramKey: 'saturation' },
         value: 0, default: 0,
-        control_schema: { control_type: 'slider', min: -100, max: 100, step: 1 },
+        controlSchema: { controlType: 'slider', min: -100, max: 100, step: 1 },
       },
     ] as unknown as Widget['bindings'];
 

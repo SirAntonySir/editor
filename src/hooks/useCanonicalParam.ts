@@ -37,7 +37,7 @@ export function useCanonicalParam<T extends ControlValue = number>(
     });
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      void backendTools.set_param(sessionId, { layer_id: layerId, op, param, value: v as ControlValue });
+      void backendTools.set_param(sessionId, { layerId, op, param, value: v as ControlValue });
     }, DEBOUNCE_MS);
   }, [layerId, sessionId, offline, nodeId, op, param]);
 

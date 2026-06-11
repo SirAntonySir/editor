@@ -9,6 +9,6 @@
     "semantic_tags": ["blur", "soft"]
   },
   "params": { "radius": { "type": "scalar", "range": [0, 100], "default": 0 } },
-  "bindings": [{ "param_key": "radius", "control_type": "slider", "label": "Radius" }],
+  "bindings": [{ "paramKey": "radius", "controlType": "slider", "label": "Radius" }],
   "engine": { "shader": "blur", "render_order": 65, "node_type": "blur" }
 }

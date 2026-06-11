@@ -7,7 +7,7 @@ function makeWidget(overrides: Partial<Widget> = {}): Widget {
   return {
     id: 'w', intent: 'test',
     scope: { kind: 'global' },
-    origin: { kind: 'mcp_user_prompt', prompt: 't', parent_widget_id: null },
+    origin: { kind: 'mcp_user_prompt', prompt: 't', parentWidgetId: null },
     op_id: 'grain',
     composed: false,
     nodes: [], bindings: [],
@@ -15,8 +15,8 @@ function makeWidget(overrides: Partial<Widget> = {}): Widget {
     rejected_attempts: [], status: 'active', revision: 1,
     locked_params: [],
     display_name: null, category: 'texture',
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
     ...overrides,
   };
 }

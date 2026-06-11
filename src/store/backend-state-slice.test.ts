@@ -17,8 +17,8 @@ function makeWidget(id: string, overrides: Partial<Widget> = {}): Widget {
     rejected_attempts: [],
     status: 'active',
     revision: 1,
-    created_at: '2026-05-23T00:00:00Z',
-    updated_at: '2026-05-23T00:00:00Z',
+    createdAt: '2026-05-23T00:00:00Z',
+    updatedAt: '2026-05-23T00:00:00Z',
     ...overrides,
   };
 }
@@ -80,7 +80,7 @@ describe('BackendStateSlice', () => {
         widget: makeWidget('w_2'),
         operationGraph: {
           id: 'projected-y',
-          nodes: [{ id: 'n_new', type: 'basic', layer_id: 'layer-1', params: { exposure: 40 } }],
+          nodes: [{ id: 'n_new', type: 'basic', layerId: 'layer-1', params: { exposure: 40 } }],
         },
       },
       emitted_at: '2026-05-23T00:00:01Z',
@@ -99,7 +99,7 @@ describe('BackendStateSlice', () => {
         widget: makeWidget('w_1', { revision: 2 }),
         operationGraph: {
           id: 'projected-z',
-          nodes: [{ id: 'n_1', type: 'basic', layer_id: 'layer-1', params: { exposure: 90 } }],
+          nodes: [{ id: 'n_1', type: 'basic', layerId: 'layer-1', params: { exposure: 90 } }],
         },
       },
       emitted_at: '2026-05-23T00:00:02Z',
@@ -124,7 +124,7 @@ describe('BackendStateSlice', () => {
     useBackendState.setState({ snapshot: baseSnapshot() });
     useBackendState.getState().applyEvent({
       revision: 2, kind: 'widget.deleted',
-      payload: { widget_id: 'w_1' },
+      payload: { widgetId: 'w_1' },
       emitted_at: '2026-05-23T00:00:01Z',
     });
     const snap = useBackendState.getState().snapshot!;
@@ -150,7 +150,7 @@ describe('BackendStateSlice', () => {
     useBackendState.setState({ snapshot: baseSnapshot() });
     useBackendState.getState().applyEvent({
       revision: 2, kind: 'widget.accepted',
-      payload: { widget_id: 'w_1' },
+      payload: { widgetId: 'w_1' },
       emitted_at: '2026-05-23T00:00:01Z',
     });
     expect(useBackendState.getState().acceptedSuggestions.has('w_1')).toBe(true);
@@ -162,7 +162,7 @@ describe('BackendStateSlice', () => {
     useBackendState.setState({ snapshot: snap });
     useBackendState.getState().applyEvent({
       revision: 5, kind: 'widget.deleted',
-      payload: { widget_id: 'w_1' },
+      payload: { widgetId: 'w_1' },
       emitted_at: '2026-05-23T00:00:01Z',
     });
     expect(useBackendState.getState().snapshot!.widgets[0].status).toBe('active');
@@ -171,7 +171,7 @@ describe('BackendStateSlice', () => {
   it('widget.accepted removes widget from snapshot (backend now owns adjustment materialization)', () => {
     const widget = makeWidget('w_x', { nodes: [{
       id: 'n1', type: 'kelvin', params: { temperature: 7000 },
-      scope: { kind: 'global' }, inputs: [], widget_id: 'w_x',
+      scope: { kind: 'global' }, inputs: [], widgetId: 'w_x',
     }] });
     useBackendState.setState({
       snapshot: { ...baseSnapshot(), widgets: [widget], revision: 1 },
@@ -179,7 +179,7 @@ describe('BackendStateSlice', () => {
 
     useBackendState.getState().applyEvent({
       revision: 2, kind: 'widget.accepted',
-      payload: { widget_id: 'w_x' },
+      payload: { widgetId: 'w_x' },
       emitted_at: '2026-05-28T00:00:01Z',
     });
 
@@ -212,7 +212,7 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
 
     const w = makeWidget('w_tool', {
       origin: { kind: 'tool_invoked' },
-      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w_tool', layer_id: 'layer-a' }],
+      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widgetId: 'w_tool', layerId: 'layer-a' }],
     });
     fireCreated(w);
 
@@ -236,7 +236,7 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
 
     const w = makeWidget('w_ai', {
       origin: { kind: 'mcp_autonomous' },
-      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w_ai', layer_id: 'layer-a' }],
+      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widgetId: 'w_ai', layerId: 'layer-a' }],
     });
     fireCreated(w);
 
@@ -269,7 +269,7 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
     // No image nodes, no activeImageNodeId.
     const w = makeWidget('w_tool', {
       origin: { kind: 'tool_invoked' },
-      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w_tool', layer_id: 'layer-x' }],
+      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widgetId: 'w_tool', layerId: 'layer-x' }],
     });
     fireCreated(w);
     const editor = useEditorStore.getState();

@@ -38,8 +38,8 @@ export const OpParamSchema = z.object({
 });
 
 export const OpBindingSchema = z.object({
-  param_key: z.string(),
-  control_type: ControlTypeSchema,
+  paramKey: z.string(),
+  controlType: ControlTypeSchema,
   label: z.string(),
   group: z.string().optional(),
 }).strict();
@@ -98,16 +98,16 @@ export const RegistryOpSchema = z.object({
   engine: OpEngineConfigSchema,
   /**
    * Curated subset of param keys shown by the default toolrail widget.
-   * Defaults to all binding param_keys when absent.
+   * Defaults to all binding paramKeys when absent.
    */
   tool_defaults: z.array(z.string()).optional(),
   compound: OpCompoundConfigSchema.optional(),
 }).strict().superRefine((op, ctx) => {
   for (const b of op.bindings) {
-    if (!(b.param_key in op.params)) {
+    if (!(b.paramKey in op.params)) {
       ctx.addIssue({
         code: 'custom',
-        message: `binding param_key "${b.param_key}" not in params`,
+        message: `binding paramKey "${b.paramKey}" not in params`,
       });
     }
   }

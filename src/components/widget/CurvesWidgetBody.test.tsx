@@ -16,8 +16,8 @@ describe('isCurvesWidget', () => {
   it('detects the standard four-channel form (toolrail-spawned)', () => {
     const w = makeWidget(
       (['rgb', 'red', 'green', 'blue'] as const).map((ch) => ({
-        param_key: ch,
-        control_schema: { control_type: 'curve_editor' },
+        paramKey: ch,
+        controlSchema: { controlType: 'curve_editor' },
         value: [[0, 0], [255, 255]],
       })) as unknown as Widget['bindings'],
     );
@@ -27,8 +27,8 @@ describe('isCurvesWidget', () => {
   it('detects the single-luma form (AI fused tools — control_type=curve)', () => {
     const w = makeWidget([
       {
-        param_key: 'points',
-        control_schema: { control_type: 'curve' },
+        paramKey: 'points',
+        controlSchema: { controlType: 'curve' },
         value: [[0, 0], [255, 255]],
       },
     ] as unknown as Widget['bindings']);
@@ -38,8 +38,8 @@ describe('isCurvesWidget', () => {
   it('detects a single curve_editor binding as single-luma too', () => {
     const w = makeWidget([
       {
-        param_key: 'luma',
-        control_schema: { control_type: 'curve_editor' },
+        paramKey: 'luma',
+        controlSchema: { controlType: 'curve_editor' },
         value: [[0, 0], [255, 255]],
       },
     ] as unknown as Widget['bindings']);
@@ -49,8 +49,8 @@ describe('isCurvesWidget', () => {
   it('rejects widgets with no curve bindings', () => {
     const w = makeWidget([
       {
-        param_key: 'exposure',
-        control_schema: { control_type: 'slider', min: -1, max: 1, step: 0.01 },
+        paramKey: 'exposure',
+        controlSchema: { controlType: 'slider', min: -1, max: 1, step: 0.01 },
         value: 0,
       },
     ] as unknown as Widget['bindings']);
@@ -60,8 +60,8 @@ describe('isCurvesWidget', () => {
   it('rejects partial four-channel form (missing blue)', () => {
     const w = makeWidget(
       (['rgb', 'red', 'green'] as const).map((ch) => ({
-        param_key: ch,
-        control_schema: { control_type: 'curve_editor' },
+        paramKey: ch,
+        controlSchema: { controlType: 'curve_editor' },
         value: [[0, 0], [255, 255]],
       })) as unknown as Widget['bindings'],
     );

@@ -231,7 +231,7 @@ export const useBackendState = create<BackendState>()(
             // canvas as a one-control shell rather than the full op widget.
             if (w.origin.kind === 'tool_invoked') {
               const firstNode = w.nodes[0];
-              const layerId = firstNode?.layer_id;
+              const layerId = firstNode?.layerId;
               const opType = firstNode?.type;
               if (layerId && opType) {
                 const keys = useEditorStore.getState().consumePinRequest(layerId, opType);
@@ -250,19 +250,19 @@ export const useBackendState = create<BackendState>()(
             break;
           }
           case 'widget.deleted': {
-            const id = payload.widget_id as string;
+            const id = payload.widgetId as string;
             const idx = s.snapshot.widgets.findIndex((x) => x.id === id);
             if (idx >= 0) s.snapshot.widgets[idx].status = 'dismissed';
             break;
           }
           case 'widget.restored': {
-            const id = payload.widget_id as string;
+            const id = payload.widgetId as string;
             const idx = s.snapshot.widgets.findIndex((x) => x.id === id);
             if (idx >= 0) s.snapshot.widgets[idx].status = 'active';
             break;
           }
           case 'widget.accepted': {
-            const id = payload.widget_id as string;
+            const id = payload.widgetId as string;
             s.acceptedSuggestions.add(id);
             // Remove widget from snapshot — accept is a backend-confirmed terminal state.
             // Adjustment materialization now happens server-side; the backend will emit

@@ -174,8 +174,8 @@ describe('header dropdown transform items', () => {
     await userEvent.click(screen.getByText('Rotate 90° CW'));
 
     expect(spy).toHaveBeenCalledWith('sess-1', expect.objectContaining({
-      image_node_id: 'in-1',
-      layer_ids: ['l-1'],
+      imageNodeId: 'in-1',
+      layerIds: ['l-1'],
       rotate: expect.objectContaining({ angle: 90 }),
     }));
     spy.mockRestore();

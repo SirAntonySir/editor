@@ -54,7 +54,7 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
   // edits them) — this is a per-shell display filter.
   const pinnedParamKeys = useEditorStore((s) => s.pinnedWidgetParams[widget.id]);
   const visibleBindings = pinnedParamKeys && pinnedParamKeys.length > 0
-    ? widget.bindings.filter((b) => pinnedParamKeys.includes(b.param_key))
+    ? widget.bindings.filter((b) => pinnedParamKeys.includes(b.paramKey))
     : widget.bindings;
 
   const showAiAffordances = widget.origin.kind !== 'tool_invoked';
@@ -75,13 +75,13 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
   // would correctly bump the slider position in JS state but leave the
   // rendered pixels waiting for the SSE roundtrip — felt laggy.
   function canonIdFor(b: Widget['bindings'][number]): string {
-    const node = widget.nodes.find((n) => n.id === b.target.node_id);
-    return node ? `canon:${node.layer_id}:${node.type}` : b.target.node_id;
+    const node = widget.nodes.find((n) => n.id === b.target.nodeId);
+    return node ? `canon:${node.layerId}:${node.type}` : b.target.nodeId;
   }
   function readOptimistic(b: Widget['bindings'][number]): Widget['bindings'][number]['value'] | undefined {
     const patch = optimistic.get(canonIdFor(b));
     if (!patch) return undefined;
-    const p = patch.bindings.find((p) => p.paramKey === b.target.param_key);
+    const p = patch.bindings.find((p) => p.paramKey === b.target.paramKey);
     return p?.value;
   }
 
@@ -94,42 +94,42 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
 
   function setParam(paramKey: string, value: Widget['bindings'][number]['value']) {
     if (!sessionId || offline) return;
-    const binding = widget.bindings.find((b) => b.param_key === paramKey);
+    const binding = widget.bindings.find((b) => b.paramKey === paramKey);
     if (binding) {
       const baseRevision = useBackendState.getState().snapshot?.revision ?? 0;
       // Key the optimistic patch by canonical id so the WebGL render pass
       // picks it up immediately — see canonIdFor() above.
       useBackendState.getState().applyOptimistic(canonIdFor(binding), {
-        bindings: [{ paramKey: binding.target.param_key, value }],
+        bindings: [{ paramKey: binding.target.paramKey, value }],
         baseRevision,
       });
-      const node = widget.nodes.find((n) => n.id === binding.target.node_id);
-      if (node?.layer_id) {
-        useEditorStore.getState().markParamTouched(touchKey(node.layer_id, node.type, binding.target.param_key));
+      const node = widget.nodes.find((n) => n.id === binding.target.nodeId);
+      if (node?.layerId) {
+        useEditorStore.getState().markParamTouched(touchKey(node.layerId, node.type, binding.target.paramKey));
       }
     }
-    void backendTools.set_widget_param(sessionId, { widget_id: widget.id, param_key: paramKey, value });
+    void backendTools.set_widget_param(sessionId, { widgetId: widget.id, paramKey, value });
   }
 
   function handleApply() {
     if (!sessionId || offline) return;
-    void backendTools.accept_widget(sessionId, { widget_id: widget.id });
+    void backendTools.accept_widget(sessionId, { widgetId: widget.id });
   }
 
   function handleClose() {
     if (!sessionId || offline) return;
-    void backendTools.delete_widget(sessionId, { widget_id: widget.id, suppress_similar: false });
+    void backendTools.delete_widget(sessionId, { widgetId: widget.id, suppressSimilar: false });
   }
 
   function handleReset() {
-    for (const b of widget.bindings) setParam(b.param_key, b.default);
+    for (const b of widget.bindings) setParam(b.paramKey, b.default);
   }
 
   function handleRefineSubmit(instruction: string) {
     if (!sessionId || offline) return;
     setRefinePending(true);
     void backendTools
-      .refine_widget(sessionId, { widget_id: widget.id, instruction, edits: [], additions: [] })
+      .refine_widget(sessionId, { widgetId: widget.id, instruction, edits: [], additions: [] })
       .finally(() => {
         if (!mountedRef.current) return;
         setRefinePending(false);
@@ -204,9 +204,9 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
               )}
               {visibleBindings.map((b) => {
                 const eff = effectiveValue(b);
-                const node = widget.nodes.find((n) => n.id === b.target.node_id);
-                const isTouched = node?.layer_id
-                  ? touched.has(touchKey(node.layer_id, node.type, b.target.param_key))
+                const node = widget.nodes.find((n) => n.id === b.target.nodeId);
+                const isTouched = node?.layerId
+                  ? touched.has(touchKey(node.layerId, node.type, b.target.paramKey))
                   : false;
                 // Engine neutral feeds the provenance check so an AI
                 // slider reads VIOLET while still resting at the AI's
@@ -215,11 +215,11 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
                 const neutral = engineNeutralForBinding(b);
                 return (
                   <BindingRow
-                    key={b.param_key}
+                    key={b.paramKey}
                     binding={b}
                     effectiveValue={eff}
                     maskSummaries={masks}
-                    onChange={(value) => setParam(b.param_key, value)}
+                    onChange={(value) => setParam(b.paramKey, value)}
                     provenance={bindingProvenance(
                       eff,
                       b.default,

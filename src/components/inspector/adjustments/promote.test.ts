@@ -9,7 +9,7 @@ beforeEach(() => vi.clearAllMocks());
 it('builds the tool_invoked proposeStack call', () => {
   promoteToCanvas('s1', 'light', 'L1');
   expect(backendTools.proposeStack).toHaveBeenCalledWith('s1', {
-    intent: 'light', scope: { kind: 'global' }, forced_ops: ['light'], layer_id: 'L1', origin: 'tool_invoked',
+    intent: 'light', scope: { kind: 'global' }, forced_ops: ['light'], layerId: 'L1', origin: 'tool_invoked',
   });
 });
 

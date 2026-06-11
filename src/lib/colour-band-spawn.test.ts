@@ -13,7 +13,7 @@ it('spawns a single-band HSL widget for the chosen band', () => {
     expect.objectContaining({
       preset_id: 'tone_blue',
       origin: 'tool_invoked',
-      layer_id: 'L1',
+      layerId: 'L1',
       scope: { kind: 'global' },
     }),
   );

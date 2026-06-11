@@ -26,7 +26,7 @@ export function useAdjustmentParam(
 
     // Find the first node of the given type on the active layer.
     const node = s.snapshot.operationGraph.nodes.find(
-      (n) => n.layer_id === activeLayerId && n.type === type,
+      (n) => n.layerId === activeLayerId && n.type === type,
     );
     if (!node) return defaultValue;
 
@@ -49,7 +49,7 @@ export function useAdjustmentParam(
 
       // Find the node ID to use as widget reference.
       const nodes = selectPipelineNodes().filter(
-        (n) => n.layer_id === activeLayerId && n.type === type,
+        (n) => n.layerId === activeLayerId && n.type === type,
       );
       const nodeId = nodes[0]?.id;
       if (!nodeId) return;
@@ -67,8 +67,8 @@ export function useAdjustmentParam(
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         void backendTools.set_widget_param(sessionId, {
-          widget_id: nodeId,
-          param_key: paramName,
+          widgetId: nodeId,
+          paramKey: paramName,
           value: v,
         });
       }, DEBOUNCE_MS);

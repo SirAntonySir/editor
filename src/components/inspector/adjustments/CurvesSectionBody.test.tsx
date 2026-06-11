@@ -29,7 +29,7 @@ it('writes per-channel canonical params on edit (matches the canvas curves widge
   expect(backendTools.set_param).toHaveBeenCalledWith(
     's1',
     expect.objectContaining({
-      layer_id: 'L1', op: 'curves', param: 'rgb',
+      layerId: 'L1', op: 'curves', param: 'rgb',
       value: [[0, 0], [127.5, 178.5], [255, 255]],
     }),
   );

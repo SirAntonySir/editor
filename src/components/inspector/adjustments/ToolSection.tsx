@@ -44,7 +44,7 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
     return s.snapshot?.widgets.find(
       (w) => w.op_id === def.id &&
         w.status === 'active' &&
-        w.nodes.some((n) => n.layer_id === layerId),
+        w.nodes.some((n) => n.layerId === layerId),
     ) ?? null;
   });
   // For curves the section has no scalar params — the touched signal is binary
@@ -84,7 +84,7 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
         bindings: [{ paramKey, value }], baseRevision,
       });
       void backendTools.set_param(sessionId, {
-        layer_id: layerId, op: def.adjustmentType, param: paramKey, value,
+        layerId, op: def.adjustmentType, param: paramKey, value,
       });
     }
   }
@@ -100,7 +100,7 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
         bindings: [{ paramKey: 'curves', value: IDENTITY_CURVES }], baseRevision,
       });
       void backendTools.set_param(sessionId, {
-        layer_id: layerId, op: 'curves', param: 'curves', value: IDENTITY_CURVES,
+        layerId, op: 'curves', param: 'curves', value: IDENTITY_CURVES,
       });
       return;
     }
@@ -109,7 +109,7 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
         bindings: [{ paramKey: p.key, value: p.default as number }], baseRevision,
       });
       void backendTools.set_param(sessionId, {
-        layer_id: layerId, op: def.adjustmentType, param: p.key, value: p.default as number,
+        layerId, op: def.adjustmentType, param: p.key, value: p.default as number,
       });
     }
   }

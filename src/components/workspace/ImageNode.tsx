@@ -184,8 +184,8 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
       flip_v: delta.flip_v ? !base.flip_v : base.flip_v,
     };
     void backendTools.set_image_node_transform(sessionId, {
-      image_node_id: id,
-      layer_ids: data.layerIds,
+      imageNodeId: id,
+      layerIds: data.layerIds,
       crop: prevCrop ?? null,
       rotate: next,
     });

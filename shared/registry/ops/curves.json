@@ -15,10 +15,10 @@
     "blue":  { "type": "curve_points", "default": [[0, 0], [255, 255]], "min_points": 2, "max_points": 16 }
   },
   "bindings": [
-    { "param_key": "rgb",   "control_type": "curve_editor", "label": "RGB",   "group": "Channels" },
-    { "param_key": "red",   "control_type": "curve_editor", "label": "Red",   "group": "Channels" },
-    { "param_key": "green", "control_type": "curve_editor", "label": "Green", "group": "Channels" },
-    { "param_key": "blue",  "control_type": "curve_editor", "label": "Blue",  "group": "Channels" }
+    { "paramKey": "rgb",   "controlType": "curve_editor", "label": "RGB",   "group": "Channels" },
+    { "paramKey": "red",   "controlType": "curve_editor", "label": "Red",   "group": "Channels" },
+    { "paramKey": "green", "controlType": "curve_editor", "label": "Green", "group": "Channels" },
+    { "paramKey": "blue",  "controlType": "curve_editor", "label": "Blue",  "group": "Channels" }
   ],
   "engine": { "shader": "curves", "render_order": 35, "node_type": "curves" }
 }

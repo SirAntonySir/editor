@@ -13,9 +13,9 @@ export function makeAiWidget(overrides: Partial<Widget> = {}): Widget {
     nodes: [],
     bindings: [
       {
-        param_key: 'exposure', label: 'Exposure', control_type: 'slider',
-        target: { node_id: 'n-1', param_key: 'exposure' },
-        control_schema: { control_type: 'slider', min: -1, max: 1, step: 0.01 },
+        paramKey: 'exposure', label: 'Exposure', controlType: 'slider',
+        target: { nodeId: 'n-1', paramKey: 'exposure' },
+        controlSchema: { controlType: 'slider', min: -1, max: 1, step: 0.01 },
         value: 0.4, default: 0,
       },
     ],
@@ -24,8 +24,8 @@ export function makeAiWidget(overrides: Partial<Widget> = {}): Widget {
     status: 'active',
     revision: 1,
     locked_params: [],
-    created_at: baseTimestamp,
-    updated_at: baseTimestamp,
+    createdAt: baseTimestamp,
+    updatedAt: baseTimestamp,
     ...overrides,
   } as Widget;
 }
@@ -59,13 +59,13 @@ export function makeHslWidget(bands: string[], overrides: Partial<Widget> = {}):
     scope: { kind: 'global' },
     preview: { kind: 'none', auto_before_after: false },
     nodes: [{
-      id: nodeId, type: 'hsl', scope: { kind: 'global' }, inputs: [], widget_id: 'w-hsl-1',
-      layer_id: 'L1', params: Object.fromEntries(keys.map((k) => [k, 0])),
+      id: nodeId, type: 'hsl', scope: { kind: 'global' }, inputs: [], widgetId: 'w-hsl-1',
+      layerId: 'L1', params: Object.fromEntries(keys.map((k) => [k, 0])),
     }],
     bindings: keys.map((k) => ({
-      param_key: k, label: k.replace('_', ' '), control_type: 'slider',
-      target: { node_id: nodeId, param_key: k },
-      control_schema: { control_type: 'slider', min: -100, max: 100, step: 1 },
+      paramKey: k, label: k.replace('_', ' '), controlType: 'slider',
+      target: { nodeId: nodeId, paramKey: k },
+      controlSchema: { controlType: 'slider', min: -100, max: 100, step: 1 },
       value: 0, default: 0,
     })),
     ...overrides,
@@ -95,13 +95,13 @@ export function makeTimeOfDayWidget(overrides: Partial<Widget> = {}): Widget {
     scope: { kind: 'global' },
     preview: { kind: 'none', auto_before_after: false },
     nodes: [{
-      id: nodeId, type: 'compound', scope: { kind: 'global' }, inputs: [], widget_id: widgetId,
-      layer_id: 'L1', params: { 'time_of_day.position': 0.30 },
+      id: nodeId, type: 'compound', scope: { kind: 'global' }, inputs: [], widgetId: widgetId,
+      layerId: 'L1', params: { 'time_of_day.position': 0.30 },
     }],
     bindings: [{
-      param_key: 'time_of_day.position', label: 'Time', control_type: 'slider',
-      target: { node_id: nodeId, param_key: 'time_of_day.position' },
-      control_schema: { control_type: 'slider', min: 0, max: 1, step: 0.001 },
+      paramKey: 'time_of_day.position', label: 'Time', controlType: 'slider',
+      target: { nodeId: nodeId, paramKey: 'time_of_day.position' },
+      controlSchema: { controlType: 'slider', min: 0, max: 1, step: 0.001 },
       value: 0.30, default: 0.30,
     }],
     ...overrides,

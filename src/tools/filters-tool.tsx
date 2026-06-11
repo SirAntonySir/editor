@@ -81,8 +81,8 @@ export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}
     void backendTools.propose_widget(sid, {
       intent: `Apply ${lut.title} filter`,
       scope,
-      op_id: 'filter',
-      layer_id: activeLayerId,
+      opId: 'filter',
+      layerId: activeLayerId,
       origin: 'tool_invoked',
     });
   }, [activeLayerId]);

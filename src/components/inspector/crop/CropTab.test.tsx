@@ -86,7 +86,7 @@ describe('CropTab initial state', () => {
           nodes: [{
             id: 'transform:in-1:crop', type: 'crop',
             params: { x: 100, y: 50, w: 600, h: 400 },
-            scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'], widget_id: null,
+            scope: { kind: 'global' }, inputs: [], layerId: 'L1', layerIds: ['L1'], widgetId: null,
           }],
         },
         masksIndex: [], widgets: [], imageContext: null,
@@ -107,7 +107,7 @@ describe('CropTab initial state', () => {
           nodes: [{
             id: 'transform:in-1:rotate', type: 'rotate',
             params: { angle: 5.0, flip_h: false, flip_v: false },
-            scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'], widget_id: null,
+            scope: { kind: 'global' }, inputs: [], layerId: 'L1', layerIds: ['L1'], widgetId: null,
           }],
         },
         masksIndex: [], widgets: [], imageContext: null,
@@ -140,7 +140,7 @@ describe('CropTab cropPreview wiring', () => {
           nodes: [{
             id: 'transform:in-1:rotate', type: 'rotate',
             params: { angle: 12.5, flip_h: false, flip_v: false },
-            scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'], widget_id: null,
+            scope: { kind: 'global' }, inputs: [], layerId: 'L1', layerIds: ['L1'], widgetId: null,
           }],
         },
         masksIndex: [], widgets: [], imageContext: null,
@@ -186,7 +186,7 @@ describe('CropTab Apply / Cancel', () => {
           nodes: [{
             id: 'transform:in-1:crop', type: 'crop',
             params: { x: 0, y: 0, w: 800, h: 600 },
-            scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'], widget_id: null,
+            scope: { kind: 'global' }, inputs: [], layerId: 'L1', layerIds: ['L1'], widgetId: null,
           }],
         },
       } as never,
@@ -195,8 +195,8 @@ describe('CropTab Apply / Cancel', () => {
     await new Promise((r) => setTimeout(r, 10));
 
     expect(spy).toHaveBeenCalledWith('sess-1', expect.objectContaining({
-      image_node_id: 'in-1',
-      layer_ids: ['L1'],
+      imageNodeId: 'in-1',
+      layerIds: ['L1'],
       crop: { x: 0, y: 0, w: 800, h: 600 },
       rotate: null,
     }));
@@ -242,7 +242,7 @@ describe('CropTab Apply / Cancel', () => {
           nodes: [{
             id: 'transform:in-1:crop', type: 'crop',
             params: { x: 0, y: 0, w: 800, h: 600 },
-            scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'], widget_id: null,
+            scope: { kind: 'global' }, inputs: [], layerId: 'L1', layerIds: ['L1'], widgetId: null,
           }],
         },
       } as never,

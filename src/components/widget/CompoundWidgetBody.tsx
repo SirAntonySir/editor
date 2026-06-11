@@ -52,7 +52,7 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
   // is never consumed in the null branch.
   const driverKey = op?.compound?.driver ?? '';
   const nodeType = widget.nodes[0]?.type ?? 'compound';
-  const layerId = widget.nodes[0]?.layer_id ?? '';
+  const layerId = widget.nodes[0]?.layerId ?? '';
 
   const driverParam = op?.params[driverKey];
   const driverDefault = (driverParam?.default as number | undefined) ?? 0.5;
@@ -72,7 +72,7 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
   );
   const bindingByKey = useMemo(() => {
     const m = new Map<string, ControlBinding>();
-    for (const b of widget.bindings) m.set(b.param_key, b);
+    for (const b of widget.bindings) m.set(b.paramKey, b);
     return m;
   }, [widget.bindings]);
 
@@ -96,7 +96,7 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
       for (const k of Object.keys(a.values)) anchorKeys.add(k);
     }
     return op.bindings
-      .map((b) => b.param_key)
+      .map((b) => b.paramKey)
       .filter((k) => k !== driverKey && anchorKeys.has(k));
   }, [op, driverKey]);
 
@@ -141,20 +141,20 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
     const prev = debouncers.current.get(paramKey);
     if (prev) clearTimeout(prev);
     debouncers.current.set(paramKey, setTimeout(() => {
-      void backendTools.set_widget_param(sid, { widget_id: widget.id, param_key: paramKey, value });
+      void backendTools.set_widget_param(sid, { widgetId: widget.id, paramKey, value });
     }, DEBOUNCE_MS));
   }, [layerId, nodeType, widget.id]);
 
   const unlockParam = useCallback((paramKey: string) => {
     const sid = useBackendState.getState().sessionId;
     if (!sid) return;
-    void backendTools.unlock_widget_param(sid, { widget_id: widget.id, param_key: paramKey });
+    void backendTools.unlock_widget_param(sid, { widgetId: widget.id, paramKey });
   }, [widget.id]);
 
   const labelByKey = useMemo(() => {
     const m: Record<string, string> = {};
     if (!op) return m;
-    for (const b of op.bindings) m[b.param_key] = b.label;
+    for (const b of op.bindings) m[b.paramKey] = b.label;
     return m;
   }, [op]);
 
@@ -199,8 +199,8 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
       <div className="grid grid-cols-2 gap-1.5 px-2 pb-2">
         {bundleKeys.map((key) => {
           const binding = bindingByKey.get(key);
-          const schema = binding?.control_schema;
-          const range = schema && schema.control_type === 'slider'
+          const schema = binding?.controlSchema;
+          const range = schema && schema.controlType === 'slider'
             ? { min: schema.min, max: schema.max, step: schema.step }
             : { min: -100, max: 100, step: 1 };
           return (

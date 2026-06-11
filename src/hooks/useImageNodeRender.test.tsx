@@ -37,15 +37,15 @@ function widgetWithNode(opts: { id: string; nodeId: string; layerId?: string; ty
     origin: { kind: 'tool_invoked' },
     composed: true,
     nodes: [
-      { id: opts.nodeId, type: opts.type ?? 'basic', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: opts.id, layer_id: opts.layerId },
+      { id: opts.nodeId, type: opts.type ?? 'basic', params: {}, scope: { kind: 'global' }, inputs: [], widgetId: opts.id, layerId: opts.layerId },
     ],
     bindings: [],
     preview: { kind: 'none', auto_before_after: false },
     rejected_attempts: [],
     status: 'active',
     revision: 1,
-    created_at: '',
-    updated_at: '',
+    createdAt: '',
+    updatedAt: '',
     locked_params: [],
   } as Widget;
 }

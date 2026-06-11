@@ -11,9 +11,9 @@ export interface Node {
   // array (`[[x, y], ...]` in 0..1 space, used by fused-tool curve bindings).
   params: Record<string, number | string | boolean | CurvesValue | [number, number][]>;
   inputs: string[];
-  layer_id?: string;
-  layer_ids?: string[];  // node-scope: applied to composite of these layers
-  widget_id?: string;
+  layerId?: string;
+  layerIds?: string[];  // node-scope: applied to composite of these layers
+  widgetId?: string;
 }
 
 export interface PanelBinding {

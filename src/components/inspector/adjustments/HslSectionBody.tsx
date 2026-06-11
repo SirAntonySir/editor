@@ -36,7 +36,7 @@ export function HslSectionBody({ layerId }: { layerId: string }) {
     const baseRevision = useBackendState.getState().snapshot?.revision ?? 0;
     for (const param of ALL_PARAMS) {
       useBackendState.getState().applyOptimistic(nodeId, { bindings: [{ paramKey: param, value: 0 }], baseRevision });
-      void backendTools.set_param(sessionId, { layer_id: layerId, op: 'hsl', param, value: 0 });
+      void backendTools.set_param(sessionId, { layerId, op: 'hsl', param, value: 0 });
     }
   }
 

@@ -79,7 +79,7 @@ class LayerCompositorImpl {
     }
 
     // 2. Apply the layer's adjustment pipeline from the backend snapshot.
-    const pipelineNodes = selectPipelineNodes().filter((n) => n.layer_id === layer.id);
+    const pipelineNodes = selectPipelineNodes().filter((n) => n.layerId === layer.id);
     const adjustments = pipelineNodes.map(nodeToAdjustment).filter((a) => a.enabled);
     let result: HTMLCanvasElement;
     if (adjustments.length === 0) {
@@ -166,7 +166,7 @@ class LayerCompositorImpl {
       } else {
         // Pixel-less adjustment-only layer: apply backend pipeline nodes over
         // the accumulated composite below it.
-        const pipelineNodes = selectPipelineNodes().filter((n) => n.layer_id === layer.id);
+        const pipelineNodes = selectPipelineNodes().filter((n) => n.layerId === layer.id);
         const enabledAdjs = pipelineNodes.map(nodeToAdjustment).filter((a) => a.enabled);
         if (enabledAdjs.length > 0 && outputWidth > 0 && outputHeight > 0) {
           PipelineManager.setSourceCanvas(this.outputCanvas);

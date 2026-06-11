@@ -33,7 +33,7 @@ function scopeLabel(widget: Widget): string | null {
   if (s.kind === 'named_region') return s.label;
   if (s.kind === 'mask:proposed') return s.label;
   if (s.kind === 'mask') return s.mask_id.slice(0, 6);
-  if (s.kind === 'image_node') return `Image (${s.layer_ids.length})`;
+  if (s.kind === 'image_node') return `Image (${s.layerIds.length})`;
   return null;
 }
 

@@ -13,8 +13,8 @@
     "tint":   { "type": "scalar", "range": [-100, 100],   "default": 0 }
   },
   "bindings": [
-    { "param_key": "kelvin", "control_type": "kelvin_strip", "label": "Temperature" },
-    { "param_key": "tint",   "control_type": "slider",       "label": "Tint" }
+    { "paramKey": "kelvin", "controlType": "kelvin_strip", "label": "Temperature" },
+    { "paramKey": "tint",   "controlType": "slider",       "label": "Tint" }
   ],
   "engine": { "shader": "kelvin", "render_order": 5, "node_type": "kelvin" }
 }

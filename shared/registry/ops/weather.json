@@ -21,16 +21,16 @@
     "filters.vignette_amount":   { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 }
   },
   "bindings": [
-    { "param_key": "weather.position",         "control_type": "slider", "label": "Conditions" },
-    { "param_key": "kelvin.kelvin",            "control_type": "slider", "label": "WB" },
-    { "param_key": "light.exposure",           "control_type": "slider", "label": "Exposure" },
-    { "param_key": "light.contrast",           "control_type": "slider", "label": "Contrast" },
-    { "param_key": "light.highlights",         "control_type": "slider", "label": "Highlights" },
-    { "param_key": "light.shadows",            "control_type": "slider", "label": "Shadows" },
-    { "param_key": "color.vibrance",           "control_type": "slider", "label": "Vibrance" },
-    { "param_key": "clarity.amount",           "control_type": "slider", "label": "Clarity" },
-    { "param_key": "grain.amount",             "control_type": "slider", "label": "Grain" },
-    { "param_key": "filters.vignette_amount",  "control_type": "slider", "label": "Vignette" }
+    { "paramKey": "weather.position",         "controlType": "slider", "label": "Conditions" },
+    { "paramKey": "kelvin.kelvin",            "controlType": "slider", "label": "WB" },
+    { "paramKey": "light.exposure",           "controlType": "slider", "label": "Exposure" },
+    { "paramKey": "light.contrast",           "controlType": "slider", "label": "Contrast" },
+    { "paramKey": "light.highlights",         "controlType": "slider", "label": "Highlights" },
+    { "paramKey": "light.shadows",            "controlType": "slider", "label": "Shadows" },
+    { "paramKey": "color.vibrance",           "controlType": "slider", "label": "Vibrance" },
+    { "paramKey": "clarity.amount",           "controlType": "slider", "label": "Clarity" },
+    { "paramKey": "grain.amount",             "controlType": "slider", "label": "Grain" },
+    { "paramKey": "filters.vignette_amount",  "controlType": "slider", "label": "Vignette" }
   ],
   "engine": { "shader": "compound", "render_order": 5, "node_type": "compound" },
   "compound": {

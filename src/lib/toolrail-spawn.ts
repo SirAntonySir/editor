@@ -47,7 +47,7 @@ export function spawnToolWidget(toolName: string): boolean {
     intent: tool.label ?? tool.processingId,
     scope: editor.activeScope ?? { kind: 'global' },
     forced_ops: [tool.processingId],
-    layer_id: layerId,
+    layerId,
     origin: 'tool_invoked',
   });
   return true;
@@ -99,7 +99,7 @@ export function spawnRegistryOp(
     scope: ctx.scope,
     forced_ops: [opId],
     forced_params: params ? { [opId]: params } : undefined,
-    layer_id: ctx.layerId,
+    layerId: ctx.layerId,
     origin: 'tool_invoked',
   });
 }
@@ -114,7 +114,7 @@ export function spawnRegistryPreset(presetId: string, intent?: string): void {
     intent: intent ?? presetId,
     scope: ctx.scope,
     preset_id: presetId,
-    layer_id: ctx.layerId,
+    layerId: ctx.layerId,
     origin: 'tool_invoked',
   });
 }

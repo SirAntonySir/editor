@@ -18,13 +18,13 @@
     "brightness": { "type": "scalar", "range": [-100, 100], "default": 0 }
   },
   "bindings": [
-    { "param_key": "exposure",   "control_type": "slider", "label": "Exposure" },
-    { "param_key": "contrast",   "control_type": "slider", "label": "Contrast" },
-    { "param_key": "highlights", "control_type": "slider", "label": "Highlights" },
-    { "param_key": "shadows",    "control_type": "slider", "label": "Shadows" },
-    { "param_key": "whites",     "control_type": "slider", "label": "Whites" },
-    { "param_key": "blacks",     "control_type": "slider", "label": "Blacks" },
-    { "param_key": "brightness", "control_type": "slider", "label": "Brightness" }
+    { "paramKey": "exposure",   "controlType": "slider", "label": "Exposure" },
+    { "paramKey": "contrast",   "controlType": "slider", "label": "Contrast" },
+    { "paramKey": "highlights", "controlType": "slider", "label": "Highlights" },
+    { "paramKey": "shadows",    "controlType": "slider", "label": "Shadows" },
+    { "paramKey": "whites",     "controlType": "slider", "label": "Whites" },
+    { "paramKey": "blacks",     "controlType": "slider", "label": "Blacks" },
+    { "paramKey": "brightness", "controlType": "slider", "label": "Brightness" }
   ],
   "engine": { "shader": "basic", "render_order": 10, "node_type": "basic" },
   "tool_defaults": ["exposure", "contrast", "highlights", "shadows"]

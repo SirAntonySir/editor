@@ -56,7 +56,7 @@ export function SliderPinMenu({
     for (const w of widgets) {
       if (w.status !== 'active') continue;
       if (!widgetNodes[w.id]) continue;
-      const sameOp = w.nodes.some((n) => n.layer_id === layerId && n.type === opAdjustmentType);
+      const sameOp = w.nodes.some((n) => n.layerId === layerId && n.type === opAdjustmentType);
       if (!sameOp) continue;
       const pinned = pinnedWidgetParams[w.id];
       if (!pinned || pinned.length === 0) continue;

@@ -57,7 +57,7 @@ function WorkspaceKeyHandler() {
           if (sessionId) {
             // Backend will SSE the deletion back to us. Undoing a backend
             // widget deletion needs backend cooperation and is deferred.
-            void backendTools.delete_widget(sessionId, { widget_id: node.id, suppress_similar: false });
+            void backendTools.delete_widget(sessionId, { widgetId: node.id, suppressSimilar: false });
           }
         }
       }
@@ -196,7 +196,7 @@ export function CanvasWorkspace() {
 
   // Edges are auto-derived from active widgets. Each widget gets one edge to
   // the image node it belongs to: image_node-scoped widgets target their
-  // `scope.image_node_id`; otherwise we resolve via `nodes[0].layer_id` and
+  // `scope.imageNodeId`; otherwise we resolve via `nodes[0].layerId` and
   // fall back to the active image node.
   const edges = useMemo<TetherEdgeType[]>(() => {
     const out: TetherEdgeType[] = [];
@@ -235,13 +235,13 @@ export function CanvasWorkspace() {
       let targetId: string | null = null;
       let scopeKind: 'layer' | 'node' = 'layer';
       if (w.scope.kind === 'image_node') {
-        if (imageNodes[w.scope.image_node_id]) {
-          targetId = w.scope.image_node_id;
+        if (imageNodes[w.scope.imageNodeId]) {
+          targetId = w.scope.imageNodeId;
           scopeKind = 'node';
         }
       }
       if (!targetId) {
-        const layerId = w.nodes[0]?.layer_id;
+        const layerId = w.nodes[0]?.layerId;
         if (layerId) {
           for (const n of Object.values(imageNodes)) {
             if (n.layerIds.includes(layerId)) { targetId = n.id; break; }

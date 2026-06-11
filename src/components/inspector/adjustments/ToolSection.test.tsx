@@ -42,7 +42,7 @@ beforeEach(() => {
       operationGraph: {
         id: 'g',
         userGoal: '',
-        nodes: [{ id: 'canon:L1:basic', type: 'basic', layer_id: 'L1', params: { exposure: 12 } }],
+        nodes: [{ id: 'canon:L1:basic', type: 'basic', layerId: 'L1', params: { exposure: 12 } }],
         panelBindings: [],
         metadata: {},
       },
@@ -67,7 +67,7 @@ it('hides the badge entirely when no slider has been touched', () => {
       ...useBackendState.getState().snapshot!,
       operationGraph: {
         id: 'g', userGoal: '',
-        nodes: [{ id: 'canon:L1:basic', type: 'basic', layer_id: 'L1', params: { exposure: 0 } }],
+        nodes: [{ id: 'canon:L1:basic', type: 'basic', layerId: 'L1', params: { exposure: 0 } }],
         panelBindings: [], metadata: {},
       },
     } as never,
@@ -82,7 +82,7 @@ it('clicking the count badge resets each param to its default (no expand toggle)
   fireEvent.click(screen.getByTestId('touched-count'));
   // set_param fires once per param at its default value.
   expect(backendTools.set_param).toHaveBeenCalledWith(
-    's1', { layer_id: 'L1', op: 'basic', param: 'exposure', value: 0 },
+    's1', { layerId: 'L1', op: 'basic', param: 'exposure', value: 0 },
   );
   // Click on the badge must NOT bubble to the disclosure toggle.
   expect(useEditorStore.getState().expandedSectionIds.has('light')).toBe(before);

@@ -26,7 +26,7 @@ export function WidgetAutoButton({ widget, setParam }: Props) {
     const params = autoParamsForOp(opId, mech);
     if (!params) return;
     for (const [k, v] of Object.entries(params)) {
-      if (widget.bindings.some((b) => b.param_key === k)) setParam(k, v);
+      if (widget.bindings.some((b) => b.paramKey === k)) setParam(k, v);
     }
   }
 

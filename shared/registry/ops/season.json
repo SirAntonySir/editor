@@ -21,16 +21,16 @@
     "splitTone.shadow_hue":      { "type": "scalar", "range": [0, 360],       "default": 200,  "step": 1, "unit": "deg" }
   },
   "bindings": [
-    { "param_key": "season.position",          "control_type": "slider", "label": "Season" },
-    { "param_key": "kelvin.kelvin",            "control_type": "slider", "label": "WB" },
-    { "param_key": "color.vibrance",           "control_type": "slider", "label": "Vibrance" },
-    { "param_key": "color.saturation",         "control_type": "slider", "label": "Saturation" },
-    { "param_key": "hsl.green_sat",            "control_type": "slider", "label": "Green Sat" },
-    { "param_key": "hsl.orange_sat",           "control_type": "slider", "label": "Orange Sat" },
-    { "param_key": "hsl.blue_sat",             "control_type": "slider", "label": "Blue Sat" },
-    { "param_key": "light.exposure",           "control_type": "slider", "label": "Exposure" },
-    { "param_key": "splitTone.highlight_hue",  "control_type": "hue_wheel", "label": "Highlight Hue" },
-    { "param_key": "splitTone.shadow_hue",     "control_type": "hue_wheel", "label": "Shadow Hue" }
+    { "paramKey": "season.position",          "controlType": "slider", "label": "Season" },
+    { "paramKey": "kelvin.kelvin",            "controlType": "slider", "label": "WB" },
+    { "paramKey": "color.vibrance",           "controlType": "slider", "label": "Vibrance" },
+    { "paramKey": "color.saturation",         "controlType": "slider", "label": "Saturation" },
+    { "paramKey": "hsl.green_sat",            "controlType": "slider", "label": "Green Sat" },
+    { "paramKey": "hsl.orange_sat",           "controlType": "slider", "label": "Orange Sat" },
+    { "paramKey": "hsl.blue_sat",             "controlType": "slider", "label": "Blue Sat" },
+    { "paramKey": "light.exposure",           "controlType": "slider", "label": "Exposure" },
+    { "paramKey": "splitTone.highlight_hue",  "controlType": "hue_wheel", "label": "Highlight Hue" },
+    { "paramKey": "splitTone.shadow_hue",     "controlType": "hue_wheel", "label": "Shadow Hue" }
   ],
   "engine": { "shader": "compound", "render_order": 5, "node_type": "compound" },
   "compound": {

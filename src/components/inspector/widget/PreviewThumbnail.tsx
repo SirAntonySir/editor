@@ -21,7 +21,7 @@ export function PreviewThumbnail({ widget, maxDim = 128 }: PreviewThumbnailProps
     // and prevents cascading-render warnings.
     startTransition(() => setLoading(true));
     (async () => {
-      const env = await backendTools.preview_widget(sessionId, { widget_id: widget.id, max_dim: maxDim });
+      const env = await backendTools.preview_widget(sessionId, { widgetId: widget.id, max_dim: maxDim });
       if (cancelled) return;
       setImageB64(env.ok ? env.output!.image_b64 ?? null : null);
       setLoading(false);

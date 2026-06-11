@@ -70,9 +70,9 @@ function sliceWidgetByOp(widget: Widget): OpSlice[] {
       console.warn(`RegistryDrivenSectionBody: no registry op for node ${node.id} (type=${node.type}, op_id=${node.op_id ?? 'none'})`);
       continue;
     }
-    const bindings = widget.bindings.filter((b) => b.target?.node_id === node.id);
+    const bindings = widget.bindings.filter((b) => b.target?.nodeId === node.id);
     const values: Record<string, unknown> = {};
-    for (const b of bindings) values[b.param_key] = b.value;
+    for (const b of bindings) values[b.paramKey] = b.value;
     slices.push({ op, bindings, values, nodeId: node.id });
   }
   return slices;
@@ -96,8 +96,8 @@ function WidgetSectionBodyInner({ widget, disabled }: WidgetSectionBodyInnerProp
     (paramKey: string, value: unknown) => {
       if (!sessionId || offline) return;
       void backendTools.set_widget_param(sessionId, {
-        widget_id: widget.id,
-        param_key: paramKey,
+        widgetId: widget.id,
+        paramKey,
         value: value as number,
       });
     },
@@ -170,17 +170,17 @@ function ToolrailSectionBodyInner({
       const result: Record<string, unknown> = {};
       if (!registryOp) return result;
       for (const binding of registryOp.bindings) {
-        const param = registryOp.params[binding.param_key];
+        const param = registryOp.params[binding.paramKey];
         const defaultVal = param.default;
         const opt = s.optimistic.get(nodeId);
-        const hit = opt?.bindings.find((b) => b.paramKey === binding.param_key);
+        const hit = opt?.bindings.find((b) => b.paramKey === binding.paramKey);
         if (hit !== undefined) {
-          result[binding.param_key] = hit.value;
+          result[binding.paramKey] = hit.value;
           continue;
         }
         const node = s.snapshot?.operationGraph.nodes.find((n) => n.id === nodeId);
-        const v = node?.params?.[binding.param_key];
-        result[binding.param_key] = v === undefined ? defaultVal : v;
+        const v = node?.params?.[binding.paramKey];
+        result[binding.paramKey] = v === undefined ? defaultVal : v;
       }
       return result;
     }),
@@ -206,7 +206,7 @@ function ToolrailSectionBodyInner({
         setTimeout(() => {
           debounceTimers.delete(timerKey);
           void backendTools.set_param(sessionId, {
-            layer_id: layerId,
+            layerId,
             op: opType,
             param: paramKey,
             value: value as number,

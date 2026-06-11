@@ -226,7 +226,7 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
 
     const layerNodes = nodes.filter(
       (n) =>
-        n.layer_id === layerId
+        n.layerId === layerId
         && !hiddenNodeIds.has(n.id)
         && n.type !== 'crop'
         && n.type !== 'rotate',
@@ -273,7 +273,7 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   const nodeScopeNodes = nodes.filter((n) => {
     if (hiddenNodeIds.has(n.id)) return false;
     if (n.type === 'crop' || n.type === 'rotate') return false;
-    const ids = n.layer_ids;
+    const ids = n.layerIds;
     return Array.isArray(ids) && ids.length > 0 && ids.every((lid) => layerSetForComposite.has(lid));
   });
 

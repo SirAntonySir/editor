@@ -21,16 +21,16 @@
     "filters.vignette_amount":   { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 }
   },
   "bindings": [
-    { "param_key": "age.position",             "control_type": "slider", "label": "Age" },
-    { "param_key": "levels.inBlack",           "control_type": "slider", "label": "Black Point" },
-    { "param_key": "levels.inWhite",           "control_type": "slider", "label": "White Point" },
-    { "param_key": "light.contrast",           "control_type": "slider", "label": "Contrast" },
-    { "param_key": "color.saturation",         "control_type": "slider", "label": "Saturation" },
-    { "param_key": "color.vibrance",           "control_type": "slider", "label": "Vibrance" },
-    { "param_key": "hsl.orange_hue",           "control_type": "slider", "label": "Orange Hue" },
-    { "param_key": "grain.amount",             "control_type": "slider", "label": "Grain" },
-    { "param_key": "splitTone.highlight_hue",  "control_type": "hue_wheel", "label": "Highlight Hue" },
-    { "param_key": "filters.vignette_amount",  "control_type": "slider", "label": "Vignette" }
+    { "paramKey": "age.position",             "controlType": "slider", "label": "Age" },
+    { "paramKey": "levels.inBlack",           "controlType": "slider", "label": "Black Point" },
+    { "paramKey": "levels.inWhite",           "controlType": "slider", "label": "White Point" },
+    { "paramKey": "light.contrast",           "controlType": "slider", "label": "Contrast" },
+    { "paramKey": "color.saturation",         "controlType": "slider", "label": "Saturation" },
+    { "paramKey": "color.vibrance",           "controlType": "slider", "label": "Vibrance" },
+    { "paramKey": "hsl.orange_hue",           "controlType": "slider", "label": "Orange Hue" },
+    { "paramKey": "grain.amount",             "controlType": "slider", "label": "Grain" },
+    { "paramKey": "splitTone.highlight_hue",  "controlType": "hue_wheel", "label": "Highlight Hue" },
+    { "paramKey": "filters.vignette_amount",  "controlType": "slider", "label": "Vignette" }
   ],
   "engine": { "shader": "compound", "render_order": 5, "node_type": "compound" },
   "compound": {

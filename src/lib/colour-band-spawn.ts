@@ -13,7 +13,7 @@ export function promoteSingleBand(
     intent: `HSL ${band}`,
     scope: { kind: 'global' },
     preset_id: `tone_${band}`,
-    layer_id: layerId,
+    layerId,
     origin: 'tool_invoked',
   });
 }

@@ -16,11 +16,11 @@
     "outWhite": { "type": "scalar", "range": [0, 255],  "default": 255 }
   },
   "bindings": [
-    { "param_key": "inBlack",  "control_type": "slider", "label": "Black Point",  "group": "Input" },
-    { "param_key": "inWhite",  "control_type": "slider", "label": "White Point",  "group": "Input" },
-    { "param_key": "gamma",    "control_type": "slider", "label": "Gamma",        "group": "Input" },
-    { "param_key": "outBlack", "control_type": "slider", "label": "Output Black", "group": "Output" },
-    { "param_key": "outWhite", "control_type": "slider", "label": "Output White", "group": "Output" }
+    { "paramKey": "inBlack",  "controlType": "slider", "label": "Black Point",  "group": "Input" },
+    { "paramKey": "inWhite",  "controlType": "slider", "label": "White Point",  "group": "Input" },
+    { "paramKey": "gamma",    "controlType": "slider", "label": "Gamma",        "group": "Input" },
+    { "paramKey": "outBlack", "controlType": "slider", "label": "Output Black", "group": "Output" },
+    { "paramKey": "outWhite", "controlType": "slider", "label": "Output White", "group": "Output" }
   ],
   "engine": { "shader": "levels", "render_order": 15, "node_type": "levels" },
   "tool_defaults": ["inBlack", "inWhite", "gamma"]

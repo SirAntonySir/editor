@@ -28,7 +28,7 @@ vi.mock('@/lib/backend-tools', () => ({ backendTools: {
 const widget = {
   id: 'w1', intent: 'Warm the sky', status: 'active',
   origin: { kind: 'mcp_autonomous' }, scope: { root: { kind: 'global' } },
-  nodes: [{ id: 'canon:L1:kelvin', type: 'kelvin', layer_id: 'L1', params: { kelvin: 6200 } }],
+  nodes: [{ id: 'canon:L1:kelvin', type: 'kelvin', layerId: 'L1', params: { kelvin: 6200 } }],
   bindings: [], preview: { kind: 'none' },
 } as unknown as Widget;
 
@@ -50,13 +50,13 @@ it('renders the intent and Apply commits the widget', () => {
   render(<AiSection widget={widget} />);
   expect(screen.getByText('Warm the sky')).toBeTruthy();
   fireEvent.click(screen.getByText('Apply'));
-  expect(backendTools.accept_widget).toHaveBeenCalledWith('s1', { widget_id: 'w1' });
+  expect(backendTools.accept_widget).toHaveBeenCalledWith('s1', { widgetId: 'w1' });
 });
 
 it('header × discards the widget', () => {
   render(<AiSection widget={widget} />);
   fireEvent.click(screen.getByLabelText('Close'));
-  expect(backendTools.delete_widget).toHaveBeenCalledWith('s1', { widget_id: 'w1', suppress_similar: false });
+  expect(backendTools.delete_widget).toHaveBeenCalledWith('s1', { widgetId: 'w1', suppressSimilar: false });
 });
 
 it('the arrow engages the suggestion onto the canvas, then disables once placed', () => {
@@ -76,20 +76,20 @@ it('renders an op header for each underlying node so multi-op widgets show their
     id: 'w_multi', intent: 'Warm and pop', status: 'active',
     origin: { kind: 'mcp_autonomous' }, scope: { root: { kind: 'global' } },
     nodes: [
-      { id: 'n_kelvin', type: 'kelvin', layer_id: 'L1', params: {} },
-      { id: 'n_basic', type: 'basic', layer_id: 'L1', params: {} },
+      { id: 'n_kelvin', type: 'kelvin', layerId: 'L1', params: {} },
+      { id: 'n_basic', type: 'basic', layerId: 'L1', params: {} },
     ],
     bindings: [
       {
-        param_key: 'temperature', label: 'Warmth', control_type: 'slider',
-        control_schema: { control_type: 'slider', min: -2000, max: 2000, step: 50 },
-        target: { node_id: 'n_kelvin', param_key: 'temperature' },
+        paramKey: 'temperature', label: 'Warmth', controlType: 'slider',
+        controlSchema: { controlType: 'slider', min: -2000, max: 2000, step: 50 },
+        target: { nodeId: 'n_kelvin', paramKey: 'temperature' },
         value: 200, default: 200,
       },
       {
-        param_key: 'saturation', label: 'Saturation', control_type: 'slider',
-        control_schema: { control_type: 'slider', min: -100, max: 100, step: 1 },
-        target: { node_id: 'n_basic', param_key: 'saturation' },
+        paramKey: 'saturation', label: 'Saturation', controlType: 'slider',
+        controlSchema: { controlType: 'slider', min: -100, max: 100, step: 1 },
+        target: { nodeId: 'n_basic', paramKey: 'saturation' },
         value: 5, default: 5,
       },
     ],
@@ -138,11 +138,11 @@ it('keys AI-suggestion optimistic preview on the canonical node id, not the widg
   const w = {
     id: 'w1', intent: 'Recover', status: 'active',
     origin: { kind: 'mcp_autonomous' }, scope: { root: { kind: 'global' } },
-    nodes: [{ id: 'n_basic', type: 'basic', layer_id: 'L1', params: { highlights: 0 } }],
+    nodes: [{ id: 'n_basic', type: 'basic', layerId: 'L1', params: { highlights: 0 } }],
     bindings: [{
-      param_key: 'highlights', label: 'Highlights', control_type: 'slider',
-      control_schema: { control_type: 'slider', min: -100, max: 100, step: 1 },
-      target: { node_id: 'n_basic', param_key: 'highlights' },
+      paramKey: 'highlights', label: 'Highlights', controlType: 'slider',
+      controlSchema: { controlType: 'slider', min: -100, max: 100, step: 1 },
+      target: { nodeId: 'n_basic', paramKey: 'highlights' },
       value: 0, default: 0,
     }],
     preview: { kind: 'none' },

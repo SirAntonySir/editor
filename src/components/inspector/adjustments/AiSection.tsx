@@ -48,9 +48,9 @@ export function AiSection({ widget }: AiSectionProps) {
   }
 
   function canonIdFor(b: ControlBinding): string | null {
-    const node = widget.nodes.find((n) => n.id === b.target.node_id);
+    const node = widget.nodes.find((n) => n.id === b.target.nodeId);
     if (!node) return null;
-    return `canon:${node.layer_id}:${node.type}`;
+    return `canon:${node.layerId}:${node.type}`;
   }
 
   // Effective value = pending optimistic patch (keyed by the canonical node id)
@@ -58,33 +58,33 @@ export function AiSection({ widget }: AiSectionProps) {
   function effectiveOf(b: ControlBinding): ControlValue {
     const canonId = canonIdFor(b);
     const patch = canonId ? optimistic.get(canonId) : undefined;
-    const opt = patch?.bindings.find((p) => p.paramKey === b.target.param_key)?.value;
+    const opt = patch?.bindings.find((p) => p.paramKey === b.target.paramKey)?.value;
     return opt !== undefined ? opt : b.value;
   }
 
   function setParam(b: ControlBinding, value: ControlValue) {
     if (!canWrite() || !sessionId) return;
-    const node = widget.nodes.find((n) => n.id === b.target.node_id);
-    const canonId = node ? `canon:${node.layer_id}:${node.type}` : b.target.node_id;
+    const node = widget.nodes.find((n) => n.id === b.target.nodeId);
+    const canonId = node ? `canon:${node.layerId}:${node.type}` : b.target.nodeId;
     const baseRevision = useBackendState.getState().snapshot?.revision ?? 0;
     useBackendState.getState().applyOptimistic(canonId, {
-      bindings: [{ paramKey: b.target.param_key, value }],
+      bindings: [{ paramKey: b.target.paramKey, value }],
       baseRevision,
     });
-    if (node?.layer_id) {
-      useEditorStore.getState().markParamTouched(touchKey(node.layer_id, node.type, b.target.param_key));
+    if (node?.layerId) {
+      useEditorStore.getState().markParamTouched(touchKey(node.layerId, node.type, b.target.paramKey));
     }
-    void backendTools.set_widget_param(sessionId, { widget_id: widget.id, param_key: b.param_key, value });
+    void backendTools.set_widget_param(sessionId, { widgetId: widget.id, paramKey: b.paramKey, value });
   }
 
   function onApply() {
     if (!canWrite() || !sessionId) return;
-    void backendTools.accept_widget(sessionId, { widget_id: widget.id });
+    void backendTools.accept_widget(sessionId, { widgetId: widget.id });
   }
 
   function onClose() {
     if (!canWrite() || !sessionId) return;
-    void backendTools.delete_widget(sessionId, { widget_id: widget.id, suppress_similar: false });
+    void backendTools.delete_widget(sessionId, { widgetId: widget.id, suppressSimilar: false });
   }
 
   function onReset() {
@@ -92,9 +92,9 @@ export function AiSection({ widget }: AiSectionProps) {
   }
 
   function provenanceOf(b: ControlBinding, eff: ControlValue): ReturnType<typeof bindingProvenance> {
-    const node = widget.nodes.find((n) => n.id === b.target.node_id);
-    const isTouched = node?.layer_id
-      ? touched.has(touchKey(node.layer_id, node.type, b.target.param_key))
+    const node = widget.nodes.find((n) => n.id === b.target.nodeId);
+    const isTouched = node?.layerId
+      ? touched.has(touchKey(node.layerId, node.type, b.target.paramKey))
       : false;
     // Engine neutral instead of binding.default: AI sliders stay VIOLET
     // until the user touches them, then flip to ACCENT.
@@ -110,7 +110,7 @@ export function AiSection({ widget }: AiSectionProps) {
     const order: string[] = [];
     const byNode = new Map<string, ControlBinding[]>();
     for (const b of widget.bindings) {
-      const nid = b.target.node_id;
+      const nid = b.target.nodeId;
       if (!byNode.has(nid)) {
         byNode.set(nid, []);
         order.push(nid);
@@ -212,7 +212,7 @@ export function AiSection({ widget }: AiSectionProps) {
               widget={widget}
               effectiveValue={effectiveOf}
               setParam={(key, v) => {
-                const b = widget.bindings.find((x) => x.param_key === key);
+                const b = widget.bindings.find((x) => x.paramKey === key);
                 if (b) setParam(b, v);
               }}
             />
@@ -221,7 +221,7 @@ export function AiSection({ widget }: AiSectionProps) {
               widget={widget}
               effectiveValue={effectiveOf}
               setParam={(key, v) => {
-                const b = widget.bindings.find((x) => x.param_key === key);
+                const b = widget.bindings.find((x) => x.paramKey === key);
                 if (b) setParam(b, v);
               }}
             />
@@ -240,7 +240,7 @@ export function AiSection({ widget }: AiSectionProps) {
                   const eff = effectiveOf(b);
                   return (
                     <BindingRow
-                      key={b.target.node_id + ':' + b.target.param_key}
+                      key={b.target.nodeId + ':' + b.target.paramKey}
                       binding={b}
                       effectiveValue={eff}
                       onChange={(v) => setParam(b, v)}

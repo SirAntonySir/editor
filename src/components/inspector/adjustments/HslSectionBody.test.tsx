@@ -16,7 +16,7 @@ function seed(params: Record<string, number> = {}) {
       operationGraph: {
         id: 'g', userGoal: '', panelBindings: [], metadata: {},
         nodes: Object.keys(params).length
-          ? [{ id: 'canon:L1:hsl', type: 'hsl', layer_id: 'L1', params }]
+          ? [{ id: 'canon:L1:hsl', type: 'hsl', layerId: 'L1', params }]
           : [],
       },
       revision: 1,
@@ -60,7 +60,7 @@ it('moving a band slider writes the <band>_<channel> param (default band = red)'
   render(<HslSectionBody layerId="L1" />);
   typeInto(screen.getAllByTitle(SCRUB_TITLE)[0], '30'); // index 0 = Hue
   vi.advanceTimersByTime(300);
-  expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layer_id: 'L1', op: 'hsl', param: 'red_hue', value: 30 });
+  expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layerId: 'L1', op: 'hsl', param: 'red_hue', value: 30 });
 });
 
 it('selecting a band routes writes to that band', () => {
@@ -68,7 +68,7 @@ it('selecting a band routes writes to that band', () => {
   fireEvent.click(screen.getByLabelText('Select Orange'));
   typeInto(screen.getAllByTitle(SCRUB_TITLE)[1], '-20'); // index 1 = Sat
   vi.advanceTimersByTime(300);
-  expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layer_id: 'L1', op: 'hsl', param: 'orange_sat', value: -20 });
+  expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layerId: 'L1', op: 'hsl', param: 'orange_sat', value: -20 });
 });
 
 it('channel view maps the row + active tab to the right param', () => {
@@ -77,7 +77,7 @@ it('channel view maps the row + active tab to the right param', () => {
   fireEvent.click(screen.getByText('Sat'));
   typeInto(screen.getAllByTitle(SCRUB_TITLE)[5], '40'); // row 5 = blue
   vi.advanceTimersByTime(300);
-  expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layer_id: 'L1', op: 'hsl', param: 'blue_sat', value: 40 });
+  expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layerId: 'L1', op: 'hsl', param: 'blue_sat', value: 40 });
 });
 
 it('marks exactly the edited bands in the rail', () => {
@@ -91,5 +91,5 @@ it('Reset zeroes a non-default param', () => {
   render(<HslSectionBody layerId="L1" />);
   fireEvent.click(screen.getByText('Reset'));
   vi.advanceTimersByTime(300);
-  expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layer_id: 'L1', op: 'hsl', param: 'orange_sat', value: 0 });
+  expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layerId: 'L1', op: 'hsl', param: 'orange_sat', value: 0 });
 });

@@ -55,7 +55,7 @@ describe('spawnToolWidget', () => {
       intent: 'Light',
       scope: { kind: 'global' },
       forced_ops: ['light'],
-      layer_id: 'layer-a',
+      layerId: 'layer-a',
       origin: 'tool_invoked',
     });
   });

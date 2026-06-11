@@ -143,8 +143,8 @@ export function CropTab() {
     const startRev = useBackendState.getState().snapshot?.revision ?? 0;
 
     await backendTools.set_image_node_transform(sessionId, {
-      image_node_id: imageNode.id,
-      layer_ids: imageNode.layerIds,
+      imageNodeId: imageNode.id,
+      layerIds: imageNode.layerIds,
       crop,
       rotate: angle !== 0 ? { angle, flip_h: false, flip_v: false } : null,
     });

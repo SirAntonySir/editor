@@ -20,25 +20,25 @@ interface HslWidgetBodyProps {
 export function HslWidgetBody({ widget, effectiveValue, setParam }: HslWidgetBodyProps) {
   const touched = useEditorStore((s) => s.touchedParams);
   const showAi = widget.origin.kind !== 'tool_invoked';
-  const byParam = new Map(widget.bindings.map((b) => [b.param_key, b] as const));
-  const bands = [...new Set(widget.bindings.map((b) => b.param_key.split('_')[0]))];
+  const byParam = new Map(widget.bindings.map((b) => [b.paramKey, b] as const));
+  const bands = [...new Set(widget.bindings.map((b) => b.paramKey.split('_')[0]))];
 
   const renderSlider = (param: string, label: string, trackGradient: string) => {
     const b = byParam.get(param);
     if (!b) return null;
     const eff = effectiveValue(b);
-    const s = b.control_schema;
-    const node = widget.nodes.find((n) => n.id === b.target.node_id);
-    const isTouched = node?.layer_id
-      ? touched.has(touchKey(node.layer_id, node.type, b.target.param_key))
+    const s = b.controlSchema;
+    const node = widget.nodes.find((n) => n.id === b.target.nodeId);
+    const isTouched = node?.layerId
+      ? touched.has(touchKey(node.layerId, node.type, b.target.paramKey))
       : false;
     return (
       <AdjustmentSlider
         label={label}
         value={Number(eff)}
-        min={s.control_type === 'slider' ? s.min : -100}
-        max={s.control_type === 'slider' ? s.max : 100}
-        step={s.control_type === 'slider' ? s.step : 1}
+        min={s.controlType === 'slider' ? s.min : -100}
+        max={s.controlType === 'slider' ? s.max : 100}
+        step={s.controlType === 'slider' ? s.step : 1}
         defaultValue={Number(b.default)}
         // Engine-canonical neutral for HSL band params is 0. Same value
         // flows to bindingProvenance so AI sliders read VIOLET while
@@ -47,7 +47,7 @@ export function HslWidgetBody({ widget, effectiveValue, setParam }: HslWidgetBod
         neutralValue={0}
         provenance={bindingProvenance(eff, b.default, showAi, isTouched, 0)}
         trackGradient={trackGradient}
-        onChange={(v) => setParam(b.param_key, v)}
+        onChange={(v) => setParam(b.paramKey, v)}
       />
     );
   };
@@ -59,7 +59,7 @@ export function HslWidgetBody({ widget, effectiveValue, setParam }: HslWidgetBod
     });
 
   const onReset = () => {
-    for (const b of widget.bindings) setParam(b.param_key, b.default);
+    for (const b of widget.bindings) setParam(b.paramKey, b.default);
   };
 
   if (bands.length === 1) {

@@ -87,3 +87,48 @@ def test_get_document_rehydrates_enriched_context():
     assert isinstance(doc.image_context, EnrichedImageContext)
     assert doc.image_context.subjects == ["x"]
     assert doc.image_context.grade_character == "neutral"
+
+
+def test_prune_disk_removes_old_records(tmp_path, monkeypatch):
+    """prune_disk removes sessions whose created_at exceeds max_age, keeps
+    fresh ones."""
+    monkeypatch.setattr("app.services.disk_session_io.SESSIONS_DIR", tmp_path)
+    import json
+    import time as _t
+
+    sid_old = "old-sid"
+    sid_new = "new-sid"
+    for sid, ts in ((sid_old, _t.time() - 10_000), (sid_new, _t.time())):
+        d = tmp_path / sid
+        d.mkdir()
+        (d / "meta.json").write_text(
+            json.dumps({"mime_type": "image/jpeg", "created_at": ts}),
+        )
+        (d / "image.jpg").write_bytes(b"x")
+
+    from app.services.session_store import SessionStore
+    pruned = SessionStore(ttl_seconds=1).prune_disk(max_age_seconds=3600)
+    assert pruned == 1
+    assert not (tmp_path / sid_old).exists()
+    assert (tmp_path / sid_new).exists()
+
+
+def test_prune_disk_skips_entries_without_meta(tmp_path, monkeypatch):
+    """Bare directories without meta.json don't crash prune_disk."""
+    monkeypatch.setattr("app.services.disk_session_io.SESSIONS_DIR", tmp_path)
+    (tmp_path / "stray-dir").mkdir()
+    (tmp_path / "stray-file").write_text("oops")
+
+    from app.services.session_store import SessionStore
+    pruned = SessionStore(ttl_seconds=1).prune_disk(max_age_seconds=60)
+    assert pruned == 0
+    assert (tmp_path / "stray-dir").exists()
+    assert (tmp_path / "stray-file").exists()
+
+
+def test_prune_disk_handles_missing_sessions_dir(tmp_path, monkeypatch):
+    """No SESSIONS_DIR → 0 pruned, no error."""
+    monkeypatch.setattr("app.services.disk_session_io.SESSIONS_DIR", tmp_path / "nope")
+    from app.services.session_store import SessionStore
+    pruned = SessionStore(ttl_seconds=1).prune_disk(max_age_seconds=60)
+    assert pruned == 0

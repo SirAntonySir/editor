@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from contextlib import contextmanager
@@ -139,3 +140,31 @@ class SessionStore:
             _rehydrate_document_context(record)
         with record.write_lock:
             yield record.document
+
+    def prune_disk(self, max_age_seconds: float) -> int:
+        """Delete on-disk session directories whose `created_at` is older than
+        `max_age_seconds` (compared against current wall-clock time). Returns
+        the number of sessions pruned. Caller decides when to invoke.
+
+        Does NOT touch in-memory records — those have their own TTL eviction
+        inside `get()`. Use this for periodic background cleanup of stale disk
+        state (e.g. after the user closes a project).
+        """
+        if not disk_session_io.SESSIONS_DIR.exists():
+            return 0
+        count = 0
+        now = time.time()
+        for entry in disk_session_io.SESSIONS_DIR.iterdir():
+            if not entry.is_dir():
+                continue
+            meta = entry / "meta.json"
+            if not meta.exists():
+                continue
+            try:
+                created = float(json.loads(meta.read_text()).get("created_at", 0))
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                continue
+            if (now - created) > max_age_seconds:
+                disk_session_io.delete_session(entry.name)
+                count += 1
+        return count

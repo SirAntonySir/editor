@@ -1,6 +1,22 @@
 import type { Widget, Scope, ControlValue, WidgetOriginKind } from '@/types/widget';
 import type { ImageContext } from '@/types/image-context';
 
+export interface PrepareImageOutput {
+  samOk: boolean;
+  imageWidth: number;
+  imageHeight: number;
+  /** CheapPassResult shape — leave as `unknown` until a consumer needs it. */
+  cheap: unknown;
+}
+
+export interface PrecomputeRegionsOutput {
+  maskIds: string[];
+}
+
+export interface SuggestWidgetsOutput {
+  widgetIds: string[];
+}
+
 const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
 export interface ToolEnvelope<T> {
@@ -33,6 +49,18 @@ async function invokeTool<T>(
 export const backendTools = {
   analyze_image(sessionId: string, args: { layer_id?: string } = {}) {
     return invokeTool<ImageContext>('analyze_image', sessionId, args);
+  },
+  prepare_image(sessionId: string) {
+    return invokeTool<PrepareImageOutput>('prepare_image', sessionId, {});
+  },
+  analyze_context(sessionId: string, input: { layerId?: string } = {}) {
+    return invokeTool<ImageContext>('analyze_context', sessionId, input);
+  },
+  precompute_regions(sessionId: string) {
+    return invokeTool<PrecomputeRegionsOutput>('precompute_regions', sessionId, {});
+  },
+  suggest_widgets(sessionId: string, input: { layerId?: string } = {}) {
+    return invokeTool<SuggestWidgetsOutput>('suggest_widgets', sessionId, input);
   },
   list_widgets(sessionId: string) {
     return invokeTool<{ widgets: Widget[] }>('list_widgets', sessionId, {});

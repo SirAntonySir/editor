@@ -197,32 +197,41 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
     }
     set({ status: 'analysing' });
     try {
-      // Use the TOOL endpoint (/api/tools/analyze_image), not the legacy
-      // REST /api/analyze. The tool path emits phase + streamed
-      // `context.updated` SSE events that progressively populate
-      // `snapshot.image_context` — the source `useImageContextFull` reads
-      // from. The legacy endpoint returns the context as a JSON body and
-      // never fires SSE, which left the InfoTab overlay stuck because
-      // `showOverlay = !ctx` kept reading null from the snapshot.
-      const activeLayerId = useEditorStore.getState().activeLayerId
+      const activeLayerId =
+        useEditorStore.getState().activeLayerId
         ?? useEditorStore.getState().layers.find((l) => l.type === 'image')?.id;
-      const envelope = await backendTools.analyze_image(
+
+      // Phase 1: prepare (cv2 + SAM embed). Required before analyze_context;
+      // its output is reused server-side via doc.prepare_result.
+      await backendTools.prepare_image(sessionId);
+      if (get().sessionId !== sessionId) return;
+
+      // Phase 2: Claude analyze + soft fields + region stats. This is what
+      // the user perceives as "analyze done". Block on it; everything else
+      // streams off the critical path.
+      const ctxEnv = await backendTools.analyze_context(
         sessionId,
-        activeLayerId ? { layer_id: activeLayerId } : {},
+        activeLayerId ? { layerId: activeLayerId } : {},
       );
       if (get().sessionId !== sessionId) return;
-      if (!envelope.ok || !envelope.output) {
-        console.error('[ImageContext] runAnalyse: tool error', envelope.error);
-        set({ status: 'error', error: envelope.error?.message ?? 'analyze failed' });
+      if (!ctxEnv.ok || !ctxEnv.output) {
+        console.error('[ImageContext] runAnalyse: tool error', ctxEnv.error);
+        set({
+          status: 'error',
+          error: ctxEnv.error?.message ?? 'analyze_context failed',
+        });
         return;
       }
-      // The backend now emits camelCase on the wire (Phase 1 Task 1.1).
+      // The backend emits camelCase on the wire (Phase 1 Task 1.1).
       // Cast directly — no Zod transform needed.
-      const context = envelope.output as ImageContext;
+      const context = ctxEnv.output as ImageContext;
       console.log('[ImageContext]', context);
+
       if (activeLayerId) {
         await registerRegionPaths(context, activeLayerId);
       }
+      set({ context, status: 'ready' });
+
       // Belt-and-braces snapshot refetch: the SSE deltas already populated
       // `snapshot.image_context` for the InfoTab; this picks up any widget /
       // op_graph / masks_index state that landed alongside.
@@ -235,7 +244,19 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
       } catch {
         // SSE merges cover the user-facing fields; this is just cleanup.
       }
-      set({ context, status: 'ready' });
+
+      // Phase 3 + 4: fire-and-forget. SSE updates stream into the store as
+      // they complete. We log errors but don't surface them — the user is
+      // interacting with the analyzed context already.
+      void backendTools.precompute_regions(sessionId).catch((err) => {
+        console.warn('[ImageContext] precompute_regions failed:', err);
+      });
+      void backendTools.suggest_widgets(
+        sessionId,
+        activeLayerId ? { layerId: activeLayerId } : {},
+      ).catch((err) => {
+        console.warn('[ImageContext] suggest_widgets failed:', err);
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[ImageContext] runAnalyse failed:', msg, err);

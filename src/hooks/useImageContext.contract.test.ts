@@ -8,7 +8,11 @@ import { useAiSession } from './useImageContext';
 
 vi.mock('@/lib/backend-tools', () => ({
   backendTools: {
-    analyze_image: vi.fn(async () => ({
+    prepare_image: vi.fn(async () => ({
+      ok: true,
+      output: { samOk: true, imageWidth: 100, imageHeight: 100, cheap: {} },
+    })),
+    analyze_context: vi.fn(async () => ({
       ok: true,
       output: {
         subjects: ['a person'],
@@ -30,6 +34,8 @@ vi.mock('@/lib/backend-tools', () => ({
         generatedAt: '2026-06-11T00:00:00Z',
       },
     })),
+    precompute_regions: vi.fn(async () => ({ ok: true, output: { maskIds: [] } })),
+    suggest_widgets: vi.fn(async () => ({ ok: true, output: { widgetIds: [] } })),
   },
 }));
 

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from PIL import Image
 from pydantic import BaseModel, Field
 
+from app.schemas._camel import camel_config
 from app.services.sam_client import SamClient
 from app.services.session_store import SessionNotFound, SessionStore
 
@@ -23,6 +24,7 @@ class EmbedRequest(BaseModel):
 
 
 class EmbedResponse(BaseModel):
+    model_config = camel_config(extra="forbid")
     ok: bool
     embedded_at: float
 
@@ -38,6 +40,7 @@ class DecodeRequest(BaseModel):
 
 
 class DecodeResponse(BaseModel):
+    model_config = camel_config(extra="forbid")
     mask_png_base64: str
     width: int
     height: int
@@ -61,7 +64,7 @@ def _mask_to_png_base64(mask: np.ndarray) -> str:
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-@router.post("/segment/embed", response_model=EmbedResponse)
+@router.post("/segment/embed", response_model=EmbedResponse, response_model_by_alias=True)
 async def embed(
     body: EmbedRequest,
     store: SessionStore = Depends(deps.get_session_store),
@@ -76,7 +79,7 @@ async def embed(
     return EmbedResponse(ok=True, embedded_at=time.time())
 
 
-@router.post("/segment/decode", response_model=DecodeResponse)
+@router.post("/segment/decode", response_model=DecodeResponse, response_model_by_alias=True)
 async def decode(
     body: DecodeRequest,
     sam: SamClient = Depends(deps.get_sam_client),

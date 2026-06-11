@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, model_validator
+
+from app.schemas._camel import camel_config
 
 ErrorCode = Literal[
     "missing_session", "missing_image", "missing_context",
@@ -16,7 +18,7 @@ ErrorCode = Literal[
 
 
 class ToolError(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     code: ErrorCode
     message: str
     retryable: bool
@@ -25,7 +27,7 @@ class ToolError(BaseModel):
 
 
 class ToolResponseEnvelope(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     ok: bool
     output: dict | None = None
     error: ToolError | None = None

@@ -476,7 +476,7 @@ def _summarise_context(ctx_json: dict | None) -> str:
     )
 
 
-@router.post("/name-region", response_model=RegionLabel)
+@router.post("/name-region", response_model=RegionLabel, response_model_by_alias=True)
 async def name_region(
     body: NameRegionRequest,
     store: SessionStore = Depends(deps.get_session_store),

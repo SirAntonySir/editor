@@ -14,7 +14,7 @@ class ToolEnvelope(BaseModel):
     input: dict
 
 
-@router.post("/tools/{name}", response_model=ToolResponseEnvelope)
+@router.post("/tools/{name}", response_model=ToolResponseEnvelope, response_model_by_alias=True)
 async def invoke_rest(
     name: str,
     body: ToolEnvelope,

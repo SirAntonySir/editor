@@ -245,18 +245,27 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
         // SSE merges cover the user-facing fields; this is just cleanup.
       }
 
-      // Phase 3 + 4: fire-and-forget. SSE updates stream into the store as
-      // they complete. We log errors but don't surface them — the user is
-      // interacting with the analyzed context already.
-      void backendTools.precompute_regions(sessionId).catch((err) => {
-        console.warn('[ImageContext] precompute_regions failed:', err);
-      });
-      void backendTools.suggest_widgets(
-        sessionId,
-        activeLayerId ? { layerId: activeLayerId } : {},
-      ).catch((err) => {
-        console.warn('[ImageContext] suggest_widgets failed:', err);
-      });
+      // Phase 3 + 4: fire-and-forget, but SERIALIZED. Each mutate tool
+      // takes the per-session document write_lock on the backend (sync
+      // threading.Lock acquired from inside an async handler). If we fired
+      // these in parallel, the second tool would block the event-loop
+      // thread on lock.acquire() while the first was awaiting work in the
+      // thread pool — classic deadlock. Chaining them keeps the lock held
+      // by at most one tool at a time. SSE updates still stream into the
+      // store as each completes.
+      // TODO: convert backend write_lock to asyncio.Lock; remove this chain.
+      void backendTools.precompute_regions(sessionId)
+        .catch((err) => {
+          console.warn('[ImageContext] precompute_regions failed:', err);
+        })
+        .then(() =>
+          backendTools.suggest_widgets(
+            sessionId,
+            activeLayerId ? { layerId: activeLayerId } : {},
+          ).catch((err) => {
+            console.warn('[ImageContext] suggest_widgets failed:', err);
+          }),
+        );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[ImageContext] runAnalyse failed:', msg, err);

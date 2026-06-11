@@ -69,7 +69,7 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
         for req in input.additions:
             fleshed = anthropic.flesh_out_binding(
                 request=req.request,
-                widget=w.model_dump(mode="json"),
+                widget=w.model_dump(mode="json", by_alias=True),
                 session_id=doc.session_id,
             )
             binding_dict = fleshed["binding"]
@@ -90,11 +90,11 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
             w.nodes = w.nodes + new_nodes
             w.revision += 1
             doc.update_widget(w)
-            return _Output(widget=w.model_dump(mode="json"))
+            return _Output(widget=w.model_dump(mode="json", by_alias=True))
 
         # No composition change → re-tune numbers via the fused template.
         if w.op_id is None:
-            return _Output(widget=w.model_dump(mode="json"))
+            return _Output(widget=w.model_dump(mode="json", by_alias=True))
         templates = {t.id: t for t in all_fused_templates()}
         template = templates[w.op_id]
         new_widget = await run_fused_tool(
@@ -105,4 +105,4 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
         new_widget.id = w.id
         new_widget.revision = w.revision + 1
         doc.update_widget(new_widget)
-        return _Output(widget=new_widget.model_dump(mode="json"))
+        return _Output(widget=new_widget.model_dump(mode="json", by_alias=True))

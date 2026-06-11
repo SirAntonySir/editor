@@ -83,7 +83,7 @@ def test_refine_removes_a_binding(client) -> None:
         }},
     ).json()
     assert body["ok"] is True
-    keys = [b["param_key"] for b in body["output"]["widget"]["bindings"]]
+    keys = [b["paramKey"] for b in body["output"]["widget"]["bindings"]]
     assert first_key not in keys
     assert body["output"]["widget"]["composed"] is True
 
@@ -99,5 +99,5 @@ def test_refine_adds_a_binding(client) -> None:
         }},
     ).json()
     assert body["ok"] is True
-    keys = [b["param_key"] for b in body["output"]["widget"]["bindings"]]
+    keys = [b["paramKey"] for b in body["output"]["widget"]["bindings"]]
     assert "skin_protect" in keys

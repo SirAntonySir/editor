@@ -121,9 +121,9 @@ def test_refine_happy_path(client: TestClient, fake_client: MagicMock) -> None:
     body = r.json()
     # Structural assertions — graph id is now a projection-generated UUID, not "graph_02".
     assert "id" in body and body["id"].startswith("projected-")
-    assert "user_goal" in body
-    assert isinstance(body["panel_bindings"], list)
-    assert len(body["panel_bindings"]) > 0
+    assert "userGoal" in body
+    assert isinstance(body["panelBindings"], list)
+    assert len(body["panelBindings"]) > 0
     # resolve_fused_tool runs once during propose, once during refine.
     assert fake_client.resolve_fused_tool.call_count >= 2
 

@@ -78,7 +78,7 @@ def test_repeat_re_rolls_and_logs_rejection(client) -> None:
     ).json()
     assert body["ok"] is True
     w = body["output"]["widget"]
-    temp = next(b for b in w["bindings"] if b["param_key"] == "temperature")
+    temp = next(b for b in w["bindings"] if b["paramKey"] == "temperature")
     assert temp["value"] == 800
     doc = deps.get_session_store().get_document(sid)
     assert len(doc.widgets[wid].rejected_attempts) == 1

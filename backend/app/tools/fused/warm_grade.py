@@ -99,7 +99,7 @@ class WarmGradeTemplate(FusedToolTemplate):
     ) -> ResolvedNumbers:
         prompt_payload = {
             "intent": intent,
-            "scope": scope.model_dump(mode="json"),
+            "scope": scope.model_dump(mode="json", by_alias=True),
             "context_summary": {
                 "cast_direction": ctx.cast_direction,
                 "wb_neutral_confidence": ctx.wb_neutral_confidence,

@@ -150,4 +150,4 @@ class ProposeWidgetTool(BackendTool[_Input, _Output]):
         # Canonical seeding now happens centrally in doc.add_widget (covers
         # tool_invoked + fused + autonomous paths).
         doc.add_widget(widget)
-        return _Output(widget=widget.model_dump(mode="json"))
+        return _Output(widget=widget.model_dump(mode="json", by_alias=True))

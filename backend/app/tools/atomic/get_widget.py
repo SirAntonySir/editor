@@ -31,4 +31,4 @@ class GetWidgetTool(BackendTool[_Input, _Output]):
         w = doc.widgets.get(input.widget_id)
         if w is None:
             raise _UnknownWidget(input.widget_id)
-        return _Output(widget=w.model_dump(mode="json"))
+        return _Output(widget=w.model_dump(mode="json", by_alias=True))

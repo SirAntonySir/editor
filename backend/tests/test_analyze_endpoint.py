@@ -118,8 +118,8 @@ def test_analyze_bundles_region_paths(tmp_path, monkeypatch):
             res = client.post("/api/analyze", json={"session_id": sid})
             assert res.status_code == 200, res.text
             body = res.json()
-            assert len(body["candidate_regions"]) == 1
-            region = body["candidate_regions"][0]
+            assert len(body["candidateRegions"]) == 1
+            region = body["candidateRegions"][0]
             assert region["paths"] is not None
             assert len(region["paths"]) == 1
             poly = region["paths"][0]

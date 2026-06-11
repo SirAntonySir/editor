@@ -77,7 +77,7 @@ class BwCinematicTemplate(FusedToolTemplate):
     ) -> ResolvedNumbers:
         prompt_payload = {
             "intent": intent,
-            "scope": scope.model_dump(mode="json"),
+            "scope": scope.model_dump(mode="json", by_alias=True),
             "context_summary": {
                 "contrast_p10_p90": ctx.contrast_p10_p90,
                 "luma_histogram": ctx.luma_histogram,

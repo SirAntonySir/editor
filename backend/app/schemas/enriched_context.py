@@ -4,11 +4,12 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas._camel import camel_config
 from app.schemas.image_context import ImageContext
 
 
 class ColorSwatch(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     rgb: tuple[int, int, int]
     weight: float = Field(ge=0.0, le=1.0)
 
@@ -20,7 +21,7 @@ ProblemKind = Literal[
 
 
 class Problem(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     kind: ProblemKind
     severity: float = Field(ge=0.0, le=1.0)
     region_label: str | None = None
@@ -29,7 +30,7 @@ class Problem(BaseModel):
 
 
 class RegionStats(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     label: str
     pixel_count: int = Field(ge=0)
     mean_luma: float

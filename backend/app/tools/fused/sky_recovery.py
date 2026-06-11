@@ -116,7 +116,7 @@ class SkyRecoveryTemplate(FusedToolTemplate):
         ]
         prompt_payload = {
             "intent": intent,
-            "scope": scope.model_dump(mode="json"),
+            "scope": scope.model_dump(mode="json", by_alias=True),
             "context_summary": {
                 "clipped_highlights_pct": ctx.clipped_highlights_pct,
                 "sky_swatches": sky_swatches,

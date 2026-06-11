@@ -58,7 +58,7 @@ def _serialize_for_payload(value: Any) -> Any:
     """JSON-friendly dump of a context attribute. Pydantic models → model_dump,
     lists/tuples → recursive serialise, scalars pass through."""
     if isinstance(value, BaseModel):
-        return value.model_dump(mode="json")
+        return value.model_dump(mode="json", by_alias=True)
     if isinstance(value, (list, tuple)):
         return [_serialize_for_payload(v) for v in value]
     return value
@@ -112,7 +112,7 @@ class FusedToolTemplate(ABC):
         }
         prompt_payload = {
             "intent": intent,
-            "scope": scope.model_dump(mode="json"),
+            "scope": scope.model_dump(mode="json", by_alias=True),
             "context_summary": context_summary,
             "prior_widget_values": (
                 {b.param_key: b.value for b in prior_widget.bindings}

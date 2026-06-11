@@ -36,7 +36,7 @@ async def set_session_context(
     just needs the backend to know about it (so /api/panel + /api/refine work).
     """
     try:
-        store.set_context(sid, body.model_dump(mode="json"))
+        store.set_context(sid, body.model_dump(mode="json", by_alias=True))
         # Also write the typed model onto the document so tools can read it directly.
         doc = store.get_document(sid)
         doc.image_context = body

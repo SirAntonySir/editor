@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas._camel import camel_config
+
 from app.schemas.enriched_context import EnrichedImageContext
 from app.schemas.operation_graph import OperationGraph
 from app.schemas.widget import Widget
@@ -10,7 +12,7 @@ from app.state.operations import project_to_graph
 
 
 class SessionStateSnapshot(BaseModel):
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+    model_config = camel_config(extra="forbid", arbitrary_types_allowed=True)
     session_id: str
     image_context: EnrichedImageContext | None
     widgets: list[Widget]

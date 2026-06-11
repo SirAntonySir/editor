@@ -185,7 +185,7 @@ async def test_full_mcp_loop_create_propose_refine_delete() -> None:
             }, 5))["result"]
             refined = json.loads(envr["content"][0]["text"])
             assert refined["ok"] is True
-            keys = [b["param_key"] for b in refined["output"]["widget"]["bindings"]]
+            keys = [b["paramKey"] for b in refined["output"]["widget"]["bindings"]]
             assert "skin_protect" in keys
 
             # 7. delete_widget — suppress similar autonomous suggestions.

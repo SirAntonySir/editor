@@ -60,7 +60,7 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         if isinstance(doc.image_context, EnrichedImageContext):
-            return _Output.model_validate(doc.image_context.model_dump(mode="json"))
+            return _Output.model_validate(doc.image_context.model_dump(mode="json", by_alias=True))
 
         client = deps.get_anthropic_client()
         # SAM is gated off by default (see _sam_enabled). When off we never load
@@ -109,7 +109,7 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
                 "clipped_highlights_pct": cheap.clipped_highlights_pct,
                 "median_luma": cheap.median_luma,
                 "contrast_p10_p90": cheap.contrast_p10_p90,
-                "color_palette": [s.model_dump(mode="json") for s in cheap.color_palette],
+                "color_palette": [s.model_dump(mode="json", by_alias=True) for s in cheap.color_palette],
                 "cast_strength": cheap.cast_strength,
                 "cast_direction": list(cheap.cast_direction),
             }})
@@ -147,7 +147,7 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
             # Stream the base context (subjects / lighting / mood / regions)
             # so Semantic + Regions flip immediately. Soft fields and
             # region_stats come later via the soft-fields emission below.
-            doc._emit("context.updated", {"image_context": base_ctx.model_dump(mode="json")})
+            doc._emit("context.updated", {"image_context": base_ctx.model_dump(mode="json", by_alias=True)})
             return base_ctx
 
         cheap, sam_ok, base_ctx = await asyncio.gather(
@@ -163,7 +163,7 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
             lambda: client.augment_context_soft_fields(
                 image_bytes=doc.image_bytes,
                 mime_type=doc.mime_type,
-                base_context_json=base_ctx.model_dump(mode="json"),
+                base_context_json=base_ctx.model_dump(mode="json", by_alias=True),
                 cheap_pass_summary={
                     "median_luma": cheap.median_luma,
                     "clipped_shadows_pct": cheap.clipped_shadows_pct,
@@ -206,8 +206,8 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
             "estimated_white_point": list(soft.estimated_white_point),
             "wb_neutral_confidence": soft.wb_neutral_confidence,
             "grade_character": soft.grade_character,
-            "problems": [p.model_dump(mode="json") for p in soft.problems],
-            "region_stats": [r.model_dump(mode="json") for r in region_stats],
+            "problems": [p.model_dump(mode="json", by_alias=True) for p in soft.problems],
+            "region_stats": [r.model_dump(mode="json", by_alias=True) for r in region_stats],
         }})
         # Terminal "available" ping kept for any consumers that gate on it.
         doc._emit("context.updated", {"available": True})
@@ -222,7 +222,7 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
             await _precompute_region_masks(doc, ctx.candidate_regions, sam, w_img, h_img)
         # Persist AFTER precompute so the session-store snapshot also carries
         # the per-region paths + mask_png_base64.
-        deps.get_session_store().set_context(doc.session_id, ctx.model_dump(mode="json"))
+        deps.get_session_store().set_context(doc.session_id, ctx.model_dump(mode="json", by_alias=True))
 
         doc._emit_phase_started("widget_mint", index=4, total=TOTAL_PHASES)
         start = time.monotonic()
@@ -231,7 +231,7 @@ class AnalyzeImageTool(BackendTool[_Input, _Output]):
             "widget_mint", duration_ms=int((time.monotonic() - start) * 1000),
         )
 
-        return _Output.model_validate(ctx.model_dump(mode="json"))
+        return _Output.model_validate(ctx.model_dump(mode="json", by_alias=True))
 
 
 async def _precompute_region_masks(

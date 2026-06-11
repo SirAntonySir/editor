@@ -184,7 +184,7 @@ async def test_preset_id_unfolds_into_widgets(make_doc):
     ))
     # vintage preset has 3 ops (levels, color, hsl)
     assert len(out.widgets) >= 2
-    op_ids = {w["op_id"] for w in out.widgets}
+    op_ids = {w["opId"] for w in out.widgets}
     assert "levels" in op_ids
 
 
@@ -201,8 +201,8 @@ async def test_preset_id_tone_red_spawns_single_band_hsl(make_doc):
     ))
     assert len(out.widgets) == 1
     w = out.widgets[0]
-    assert w["op_id"] == "hsl"
-    binding_keys = {b["param_key"] for b in w["bindings"]}
+    assert w["opId"] == "hsl"
+    binding_keys = {b["paramKey"] for b in w["bindings"]}
     assert binding_keys == {"red_hue", "red_sat", "red_lum"}
 
 
@@ -237,5 +237,5 @@ async def test_preset_id_image_node_stamps_layer_ids(make_doc):
     ))
     assert len(out.widgets) == 1
     for node in out.widgets[0]["nodes"]:
-        assert node["layer_ids"] == ["l-1", "l-2"]
-        assert node["layer_id"] == "l-1"
+        assert node["layerIds"] == ["l-1", "l-2"]
+        assert node["layerId"] == "l-1"

@@ -30,4 +30,4 @@ class GetImageContextTool(BackendTool[_Input, _Output]):
         ctx = doc.image_context
         if ctx is None:
             return _Output(available=False, context=None)
-        return _Output(available=True, context=ctx.model_dump(mode="json"))
+        return _Output(available=True, context=ctx.model_dump(mode="json", by_alias=True))

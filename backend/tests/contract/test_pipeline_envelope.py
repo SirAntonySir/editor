@@ -40,22 +40,22 @@ def test_analyze_envelope_shape(fake_anthropic, fake_sam, monkeypatch):
     body = resp.json()
     assert body["ok"] is True
     out = body["output"]
-    # Top-level keys the frontend reads (snake_case under current contract).
+    # Top-level keys the frontend reads (camelCase on the wire as of Phase 1).
     for key in (
         "subjects",
         "lighting",
-        "dominant_tones",
+        "dominantTones",
         "mood",
-        "candidate_regions",
-        "model_name",
-        "model_version",
-        "generated_at",
+        "candidateRegions",
+        "modelName",
+        "modelVersion",
+        "generatedAt",
     ):
         assert key in out, f"missing top-level key: {key}"
-    assert isinstance(out["candidate_regions"], list)
-    assert len(out["candidate_regions"]) >= 1
-    region = out["candidate_regions"][0]
-    for key in ("label", "description", "bbox", "representative_point"):
+    assert isinstance(out["candidateRegions"], list)
+    assert len(out["candidateRegions"]) >= 1
+    region = out["candidateRegions"][0]
+    for key in ("label", "description", "bbox", "representativePoint"):
         assert key in region, f"missing region key: {key}"
 
 
@@ -68,9 +68,9 @@ def test_state_snapshot_shape(fake_anthropic, fake_sam, monkeypatch):
     client.post("/api/tools/analyze_image", json={"session_id": sid, "input": {}})
 
     snap = client.get(f"/api/state/{sid}").json()
-    for key in ("session_id", "image_context", "widgets", "masks_index"):
+    for key in ("sessionId", "imageContext", "widgets", "masksIndex"):
         assert key in snap
-    ic = snap["image_context"]
+    ic = snap["imageContext"]
     assert ic is not None
-    assert "candidate_regions" in ic
-    assert isinstance(ic["candidate_regions"], list)
+    assert "candidateRegions" in ic
+    assert isinstance(ic["candidateRegions"], list)

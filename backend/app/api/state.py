@@ -22,7 +22,7 @@ def _bus() -> EventBus:
     return deps.get_event_bus()
 
 
-@router.get("/state/{sid}", response_model=SessionStateSnapshot)
+@router.get("/state/{sid}", response_model=SessionStateSnapshot, response_model_by_alias=True)
 async def state_snapshot(sid: str) -> SessionStateSnapshot:
     try:
         doc = _store().get_document(sid)

@@ -346,7 +346,7 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
 
         reg = get_registry()
         anthropic = deps.get_anthropic_client()
-        image_context = doc.image_context.model_dump(mode="json")
+        image_context = doc.image_context.model_dump(mode="json", by_alias=True)
 
         plan_result = await asyncio.to_thread(
             anthropic.plan_widget_stack,
@@ -432,7 +432,7 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             doc.add_widget(widget)
             widgets.append(widget)
 
-        return _Output(widgets=[w.model_dump(mode="json") for w in widgets])
+        return _Output(widgets=[w.model_dump(mode="json", by_alias=True) for w in widgets])
 
     def _fallback_plan(self, intent: str, registry) -> list[dict]:
         """Keyword match intent to a preset, else first preset's ops."""
@@ -494,7 +494,7 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             doc.add_widget(widget)
             widgets.append(widget)
 
-        return _Output(widgets=[w.model_dump(mode="json") for w in widgets])
+        return _Output(widgets=[w.model_dump(mode="json", by_alias=True) for w in widgets])
 
     def _handle_tool_invoked(
         self, doc: SessionDocument, input: _Input, scope: Scope,
@@ -525,4 +525,4 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             doc.add_widget(widget)
             widgets.append(widget)
 
-        return _Output(widgets=[w.model_dump(mode="json") for w in widgets])
+        return _Output(widgets=[w.model_dump(mode="json", by_alias=True) for w in widgets])

@@ -86,7 +86,7 @@ class SessionDocument(BaseModel):
         Imported lazily: operations.py imports SessionDocument, so a top-level
         import here would be circular."""
         from app.state.operations import project_to_graph
-        return project_to_graph(self).model_dump(mode="json")
+        return project_to_graph(self).model_dump(mode="json", by_alias=True)
 
     def _seed_canonical_from_widget(self, widget: Widget) -> None:
         """Write every (layer, op, param) the widget's nodes carry into
@@ -114,7 +114,7 @@ class SessionDocument(BaseModel):
         # op_graph immediately.
         self._seed_canonical_from_widget(widget)
         return [self._emit("widget.created", {
-            "widget": widget.model_dump(mode="json"),
+            "widget": widget.model_dump(mode="json", by_alias=True),
             "operation_graph": self._op_graph_payload(),
         })]
 
@@ -124,7 +124,7 @@ class SessionDocument(BaseModel):
         widget.updated_at = datetime.now(timezone.utc)
         self.widgets[widget.id] = widget
         return [self._emit("widget.updated", {
-            "widget": widget.model_dump(mode="json"),
+            "widget": widget.model_dump(mode="json", by_alias=True),
             "operation_graph": self._op_graph_payload(),
         })]
 
@@ -144,7 +144,7 @@ class SessionDocument(BaseModel):
         })]
         if rule is not None:
             self.dismissals.append(rule)
-            events.append(self._emit("dismissal.added", {"rule": rule.model_dump(mode="json")}))
+            events.append(self._emit("dismissal.added", {"rule": rule.model_dump(mode="json", by_alias=True)}))
         return events
 
     def restore_widget(self, widget_id: str) -> list[StateEvent]:

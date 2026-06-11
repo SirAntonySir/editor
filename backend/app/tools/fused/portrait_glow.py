@@ -98,7 +98,7 @@ class PortraitGlowTemplate(FusedToolTemplate):
         ]
         prompt_payload = {
             "intent": intent,
-            "scope": scope.model_dump(mode="json"),
+            "scope": scope.model_dump(mode="json", by_alias=True),
             "context_summary": {
                 "skin_regions": skin_regions,
             },

@@ -14,7 +14,7 @@ class PanelRequest(BaseModel):
     user_goal: str
 
 
-@router.post("/panel", response_model=OperationGraph)
+@router.post("/panel", response_model=OperationGraph, response_model_by_alias=True)
 async def panel(
     body: PanelRequest,
     response: Response,

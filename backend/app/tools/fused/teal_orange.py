@@ -89,7 +89,7 @@ class TealOrangeTemplate(FusedToolTemplate):
     ) -> ResolvedNumbers:
         prompt_payload = {
             "intent": intent,
-            "scope": scope.model_dump(mode="json"),
+            "scope": scope.model_dump(mode="json", by_alias=True),
             "context_summary": {
                 "grade_character": ctx.grade_character,
                 "color_palette": [s.model_dump() for s in ctx.color_palette],

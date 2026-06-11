@@ -367,7 +367,7 @@ def _refine_regions(
     context.candidate_regions = final_regions
 
 
-@router.post("/analyze", response_model=ImageContext)
+@router.post("/analyze", response_model=ImageContext, response_model_by_alias=True)
 async def analyze(
     body: AnalyzeRequest,
     store: SessionStore = Depends(deps.get_session_store),
@@ -407,7 +407,7 @@ async def analyze(
             len(context.candidate_regions),
         )
 
-    store.set_context(body.session_id, context.model_dump(mode="json"))
+    store.set_context(body.session_id, context.model_dump(mode="json", by_alias=True))
     return context
 
 

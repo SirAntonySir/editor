@@ -22,7 +22,7 @@ async def test_state_snapshot_returns_revision() -> None:
         r = await ac.get(f"/api/state/{sid}")
         assert r.status_code == 200
         body = r.json()
-        assert body["session_id"] == sid
+        assert body["sessionId"] == sid
         assert body["revision"] == 0
         assert body["widgets"] == []
 

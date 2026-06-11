@@ -105,8 +105,8 @@ def test_analyze_image_fills_cheap_pass_and_soft_fields(client) -> None:
     ).json()
     assert body["ok"] is True
     ctx = body["output"]
-    assert ctx["grade_character"] == "neutral"
-    assert ctx["clipped_shadows_pct"] == 0.0
+    assert ctx["gradeCharacter"] == "neutral"
+    assert ctx["clippedShadowsPct"] == 0.0
     assert any(p["kind"] == "low_contrast" for p in ctx["problems"])
     doc = deps.get_session_store().get_document(sid)
     assert isinstance(doc.image_context, EnrichedImageContext)

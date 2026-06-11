@@ -91,7 +91,7 @@ class CastCorrectTemplate(FusedToolTemplate):
     ) -> ResolvedNumbers:
         prompt_payload = {
             "intent": intent,
-            "scope": scope.model_dump(mode="json"),
+            "scope": scope.model_dump(mode="json", by_alias=True),
             "context_summary": {
                 "estimated_white_point": ctx.estimated_white_point,
                 "cast_direction": ctx.cast_direction,

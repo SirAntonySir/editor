@@ -111,7 +111,7 @@ class ExposureBalanceTemplate(FusedToolTemplate):
     ) -> ResolvedNumbers:
         prompt_payload = {
             "intent": intent,
-            "scope": scope.model_dump(mode="json"),
+            "scope": scope.model_dump(mode="json", by_alias=True),
             "context_summary": {
                 "luma_histogram": ctx.luma_histogram,
                 "clipped_shadows_pct": ctx.clipped_shadows_pct,

@@ -15,7 +15,7 @@ class RefineRequest(BaseModel):
     instruction: str = Field(..., min_length=1, max_length=500)
 
 
-@router.post("/refine", response_model=OperationGraph)
+@router.post("/refine", response_model=OperationGraph, response_model_by_alias=True)
 async def refine(
     body: RefineRequest,
     response: Response,

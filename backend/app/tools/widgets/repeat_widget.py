@@ -60,4 +60,4 @@ class RepeatWidgetTool(BackendTool[_Input, _Output]):
         new_widget.revision = w.revision + 1
         new_widget.rejected_attempts = w.rejected_attempts
         doc.update_widget(new_widget)
-        return _Output(widget=new_widget.model_dump(mode="json"))
+        return _Output(widget=new_widget.model_dump(mode="json", by_alias=True))

@@ -95,7 +95,7 @@ class SubjectPopTemplate(FusedToolTemplate):
         ]
         prompt_payload = {
             "intent": intent,
-            "scope": scope.model_dump(mode="json"),
+            "scope": scope.model_dump(mode="json", by_alias=True),
             "context_summary": {
                 "region_stats": region_info,
             },

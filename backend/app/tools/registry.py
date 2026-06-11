@@ -87,7 +87,7 @@ class BackendToolRegistry:
                 output = await tool.handler(doc, parsed)
             except Exception as exc:
                 return _err("internal_error", repr(exc), retryable=False)
-            return ToolResponseEnvelope(ok=True, output=output.model_dump(mode="json"))
+            return ToolResponseEnvelope(ok=True, output=output.model_dump(mode="json", by_alias=True))
 
         # Resolve session
         try:
@@ -138,7 +138,7 @@ class BackendToolRegistry:
                     return classified
                 return _err("internal_error", repr(exc), retryable=False)
 
-        return ToolResponseEnvelope(ok=True, output=output.model_dump(mode="json"))
+        return ToolResponseEnvelope(ok=True, output=output.model_dump(mode="json", by_alias=True))
 
     # ---------------- internals ----------------
 

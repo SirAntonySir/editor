@@ -54,7 +54,7 @@ async def test_vintage_intent_spawns_multi_widget_stack(make_doc, monkeypatch):
         origin="mcp_user_prompt",
     ))
     assert len(out.widgets) == 5
-    op_ids = {w["op_id"] for w in out.widgets}
+    op_ids = {w["opId"] for w in out.widgets}
     assert {"levels", "color", "hsl", "splitTone", "grain"} == op_ids
 
 
@@ -135,12 +135,12 @@ async def test_vintage_produces_multi_op_widget(make_doc, monkeypatch):
     # 3 widgets
     assert len(out.widgets) == 3
     # Each has a display_name
-    names = [w["display_name"] for w in out.widgets]
+    names = [w["displayName"] for w in out.widgets]
     assert "Lifted blacks" in names
     assert "Warm fade" in names
     assert "Film grain" in names
     # The "Warm fade" widget has 2 nodes (color + splitTone)
-    warm_fade = next(w for w in out.widgets if w["display_name"] == "Warm fade")
+    warm_fade = next(w for w in out.widgets if w["displayName"] == "Warm fade")
     assert len(warm_fade["nodes"]) == 2
     node_types = {n["type"] for n in warm_fade["nodes"]}
     assert node_types == {"basic", "splitTone"}    # color → basic, splitTone → splitTone
@@ -178,5 +178,5 @@ async def test_old_shape_plan_response_back_compat(make_doc, monkeypatch):
     ))
     assert len(out.widgets) == 2
     # display_name is None when planner doesn't provide one
-    assert all(w["display_name"] is None for w in out.widgets)
+    assert all(w["displayName"] is None for w in out.widgets)
     assert all(len(w["nodes"]) == 1 for w in out.widgets)

@@ -21,9 +21,16 @@ def test_set_context() -> None:
     assert record.context == {"mood": "calm"}
 
 
-def test_expired_session_raises() -> None:
+def test_expired_session_no_disk_raises(tmp_path, monkeypatch) -> None:
+    # Redirect disk I/O to a fresh temp dir. The session is created but then
+    # the disk copy is removed, so after the in-memory TTL expires there is
+    # nowhere to rehydrate from → SessionNotFound must be raised.
+    from app.services import disk_session_io
+    monkeypatch.setattr("app.services.disk_session_io.SESSIONS_DIR", tmp_path)
     store = SessionStore(ttl_seconds=0)
     sid = store.create(image_bytes=b"abc", mime_type="image/jpeg")
+    # Purge the disk copy so the expiry cannot fall back.
+    disk_session_io.delete_session(sid)
     time.sleep(0.01)
     with pytest.raises(SessionNotFound):
         store.get(sid)

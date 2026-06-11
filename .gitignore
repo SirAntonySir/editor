@@ -36,6 +36,7 @@ backend/**/__pycache__/
 backend/**/*.pyc
 backend/.pytest_cache/
 backend/models/
+backend/.sessions/
 .superpowers/
 
 # Experimental / in-progress files

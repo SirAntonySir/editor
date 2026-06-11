@@ -29,6 +29,10 @@ class SessionDocument(BaseModel):
     image_bytes: bytes = b""
     mime_type: str = "image/jpeg"
     image_context: ImageContext | None = None
+    # Cached output of the prepare_image tool (PrepareResult dataclass from
+    # app.tools.atomic._analyze_phases). Typed as Any to avoid a circular
+    # import — document.py → _analyze_phases.py → document.py.
+    prepare_result: Any = None
     masks: dict[str, MaskRecord] = Field(default_factory=dict)
     active_mask_id: str | None = None
     committed_mask_id: str | None = None

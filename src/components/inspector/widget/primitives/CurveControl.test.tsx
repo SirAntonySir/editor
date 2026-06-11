@@ -32,7 +32,7 @@ describe('CurveControl', () => {
       }) as DOMRect;
     // Click at (50,50) → normalized (0.5, 0.5). Identity points are at (0,0) and (1,1),
     // so this is well outside hit-radius (0.04) and adds a new point → rgb.length goes 2→3.
-    fireEvent.mouseDown(svg, { clientX: 50, clientY: 50 });
+    fireEvent.pointerDown(svg, { clientX: 50, clientY: 50, pointerId: 1 });
     expect(onChange).toHaveBeenCalled();
     const next = onChange.mock.calls[0][0];
     expect(next.rgb.length).toBeGreaterThan(2); // a point was added to the rgb channel

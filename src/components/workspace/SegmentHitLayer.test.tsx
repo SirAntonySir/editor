@@ -3,6 +3,7 @@ import { render, fireEvent } from '@testing-library/react';
 import { SegmentHitLayer } from './SegmentHitLayer';
 import { useEditorStore } from '@/store';
 import { segmentStore } from '@/lib/segmentation/segment-store';
+import { useAiSession } from '@/hooks/useImageContext';
 
 const region = (id: string, label: string) => ({
   label,
@@ -15,7 +16,20 @@ describe('SegmentHitLayer', () => {
   beforeEach(() => {
     useEditorStore.getState().clearSelection();
     segmentStore.clearAll();
-    segmentStore.setRegions('in-1', [region('mask-a', 'dog'), region('mask-b', 'sky')]);
+    // SegmentHitLayer reads directly from useAiSession context.candidateRegions,
+    // not segmentStore — seed it here so the component sees the test regions.
+    useAiSession.setState({
+      context: {
+        subjects: [],
+        lighting: 'flat',
+        dominantTones: [],
+        mood: '',
+        candidateRegions: [region('mask-a', 'dog'), region('mask-b', 'sky')],
+        modelName: 't',
+        modelVersion: '1',
+        generatedAt: '2026-06-11T00:00:00Z',
+      },
+    });
   });
 
   it('pointer-move inside a region sets hoveredScope', () => {

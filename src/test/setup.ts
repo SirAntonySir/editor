@@ -4,6 +4,22 @@ import { afterEach } from 'vitest';
 
 afterEach(cleanup);
 
+// jsdom does not implement scrollIntoView; stub it so any component that calls
+// element.scrollIntoView() (e.g. CommandPalette keyboard nav) doesn't throw.
+if (!HTMLElement.prototype.scrollIntoView) {
+  HTMLElement.prototype.scrollIntoView = () => {};
+}
+
+// jsdom does not implement setPointerCapture / releasePointerCapture; stub
+// them so components using pointer capture (e.g. CurveEditor drag) don't
+// throw when the event fires during tests.
+if (!Element.prototype.setPointerCapture) {
+  Element.prototype.setPointerCapture = () => {};
+}
+if (!Element.prototype.releasePointerCapture) {
+  Element.prototype.releasePointerCapture = () => {};
+}
+
 if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = class {
     observe() {}

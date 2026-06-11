@@ -74,20 +74,33 @@ def fake_anthropic(monkeypatch):
 
 @pytest.fixture
 def fake_sam(monkeypatch):
-    """Replace the SAM client with a deterministic dummy that returns a
-    centered rectangular mask for any bbox prompt. Keeps tests off the
-    GPU and reproducible across runs."""
+    """Replace the SAM client with a deterministic dummy …"""
+    from app.services import sam_client
 
     class _DummySam:
-        def embed(self, _sid, _arr):
+        def __init__(self, *args, **kwargs):
+            self._img_shape: tuple[int, int] | None = None
+
+        def embed(self, _sid, arr):
+            self._img_shape = (arr.shape[0], arr.shape[1])
             return None
 
         def decode_box(self, _sid, pixel_bbox):
-            x1, y1, x2, y2 = pixel_bbox.astype(int)
-            h = max(int(y2) + 1, 4)
-            w = max(int(x2) + 1, 4)
+            # Return a mask at the IMAGE resolution (not bbox resolution).
+            # The real SamClient.decode_box returns full-image-sized masks;
+            # mirroring that here keeps Phase 2 geometry assertions honest.
+            if self._img_shape is None:
+                # Fallback when embed wasn't called (defensive).
+                x1, y1, x2, y2 = pixel_bbox.astype(int)
+                h, w = max(int(y2) + 1, 4), max(int(x2) + 1, 4)
+            else:
+                h, w = self._img_shape
             mask = np.zeros((h, w), dtype=bool)
-            mask[y1:y2, x1:x2] = True
+            x1, y1, x2, y2 = pixel_bbox.astype(int)
+            x1c = max(0, min(x1, w)); x2c = max(0, min(x2, w))
+            y1c = max(0, min(y1, h)); y2c = max(0, min(y2, h))
+            mask[y1c:y2c, x1c:x2c] = True
             return mask
 
+    monkeypatch.setattr(sam_client, "SamClient", _DummySam)
     monkeypatch.setattr("app.api.deps.get_sam_client", lambda: _DummySam())

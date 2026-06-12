@@ -1,19 +1,6 @@
 import { type ReactNode } from 'react';
 import * as Popover from '@radix-ui/react-popover';
-import type { Widget, WidgetNode } from '@/types/widget';
-import { loadRegistry } from '@/lib/registry/loader';
-
-function opsForWidget(widget: Widget): { node: WidgetNode; label: string }[] {
-  const reg = loadRegistry();
-  return widget.nodes.map((node) => {
-    let op = node.op_id ? reg.ops[node.op_id] : undefined;
-    if (!op) {
-      // Back-compat: nodes without op_id — match by node_type.
-      op = Object.values(reg.ops).find((o) => o.engine.node_type === node.type);
-    }
-    return { node, label: op ? op.display_name : node.type };
-  });
-}
+import type { Widget } from '@/types/widget';
 
 interface WhyPopoverProps {
   open: boolean;
@@ -22,6 +9,10 @@ interface WhyPopoverProps {
   children: ReactNode; // the trigger element (wrapped via Trigger asChild)
 }
 
+/** Reasoning-only popover. The earlier version surfaced origin/prompt/date
+ *  chips and an "ops in this widget" list, but that turned a one-sentence
+ *  explanation into a panel; metadata belongs in the inspector if anywhere.
+ *  Now: just the reasoning paragraph, or a small placeholder when missing. */
 export function WhyPopover({ open, widget, onOpenChange, children }: WhyPopoverProps) {
   return (
     <Popover.Root open={open} onOpenChange={onOpenChange}>
@@ -33,38 +24,12 @@ export function WhyPopover({ open, widget, onOpenChange, children }: WhyPopoverP
           align="start"
           sideOffset={8}
         >
-          {widget.reasoning && (
-            <p className="leading-snug mb-2 text-text-secondary">{widget.reasoning}</p>
-          )}
-          <div className="flex flex-wrap items-center gap-1.5 text-[9px]">
-            <span className="bg-surface-secondary border border-separator rounded-[3px] px-1.5 py-0.5">
-              {widget.origin.kind}
-            </span>
-            {widget.origin.prompt && (
-              <span className="bg-surface-secondary border border-separator rounded-[3px] px-1.5 py-0.5">
-                "{widget.origin.prompt}"
-              </span>
-            )}
-            {widget.createdAt && (
-              <span className="num bg-surface-secondary border border-separator rounded-[3px] px-1.5 py-0.5">
-                {widget.createdAt.slice(0, 10)}
-              </span>
-            )}
-          </div>
-          {widget.nodes.length > 1 && (
-            <div className="mt-2 pt-2 border-t border-separator">
-              <p className="text-[9px] font-medium text-text-secondary mb-1">Ops in this widget</p>
-              <div className="flex flex-col gap-0.5">
-                {opsForWidget(widget).map(({ node, label }) => (
-                  <span
-                    key={node.id}
-                    className="text-[10px] text-text-primary bg-surface-secondary border border-separator rounded-[3px] px-1.5 py-0.5 self-start"
-                  >
-                    {label}
-                  </span>
-                ))}
-              </div>
-            </div>
+          {widget.reasoning ? (
+            <p className="leading-snug text-text-secondary">{widget.reasoning}</p>
+          ) : (
+            <p className="leading-snug text-text-secondary/70 italic">
+              No reasoning available for this widget.
+            </p>
           )}
         </Popover.Content>
       </Popover.Portal>

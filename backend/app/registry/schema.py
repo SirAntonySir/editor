@@ -11,7 +11,7 @@ PRESET_SOURCE = Literal["builtin", "user", "project"]
 PARAM_TYPE = Literal["scalar", "curve_points", "color_hsv", "enum", "bool"]
 CONTROL_TYPE = Literal[
     "slider", "swatch", "hue_wheel", "curve_editor", "point_list",
-    "enum_select", "bool_toggle", "kelvin_strip",
+    "enum_select", "bool_toggle", "kelvin_strip", "tint_strip",
 ]
 
 

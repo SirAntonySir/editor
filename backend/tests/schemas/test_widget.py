@@ -271,8 +271,9 @@ def test_state_event_kinds() -> None:
         "mask.created", "selection.changed",
         "context.updated", "dismissal.added",
         "note.created",
-        "phase.started", "phase.progress", "phase.completed",
+        "phase.started", "phase.progress", "phase.completed", "phase.cancelled",
         "canonical.updated",
         "image_node_transform.updated",
+        "mcp.usage",
     }
     assert set(StateEventKind.__args__) == expected

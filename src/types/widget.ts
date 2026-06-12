@@ -19,7 +19,8 @@ export type ControlType =
   | 'point_list'
   | 'enum_select'
   | 'bool_toggle'
-  | 'kelvin_strip';
+  | 'kelvin_strip'
+  | 'tint_strip';
 
 export interface SliderSchema {
   controlType: 'slider';
@@ -31,8 +32,8 @@ export interface SliderSchema {
 
 export interface ToggleSchema {
   controlType: 'toggle';
-  on_label: string;
-  off_label: string;
+  onLabel: string;
+  offLabel: string;
 }
 
 export interface ChoiceSchema {
@@ -55,8 +56,8 @@ export interface MaskThumbnailSchema {
 
 export interface CurveSchema {
   controlType: 'curve';
-  min_points?: number;
-  max_points?: number;
+  minPoints?: number;
+  maxPoints?: number;
 }
 
 // Registry-vocab schema interfaces (aligned with backend registry-vocab additions).
@@ -64,7 +65,7 @@ export interface CurveSchema {
 export interface SwatchSchema {
   controlType: 'swatch';
   space?: 'rgb' | 'lab' | 'hsl';
-  show_alpha?: boolean;
+  showAlpha?: boolean;
   presets?: number[][];
 }
 
@@ -77,30 +78,38 @@ export interface HueWheelSchema {
 export interface CurveEditorSchema {
   controlType: 'curve_editor';
   channel?: 'luma' | 'r' | 'g' | 'b' | null;
-  min_points?: number;
-  max_points?: number;
+  minPoints?: number;
+  maxPoints?: number;
 }
 
 export interface PointListSchema {
   controlType: 'point_list';
-  min_points?: number;
-  max_points?: number;
+  minPoints?: number;
+  maxPoints?: number;
 }
 
 export interface EnumSelectSchema {
   controlType: 'enum_select';
   options: { value: string; label: string }[];
-  allow_custom?: boolean;
+  allowCustom?: boolean;
 }
 
 export interface BoolToggleSchema {
   controlType: 'bool_toggle';
-  on_label?: string;
-  off_label?: string;
+  onLabel?: string;
+  offLabel?: string;
 }
 
 export interface KelvinStripSchema {
   controlType: 'kelvin_strip';
+  min: number;
+  max: number;
+  step: number;
+  unit?: string;
+}
+
+export interface TintStripSchema {
+  controlType: 'tint_strip';
   min: number;
   max: number;
   step: number;
@@ -121,7 +130,8 @@ export type ControlSchema =
   | PointListSchema
   | EnumSelectSchema
   | BoolToggleSchema
-  | KelvinStripSchema;
+  | KelvinStripSchema
+  | TintStripSchema;
 
 // Curve value model lives in its own leaf module (cycle-free); re-exported here
 // so existing `@/types/widget` imports keep working.
@@ -152,7 +162,7 @@ export type ParamValue = number | string | boolean | CurvesValue;
 export interface WidgetNode {
   id: string;
   type: string;
-  op_id?: string | null;
+  opId?: string | null;
   params: Record<string, ParamValue>;
   scope: Scope;
   inputs: string[];
@@ -183,7 +193,7 @@ export interface WidgetOrigin {
 
 export interface WidgetPreview {
   kind: 'thumbnail' | 'histogram_delta' | 'color_swatches' | 'none';
-  auto_before_after: boolean;
+  autoBeforeAfter: boolean;
 }
 
 export interface Widget {
@@ -192,19 +202,19 @@ export interface Widget {
   reasoning?: string;
   scope: Scope;
   origin: WidgetOrigin;
-  op_id?: string;
+  opId?: string;
   composed: boolean;
   nodes: WidgetNode[];
   bindings: ControlBinding[];
   preview: WidgetPreview;
-  rejected_attempts: unknown[];
+  rejectedAttempts: unknown[];
   status: 'active' | 'dismissed' | 'accepted';
   revision: number;
   /** Param keys the user has explicitly edited; bundle-recompute paths
    *  (e.g. Time-of-Day dial) skip these so manual values aren't overwritten.
    *  Cleared via the `unlock_widget_param` backend tool. */
-  locked_params: string[];
-  display_name?: string | null;
+  lockedParams: string[];
+  displayName?: string | null;
   category?: string | null;
   createdAt: string;
   updatedAt: string;

@@ -12,8 +12,8 @@ function makeWidget(overrides: Partial<Widget> = {}): Widget {
     origin: { kind: 'tool_invoked' },
     composed: false,
     bindings: [],
-    preview: { kind: 'none', auto_before_after: false },
-    rejected_attempts: [],
+    preview: { kind: 'none', autoBeforeAfter: false },
+    rejectedAttempts: [],
     status: 'accepted',
     revision: 1,
     createdAt: '',
@@ -23,7 +23,7 @@ function makeWidget(overrides: Partial<Widget> = {}): Widget {
       params: { intensity: 0.5 }, inputs: [],
       widgetId: 'w1', layerId: 'L1',
     }],
-    locked_params: [],
+    lockedParams: [],
     ...overrides,
   };
 }

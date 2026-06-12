@@ -28,7 +28,7 @@ describe('ToggleControl', () => {
     const onChange = vi.fn();
     render(<ToggleControl
       label="Skin protect" value={true} default={true}
-      schema={{ controlType: 'toggle', on_label: 'Protect', off_label: 'Off' }}
+      schema={{ controlType: 'toggle', onLabel: 'Protect', offLabel: 'Off' }}
       onChange={onChange} />);
     fireEvent.click(screen.getByRole('switch'));
     expect(onChange).toHaveBeenCalledWith(false);

@@ -11,6 +11,7 @@ import { CurveControl } from './primitives/CurveControl';
 import { CurveEditor as RegistryCurveEditor } from '@/components/registry-controls/CurveEditor';
 import { hueGradient } from '@/components/registry-controls/HueWheel';
 import { kelvinGradient } from '@/components/registry-controls/KelvinStrip';
+import { tintGradient } from '@/components/registry-controls/TintStrip';
 import type { OpParam } from '../../../../shared/registry/schema';
 
 // Stub schema for the registry CurveEditor — it only reads channel-locking
@@ -101,8 +102,8 @@ export function BindingRow({ binding, effectiveValue, onChange, maskSummaries, p
         </div>
       );
     case 'kelvin_strip':
-      // kelvin.temperature — warm→cool blackbody-gradient slider. Same
-      // fall-through bug as hue_wheel before this case existed.
+      // kelvin.temperature — cool→warm gradient slider (Lightroom convention:
+      // blue left, amber right). Underlying value is still Kelvin.
       return (
         <div className="group relative">
           <AdjustmentSlider
@@ -116,6 +117,28 @@ export function BindingRow({ binding, effectiveValue, onChange, maskSummaries, p
             provenance={provenance}
             trackGradient={kelvinGradient()}
             formatValue={(v) => `${Math.round(v)}K`}
+            onChange={(v) => onChange(v)}
+          />
+          {pinButton && (
+            <div className="absolute right-0 top-0">{pinButton}</div>
+          )}
+        </div>
+      );
+    case 'tint_strip':
+      // kelvin.tint — teal↔magenta gradient slider, paired with kelvin_strip.
+      return (
+        <div className="group relative">
+          <AdjustmentSlider
+            label={binding.label}
+            value={Number(effectiveValue)}
+            min={s.min}
+            max={s.max}
+            step={s.step ?? 1}
+            defaultValue={Number(binding.default)}
+            neutralValue={engineNeutralForBinding(binding)}
+            provenance={provenance}
+            trackGradient={tintGradient()}
+            formatValue={(v) => `${v > 0 ? '+' : ''}${Math.round(v)}`}
             onChange={(v) => onChange(v)}
           />
           {pinButton && (

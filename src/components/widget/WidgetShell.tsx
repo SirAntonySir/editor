@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Widget, MaskSummary } from '@/types/widget';
-import { HelpCircle } from 'lucide-react';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useWidgetExpansion } from '@/hooks/useWidgetExpansion';
@@ -9,7 +8,6 @@ import { useEditorStore } from '@/store';
 import { bindingProvenance, touchKey } from '@/hooks/useParamProvenance';
 import { engineNeutralForBinding } from '@/engine/registry';
 import { WidgetShellHeader } from './WidgetShellHeader';
-import { WidgetShellFooter } from './WidgetShellFooter';
 import { RefineInput } from './RefineInput';
 import { WhyPopover } from './WhyPopover';
 import { BindingRow } from '@/components/inspector/widget/BindingRow';
@@ -165,6 +163,28 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
         onToggle={toggle}
         onClose={handleClose}
         onToggleHidden={() => toggleHidden(widget.id)}
+        onRefine={() => setRefineOpen((v) => !v)}
+        onWhy={() => setWhyOpen((v) => !v)}
+        onReset={handleReset}
+        onApply={handleApply}
+        applyDisabled={offline}
+        showAiAffordances={showAiAffordances}
+        whyButton={
+          <WhyPopover open={whyOpen} widget={widget} onOpenChange={setWhyOpen}>
+            <button
+              type="button"
+              aria-label="Explain widget"
+              title="Why? — explain this widget's reasoning"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center justify-center size-4 rounded-[3px]
+                text-text-secondary hover:text-text-primary hover:bg-surface-secondary transition-colors"
+            >
+              <span aria-hidden className="inline-block leading-none font-semibold text-[12px] -mt-px">
+                ?
+              </span>
+            </button>
+          </WhyPopover>
+        }
       />
       {isExpanded && (
         <>
@@ -174,7 +194,7 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
               flat BindingRow list regardless of widget shape — the rich
               bodies (HSL band rail, Levels histogram, Curves editor) expect
               all bindings to be present, so they're skipped here. */}
-          {!pinnedParamKeys && loadRegistry().ops[widget.op_id ?? '']?.compound && (
+          {!pinnedParamKeys && loadRegistry().ops[widget.opId ?? '']?.compound && (
             <div className="px-1.5 py-1">
               <CompoundWidgetBody widget={widget} />
             </div>
@@ -194,7 +214,7 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
               <CurvesWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
             </div>
           )}
-          {widget.bindings.length > 0 && (pinnedParamKeys || (!loadRegistry().ops[widget.op_id ?? '']?.compound && !isHslWidget(widget) && !isFullLevelsWidget(widget) && !isCurvesWidget(widget))) && (
+          {widget.bindings.length > 0 && (pinnedParamKeys || (!loadRegistry().ops[widget.opId ?? '']?.compound && !isHslWidget(widget) && !isFullLevelsWidget(widget) && !isCurvesWidget(widget))) && (
             <div className="flex flex-col gap-1.5 px-1.5 py-1">
               {/* Auto-tune pill: mechanical-only baseline values for the
                   current op. Renders only when the op has an auto recipe
@@ -239,21 +259,6 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
               pending={refinePending}
             />
           )}
-          <WidgetShellFooter
-            onRefine={() => setRefineOpen((v) => !v)}
-            onWhy={() => setWhyOpen((v) => !v)}
-            onReset={handleReset}
-            onApply={handleApply}
-            applyDisabled={offline}
-            showAiAffordances={showAiAffordances}
-            whyButton={
-              <WhyPopover open={whyOpen} widget={widget} onOpenChange={setWhyOpen}>
-                <button className="inline-flex items-center gap-1 text-[9px] text-text-secondary hover:text-text-primary hover:bg-surface-secondary px-1.5 py-0.5 rounded-[3px]">
-                  <HelpCircle size={10} aria-hidden /> Why?
-                </button>
-              </WhyPopover>
-            }
-          />
         </>
       )}
     </div>

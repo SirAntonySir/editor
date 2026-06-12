@@ -44,7 +44,7 @@ interface CompoundWidgetBodyProps {
  * SSoT registry rather than hard-coded constants.
  */
 export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
-  const op = loadRegistry().ops[widget.op_id ?? ''];
+  const op = loadRegistry().ops[widget.opId ?? ''];
 
   // All hooks must run unconditionally on every render, even when `op?.compound`
   // is absent (the component returns null below in that case). Each hook body
@@ -67,8 +67,8 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
     (s) => s.optimistic.get(`canon:${layerId}:${nodeType}`),
   );
   const lockedSet = useMemo(
-    () => new Set(widget.locked_params ?? []),
-    [widget.locked_params],
+    () => new Set(widget.lockedParams ?? []),
+    [widget.lockedParams],
   );
   const bindingByKey = useMemo(() => {
     const m = new Map<string, ControlBinding>();
@@ -78,8 +78,8 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
 
   // Stable anchor list loaded once from the registry.
   const dialAnchors = useMemo(
-    () => toDialAnchors(widget.op_id ?? ''),
-    [widget.op_id],
+    () => toDialAnchors(widget.opId ?? ''),
+    [widget.opId],
   );
 
   const interpolated = useMemo(
@@ -151,6 +151,16 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
     void backendTools.unlock_widget_param(sid, { widgetId: widget.id, paramKey });
   }, [widget.id]);
 
+  // Pin a derived key without changing its value. The backend implicit-locks
+  // any non-driver key passed through set_widget_param (see
+  // backend/app/tools/widgets/set_widget_param.py:80–82), so re-sending the
+  // current value is the contract for "lock at where it already is".
+  const lockParam = useCallback((paramKey: string, value: number) => {
+    const sid = useBackendState.getState().sessionId;
+    if (!sid) return;
+    void backendTools.set_widget_param(sid, { widgetId: widget.id, paramKey, value });
+  }, [widget.id]);
+
   const labelByKey = useMemo(() => {
     const m: Record<string, string> = {};
     if (!op) return m;
@@ -215,6 +225,7 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
               locked={lockedSet.has(key)}
               onChange={(v) => editParam(key, v)}
               onUnlock={() => unlockParam(key)}
+              onLock={() => lockParam(key, readValue(key))}
             />
           );
         })}

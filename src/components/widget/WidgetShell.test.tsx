@@ -53,19 +53,19 @@ describe('WidgetShell', () => {
   it('renders as collapsed strip by default', () => {
     renderInFlow(<WidgetShell widget={makeAiWidget()} />);
     expect(screen.getByText('Warm up shadows')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^apply$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /apply widget/i })).not.toBeInTheDocument();
   });
 
   it('expands on header click', () => {
     renderInFlow(<WidgetShell widget={makeAiWidget()} />);
     fireEvent.click(screen.getByRole('button', { name: /toggle widget/i }));
-    expect(screen.getByRole('button', { name: /^apply$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /apply widget/i })).toBeInTheDocument();
   });
 
   it('Apply calls backendTools.accept_widget', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
     renderInFlow(<WidgetShell widget={makeAiWidget()} />);
-    fireEvent.click(screen.getByRole('button', { name: /^apply$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /apply widget/i }));
     expect(backendTools.accept_widget).toHaveBeenCalledWith('s-1', { widgetId: 'w-ai-1' });
   });
 
@@ -79,14 +79,14 @@ describe('WidgetShell', () => {
   it('tool_invoked widget shows NO Refine and NO Why when expanded', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-tool-1');
     renderInFlow(<WidgetShell widget={makeToolWidget()} />);
-    expect(screen.queryByText(/refine/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/why\?/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /refine widget/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /explain widget/i })).not.toBeInTheDocument();
   });
 
   it('mcp_autonomous widget shows Refine when expanded', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
     renderInFlow(<WidgetShell widget={makeAiWidget()} />);
-    expect(screen.getByText(/refine/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /refine widget/i })).toBeInTheDocument();
   });
 
   it('setParam keys the optimistic patch by binding.target.nodeId, not widget id', () => {
@@ -242,7 +242,7 @@ describe('WidgetShell ellipsis title', () => {
 
   it('truncates long titles with ellipsis in collapsed state', () => {
     const widget = makeAiWidget({
-      display_name: 'A very long widget name that should not stretch the pill wider',
+      displayName: 'A very long widget name that should not stretch the pill wider',
     });
     const { container } = renderInFlow(<WidgetShell widget={widget} />);
     const titleEl = container.querySelector('.widget-title-ellipsis');

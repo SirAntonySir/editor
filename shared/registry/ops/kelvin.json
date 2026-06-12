@@ -14,7 +14,7 @@
   },
   "bindings": [
     { "paramKey": "kelvin", "controlType": "kelvin_strip", "label": "Temperature" },
-    { "paramKey": "tint",   "controlType": "slider",       "label": "Tint" }
+    { "paramKey": "tint",   "controlType": "tint_strip",   "label": "Tint" }
   ],
   "engine": { "shader": "kelvin", "render_order": 5, "node_type": "kelvin" }
 }

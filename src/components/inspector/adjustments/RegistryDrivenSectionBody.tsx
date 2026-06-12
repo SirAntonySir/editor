@@ -11,8 +11,8 @@ import { touchKey } from '@/hooks/useParamProvenance';
 import type { ParamDefinition } from '@/types/processing';
 import type { Widget, ControlBinding } from '@/types/widget';
 import type { RegistryOp } from '../../../../shared/registry/schema';
+import { RUNTIME } from '@/config';
 
-const DEBOUNCE_MS = 300;
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 // ---------------------------------------------------------------------------
@@ -61,13 +61,13 @@ function sliceWidgetByOp(widget: Widget): OpSlice[] {
   const reg = loadRegistry();
   const slices: OpSlice[] = [];
   for (const node of widget.nodes) {
-    let op = node.op_id ? reg.ops[node.op_id] : undefined;
+    let op = node.opId ? reg.ops[node.opId] : undefined;
     if (!op) {
-      // Back-compat: nodes without op_id (e.g. persisted before this feature) — match by node_type.
+      // Back-compat: nodes without opId (e.g. persisted before this feature) — match by node_type.
       op = Object.values(reg.ops).find((o) => o.engine.node_type === node.type);
     }
     if (!op) {
-      console.warn(`RegistryDrivenSectionBody: no registry op for node ${node.id} (type=${node.type}, op_id=${node.op_id ?? 'none'})`);
+      console.warn(`RegistryDrivenSectionBody: no registry op for node ${node.id} (type=${node.type}, opId=${node.opId ?? 'none'})`);
       continue;
     }
     const bindings = widget.bindings.filter((b) => b.target?.nodeId === node.id);
@@ -211,7 +211,7 @@ function ToolrailSectionBodyInner({
             param: paramKey,
             value: value as number,
           });
-        }, DEBOUNCE_MS),
+        }, RUNTIME.sliderDebounceMs),
       );
     },
     [sessionId, offline, layerId, opType, nodeId],

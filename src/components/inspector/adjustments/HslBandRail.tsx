@@ -13,11 +13,18 @@ interface HslBandRailProps {
   bands?: readonly HslBand[];
 }
 
-/** The colour band picker. Selects the active band and flags edited ones. */
+/** The colour band picker. Selects the active band and flags edited ones.
+ *
+ *  Sized in an 8-column grid regardless of how many bands are visible:
+ *  a `flex-1` row would stretch each button to fill the available width,
+ *  so a 2-band widget (e.g. complementary-grade with orange + blue) would
+ *  render two giant swatches instead of two compact ones. Anchoring to the
+ *  8-cell grid keeps each swatch the same size in every variant — fewer
+ *  bands just leave trailing empty cells. */
 export function HslBandRail({ activeBand, onSelect, bandEdited, bands }: HslBandRailProps) {
   const visible = bands ?? HSL_BANDS;
   return (
-    <div className="flex gap-1.5 justify-between">
+    <div className="grid grid-cols-8 gap-1.5">
       {visible.map((b) => {
         const active = b.key === activeBand;
         return (
@@ -27,7 +34,7 @@ export function HslBandRail({ activeBand, onSelect, bandEdited, bands }: HslBand
             aria-label={`Select ${b.label}`}
             aria-pressed={active}
             onClick={() => onSelect(b.key)}
-            className="relative flex-1 aspect-square rounded-sm"
+            className="relative aspect-square rounded-sm"
             style={{
               background: bandDisplayColor(b.centerHue),
               boxShadow: active

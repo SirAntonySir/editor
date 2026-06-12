@@ -248,6 +248,18 @@ class KelvinStripSchema(BaseModel):
     unit: str = "K"
 
 
+class TintStripSchema(BaseModel):
+    """Green↔magenta tint strip — same fields as SliderSchema, painted with a
+    teal-to-magenta gradient track on the frontend. Paired with kelvin_strip
+    on white-balance ops."""
+    model_config = camel_config(extra="forbid")
+    control_type: Literal["tint_strip"]
+    min: float
+    max: float
+    step: float
+    unit: str | None = None
+
+
 _ControlSchemaAny = Annotated[
     Union[
         SliderSchema, NumericPairSchema, ToggleSchema, ChoiceSchema, ColorSchema,
@@ -255,7 +267,7 @@ _ControlSchemaAny = Annotated[
         BeforeAfterToggleSchema, HistogramMarkerSchema, TextSchema,
         # Registry-vocab additions:
         SwatchSchema, HueWheelSchema, CurveEditorSchema, PointListSchema,
-        EnumSelectSchema, BoolToggleSchema, KelvinStripSchema,
+        EnumSelectSchema, BoolToggleSchema, KelvinStripSchema, TintStripSchema,
     ],
     Field(discriminator="control_type"),
 ]
@@ -429,9 +441,10 @@ StateEventKind = Literal[
     "mask.created", "selection.changed",
     "context.updated", "dismissal.added",
     "note.created",
-    "phase.started", "phase.progress", "phase.completed",
+    "phase.started", "phase.progress", "phase.completed", "phase.cancelled",
     "canonical.updated",
     "image_node_transform.updated",
+    "mcp.usage",
 ]
 
 

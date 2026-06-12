@@ -21,7 +21,7 @@ function makeMultiOpWidget(): Widget {
     intent: 'test',
     scope: { kind: 'global' },
     origin: { kind: 'mcp_user_prompt', prompt: 'test', parentWidgetId: null },
-    op_id: 'color',
+    opId: 'color',
     composed: false,
     nodes: [
       { id: 'n_a', type: 'basic', params: { saturation: 0 }, scope: { kind: 'global' }, inputs: [], widgetId: 'w_test' },
@@ -41,12 +41,12 @@ function makeMultiOpWidget(): Widget {
         controlSchema: { controlType: 'hue_wheel', min: 0, max: 360 },
       },
     ] as unknown as Widget['bindings'],
-    preview: { kind: 'none', auto_before_after: false },
-    rejected_attempts: [],
+    preview: { kind: 'none', autoBeforeAfter: false },
+    rejectedAttempts: [],
     status: 'active',
     revision: 1,
-    locked_params: [],
-    display_name: 'Warm fade',
+    lockedParams: [],
+    displayName: 'Warm fade',
     category: 'color',
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
@@ -56,7 +56,7 @@ function makeMultiOpWidget(): Widget {
 function makeSingleOpWidget(): Widget {
   return {
     ...makeMultiOpWidget(),
-    op_id: 'grain',
+    opId: 'grain',
     nodes: [
       { id: 'n_a', type: 'grain', params: { amount: 0, size: 100, roughness: 50 }, scope: { kind: 'global' }, inputs: [], widgetId: 'w_test' },
     ] as unknown as Widget['nodes'],
@@ -68,7 +68,7 @@ function makeSingleOpWidget(): Widget {
         controlSchema: { controlType: 'slider', min: 0, max: 100, step: 1 },
       },
     ] as unknown as Widget['bindings'],
-    display_name: 'Film grain',
+    displayName: 'Film grain',
   };
 }
 
@@ -111,12 +111,12 @@ describe('RegistryDrivenSectionBody multi-op rendering', () => {
     expect(queryByText('Grain')).toBeFalsy();
   });
 
-  it('identifies ops by op_id even when two ops share a node_type', () => {
+  it('identifies ops by opId even when two ops share a node_type', () => {
     // light and color both have node_type "basic".
     const widget = makeMultiOpWidget();
     widget.nodes = [
-      { id: 'n_a', type: 'basic', op_id: 'light', params: { exposure: 0 }, scope: { kind: 'global' }, inputs: [], widgetId: 'w_test' },
-      { id: 'n_b', type: 'basic', op_id: 'color', params: { saturation: 0 }, scope: { kind: 'global' }, inputs: [], widgetId: 'w_test' },
+      { id: 'n_a', type: 'basic', opId: 'light', params: { exposure: 0 }, scope: { kind: 'global' }, inputs: [], widgetId: 'w_test' },
+      { id: 'n_b', type: 'basic', opId: 'color', params: { saturation: 0 }, scope: { kind: 'global' }, inputs: [], widgetId: 'w_test' },
     ] as unknown as Widget['nodes'];
     // Add minimal bindings so the panel renders something.
     widget.bindings = [

@@ -1,3 +1,4 @@
+import asyncio
 import time
 import pytest
 
@@ -100,3 +101,51 @@ def test_with_document_lock_on_unknown_session_raises() -> None:
     with pytest.raises(SessionNotFound):
         with store.with_document_lock("nope"):
             pass
+
+
+def test_cancel_task_with_no_registration_returns_false() -> None:
+    store = SessionStore(ttl_seconds=60)
+    sid = store.create(image_bytes=b"abc", mime_type="image/jpeg")
+    assert store.cancel_task(sid) is False
+
+
+def test_cancel_task_interrupts_registered_task() -> None:
+    """register_task + cancel_task triggers CancelledError inside the running
+    coroutine. This is the contract the tool registry relies on for the
+    /session/{sid}/cancel endpoint."""
+    store = SessionStore(ttl_seconds=60)
+    sid = store.create(image_bytes=b"abc", mime_type="image/jpeg")
+    cancelled_flag = {"value": False}
+
+    async def runner() -> None:
+        task = asyncio.current_task()
+        store.register_task(sid, task)
+        # Schedule the cancel from a sibling task so it lands at the sleep below.
+        async def fire_cancel() -> None:
+            await asyncio.sleep(0)
+            store.cancel_task(sid)
+        asyncio.create_task(fire_cancel())
+        try:
+            await asyncio.sleep(1.0)
+        except asyncio.CancelledError:
+            cancelled_flag["value"] = True
+            raise
+        finally:
+            store.clear_task(sid)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(runner())
+    assert cancelled_flag["value"] is True
+
+
+def test_clear_task_removes_registration() -> None:
+    store = SessionStore(ttl_seconds=60)
+    sid = store.create(image_bytes=b"abc", mime_type="image/jpeg")
+
+    async def runner() -> None:
+        store.register_task(sid, asyncio.current_task())
+        store.clear_task(sid)
+        # After clear_task, cancel_task is a no-op.
+        assert store.cancel_task(sid) is False
+
+    asyncio.run(runner())

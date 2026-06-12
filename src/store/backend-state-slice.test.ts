@@ -348,6 +348,52 @@ describe('BackendStateSlice phase events', () => {
     expect(useBackendState.getState().mcpAnalyzeComplete).toBe(false);
     expect(useBackendState.getState().phases!.widget_mint.status).toBe('pending');
   });
+
+  it('phase.cancelled sets mcpAnalyzeCancelled and clears the cancelling flag', () => {
+    useBackendState.getState().applyEvent(started('update', 1, 1));
+    useBackendState.getState().setCancelling(true);
+    useBackendState.getState().applyEvent({
+      revision: 2, kind: 'phase.cancelled', payload: {}, emitted_at: 'x',
+    } as StateEvent);
+    expect(useBackendState.getState().mcpAnalyzeCancelled).toBe(true);
+    expect(useBackendState.getState().cancelling).toBe(false);
+  });
+
+  it('mcp.usage accumulates input/output tokens across calls', () => {
+    useBackendState.getState().applyEvent(started('update', 1, 1));
+    useBackendState.getState().applyEvent({
+      revision: 2, kind: 'mcp.usage',
+      payload: { call: 'analyze', input_tokens: 100, output_tokens: 20, cache_create: 80, cache_read: 0 },
+      emitted_at: 'x',
+    } as StateEvent);
+    useBackendState.getState().applyEvent({
+      revision: 3, kind: 'mcp.usage',
+      payload: { call: 'panel', input_tokens: 50, output_tokens: 10, cache_create: 0, cache_read: 80 },
+      emitted_at: 'x',
+    } as StateEvent);
+    const u = useBackendState.getState().usage!;
+    expect(u.inputTokens).toBe(150);
+    expect(u.outputTokens).toBe(30);
+    expect(u.cacheCreate).toBe(80);
+    expect(u.cacheRead).toBe(80);
+  });
+
+  it('a new run (phase.started index=1) resets usage and cancellation state', () => {
+    useBackendState.getState().applyEvent(started('update', 1, 1));
+    useBackendState.getState().applyEvent({
+      revision: 2, kind: 'mcp.usage',
+      payload: { call: 'analyze', input_tokens: 100, output_tokens: 20 },
+      emitted_at: 'x',
+    } as StateEvent);
+    useBackendState.getState().applyEvent({
+      revision: 3, kind: 'phase.cancelled', payload: {}, emitted_at: 'x',
+    } as StateEvent);
+    expect(useBackendState.getState().mcpAnalyzeCancelled).toBe(true);
+    // second analyze begins
+    useBackendState.getState().applyEvent(started('update', 1, 4));
+    expect(useBackendState.getState().mcpAnalyzeCancelled).toBe(false);
+    expect(useBackendState.getState().usage).toBeNull();
+  });
 });
 
 describe('BackendStateSlice — applyOptimistic merge', () => {

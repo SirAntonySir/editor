@@ -9,10 +9,10 @@ function makeWidget(): Widget {
     intent: 'test',
     scope: { kind: 'global' },
     origin: { kind: 'tool_invoked', prompt: null, parentWidgetId: null },
-    op_id: 'grain',
+    opId: 'grain',
     composed: false,
     nodes: [
-      { id: 'n_a', type: 'grain', op_id: 'grain', params: {}, layerId: 'l1' },
+      { id: 'n_a', type: 'grain', opId: 'grain', params: {}, layerId: 'l1' },
     ] as unknown as Widget['nodes'],
     bindings: [],
     preview: { kind: 'none', auto_before_after: false },

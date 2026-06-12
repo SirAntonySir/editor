@@ -15,7 +15,7 @@ export function ToggleControl({ label, value, schema, onChange }: ToggleControlP
       <span className="text-xs text-text-primary">{label}</span>
       <div className="flex items-center gap-2">
         <span className="text-xs text-text-secondary">
-          {value ? schema.on_label : schema.off_label}
+          {value ? schema.onLabel : schema.offLabel}
         </span>
         <Switch
           checked={value}

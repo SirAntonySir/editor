@@ -40,13 +40,13 @@ function widgetWithNode(opts: { id: string; nodeId: string; layerId?: string; ty
       { id: opts.nodeId, type: opts.type ?? 'basic', params: {}, scope: { kind: 'global' }, inputs: [], widgetId: opts.id, layerId: opts.layerId },
     ],
     bindings: [],
-    preview: { kind: 'none', auto_before_after: false },
-    rejected_attempts: [],
+    preview: { kind: 'none', autoBeforeAfter: false },
+    rejectedAttempts: [],
     status: 'active',
     revision: 1,
     createdAt: '',
     updatedAt: '',
-    locked_params: [],
+    lockedParams: [],
   } as Widget;
 }
 

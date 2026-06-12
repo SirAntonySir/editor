@@ -42,7 +42,7 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
     const op = loadRegistry().ops[def.id];
     if (!op?.compound) return null;
     return s.snapshot?.widgets.find(
-      (w) => w.op_id === def.id &&
+      (w) => w.opId === def.id &&
         w.status === 'active' &&
         w.nodes.some((n) => n.layerId === layerId),
     ) ?? null;

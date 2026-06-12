@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Lock } from 'lucide-react';
+import { Lock, LockOpen } from 'lucide-react';
 
 export interface EditableParamCardProps {
   label: string;
@@ -11,13 +11,17 @@ export interface EditableParamCardProps {
   /** Optional accent color for the bar; falls back to `--color-accent`. */
   color?: string;
   /** Reflects `widget.locked_params` membership. Locked cards show the lock icon
-   *  always; unlocked cards reveal it on hover. */
+   *  always; unlocked cards reveal an open-lock icon on hover. */
   locked: boolean;
   /** Called on commit (Enter, blur with valid number). Caller debounces. */
   onChange: (v: number) => void;
   /** Called when the user clicks the lock icon on a locked card. Restores the
    *  dial-derived value on the backend; the next snapshot tick flips the icon back. */
   onUnlock: () => void;
+  /** Called when the user clicks the open-lock icon on an unlocked card to pin
+   *  the current value against future dial drags. Caller typically re-sends the
+   *  current value via set_widget_param, which the backend implicit-locks. */
+  onLock: () => void;
 }
 
 /**
@@ -40,6 +44,7 @@ export function EditableParamCard({
   locked,
   onChange,
   onUnlock,
+  onLock,
 }: EditableParamCardProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<string>('');
@@ -81,17 +86,22 @@ export function EditableParamCard({
           onClick={(e) => {
             e.stopPropagation();
             if (locked) onUnlock();
+            else onLock();
           }}
-          aria-label={locked ? `Unlock ${label}` : `${label} not locked`}
-          tabIndex={locked ? 0 : -1}
+          aria-label={locked ? `Unlock ${label}` : `Lock ${label}`}
+          title={locked ? `Unlock ${label} (let the dial drive this value)` : `Lock ${label} (pin against dial)`}
+          // Hit-area: -mr-1 -my-1 + p-1 makes the clickable region ~20×20px
+          // without enlarging the visual flex layout. The 9px icon would be
+          // unhittable without this; bumping just the icon would push the
+          // value baseline.
           className={[
-            'shrink-0 transition-opacity',
+            'shrink-0 -mr-1 -my-1 p-1 rounded-sm transition-opacity cursor-pointer',
             locked
-              ? 'opacity-100 text-[var(--color-accent)] cursor-pointer'
-              : 'opacity-0 group-hover:opacity-40 text-text-secondary cursor-default pointer-events-none',
+              ? 'opacity-100 text-[var(--color-accent)] hover:bg-[color-mix(in_srgb,var(--color-accent)_12%,transparent)]'
+              : 'opacity-40 group-hover:opacity-70 hover:!opacity-100 focus-visible:opacity-100 text-text-secondary hover:bg-surface',
           ].join(' ')}
         >
-          <Lock size={9} />
+          {locked ? <Lock size={11} /> : <LockOpen size={11} />}
         </button>
       </div>
       {editing ? (
@@ -114,7 +124,7 @@ export function EditableParamCard({
       ) : (
         <button
           type="button"
-          onClick={() => { setDraft(String(value)); setEditing(true); }}
+          onClick={() => { setDraft(valueToDraft(value, step)); setEditing(true); }}
           aria-label={`Edit ${label}`}
           className="w-full text-left text-[13px] font-medium text-text-primary num cursor-text hover:text-[var(--color-accent)] transition-colors"
         >
@@ -132,6 +142,24 @@ export function EditableParamCard({
       </div>
     </div>
   );
+}
+
+/** Convert a numeric value to the editing draft string, rounding to step
+ *  precision so an interpolated 18.029679421941786 enters the input as "18"
+ *  (step=1), "18.0" (step=0.1), or "18.03" (step=0.01). Without this, the
+ *  input shows JS's full float representation, which is unreadable. */
+function valueToDraft(v: number, step: number): string {
+  if (!Number.isFinite(v)) return '0';
+  const safeStep = step > 0 ? step : 1;
+  const snapped = Math.round(v / safeStep) * safeStep;
+  // Derive decimal places from the step (1 → 0, 0.1 → 1, 0.01 → 2, ...).
+  // Strip exponent first so "1e-3" → "0.001" → 3 decimals.
+  const stepStr = safeStep.toString();
+  const dotIdx = stepStr.indexOf('.');
+  const decimals = dotIdx >= 0 ? stepStr.length - dotIdx - 1 : 0;
+  // toFixed handles negative zero and rounding cleanly. Trim trailing zeros
+  // only when decimals === 0 would already produce an integer string.
+  return snapped.toFixed(decimals);
 }
 
 function formatValue(v: number, unit?: string): string {

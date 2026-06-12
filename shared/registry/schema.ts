@@ -6,7 +6,7 @@ export const ParamTypeSchema = z.enum([
 
 export const ControlTypeSchema = z.enum([
   'slider', 'swatch', 'hue_wheel', 'curve_editor', 'point_list',
-  'enum_select', 'bool_toggle', 'kelvin_strip',
+  'enum_select', 'bool_toggle', 'kelvin_strip', 'tint_strip',
 ]);
 
 export const PresetSourceSchema = z.enum(['builtin', 'user', 'project']);

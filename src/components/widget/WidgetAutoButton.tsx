@@ -10,13 +10,13 @@ interface Props {
   setParam: (paramKey: string, value: number) => void;
 }
 
-/** Small "Auto" pill above the binding rows for widgets whose op_id has a
+/** Small "Auto" pill above the binding rows for widgets whose opId has a
  *  mechanical auto recipe (light / color / kelvin / levels). Disabled when
  *  no mechanical snapshot exists yet. Deliberately *not* styled like AI —
  *  this is deterministic math over the live histogram + cast, no LLM. */
 export function WidgetAutoButton({ widget, setParam }: Props) {
   const mech = useLiveMechanicalContext();
-  const opId = widget.op_id ?? '';
+  const opId = widget.opId ?? '';
   const recipeOps = new Set(['light', 'color', 'kelvin', 'levels']);
   if (!recipeOps.has(opId)) return null;
   const disabled = !mech;

@@ -45,3 +45,19 @@ class BackendTool(Generic[TIn, TOut]):
 
     async def handler(self, doc: SessionDocument, input: TIn) -> TOut:  # noqa: A002
         raise NotImplementedError
+
+    def coalesce_key(self, input: TIn) -> str | None:  # noqa: A002
+        """Override to enable history coalescing for this tool.
+
+        When two successive user-action invocations return the same
+        `coalesce_key` AND fire within `RUNTIME.history_coalesce_window_ms`,
+        the engine merges them into a single undo entry instead of
+        stacking two slots. Used by set_param so a slow slider drag
+        becomes one undoable step, not a tower.
+
+        Default: returns None (no coalescing). Tools that DO coalesce
+        should return a key that uniquely identifies the logical target
+        (e.g. f"set_param:{layer}:{op}:{param}" — same slider keeps
+        merging into one entry).
+        """
+        return None

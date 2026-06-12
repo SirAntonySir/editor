@@ -1,9 +1,8 @@
 import { useCallback, useRef } from 'react';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
+import { RUNTIME } from '@/config';
 import type { ControlValue } from '@/types/widget';
-
-const DEBOUNCE_MS = 300;
 
 /** Read/write one canonical (layer, op, param) value, widget-less.
  * op is the canonical node type (basic | kelvin | curves | levels | lut).
@@ -37,8 +36,20 @@ export function useCanonicalParam<T extends ControlValue = number>(
     });
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
+      // Stale-write guard: if a backend history op (undo/redo/revert)
+      // landed between the user's input and this debounce firing, the
+      // `history.applied` handler in backend-state-slice will have cleared
+      // s.optimistic. Checking that our intended value still sits in the
+      // optimistic map tells us nothing newer happened — if it doesn't,
+      // dispatching the stale set_param would push a *new* history entry
+      // that effectively "undoes" the revert from the user's POV.
+      const opt = useBackendState.getState().optimistic.get(nodeId);
+      const stillIntended = opt?.bindings.some(
+        (b) => b.paramKey === param && b.value === (v as ControlValue),
+      );
+      if (!stillIntended) return;
       void backendTools.set_param(sessionId, { layerId, op, param, value: v as ControlValue });
-    }, DEBOUNCE_MS);
+    }, RUNTIME.sliderDebounceMs);
   }, [layerId, sessionId, offline, nodeId, op, param]);
 
   return [value, set];

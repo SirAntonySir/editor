@@ -16,21 +16,22 @@ from httpx import ASGITransport, AsyncClient
 from app.api import deps
 
 
-@pytest.fixture
-async def client_with_session(monkeypatch, tmp_path):
-    """Isolate per-test SessionStore + disk dir. The fixture monkeypatches
-    BOTH the deps singleton AND the already-built tool registry's `_store`
-    attribute — the registry is a singleton with a constructor-injected
-    store reference, so patching the deps module alone doesn't redirect
-    tool invocations."""
+async def _client_with_session(monkeypatch, tmp_path, *, coalesce: bool):
+    """Shared fixture body. `coalesce=False` disables history coalescing so
+    each set_param produces its own entry — useful for the multi-step
+    mechanical tests that pre-date the coalesce default."""
     from app.main import app
     from app.services import disk_session_io
     from app.services.session_store import SessionStore
 
     monkeypatch.setattr(disk_session_io, "SESSIONS_DIR", tmp_path)
+    if not coalesce:
+        from app.config import get_app_config
+        monkeypatch.setattr(
+            get_app_config().runtime, "history_coalesce_window_ms", 0
+        )
     store = SessionStore(ttl_seconds=3600)
     monkeypatch.setattr(deps, "_session_store", store)
-    # Bind the (potentially already-built) registry to the new store too.
     registry = deps.get_tool_registry()
     monkeypatch.setattr(registry, "_store", store)
 
@@ -39,6 +40,22 @@ async def client_with_session(monkeypatch, tmp_path):
         files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
         sid = (await ac.post("/api/session", files=files)).json()["session_id"]
         yield ac, sid, store
+
+
+@pytest.fixture
+async def client_with_session(monkeypatch, tmp_path):
+    """Isolate per-test SessionStore + disk dir. Coalesce DISABLED so the
+    pre-existing multi-step tests see one entry per set_param. The
+    coalesce-on workflow is covered by the dedicated tests below."""
+    async for triple in _client_with_session(monkeypatch, tmp_path, coalesce=False):
+        yield triple
+
+
+@pytest.fixture
+async def client_with_coalesce(monkeypatch, tmp_path):
+    """Coalesce ENABLED — exercises the slider-drag workflow."""
+    async for triple in _client_with_session(monkeypatch, tmp_path, coalesce=True):
+        yield triple
 
 
 async def _set_exposure(ac: AsyncClient, sid: str, value: float) -> None:
@@ -143,6 +160,44 @@ async def test_new_action_after_undo_truncates_redo_branch(client_with_session):
 
     r = await ac.post(f"/api/state/{sid}/redo")
     assert r.status_code == 409, "redo branch must be truncated by new action"
+
+
+@pytest.mark.asyncio
+async def test_consecutive_set_param_calls_coalesce_into_one_undo(client_with_coalesce):
+    """Slider drags fire many debounced set_params on the SAME
+    (layer, op, param) — they must collapse into one undo entry, not
+    a tower. Otherwise the user clicks undo 20 times to walk one drag back."""
+    ac, sid, store = client_with_coalesce
+    for v in (0.10, 0.15, 0.20, 0.25, 0.30):
+        await _set_exposure(ac, sid, v)
+
+    # All five commits merged.
+    history = store.get_history(sid)
+    assert len(history.entries) == 1
+
+    # One undo lands us back at the pre-drag baseline (no exposure).
+    r = await ac.post(f"/api/state/{sid}/undo")
+    assert r.status_code == 200
+    assert await _current_exposure(ac, sid) is None
+
+
+@pytest.mark.asyncio
+async def test_set_param_on_different_targets_does_not_coalesce(client_with_coalesce):
+    ac, sid, store = client_with_coalesce
+    await _set_exposure(ac, sid, 0.5)
+    # A different param breaks the coalesce chain.
+    await ac.post("/api/tools/set_param", json={
+        "session_id": sid,
+        "input": {
+            "layerId": "layer-1",
+            "op": "basic",
+            "param": "contrast",
+            "value": 0.3,
+        },
+    })
+    await _set_exposure(ac, sid, 0.7)
+    # Three distinct entries: exposure / contrast / exposure.
+    assert len(store.get_history(sid).entries) == 3
 
 
 @pytest.mark.asyncio

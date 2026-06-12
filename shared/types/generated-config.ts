@@ -15,6 +15,7 @@ export const RUNTIME = {
   historyMaxEntries: 100,
   undoMaxEntries: 100,
   checkpointIntervalS: 5,
+  historyCoalesceWindowMs: 2000,
   anthropicTimeoutS: 120.0,
   maxVisionDim: 1568,
   maxTokensAnalyze: 2048,

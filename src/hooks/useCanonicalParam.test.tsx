@@ -48,3 +48,19 @@ it('setter applies optimistic immediately and debounces set_param', () => {
   act(() => { vi.advanceTimersByTime(300); });
   expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layerId: 'L1', op: 'basic', param: 'exposure', value: 55 });
 });
+
+it('queued set_param does not fire after a history op cleared optimistic', () => {
+  // Reproduces the revert-race: user drags slider (set is called → optimistic
+  // armed → 300 ms timer pending), then a backend undo/redo/revert lands and
+  // clears optimistic. The pending set_param must NOT dispatch — doing so
+  // would push a new history entry that visually "undoes" the revert.
+  seedSnapshot([]);
+  const { result } = renderHook(() => useCanonicalParam('L1', 'basic', 'exposure', 0 as number));
+  act(() => { result.current[1](77); });
+  // Simulate the history.applied handler clearing optimistic mid-debounce.
+  act(() => {
+    useBackendState.setState((s) => ({ ...s, optimistic: new Map() } as never));
+    vi.advanceTimersByTime(400);
+  });
+  expect(backendTools.set_param).not.toHaveBeenCalled();
+});

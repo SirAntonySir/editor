@@ -164,10 +164,13 @@ class BackendToolRegistry:
                 if history_before is not None:
                     from app.session.history import Snapshot
                     after = Snapshot.capture(doc)
+                    cfg = get_app_config().runtime
                     self._store.get_history(session_id).push(
                         label=tool.name,
                         before=history_before,
                         after=after,
+                        coalesce_key=tool.coalesce_key(parsed),
+                        coalesce_window_s=cfg.history_coalesce_window_ms / 1000.0,
                     )
                 self._flush_history_to_bus(doc, session_id)
         else:

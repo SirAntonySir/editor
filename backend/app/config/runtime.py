@@ -28,6 +28,14 @@ class RuntimeConfig(BaseModel):
     history_max_entries: int = 100
     undo_max_entries: int = 100
     checkpoint_interval_s: int = 5
+    # When a user-action tool is invoked with the same `coalesce_key` as
+    # the last entry on the undo stack within this window, the last
+    # entry's `after` snapshot is updated in place rather than pushing a
+    # new entry. Lets a slow slider drag (multiple debounced set_params)
+    # collapse into one undoable step. 2 s comfortably covers a
+    # pause-and-resume drag while still creating a new entry once the
+    # user moves on to a different param.
+    history_coalesce_window_ms: int = 2000
 
     # --- Anthropic client ---
     anthropic_timeout_s: float = 120.0

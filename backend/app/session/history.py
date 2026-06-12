@@ -82,11 +82,16 @@ def _deep_copy_jsonable(obj: Any) -> Any:
 
 class HistoryEntry(BaseModel):
     """One slot in the per-session undo stack."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     id: str
     ts: float
     label: str
     before: Snapshot
     after: Snapshot
+    # Coalesce key, if any. When the next push() matches this key within
+    # the configured window, the engine updates this entry's `after`
+    # instead of pushing a new slot. None means this entry never coalesces.
+    coalesce_key: str | None = None
 
 
 class HistoryEngine:
@@ -129,17 +134,51 @@ class HistoryEngine:
 
     # ---------------- mutation ----------------
 
-    def push(self, label: str, before: Snapshot, after: Snapshot) -> HistoryEntry:
+    def push(
+        self,
+        label: str,
+        before: Snapshot,
+        after: Snapshot,
+        *,
+        coalesce_key: str | None = None,
+        coalesce_window_s: float = 0.0,
+    ) -> HistoryEntry:
         """Append a new entry. Truncates any redo-able entries past the
         cursor — once the user picks a new branch, the old redo path is
-        forfeit (standard undo-stack semantics)."""
+        forfeit (standard undo-stack semantics).
+
+        If `coalesce_key` matches the last entry's key AND that entry is
+        within `coalesce_window_s` seconds, this push updates the last
+        entry's `after` instead of allocating a new slot. Used to merge
+        a stream of slider commits (one debounced set_param per pause)
+        into a single undoable step.
+
+        Coalesce only fires when the cursor is at the tip — once the
+        user has hit undo, the next push starts a fresh branch (the
+        cursor moves forward by one), and that's a discrete action.
+        """
+        now = time.time()
+        if (
+            coalesce_key is not None
+            and coalesce_window_s > 0
+            and self._cursor >= 0
+            and self._cursor == len(self._entries) - 1
+            and self._entries[self._cursor].coalesce_key == coalesce_key
+            and (now - self._entries[self._cursor].ts) <= coalesce_window_s
+        ):
+            tip = self._entries[self._cursor]
+            tip.after = after
+            tip.ts = now
+            return tip
+
         self._entries = self._entries[: self._cursor + 1]
         entry = HistoryEntry(
             id=uuid.uuid4().hex,
-            ts=time.time(),
+            ts=now,
             label=label,
             before=before,
             after=after,
+            coalesce_key=coalesce_key,
         )
         self._entries.append(entry)
         self._cursor = len(self._entries) - 1

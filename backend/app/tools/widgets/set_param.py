@@ -35,6 +35,13 @@ class SetParamTool(BackendTool[_Input, _Output]):
     )
     is_user_action = True
 
+    def coalesce_key(self, input: _Input) -> str:  # noqa: A002
+        """Merge consecutive set_param calls on the SAME (layer, op, param)
+        into one undo entry — see BackendTool.coalesce_key. Lets a slow
+        slider drag (which fires multiple debounced set_params as the
+        user pauses) collapse into a single undoable step."""
+        return f"set_param:{input.layer_id}:{input.op}:{input.param}"
+
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         doc.set_param(input.layer_id, input.op, input.param, input.value)
         return _Output(ok=True)

@@ -1,0 +1,2419 @@
+{
+  "$defs": {
+    "BeforeAfterToggleSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controlType": {
+          "const": "before_after_toggle",
+          "enum": [
+            "before_after_toggle"
+          ],
+          "type": "string"
+        },
+        "splitOrientation": {
+          "default": "swap",
+          "enum": [
+            "horizontal",
+            "vertical",
+            "swap"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType",
+        "splitOrientation"
+      ],
+      "title": "BeforeAfterToggleSchema",
+      "type": "object"
+    },
+    "BoolToggleSchema": {
+      "additionalProperties": false,
+      "description": "Boolean toggle \u2014 mirrors ToggleSchema.",
+      "properties": {
+        "controlType": {
+          "const": "bool_toggle",
+          "enum": [
+            "bool_toggle"
+          ],
+          "type": "string"
+        },
+        "offLabel": {
+          "default": "Off",
+          "type": "string"
+        },
+        "onLabel": {
+          "default": "On",
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType",
+        "offLabel",
+        "onLabel"
+      ],
+      "title": "BoolToggleSchema",
+      "type": "object"
+    },
+    "CandidateRegion": {
+      "additionalProperties": false,
+      "properties": {
+        "bbox": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "description": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "maskPngBase64": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "paths": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "representativePoint": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "bbox",
+        "description",
+        "label",
+        "maskPngBase64",
+        "paths",
+        "representativePoint"
+      ],
+      "title": "CandidateRegion",
+      "type": "object"
+    },
+    "ChoiceOption": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "swatch": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "swatch",
+        "value"
+      ],
+      "title": "ChoiceOption",
+      "type": "object"
+    },
+    "ChoiceSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "allowCustom": {
+          "default": false,
+          "type": "boolean"
+        },
+        "controlType": {
+          "const": "choice",
+          "enum": [
+            "choice"
+          ],
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/ChoiceOption"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "allowCustom",
+        "controlType",
+        "options"
+      ],
+      "title": "ChoiceSchema",
+      "type": "object"
+    },
+    "ColorSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controlType": {
+          "const": "color",
+          "enum": [
+            "color"
+          ],
+          "type": "string"
+        },
+        "presets": {
+          "items": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "showAlpha": {
+          "default": false,
+          "type": "boolean"
+        },
+        "space": {
+          "default": "rgb",
+          "enum": [
+            "rgb",
+            "lab",
+            "hsl"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType",
+        "presets",
+        "showAlpha",
+        "space"
+      ],
+      "title": "ColorSchema",
+      "type": "object"
+    },
+    "ColorSwatch": {
+      "additionalProperties": false,
+      "properties": {
+        "rgb": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "type": "array"
+        },
+        "weight": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "rgb",
+        "weight"
+      ],
+      "title": "ColorSwatch",
+      "type": "object"
+    },
+    "ControlBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "controlSchema": {
+          "$ref": "#/$defs/ControlSchema"
+        },
+        "controlType": {
+          "enum": [
+            "slider",
+            "numeric_pair",
+            "toggle",
+            "choice",
+            "color",
+            "curve",
+            "curve_point",
+            "mask_thumbnail",
+            "region_picker",
+            "before_after_toggle",
+            "histogram_marker",
+            "text",
+            "swatch",
+            "hue_wheel",
+            "curve_editor",
+            "point_list",
+            "enum_select",
+            "bool_toggle",
+            "kelvin_strip"
+          ],
+          "type": "string"
+        },
+        "default": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "object"
+            }
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "paramKey": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "target": {
+          "$ref": "#/$defs/NodeParamTarget"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "required": [
+        "controlSchema",
+        "controlType",
+        "default",
+        "label",
+        "paramKey",
+        "reasoning",
+        "target",
+        "value"
+      ],
+      "title": "ControlBinding",
+      "type": "object"
+    },
+    "ControlSchema": {
+      "description": "Discriminated union over all control_type schemas.",
+      "discriminator": {
+        "mapping": {
+          "before_after_toggle": "#/$defs/BeforeAfterToggleSchema",
+          "bool_toggle": "#/$defs/BoolToggleSchema",
+          "choice": "#/$defs/ChoiceSchema",
+          "color": "#/$defs/ColorSchema",
+          "curve": "#/$defs/CurveSchema",
+          "curve_editor": "#/$defs/CurveEditorSchema",
+          "curve_point": "#/$defs/CurvePointSchema",
+          "enum_select": "#/$defs/EnumSelectSchema",
+          "histogram_marker": "#/$defs/HistogramMarkerSchema",
+          "hue_wheel": "#/$defs/HueWheelSchema",
+          "kelvin_strip": "#/$defs/KelvinStripSchema",
+          "mask_thumbnail": "#/$defs/MaskThumbnailSchema",
+          "numeric_pair": "#/$defs/NumericPairSchema",
+          "point_list": "#/$defs/PointListSchema",
+          "region_picker": "#/$defs/RegionPickerSchema",
+          "slider": "#/$defs/SliderSchema",
+          "swatch": "#/$defs/SwatchSchema",
+          "text": "#/$defs/TextSchema",
+          "tint_strip": "#/$defs/TintStripSchema",
+          "toggle": "#/$defs/ToggleSchema"
+        },
+        "propertyName": "controlType"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SliderSchema"
+        },
+        {
+          "$ref": "#/$defs/NumericPairSchema"
+        },
+        {
+          "$ref": "#/$defs/ToggleSchema"
+        },
+        {
+          "$ref": "#/$defs/ChoiceSchema"
+        },
+        {
+          "$ref": "#/$defs/ColorSchema"
+        },
+        {
+          "$ref": "#/$defs/CurveSchema"
+        },
+        {
+          "$ref": "#/$defs/CurvePointSchema"
+        },
+        {
+          "$ref": "#/$defs/MaskThumbnailSchema"
+        },
+        {
+          "$ref": "#/$defs/RegionPickerSchema"
+        },
+        {
+          "$ref": "#/$defs/BeforeAfterToggleSchema"
+        },
+        {
+          "$ref": "#/$defs/HistogramMarkerSchema"
+        },
+        {
+          "$ref": "#/$defs/TextSchema"
+        },
+        {
+          "$ref": "#/$defs/SwatchSchema"
+        },
+        {
+          "$ref": "#/$defs/HueWheelSchema"
+        },
+        {
+          "$ref": "#/$defs/CurveEditorSchema"
+        },
+        {
+          "$ref": "#/$defs/PointListSchema"
+        },
+        {
+          "$ref": "#/$defs/EnumSelectSchema"
+        },
+        {
+          "$ref": "#/$defs/BoolToggleSchema"
+        },
+        {
+          "$ref": "#/$defs/KelvinStripSchema"
+        },
+        {
+          "$ref": "#/$defs/TintStripSchema"
+        }
+      ],
+      "title": "ControlSchema"
+    },
+    "CurveEditorSchema": {
+      "additionalProperties": false,
+      "description": "Full curve editor \u2014 mirrors CurveSchema but uses registry vocab.",
+      "properties": {
+        "channel": {
+          "anyOf": [
+            {
+              "enum": [
+                "luma",
+                "r",
+                "g",
+                "b"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "controlType": {
+          "const": "curve_editor",
+          "enum": [
+            "curve_editor"
+          ],
+          "type": "string"
+        },
+        "maxPoints": {
+          "default": 16,
+          "type": "integer"
+        },
+        "minPoints": {
+          "default": 2,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "channel",
+        "controlType",
+        "maxPoints",
+        "minPoints"
+      ],
+      "title": "CurveEditorSchema",
+      "type": "object"
+    },
+    "CurvePointSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "enum": [
+            "luma",
+            "r",
+            "g",
+            "b"
+          ],
+          "type": "string"
+        },
+        "controlType": {
+          "const": "curve_point",
+          "enum": [
+            "curve_point"
+          ],
+          "type": "string"
+        },
+        "xMax": {
+          "default": 1.0,
+          "type": "number"
+        },
+        "xMin": {
+          "default": 0.0,
+          "type": "number"
+        },
+        "yMax": {
+          "default": 1.0,
+          "type": "number"
+        },
+        "yMin": {
+          "default": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "channel",
+        "controlType",
+        "xMax",
+        "xMin",
+        "yMax",
+        "yMin"
+      ],
+      "title": "CurvePointSchema",
+      "type": "object"
+    },
+    "CurveSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "anyOf": [
+            {
+              "enum": [
+                "luma",
+                "r",
+                "g",
+                "b"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "controlType": {
+          "const": "curve",
+          "enum": [
+            "curve"
+          ],
+          "type": "string"
+        },
+        "maxPoints": {
+          "default": 16,
+          "type": "integer"
+        },
+        "minPoints": {
+          "default": 2,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "channel",
+        "controlType",
+        "maxPoints",
+        "minPoints"
+      ],
+      "title": "CurveSchema",
+      "type": "object"
+    },
+    "EnrichedImageContext": {
+      "additionalProperties": false,
+      "description": "Additive extension of v1 ImageContext.\n\nCheap pass fills the numeric fields locally; the Claude-augmented pass\nfills `estimated_white_point`, `wb_neutral_confidence`, `grade_character`,\n`problems`, plus per-region `is_skin_likely` / `is_sky_likely`.",
+      "properties": {
+        "candidateRegions": {
+          "items": {
+            "$ref": "#/$defs/CandidateRegion"
+          },
+          "type": "array"
+        },
+        "castDirection": {
+          "default": [
+            0.0,
+            0.0
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        "castStrength": {
+          "default": 0.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "clippedHighlightsPct": {
+          "default": 0.0,
+          "maximum": 100.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "clippedShadowsPct": {
+          "default": 0.0,
+          "maximum": 100.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "colorPalette": {
+          "items": {
+            "$ref": "#/$defs/ColorSwatch"
+          },
+          "type": "array"
+        },
+        "contrastP10P90": {
+          "default": 0.0,
+          "type": "number"
+        },
+        "dominantTones": {
+          "items": {
+            "enum": [
+              "shadows",
+              "midtones",
+              "highlights"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "estimatedWhitePoint": {
+          "default": [
+            255.0,
+            255.0,
+            255.0
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        "generatedAt": {
+          "type": "string"
+        },
+        "gradeCharacter": {
+          "default": "neutral",
+          "type": "string"
+        },
+        "lighting": {
+          "enum": [
+            "flat",
+            "backlit",
+            "side",
+            "rim",
+            "mixed"
+          ],
+          "type": "string"
+        },
+        "lumaHistogram": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 256,
+          "minItems": 256,
+          "type": "array"
+        },
+        "medianLuma": {
+          "default": 0.0,
+          "type": "number"
+        },
+        "modelName": {
+          "type": "string"
+        },
+        "modelVersion": {
+          "type": "string"
+        },
+        "mood": {
+          "type": "string"
+        },
+        "problems": {
+          "items": {
+            "$ref": "#/$defs/Problem"
+          },
+          "type": "array"
+        },
+        "regionStats": {
+          "items": {
+            "$ref": "#/$defs/RegionStats"
+          },
+          "type": "array"
+        },
+        "rgbHistograms": {
+          "additionalProperties": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "type": "object"
+        },
+        "subjects": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "wbNeutralConfidence": {
+          "default": 0.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "candidateRegions",
+        "castDirection",
+        "castStrength",
+        "clippedHighlightsPct",
+        "clippedShadowsPct",
+        "colorPalette",
+        "contrastP10P90",
+        "dominantTones",
+        "estimatedWhitePoint",
+        "generatedAt",
+        "gradeCharacter",
+        "lighting",
+        "lumaHistogram",
+        "medianLuma",
+        "modelName",
+        "modelVersion",
+        "mood",
+        "problems",
+        "regionStats",
+        "rgbHistograms",
+        "subjects",
+        "wbNeutralConfidence"
+      ],
+      "title": "EnrichedImageContext",
+      "type": "object"
+    },
+    "EnumSelectSchema": {
+      "additionalProperties": false,
+      "description": "Drop-down / segmented enum selector \u2014 mirrors ChoiceSchema.",
+      "properties": {
+        "allowCustom": {
+          "default": false,
+          "type": "boolean"
+        },
+        "controlType": {
+          "const": "enum_select",
+          "enum": [
+            "enum_select"
+          ],
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/ChoiceOption"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "allowCustom",
+        "controlType",
+        "options"
+      ],
+      "title": "EnumSelectSchema",
+      "type": "object"
+    },
+    "GlobalScope": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "global",
+          "enum": [
+            "global"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "GlobalScope",
+      "type": "object"
+    },
+    "HistogramMarkerSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "enum": [
+            "luma",
+            "r",
+            "g",
+            "b"
+          ],
+          "type": "string"
+        },
+        "controlType": {
+          "const": "histogram_marker",
+          "enum": [
+            "histogram_marker"
+          ],
+          "type": "string"
+        },
+        "markerKind": {
+          "enum": [
+            "black_point",
+            "white_point",
+            "gamma"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "channel",
+        "controlType",
+        "markerKind"
+      ],
+      "title": "HistogramMarkerSchema",
+      "type": "object"
+    },
+    "HueWheelSchema": {
+      "additionalProperties": false,
+      "description": "Hue wheel \u2014 degree range [min, max].",
+      "properties": {
+        "controlType": {
+          "const": "hue_wheel",
+          "enum": [
+            "hue_wheel"
+          ],
+          "type": "string"
+        },
+        "max": {
+          "default": 360.0,
+          "type": "number"
+        },
+        "min": {
+          "default": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "controlType",
+        "max",
+        "min"
+      ],
+      "title": "HueWheelSchema",
+      "type": "object"
+    },
+    "ImageContext": {
+      "additionalProperties": false,
+      "properties": {
+        "candidateRegions": {
+          "items": {
+            "$ref": "#/$defs/CandidateRegion"
+          },
+          "type": "array"
+        },
+        "dominantTones": {
+          "items": {
+            "enum": [
+              "shadows",
+              "midtones",
+              "highlights"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "generatedAt": {
+          "type": "string"
+        },
+        "lighting": {
+          "enum": [
+            "flat",
+            "backlit",
+            "side",
+            "rim",
+            "mixed"
+          ],
+          "type": "string"
+        },
+        "modelName": {
+          "type": "string"
+        },
+        "modelVersion": {
+          "type": "string"
+        },
+        "mood": {
+          "type": "string"
+        },
+        "subjects": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "candidateRegions",
+        "dominantTones",
+        "generatedAt",
+        "lighting",
+        "modelName",
+        "modelVersion",
+        "mood",
+        "subjects"
+      ],
+      "title": "ImageContext",
+      "type": "object"
+    },
+    "ImageNodeScope": {
+      "additionalProperties": false,
+      "properties": {
+        "imageNodeId": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "const": "image_node",
+          "enum": [
+            "image_node"
+          ],
+          "type": "string"
+        },
+        "layerIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "imageNodeId",
+        "kind",
+        "layerIds"
+      ],
+      "title": "ImageNodeScope",
+      "type": "object"
+    },
+    "KelvinStripSchema": {
+      "additionalProperties": false,
+      "description": "Kelvin temperature strip \u2014 same fields as SliderSchema.",
+      "properties": {
+        "controlType": {
+          "const": "kelvin_strip",
+          "enum": [
+            "kelvin_strip"
+          ],
+          "type": "string"
+        },
+        "max": {
+          "type": "number"
+        },
+        "min": {
+          "type": "number"
+        },
+        "step": {
+          "type": "number"
+        },
+        "unit": {
+          "default": "K",
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType",
+        "max",
+        "min",
+        "step",
+        "unit"
+      ],
+      "title": "KelvinStripSchema",
+      "type": "object"
+    },
+    "MaskScope": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "mask",
+          "enum": [
+            "mask"
+          ],
+          "type": "string"
+        },
+        "maskId": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "maskId"
+      ],
+      "title": "MaskScope",
+      "type": "object"
+    },
+    "MaskThumbnailSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "allowCombine": {
+          "items": {
+            "enum": [
+              "union",
+              "intersect",
+              "subtract"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "allowReplace": {
+          "default": true,
+          "type": "boolean"
+        },
+        "controlType": {
+          "const": "mask_thumbnail",
+          "enum": [
+            "mask_thumbnail"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "allowCombine",
+        "allowReplace",
+        "controlType"
+      ],
+      "title": "MaskThumbnailSchema",
+      "type": "object"
+    },
+    "NamedRegionScope": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "named_region",
+          "enum": [
+            "named_region"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "label"
+      ],
+      "title": "NamedRegionScope",
+      "type": "object"
+    },
+    "Node": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "layerId": {
+          "type": "string"
+        },
+        "layerIds": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/app__schemas__operation_graph__Scope"
+        },
+        "type": {
+          "type": "string"
+        },
+        "widgetId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "inputs",
+        "layerId",
+        "layerIds",
+        "params",
+        "scope",
+        "type",
+        "widgetId"
+      ],
+      "title": "Node",
+      "type": "object"
+    },
+    "NodeParamTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "nodeId": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "paramKey": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "nodeId",
+        "paramKey"
+      ],
+      "title": "NodeParamTarget",
+      "type": "object"
+    },
+    "NumericPairSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controlType": {
+          "const": "numeric_pair",
+          "enum": [
+            "numeric_pair"
+          ],
+          "type": "string"
+        },
+        "labelA": {
+          "type": "string"
+        },
+        "labelB": {
+          "type": "string"
+        },
+        "maxA": {
+          "type": "number"
+        },
+        "maxB": {
+          "type": "number"
+        },
+        "minA": {
+          "type": "number"
+        },
+        "minB": {
+          "type": "number"
+        },
+        "stepA": {
+          "type": "number"
+        },
+        "stepB": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "controlType",
+        "labelA",
+        "labelB",
+        "maxA",
+        "maxB",
+        "minA",
+        "minB",
+        "stepA",
+        "stepB"
+      ],
+      "title": "NumericPairSchema",
+      "type": "object"
+    },
+    "OperationGraph": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/$defs/Node"
+          },
+          "type": "array"
+        },
+        "panelBindings": {
+          "items": {
+            "$ref": "#/$defs/PanelBinding"
+          },
+          "type": "array"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "userGoal": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "metadata",
+        "nodes",
+        "panelBindings",
+        "reasoning",
+        "userGoal"
+      ],
+      "title": "OperationGraph",
+      "type": "object"
+    },
+    "PanelBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "control": {
+          "default": "slider",
+          "enum": [
+            "slider",
+            "toggle",
+            "picker"
+          ],
+          "type": "string"
+        },
+        "default": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "label": {
+          "type": "string"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "paramKey": {
+          "type": "string"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "step": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "control",
+        "default",
+        "label",
+        "max",
+        "min",
+        "nodeId",
+        "paramKey",
+        "reasoning",
+        "step"
+      ],
+      "title": "PanelBinding",
+      "type": "object"
+    },
+    "PointListSchema": {
+      "additionalProperties": false,
+      "description": "Editable list of curve/spline points (debug / advanced editor).",
+      "properties": {
+        "controlType": {
+          "const": "point_list",
+          "enum": [
+            "point_list"
+          ],
+          "type": "string"
+        },
+        "maxPoints": {
+          "default": 16,
+          "type": "integer"
+        },
+        "minPoints": {
+          "default": 2,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "controlType",
+        "maxPoints",
+        "minPoints"
+      ],
+      "title": "PointListSchema",
+      "type": "object"
+    },
+    "Problem": {
+      "additionalProperties": false,
+      "properties": {
+        "bbox": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind": {
+          "enum": [
+            "clipped_highlights",
+            "crushed_shadows",
+            "low_contrast",
+            "strong_color_cast",
+            "noisy_shadows",
+            "uneven_white_balance"
+          ],
+          "type": "string"
+        },
+        "regionLabel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "severity": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "suggestedFusedTools": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "bbox",
+        "kind",
+        "regionLabel",
+        "severity",
+        "suggestedFusedTools"
+      ],
+      "title": "Problem",
+      "type": "object"
+    },
+    "RegionPickerSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "allowActiveSelection": {
+          "default": true,
+          "type": "boolean"
+        },
+        "allowGlobal": {
+          "default": true,
+          "type": "boolean"
+        },
+        "candidateLabels": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "controlType": {
+          "const": "region_picker",
+          "enum": [
+            "region_picker"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "allowActiveSelection",
+        "allowGlobal",
+        "candidateLabels",
+        "controlType"
+      ],
+      "title": "RegionPickerSchema",
+      "type": "object"
+    },
+    "RegionStats": {
+      "additionalProperties": false,
+      "properties": {
+        "contrastP10P90": {
+          "type": "number"
+        },
+        "dominantSwatches": {
+          "items": {
+            "$ref": "#/$defs/ColorSwatch"
+          },
+          "type": "array"
+        },
+        "isSkinLikely": {
+          "type": "boolean"
+        },
+        "isSkyLikely": {
+          "type": "boolean"
+        },
+        "label": {
+          "type": "string"
+        },
+        "lumaHistogram": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 32,
+          "minItems": 32,
+          "type": "array"
+        },
+        "meanLuma": {
+          "type": "number"
+        },
+        "meanRgb": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        "pixelCount": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "saturationMean": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "contrastP10P90",
+        "dominantSwatches",
+        "isSkinLikely",
+        "isSkyLikely",
+        "label",
+        "lumaHistogram",
+        "meanLuma",
+        "meanRgb",
+        "pixelCount",
+        "saturationMean"
+      ],
+      "title": "RegionStats",
+      "type": "object"
+    },
+    "ResolvedNumbers": {
+      "additionalProperties": false,
+      "description": "One attempt's tunable values + optional reasoning. Used both by the\nfused-tool framework (Plan 2) and by Widget.rejected_attempts for the\nrepeat-widget anchor log.",
+      "properties": {
+        "reasoning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "values": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "reasoning",
+        "values"
+      ],
+      "title": "ResolvedNumbers",
+      "type": "object"
+    },
+    "Scope": {
+      "description": "Discriminated union over the scope kinds.",
+      "discriminator": {
+        "mapping": {
+          "global": "#/$defs/GlobalScope",
+          "image_node": "#/$defs/ImageNodeScope",
+          "mask": "#/$defs/MaskScope",
+          "named_region": "#/$defs/NamedRegionScope"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/GlobalScope"
+        },
+        {
+          "$ref": "#/$defs/NamedRegionScope"
+        },
+        {
+          "$ref": "#/$defs/MaskScope"
+        },
+        {
+          "$ref": "#/$defs/ImageNodeScope"
+        }
+      ],
+      "title": "Scope"
+    },
+    "SessionStateSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "imageContext": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EnrichedImageContext"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "masksIndex": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "operationGraph": {
+          "$ref": "#/$defs/OperationGraph"
+        },
+        "revision": {
+          "type": "integer"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "widgets": {
+          "items": {
+            "$ref": "#/$defs/Widget"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "imageContext",
+        "masksIndex",
+        "operationGraph",
+        "revision",
+        "sessionId",
+        "widgets"
+      ],
+      "title": "SessionStateSnapshot",
+      "type": "object"
+    },
+    "SliderSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controlType": {
+          "const": "slider",
+          "enum": [
+            "slider"
+          ],
+          "type": "string"
+        },
+        "max": {
+          "type": "number"
+        },
+        "min": {
+          "type": "number"
+        },
+        "step": {
+          "type": "number"
+        },
+        "unit": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType",
+        "max",
+        "min",
+        "step",
+        "unit"
+      ],
+      "title": "SliderSchema",
+      "type": "object"
+    },
+    "StateEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "emittedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "widget.created",
+            "widget.updated",
+            "widget.deleted",
+            "widget.accepted",
+            "widget.restored",
+            "mask.created",
+            "selection.changed",
+            "context.updated",
+            "dismissal.added",
+            "note.created",
+            "phase.started",
+            "phase.progress",
+            "phase.completed",
+            "phase.cancelled",
+            "canonical.updated",
+            "image_node_transform.updated",
+            "mcp.usage"
+          ],
+          "type": "string"
+        },
+        "payload": {
+          "type": "object"
+        },
+        "revision": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "emittedAt",
+        "kind",
+        "payload",
+        "revision"
+      ],
+      "title": "StateEvent",
+      "type": "object"
+    },
+    "SwatchSchema": {
+      "additionalProperties": false,
+      "description": "Colour swatch picker \u2014 mirrors ColorSchema but uses registry vocab.",
+      "properties": {
+        "controlType": {
+          "const": "swatch",
+          "enum": [
+            "swatch"
+          ],
+          "type": "string"
+        },
+        "presets": {
+          "items": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "showAlpha": {
+          "default": false,
+          "type": "boolean"
+        },
+        "space": {
+          "default": "rgb",
+          "enum": [
+            "rgb",
+            "lab",
+            "hsl"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType",
+        "presets",
+        "showAlpha",
+        "space"
+      ],
+      "title": "SwatchSchema",
+      "type": "object"
+    },
+    "TextSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controlType": {
+          "const": "text",
+          "enum": [
+            "text"
+          ],
+          "type": "string"
+        },
+        "maxLen": {
+          "default": 256,
+          "type": "integer"
+        },
+        "placeholder": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType",
+        "maxLen",
+        "placeholder"
+      ],
+      "title": "TextSchema",
+      "type": "object"
+    },
+    "TintStripSchema": {
+      "additionalProperties": false,
+      "description": "Green\u2194magenta tint strip \u2014 same fields as SliderSchema, painted with a\nteal-to-magenta gradient track on the frontend. Paired with kelvin_strip\non white-balance ops.",
+      "properties": {
+        "controlType": {
+          "const": "tint_strip",
+          "enum": [
+            "tint_strip"
+          ],
+          "type": "string"
+        },
+        "max": {
+          "type": "number"
+        },
+        "min": {
+          "type": "number"
+        },
+        "step": {
+          "type": "number"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "controlType",
+        "max",
+        "min",
+        "step",
+        "unit"
+      ],
+      "title": "TintStripSchema",
+      "type": "object"
+    },
+    "ToggleSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controlType": {
+          "const": "toggle",
+          "enum": [
+            "toggle"
+          ],
+          "type": "string"
+        },
+        "offLabel": {
+          "default": "Off",
+          "type": "string"
+        },
+        "onLabel": {
+          "default": "On",
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType",
+        "offLabel",
+        "onLabel"
+      ],
+      "title": "ToggleSchema",
+      "type": "object"
+    },
+    "Widget": {
+      "additionalProperties": false,
+      "properties": {
+        "bindings": {
+          "items": {
+            "$ref": "#/$defs/ControlBinding"
+          },
+          "type": "array"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "composed": {
+          "default": false,
+          "type": "boolean"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "dismissedAtRevision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "displayName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "intent": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "lockedParams": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/$defs/WidgetNode"
+          },
+          "type": "array"
+        },
+        "opId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "origin": {
+          "$ref": "#/$defs/WidgetOrigin"
+        },
+        "preview": {
+          "$ref": "#/$defs/WidgetPreview"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rejectedAttempts": {
+          "items": {
+            "$ref": "#/$defs/ResolvedNumbers"
+          },
+          "type": "array"
+        },
+        "revision": {
+          "default": 1,
+          "type": "integer"
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "status": {
+          "default": "active",
+          "enum": [
+            "active",
+            "dismissed",
+            "accepted"
+          ],
+          "type": "string"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "bindings",
+        "category",
+        "composed",
+        "createdAt",
+        "dismissedAtRevision",
+        "displayName",
+        "id",
+        "intent",
+        "lockedParams",
+        "nodes",
+        "opId",
+        "origin",
+        "preview",
+        "reasoning",
+        "rejectedAttempts",
+        "revision",
+        "scope",
+        "status",
+        "updatedAt"
+      ],
+      "title": "Widget",
+      "type": "object"
+    },
+    "WidgetNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "layerId": {
+          "default": "legacy",
+          "type": "string"
+        },
+        "layerIds": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "opId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "type": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "widgetId": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "inputs",
+        "layerId",
+        "layerIds",
+        "opId",
+        "params",
+        "scope",
+        "type",
+        "widgetId"
+      ],
+      "title": "WidgetNode",
+      "type": "object"
+    },
+    "WidgetOrigin": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind": {
+          "enum": [
+            "mcp_user_prompt",
+            "mcp_autonomous",
+            "user_palette",
+            "fused_expansion",
+            "refine",
+            "repeat",
+            "tool_invoked"
+          ],
+          "type": "string"
+        },
+        "parentWidgetId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "anchor",
+        "kind",
+        "parentWidgetId",
+        "prompt"
+      ],
+      "title": "WidgetOrigin",
+      "type": "object"
+    },
+    "WidgetPreview": {
+      "additionalProperties": false,
+      "properties": {
+        "autoBeforeAfter": {
+          "default": false,
+          "type": "boolean"
+        },
+        "kind": {
+          "enum": [
+            "thumbnail",
+            "histogram_delta",
+            "color_swatches",
+            "none"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "autoBeforeAfter",
+        "kind"
+      ],
+      "title": "WidgetPreview",
+      "type": "object"
+    },
+    "app__schemas__operation_graph__Scope": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind": {
+          "enum": [
+            "global",
+            "mask:click",
+            "mask:proposed"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "point": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "confidence",
+        "kind",
+        "label",
+        "point"
+      ],
+      "title": "Scope",
+      "type": "object"
+    },
+    "app__schemas__widget__Scope": {
+      "description": "Discriminated union over the scope kinds.",
+      "discriminator": {
+        "mapping": {
+          "global": "#/$defs/GlobalScope",
+          "image_node": "#/$defs/ImageNodeScope",
+          "mask": "#/$defs/MaskScope",
+          "named_region": "#/$defs/NamedRegionScope"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/GlobalScope"
+        },
+        {
+          "$ref": "#/$defs/NamedRegionScope"
+        },
+        {
+          "$ref": "#/$defs/MaskScope"
+        },
+        {
+          "$ref": "#/$defs/ImageNodeScope"
+        }
+      ],
+      "title": "Scope"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/Widget"
+    },
+    {
+      "$ref": "#/$defs/Scope"
+    },
+    {
+      "$ref": "#/$defs/ControlBinding"
+    },
+    {
+      "$ref": "#/$defs/SessionStateSnapshot"
+    },
+    {
+      "$ref": "#/$defs/StateEvent"
+    },
+    {
+      "$ref": "#/$defs/ImageContext"
+    },
+    {
+      "$ref": "#/$defs/EnrichedImageContext"
+    },
+    {
+      "$ref": "#/$defs/OperationGraph"
+    }
+  ],
+  "title": "EditorSharedTypes"
+}

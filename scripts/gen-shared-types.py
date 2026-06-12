@@ -38,6 +38,8 @@ BACKEND_DIR = REPO_ROOT / "backend"
 SHARED_DIR = REPO_ROOT / "shared"
 CONFIG_OUT = SHARED_DIR / "types" / "generated-config.ts"
 SCHEMA_OUT_DIR = SHARED_DIR / "schemas"
+COMBINED_SCHEMA = SHARED_DIR / "schemas" / "combined.schema.json"
+GENERATED_TS = SHARED_DIR / "types" / "generated.ts"
 
 # Make the backend package importable.
 sys.path.insert(0, str(BACKEND_DIR))
@@ -124,11 +126,60 @@ _SCHEMA_MODELS: list[tuple[str, str, str]] = [
 ]
 
 
+def _strip_property_titles(node: Any) -> Any:
+    """Recursively drop `title` and `description` keys from inner property
+    schemas. Top-level type titles in `$defs` survive — they drive the
+    generated interface names. Property-level titles only add noise:
+    json-schema-to-typescript hoists each titled scalar into its own
+    type alias (`type Max = number;`), which clutters the output.
+    """
+    if isinstance(node, dict):
+        if "properties" in node and isinstance(node["properties"], dict):
+            for prop in node["properties"].values():
+                if isinstance(prop, dict):
+                    prop.pop("title", None)
+                    prop.pop("description", None)
+                    _strip_property_titles(prop)
+        for value in node.values():
+            _strip_property_titles(value)
+    elif isinstance(node, list):
+        for item in node:
+            _strip_property_titles(item)
+    return node
+
+
+def _force_required_on_objects(node: Any) -> Any:
+    """For every object schema in the tree, set `required` to include all
+    `properties`. Rationale: Pydantic marks fields with a default value as
+    NOT required in JSON Schema, but those fields are ALWAYS present in
+    `model_dump()` output (their default value is materialised). The
+    frontend sees them in every payload, so the generated TS should treat
+    them as required rather than `prop?: T`. Fields that can be null still
+    surface as `T | null` because their type carries the null branch.
+    """
+    if isinstance(node, dict):
+        if isinstance(node.get("properties"), dict):
+            node["required"] = sorted(node["properties"].keys())
+        for value in node.values():
+            _force_required_on_objects(value)
+    elif isinstance(node, list):
+        for item in node:
+            _force_required_on_objects(item)
+    return node
+
+
 def gen_schemas() -> dict[Path, str]:
-    """Return a mapping of {output path: JSON-Schema text}."""
+    """Return a mapping of {output path: JSON-Schema text}.
+
+    Per-model files under shared/schemas/ are kept for downstream
+    consumers; the combined schema is what feeds the TS codegen step.
+    """
     import importlib
 
     out: dict[Path, str] = {}
+    combined_defs: dict[str, Any] = {}
+    combined_oneof: list[dict[str, str]] = []
+
     for module_name, attr, stem in _SCHEMA_MODELS:
         try:
             module = importlib.import_module(module_name)
@@ -145,7 +196,62 @@ def gen_schemas() -> dict[Path, str]:
             print(f"WARN: schema gen failed for {module_name}.{attr}: {exc}", file=sys.stderr)
             continue
         out[SCHEMA_OUT_DIR / f"{stem}.schema.json"] = json.dumps(schema, indent=2, sort_keys=True) + "\n"
+
+        # Merge $defs across all models into one combined schema so TS
+        # codegen produces a single deduped file. First-seen wins —
+        # different Pydantic call sites for the same model produce
+        # equivalent shapes with minor cosmetic differences (e.g. a
+        # `title` field at root vs not), and we don't want those to
+        # break the build.
+        defs = schema.get("$defs", {})
+        for name, defn in defs.items():
+            combined_defs.setdefault(name, defn)
+
+        # Strip $defs from the root schema; we'll attach the merged set below.
+        root = {k: v for k, v in schema.items() if k != "$defs"}
+        combined_defs.setdefault(attr, root)
+        combined_oneof.append({"$ref": f"#/$defs/{attr}"})
+
+    combined = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "EditorSharedTypes",
+        "$defs": combined_defs,
+        "oneOf": combined_oneof,
+    }
+    _strip_property_titles(combined)
+    _force_required_on_objects(combined)
+    out[COMBINED_SCHEMA] = json.dumps(combined, indent=2, sort_keys=True) + "\n"
     return out
+
+
+def gen_typescript() -> str | None:
+    """Invoke json-schema-to-typescript on the combined schema. Returns the
+    TS source, or None if the tool isn't available (skipped with a warning).
+    """
+    import shutil
+    import subprocess
+
+    if not COMBINED_SCHEMA.exists():
+        print("WARN: combined schema missing; skip TS codegen", file=sys.stderr)
+        return None
+
+    cli = shutil.which("json2ts") or shutil.which("npx")
+    if cli is None:
+        print("WARN: json2ts/npx not on PATH; skip TS codegen", file=sys.stderr)
+        return None
+
+    cmd = (
+        [cli, "--input", str(COMBINED_SCHEMA), "--unreachableDefinitions"]
+        if cli.endswith("json2ts")
+        else ["npx", "--yes", "json-schema-to-typescript",
+              "--input", str(COMBINED_SCHEMA), "--unreachableDefinitions"]
+    )
+    try:
+        proc = subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"WARN: TS codegen failed: {exc.stderr}", file=sys.stderr)
+        return None
+    return proc.stdout
 
 
 def main() -> int:
@@ -166,6 +272,15 @@ def main() -> int:
 
     pending: list[tuple[Path, str]] = [(CONFIG_OUT, config_ts)]
     pending.extend(schemas.items())
+
+    # TS codegen runs against the combined schema after it's written;
+    # do this in the same pass so --check sees the generated.ts too.
+    for path, content in pending:
+        if path == COMBINED_SCHEMA:
+            COMBINED_SCHEMA.write_text(content)
+    ts_source = gen_typescript()
+    if ts_source is not None:
+        pending.append((GENERATED_TS, ts_source))
 
     if args.check:
         diffs: list[str] = []

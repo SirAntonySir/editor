@@ -3,6 +3,7 @@ import { Pin } from 'lucide-react';
 import { promoteToCanvas } from './promote';
 import { promoteSingleBand } from '@/lib/colour-band-spawn';
 import { HSL_BANDS, bandDisplayColor } from './hsl-bands';
+import { UI } from '@/config';
 
 const CONIC = `conic-gradient(from 0deg, ${HSL_BANDS.map((b) => bandDisplayColor(b.centerHue)).join(', ')}, ${bandDisplayColor(HSL_BANDS[0].centerHue)})`;
 
@@ -55,7 +56,10 @@ export function HslOpenOnCanvasButton({ sessionId, layerId, disabled }: Props) {
         <Pin size={13} aria-hidden />
       </button>
       {open && (
-        <div className="overlay absolute right-0 top-full z-[60] p-2 w-[170px]">
+        <div
+          className="overlay absolute right-0 top-full p-2 w-[170px]"
+          style={{ zIndex: UI.zPopover }}
+        >
           <button
             type="button"
             onClick={pickAll}

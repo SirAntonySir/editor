@@ -3,6 +3,7 @@ import * as Popover from '@radix-ui/react-popover';
 import { Layers, X } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
+import { UI } from '@/config';
 import { extractLayerFromMask } from '@/store/segment-actions';
 
 interface ImageNodeSelectionPopoverProps {
@@ -58,7 +59,8 @@ export function ImageNodeSelectionPopover({
       <Popover.Trigger asChild>{children}</Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
-          className="overlay z-[60] flex items-center gap-1 px-2 py-1 text-[11px]"
+          className="overlay flex items-center gap-1 px-2 py-1 text-[11px]"
+          style={{ zIndex: UI.zPopover }}
           side="bottom"
           align="start"
           sideOffset={6}

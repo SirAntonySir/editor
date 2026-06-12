@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { loadRegistry } from '@/lib/registry/loader';
 import { spawnRegistryPreset } from '@/lib/toolrail-spawn';
+import { UI } from '@/config';
 
 const PRESET_CATEGORY_ORDER = ['tone', 'color', 'bw', 'film', 'detail', 'mood', 'look'];
 
@@ -76,7 +77,8 @@ function CategoryButton({ category, items }: { category: string; items: PresetRo
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
-          className="overlay w-[260px] p-1 z-[60]"
+          className="overlay w-[260px] p-1"
+          style={{ zIndex: UI.zPopover }}
           side="bottom"
           align="start"
           sideOffset={6}

@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import type { Widget } from '@/types/widget';
+import { UI } from '@/config';
 
 interface WhyPopoverProps {
   open: boolean;
@@ -19,7 +20,8 @@ export function WhyPopover({ open, widget, onOpenChange, children }: WhyPopoverP
       <Popover.Trigger asChild>{children}</Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
-          className="overlay w-[260px] p-2.5 text-[11px] text-text-primary z-[60]"
+          className="overlay w-[260px] p-2.5 text-[11px] text-text-primary"
+          style={{ zIndex: UI.zPopover }}
           side="right"
           align="start"
           sideOffset={8}

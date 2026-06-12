@@ -12,6 +12,7 @@ import { BackendStatusBadge } from '@/components/ui/BackendStatusBadge';
 import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
 import { useCanvasZoom } from '@/hooks/useCanvasZoom';
 import { useImageTransform } from '@/hooks/useImageTransform';
+import { UI } from '@/config';
 import { spawnRegistryOp } from '@/lib/toolrail-spawn';
 import { loadRegistry } from '@/lib/registry/loader';
 import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';
@@ -510,7 +511,7 @@ function UndoRedoButtons() {
             </button>
           </Tooltip.Trigger>
           <Tooltip.Portal>
-            <Tooltip.Content className="overlay px-1.5 py-0.5 text-[10px] text-text-primary z-[60]" sideOffset={6}>
+            <Tooltip.Content className="overlay px-1.5 py-0.5 text-[10px] text-text-primary" style={{ zIndex: UI.zPopover }} sideOffset={6}>
               Undo <Kbd keys={['mod', 'Z']} className="inline-flex ml-1" />
             </Tooltip.Content>
           </Tooltip.Portal>
@@ -522,7 +523,7 @@ function UndoRedoButtons() {
             </button>
           </Tooltip.Trigger>
           <Tooltip.Portal>
-            <Tooltip.Content className="overlay px-1.5 py-0.5 text-[10px] text-text-primary z-[60]" sideOffset={6}>
+            <Tooltip.Content className="overlay px-1.5 py-0.5 text-[10px] text-text-primary" style={{ zIndex: UI.zPopover }} sideOffset={6}>
               Redo <Kbd keys={['mod', 'shift', 'Z']} className="inline-flex ml-1" />
             </Tooltip.Content>
           </Tooltip.Portal>
@@ -534,7 +535,7 @@ function UndoRedoButtons() {
             </button>
           </Tooltip.Trigger>
           <Tooltip.Portal>
-            <Tooltip.Content className="overlay px-1.5 py-0.5 text-[10px] text-text-primary z-[60]" sideOffset={6}>
+            <Tooltip.Content className="overlay px-1.5 py-0.5 text-[10px] text-text-primary" style={{ zIndex: UI.zPopover }} sideOffset={6}>
               Revert to Original <Kbd keys={['mod', 'alt', 'R']} className="inline-flex ml-1" />
             </Tooltip.Content>
           </Tooltip.Portal>

@@ -89,12 +89,19 @@ class OpCompoundConfig(BaseModel):
         return self
 
 
+OpModule = Literal["core", "experimental", "preset"]
+
+
 class RegistryOp(BaseModel):
     model_config = camel_config(extra="forbid")
     id: str
     display_name: str
     category: str | None = None    # planner grouping hint + Cmd+K section header
     icon: str | None = None        # Material icon name (frontend-only, opaque here)
+    # P4: lets the loader register a subset of ops without surgery on
+    # the call sites. `core` = shipped; `experimental` = behind a flag;
+    # `preset` = bundled but not first-class.
+    module: OpModule = "core"
     llm: OpLlmMetadata
     params: dict[str, OpParamSchema]
     bindings: list[OpBinding]

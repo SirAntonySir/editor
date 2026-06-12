@@ -5,7 +5,20 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from app.registry.schema import RegistryOp, RegistryPreset
+from app.registry.schema import OpModule, RegistryOp, RegistryPreset
+
+# Default set of op modules included by load_registry. Override via
+# load_registry(modules=...) or set EDITOR_OP_MODULES=core,experimental to
+# enable experimental ops at runtime without changing call sites.
+_DEFAULT_MODULES: frozenset[OpModule] = frozenset({"core", "preset"})
+
+
+def _modules_from_env() -> frozenset[OpModule] | None:
+    raw = os.environ.get("EDITOR_OP_MODULES")
+    if not raw:
+        return None
+    parts = {m.strip() for m in raw.split(",") if m.strip()}
+    return frozenset(parts) if parts else None  # type: ignore[arg-type]
 
 
 def _default_registry_root() -> Path:
@@ -27,19 +40,43 @@ class Registry:
     presets: dict[str, RegistryPreset] = field(default_factory=dict)
 
 
-def load_registry(root: Path | None = None) -> Registry:
+def load_registry(
+    root: Path | None = None,
+    modules: frozenset[OpModule] | set[OpModule] | None = None,
+) -> Registry:
+    """Load ops + presets from `root`. `modules` filters which op modules
+    end up in the registry; ops whose declared `module` isn't in the set
+    are silently skipped (their JSON files stay on disk, just unregistered).
+
+    Resolution order for `modules`:
+      1. explicit arg
+      2. `EDITOR_OP_MODULES` env var (comma-separated)
+      3. `_DEFAULT_MODULES` = {"core", "preset"}
+    Experimental ops only land when the caller opts in.
+    """
     root = root or _default_registry_root()
     if not root.exists():
         raise FileNotFoundError(f"registry root not found: {root}")
 
+    enabled: frozenset[OpModule]
+    if modules is not None:
+        enabled = frozenset(modules)
+    else:
+        enabled = _modules_from_env() or _DEFAULT_MODULES
+
     reg = Registry()
 
-    # --- ops (unchanged) ---
+    # --- ops ---
     ops_dir = root / "ops"
     if ops_dir.exists():
         for path in sorted(ops_dir.glob("*.json")):
             data = json.loads(path.read_text())
             op = RegistryOp.model_validate(data)
+            if op.module not in enabled:
+                # Skip silently — the op JSON is on disk but its module
+                # isn't enabled this run. Tests / dev / staging can flip
+                # the env var to surface experimentals.
+                continue
             if op.id in reg.ops:
                 raise ValueError(f"duplicate op id {op.id!r} in {path}")
             reg.ops[op.id] = op

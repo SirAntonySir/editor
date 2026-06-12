@@ -86,12 +86,22 @@ export const OpCompoundConfigSchema = z.object({
   }
 });
 
+export const OP_MODULE = ['core', 'experimental', 'preset'] as const;
+export type OpModule = (typeof OP_MODULE)[number];
+
 export const RegistryOpSchema = z.object({
   id: z.string(),
   display_name: z.string(),
   category: z.string().optional(),     // planner grouping hint + Cmd+K section header
   /** Material icon name. Resolved at render time via `createMaterialIcon`. */
   icon: z.string().optional(),
+  /**
+   * Selective-registration knob. The backend loader skips ops whose module
+   * isn't enabled at startup (via `EDITOR_OP_MODULES` env or `modules` arg).
+   * Frontend treats it as informational — registration still happens for
+   * everything in the loaded JSON.
+   */
+  module: z.enum(OP_MODULE).default('core'),
   llm: OpLlmMetadataSchema,
   params: z.record(z.string(), OpParamSchema),
   bindings: z.array(OpBindingSchema),

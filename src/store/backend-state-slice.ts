@@ -229,6 +229,25 @@ export const useBackendState = create<BackendState>()(
             };
             return;
           }
+          case 'state.gap': {
+            // Backend signaled that replay can't catch us up — doc.history was
+            // pruned past our lastEventId. Refetch the full snapshot to
+            // resync. Out of the immer producer because fetchSnapshot is
+            // async; defer to the next microtask.
+            const sid = s.sessionId;
+            if (sid) {
+              void (async () => {
+                try {
+                  const { fetchSnapshot } = await import('@/lib/sse-subscriber');
+                  const snap = await fetchSnapshot(sid);
+                  useBackendState.getState().setSnapshot(snap);
+                } catch (err) {
+                  console.warn('[sse] state.gap refetch failed:', err);
+                }
+              })();
+            }
+            return;
+          }
           case 'context.updated': {
             // Handled BEFORE the snapshot guard because partial deltas can
             // race the initial REST snapshot fetch. If the snapshot isn't

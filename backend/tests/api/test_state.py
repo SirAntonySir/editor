@@ -147,3 +147,191 @@ async def test_get_mask_bytes_404_unknown_mask() -> None:
         sid = (await ac.post("/api/session", files=files)).json()["session_id"]
         r = await ac.get(f"/api/state/{sid}/masks/no_such_mask")
         assert r.status_code == 404
+
+
+# ---------- Last-Event-Id replay ----------
+
+
+def _parse_sse_lines(raw_lines: list[str]) -> list[dict]:
+    """Group consecutive raw SSE lines into event dicts.
+    Returns a list of {"id": str|None, "data": dict|None} per event."""
+    events: list[dict] = []
+    pending_id: str | None = None
+    pending_data: str | None = None
+    for line in raw_lines:
+        if line.startswith("id:"):
+            pending_id = line[3:].strip()
+        elif line.startswith("data:"):
+            pending_data = line[5:].strip()
+        elif line == "":
+            if pending_data is not None:
+                events.append({"id": pending_id, "data": json.loads(pending_data)})
+            pending_id = None
+            pending_data = None
+    return events
+
+
+async def _collect_initial(stream, max_events: int, timeout: float = 1.5) -> list[dict]:
+    """Read SSE lines until we've seen `max_events` complete events or the
+    timeout fires. Used to capture the replay burst before the stream goes
+    live (and blocks)."""
+    lines: list[str] = []
+    try:
+        async with asyncio.timeout(timeout):
+            async for raw in stream.aiter_lines():
+                lines.append(raw)
+                # Count blank-line separators — one per complete event.
+                blank_count = sum(1 for L in lines if L == "")
+                if blank_count >= max_events:
+                    break
+    except asyncio.TimeoutError:
+        pass
+    return _parse_sse_lines(lines)
+
+
+@pytest.mark.asyncio
+async def test_sse_replay_from_last_event_id() -> None:
+    """Reconnect with Last-Event-ID < newest revision → backend replays the
+    missing entries from doc.history (each with its own id: line)."""
+    from app.main import app
+
+    port = _free_port()
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", lifespan="on")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(50):
+        if server.started:
+            break
+        time.sleep(0.05)
+    assert server.started
+
+    try:
+        base = f"http://127.0.0.1:{port}"
+        async with httpx.AsyncClient(base_url=base, timeout=5.0) as ac:
+            files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+            sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+
+            doc = deps.get_session_store().get_document(sid)
+            # Build 5 events. Frontend pretends to have seen up to revision 2.
+            for i in range(5):
+                doc.set_param("layer-1", "basic", "exposure", float(i))
+            assert doc.revision == 5
+
+            async with ac.stream(
+                "GET",
+                f"/api/state/{sid}/events",
+                headers={"Last-Event-ID": "2"},
+            ) as r:
+                # Expect 3 replay events (revisions 3, 4, 5), no gap.
+                events = await _collect_initial(r, max_events=3, timeout=2.0)
+
+            assert len(events) == 3, f"expected 3 replay events, got {len(events)}: {events}"
+            revisions = [int(e["id"]) for e in events]
+            assert revisions == [3, 4, 5]
+            kinds = [e["data"]["kind"] for e in events]
+            assert all(k == "canonical.updated" for k in kinds)
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5.0)
+
+
+@pytest.mark.asyncio
+async def test_sse_gap_event_when_last_event_id_older_than_history() -> None:
+    """When Last-Event-ID points before the oldest entry in (a pruned)
+    doc.history, the backend can't replay — it emits a synthetic
+    state.gap event so the frontend knows to refetch the snapshot."""
+    from app.main import app
+
+    port = _free_port()
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", lifespan="on")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(50):
+        if server.started:
+            break
+        time.sleep(0.05)
+    assert server.started
+
+    try:
+        base = f"http://127.0.0.1:{port}"
+        async with httpx.AsyncClient(base_url=base, timeout=5.0) as ac:
+            files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+            sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+
+            doc = deps.get_session_store().get_document(sid)
+            # Emit a burst, then prune so oldest revision in history is 8+.
+            for i in range(10):
+                doc.set_param("layer-1", "basic", "exposure", float(i))
+            doc.prune_history(3)
+            # history now holds revisions {8, 9, 10}; pretend frontend last
+            # saw revision 1 — much older than oldest (8).
+            assert doc.history[0].revision == 8
+
+            async with ac.stream(
+                "GET",
+                f"/api/state/{sid}/events",
+                headers={"Last-Event-ID": "1"},
+            ) as r:
+                events = await _collect_initial(r, max_events=1, timeout=2.0)
+
+            assert len(events) >= 1
+            gap = events[0]
+            assert gap["data"]["kind"] == "state.gap"
+            assert gap["data"]["payload"] == {"reason": "history_pruned"}
+            # id of the gap event is the newest revision so the browser
+            # treats it as a forward marker, not a stale duplicate.
+            assert int(gap["id"]) == 10
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5.0)
+
+
+@pytest.mark.asyncio
+async def test_sse_no_replay_when_last_event_id_at_or_past_newest() -> None:
+    """Last-Event-ID == newest revision → nothing to replay, stream goes
+    live with no preamble. Same for a future/garbage id."""
+    from app.main import app
+
+    port = _free_port()
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", lifespan="on")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(50):
+        if server.started:
+            break
+        time.sleep(0.05)
+    assert server.started
+
+    try:
+        base = f"http://127.0.0.1:{port}"
+        async with httpx.AsyncClient(base_url=base, timeout=5.0) as ac:
+            files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+            sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+            doc = deps.get_session_store().get_document(sid)
+            for i in range(3):
+                doc.set_param("layer-1", "basic", "exposure", float(i))
+
+            # Last-Event-ID equal to newest — no replay expected.
+            async with ac.stream(
+                "GET",
+                f"/api/state/{sid}/events",
+                headers={"Last-Event-ID": "3"},
+            ) as r:
+                events = await _collect_initial(r, max_events=1, timeout=1.0)
+            assert events == []
+
+            # Garbage Last-Event-ID — treated as "no Last-Event-ID", still
+            # no replay (replay only triggers on a parseable value < newest).
+            async with ac.stream(
+                "GET",
+                f"/api/state/{sid}/events",
+                headers={"Last-Event-ID": "not-a-number"},
+            ) as r:
+                events = await _collect_initial(r, max_events=1, timeout=1.0)
+            assert events == []
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5.0)

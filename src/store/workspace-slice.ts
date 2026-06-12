@@ -9,6 +9,7 @@ import type {
   WidgetNodeState,
   WorkspaceViewport,
 } from '@/types/workspace';
+import { UI } from '@/config';
 
 /** Default source dims when the caller doesn't pass any (e.g. unit tests). */
 const DEFAULT_SOURCE_SIZE: Size = { w: 240, h: 180 };
@@ -18,14 +19,14 @@ const DEFAULT_SOURCE_SIZE: Size = { w: 240, h: 180 };
  * pixel dims so every image enters the workspace at the same visual size.
  * Height is derived from this width × source aspect ratio.
  */
-const DEFAULT_IMAGE_NODE_DISPLAY_WIDTH = 600;
+const DEFAULT_IMAGE_NODE_DISPLAY_WIDTH = UI.imageNodeDisplayWidthDefault;
 
 /** Lower / upper bounds for interactive resize. Aspect-locked, so only the
  *  width axis is bounded here; height follows. */
-export const IMAGE_NODE_MIN_DISPLAY_WIDTH = 120;
-export const IMAGE_NODE_MAX_DISPLAY_WIDTH = 4000;
+export const IMAGE_NODE_MIN_DISPLAY_WIDTH = UI.imageNodeDisplayWidthMin;
+export const IMAGE_NODE_MAX_DISPLAY_WIDTH = UI.imageNodeDisplayWidthMax;
 
-const SPLIT_GAP_PX = 24;
+const SPLIT_GAP_PX = UI.splitGapPx;
 
 function deriveDisplaySize(sourceSize: Size, displayWidth: number): Size {
   const aspect = sourceSize.h > 0 ? sourceSize.w / sourceSize.h : 1;
@@ -37,10 +38,10 @@ function deriveDisplaySize(sourceSize: Size, displayWidth: number): Size {
  *  bars / plots want a minimum readable strip. */
 function defaultSizeFor(kind: InfoNodeContent['kind']): Size {
   switch (kind) {
-    case 'histogram': return { w: 320, h: 180 };
-    case 'palette':   return { w: 320, h: 120 };
-    case 'cast':      return { w: 220, h: 160 };
-    case 'stats':     return { w: 280, h: 120 };
+    case 'histogram': return { w: UI.infoWidgetHistogramW, h: UI.infoWidgetHistogramH };
+    case 'palette':   return { w: UI.infoWidgetPaletteW,   h: UI.infoWidgetPaletteH };
+    case 'cast':      return { w: UI.infoWidgetCastW,      h: UI.infoWidgetCastH };
+    case 'stats':     return { w: UI.infoWidgetStatsW,     h: UI.infoWidgetStatsH };
   }
 }
 

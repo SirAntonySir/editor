@@ -7,6 +7,7 @@ import {
   type PhaseName,
 } from '@/store/backend-state-slice';
 import { onToast, type ToastMessage } from '@/components/ui/Toast';
+import { RUNTIME } from '@/config';
 
 export type BackendStatusKind = 'progress' | 'success' | 'info' | 'error';
 
@@ -16,8 +17,6 @@ export interface BackendStatus {
   /** When true, the consumer can auto-dismiss after a short window. */
   ephemeral: boolean;
 }
-
-const TOAST_DISMISS_MS = 4000;
 
 const PHASE_LABELS: Record<PhaseName, string> = {
   update: 'Loading image…',
@@ -57,7 +56,7 @@ export function useBackendStatus(): BackendStatus | null {
   // Auto-dismiss toast after TTL.
   useEffect(() => {
     if (!toastMsg) return;
-    const h = setTimeout(() => setToastMsg(null), TOAST_DISMISS_MS);
+    const h = setTimeout(() => setToastMsg(null), RUNTIME.toastDismissMs);
     return () => clearTimeout(h);
   }, [toastMsg]);
 

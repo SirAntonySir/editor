@@ -7,6 +7,7 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
 import type { Widget } from '@/types/widget';
+import { UI } from '@/config';
 
 /**
  * One row of allow/deny chips, one chip per pending AI suggestion. Renders
@@ -140,7 +141,8 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
         </Popover.Anchor>
         <Popover.Portal>
           <Popover.Content
-            className="overlay w-[260px] p-2.5 text-[11px] text-text-primary z-[60] leading-snug"
+            className="overlay w-[260px] p-2.5 text-[11px] text-text-primary leading-snug"
+            style={{ zIndex: UI.zPopover }}
             side="bottom"
             align="start"
             sideOffset={6}

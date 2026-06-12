@@ -1,5 +1,6 @@
 import type { StateEvent, SessionStateSnapshot } from '@/types/widget';
 import { useBackendState } from '@/store/backend-state-slice';
+import { RUNTIME } from '@/config';
 
 const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
@@ -20,7 +21,8 @@ async function fetchSnapshot(sessionId: string): Promise<SessionStateSnapshot> {
 
 export interface SseHandle {
   close: () => void;
-  /** Resolves when the EventSource fires its first onopen (or after 1.5s safety timeout). */
+  /** Resolves when the EventSource fires its first onopen (or after the
+   * configured safety timeout in RUNTIME.sseSafetyTimeoutMs). */
   opened: Promise<void>;
 }
 
@@ -30,15 +32,18 @@ export function openSseSubscription(sessionId: string): SseHandle {
   let closed = false;
   let source: EventSource | null = null;
 
-  // Resolve once — on first onopen or after 1.5s safety timeout.
+  // Resolve once — on first onopen or after the safety timeout.
   let resolveOpened!: () => void;
   const opened = new Promise<void>((resolve) => { resolveOpened = resolve; });
   // Safety net: if onopen never fires (e.g. the server is slow), analyze still
-  // proceeds after 1.5s rather than hanging forever.
-  setTimeout(() => resolveOpened(), 1500);
+  // proceeds rather than hanging forever.
+  setTimeout(() => resolveOpened(), RUNTIME.sseSafetyTimeoutMs);
 
   function backoffMs(): number {
-    return Math.min(4000, 250 * 2 ** Math.min(attempt, 4));
+    return Math.min(
+      RUNTIME.sseReconnectMaxMs,
+      RUNTIME.sseReconnectBaseMs * 2 ** Math.min(attempt, 4),
+    );
   }
 
   async function rehydrate() {

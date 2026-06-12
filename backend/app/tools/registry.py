@@ -167,17 +167,20 @@ class BackendToolRegistry:
 
     def _flush_history_to_bus(self, doc, session_id: str) -> None:
         """Publish any history entries that haven't been published yet, prune
-        the event log to the configured history cap, then mark the session
+        the event log to the configured history cap, GC dismissed widgets
+        whose dismissal aged past the log floor, then mark the session
         dirty for the next checkpointer tick.
 
         Order matters:
           1. publish — never drop an unpublished event
           2. prune — keep the persisted doc small
-          3. mark dirty — flush the post-prune state to disk
+          3. gc dismissed — hard-delete widgets whose dismissal scrolled off
+          4. mark dirty — flush the post-cleanup state to disk
         """
         last_idx = doc._published_idx
         for ev in doc.history[last_idx:]:
             self._bus.publish(session_id, ev)
         doc._published_idx = len(doc.history)
         doc.prune_history(get_app_config().runtime.history_max_entries)
+        doc.gc_dismissed_widgets()
         self._store.checkpointer.mark_dirty(doc)

@@ -188,6 +188,9 @@ class SessionDocument(BaseModel):
             "widgetId": widget_id,
             "operationGraph": self._op_graph_payload(),
         })]
+        # Stamp the dismissal AFTER _emit so we record the post-event
+        # revision — gc_dismissed_widgets compares against the history floor.
+        w.dismissed_at_revision = self.revision
         if rule is not None:
             self.dismissals.append(rule)
             events.append(self._emit("dismissal.added", {"rule": rule.model_dump(mode="json", by_alias=True)}))
@@ -199,6 +202,7 @@ class SessionDocument(BaseModel):
         w = self.widgets[widget_id]
         w.status = "active"
         w.updated_at = datetime.now(timezone.utc)
+        w.dismissed_at_revision = None
         self.dismissals = [r for r in self.dismissals if r.source_widget_id != widget_id]
         # Restore re-applies the adjustment dismiss() discarded.
         self._seed_canonical_from_widget(w)
@@ -206,6 +210,31 @@ class SessionDocument(BaseModel):
             "widgetId": widget_id,
             "operationGraph": self._op_graph_payload(),
         })]
+
+    def gc_dismissed_widgets(self) -> int:
+        """Hard-delete any dismissed widget whose `dismissed_at_revision` is
+        older than the oldest event still in history. Returns the count
+        removed. The user can't reasonably restore something whose dismissal
+        event has scrolled off the bounded log, so keeping the widget object
+        just costs memory + a slot in the persisted doc.
+
+        Called from the tool registry alongside prune_history. Active and
+        accepted widgets are never touched.
+        """
+        if not self.history:
+            return 0
+        floor = self.history[0].revision
+        to_drop = [
+            wid for wid, w in self.widgets.items()
+            if w.status == "dismissed"
+            and w.dismissed_at_revision is not None
+            and w.dismissed_at_revision < floor
+        ]
+        for wid in to_drop:
+            del self.widgets[wid]
+            if wid in self.widget_order:
+                self.widget_order.remove(wid)
+        return len(to_drop)
 
     def accept_widget(self, widget_id: str) -> list[StateEvent]:
         if widget_id not in self.widgets:

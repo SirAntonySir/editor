@@ -370,6 +370,11 @@ class Widget(BaseModel):
     category: str | None = None         # NEW — for grouping (smart composition)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    # Revision at which this widget was dismissed. None for active/accepted
+    # widgets. Set by dismiss_widget so gc_dismissed_widgets can hard-delete
+    # entries whose dismissal aged past the bounded history window. Cleared
+    # in restore_widget.
+    dismissed_at_revision: int | None = None
 
 
 # ------------------------------------------------------------------

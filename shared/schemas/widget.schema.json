@@ -1404,6 +1404,18 @@
       "title": "Createdat",
       "type": "string"
     },
+    "dismissedAtRevision": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dismissedatrevision"
+    },
     "displayName": {
       "anyOf": [
         {

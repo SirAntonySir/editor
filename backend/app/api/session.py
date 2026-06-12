@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from app.config import get_settings
@@ -22,6 +24,23 @@ async def create_session(
         raise HTTPException(status_code=413, detail="image too large")
     sid = store.create(image_bytes=data, mime_type=image.content_type)
     return {"session_id": sid}
+
+
+@router.post("/session/{sid}/cancel")
+async def cancel_session_task(
+    sid: str,
+    store: SessionStore = Depends(get_session_store),
+) -> dict[str, Any]:
+    """Cancel the in-flight mutate/emit tool task for this session, if any.
+    Used by the frontend's "Cancel" button in the BackendStatusBar to abort
+    a long-running analyze run. Idempotent — returns {cancelled: false} if no
+    task is currently running."""
+    try:
+        store.touch(sid)
+    except SessionNotFound:
+        raise HTTPException(status_code=404, detail="unknown or expired session")
+    cancelled = store.cancel_task(sid)
+    return {"cancelled": cancelled}
 
 
 @router.post("/session/{sid}/context")

@@ -8,6 +8,8 @@ waiting for; widget suggestions can arrive asynchronously via SSE.
 
 from __future__ import annotations
 
+import time
+
 from pydantic import BaseModel
 
 from app.api import deps
@@ -41,13 +43,28 @@ class SuggestWidgetsTool(BackendTool[_Input, _Output]):
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         if not isinstance(doc.image_context, EnrichedImageContext):
+            # No context → no suggestions. Still emit the widget_mint phase so
+            # the frontend status bar can resolve to "complete" instead of
+            # spinning forever on a no-op call.
+            doc._emit_phase_started("widget_mint", index=5, total=5)
+            doc._emit_phase_completed("widget_mint", duration_ms=0)
             return _Output(widget_ids=[])
         from app.services.autonomous_suggestions import mint_autonomous_suggestions
 
         client = deps.get_anthropic_client()
+        # widget_mint is the terminal analyze phase. The frontend flips
+        # `mcpAnalyzeComplete` on its completion event and dismisses the
+        # BackendStatusBar after a brief "Analysis complete" hold. Without
+        # these emits the status pill spins forever after suggestions land.
+        doc._emit_phase_started("widget_mint", index=5, total=5)
+        started_ms = time.monotonic_ns() // 1_000_000
         before = set(doc.widgets.keys())
-        await mint_autonomous_suggestions(
-            doc, doc.image_context, client, input.layer_id,
-        )
+        try:
+            await mint_autonomous_suggestions(
+                doc, doc.image_context, client, input.layer_id,
+            )
+        finally:
+            duration_ms = (time.monotonic_ns() // 1_000_000) - started_ms
+            doc._emit_phase_completed("widget_mint", duration_ms=duration_ms)
         after = set(doc.widgets.keys())
         return _Output(widget_ids=sorted(after - before))

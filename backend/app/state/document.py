@@ -79,6 +79,31 @@ class SessionDocument(BaseModel):
         """Convenience for the analyze pipeline's phase tracking."""
         return self._emit("phase.completed", {"phase": phase, "duration_ms": duration_ms})
 
+    def _emit_phase_cancelled(self, phase: str | None = None) -> StateEvent:
+        """Emitted by the tool registry when an in-flight analyze task is
+        cancelled via POST /sessions/{sid}/cancel. The optional `phase` is the
+        phase that was active when the cancellation landed (best-effort)."""
+        return self._emit("phase.cancelled", {"phase": phase} if phase else {})
+
+    def _emit_usage(
+        self,
+        *,
+        call: str,
+        input_tokens: int,
+        output_tokens: int,
+        cache_create: int,
+        cache_read: int,
+    ) -> StateEvent:
+        """Emitted after each Anthropic call so the frontend status bar can
+        show live token counts. Frontend accumulates over an analyze run."""
+        return self._emit("mcp.usage", {
+            "call": call,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cache_create": cache_create,
+            "cache_read": cache_read,
+        })
+
     # ---------------- widget mutations ----------------
 
     def _op_graph_payload(self) -> dict[str, Any]:

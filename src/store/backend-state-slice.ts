@@ -111,6 +111,23 @@ interface BackendState {
   phases: PhaseMap | null;
   /** True once the widget_mint phase completes — the terminal MCP analyze phase. */
   mcpAnalyzeComplete: boolean;
+  /** True when the most recent analyze run was user-cancelled (phase.cancelled
+   *  event). Resets when the next analyze starts. The status bar uses this to
+   *  fade out without showing a "complete" state. */
+  mcpAnalyzeCancelled: boolean;
+  /** True after the user clicks the cancel button and we've called the cancel
+   *  endpoint, but before phase.cancelled arrives. Drives a brief "Cancelling…"
+   *  label on the status bar. */
+  cancelling: boolean;
+  /** Cumulative token usage across the current analyze run. Null before any
+   *  analyze. Accumulates from mcp.usage events; resets when phase.started
+   *  fires for index === 1. */
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreate: number;
+    cacheRead: number;
+  } | null;
   applyEvent: (ev: StateEvent) => void;
   applyOptimistic: (widgetId: WidgetId, patch: OptimisticPatch) => void;
   clearOptimistic: (widgetId: WidgetId) => void;
@@ -129,6 +146,8 @@ interface BackendState {
   setSseStatus: (status: SseStatus) => void;
   setSnapshot: (snapshot: SessionStateSnapshot) => void;
   setSessionId: (sessionId: string | null) => void;
+  /** Mark a cancel-in-flight before the SSE event lands. */
+  setCancelling: (cancelling: boolean) => void;
   reset: () => void;
 }
 
@@ -143,6 +162,9 @@ export const useBackendState = create<BackendState>()(
     sseStatus: 'idle',
     phases: null,
     mcpAnalyzeComplete: false,
+    mcpAnalyzeCancelled: false,
+    cancelling: false,
+    usage: null,
 
     applyEvent: (ev) =>
       set((s) => {
@@ -162,6 +184,9 @@ export const useBackendState = create<BackendState>()(
             if (index === 1 || !s.phases) {
               s.phases = makePendingPhases();
               s.mcpAnalyzeComplete = false;
+              s.mcpAnalyzeCancelled = false;
+              s.cancelling = false;
+              s.usage = null;
             }
             if (s.phases[phase]) s.phases[phase].status = 'active';
             return;
@@ -179,6 +204,29 @@ export const useBackendState = create<BackendState>()(
             if (!s.phases) s.phases = makePendingPhases();
             if (s.phases[phase]) s.phases[phase].status = 'done';
             if (phase === 'widget_mint') s.mcpAnalyzeComplete = true;
+            return;
+          }
+          case 'phase.cancelled': {
+            // User-initiated cancel landed. Flip the cancelled flag; the
+            // status bar reads it to fade out without showing "complete".
+            s.mcpAnalyzeCancelled = true;
+            s.cancelling = false;
+            return;
+          }
+          case 'mcp.usage': {
+            const p = payload as {
+              input_tokens?: number;
+              output_tokens?: number;
+              cache_create?: number;
+              cache_read?: number;
+            };
+            const prev = s.usage ?? { inputTokens: 0, outputTokens: 0, cacheCreate: 0, cacheRead: 0 };
+            s.usage = {
+              inputTokens: prev.inputTokens + (p.input_tokens ?? 0),
+              outputTokens: prev.outputTokens + (p.output_tokens ?? 0),
+              cacheCreate: prev.cacheCreate + (p.cache_create ?? 0),
+              cacheRead: prev.cacheRead + (p.cache_read ?? 0),
+            };
             return;
           }
           case 'context.updated': {
@@ -362,6 +410,7 @@ export const useBackendState = create<BackendState>()(
 
     setSseStatus: (status) => set((s) => { s.sseStatus = status; }),
     setSnapshot: (snapshot) => set((s) => { s.snapshot = snapshot; }),
+    setCancelling: (cancelling) => set((s) => { s.cancelling = cancelling; }),
     setSessionId: (sessionId) =>
       set((s) => {
         s.sessionId = sessionId;
@@ -390,6 +439,9 @@ export const useBackendState = create<BackendState>()(
         s.sseStatus = 'idle';
         s.phases = null;
         s.mcpAnalyzeComplete = false;
+        s.mcpAnalyzeCancelled = false;
+        s.cancelling = false;
+        s.usage = null;
         try {
           localStorage.removeItem(SESSION_STORAGE_KEY);
         } catch { /* localStorage may be disabled (private mode); ignore. */ }

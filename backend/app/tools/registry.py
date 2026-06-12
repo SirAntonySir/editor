@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Literal
 
 from pydantic import ValidationError
 
 from app.schemas.errors import ToolError, ToolResponseEnvelope
 from app.services.session_store import SessionNotFound, SessionStore
+from app.state.active_doc import reset_active_doc, set_active_doc
 from app.state.events import EventBus
 from app.tools.base import BackendTool
 
@@ -118,14 +120,34 @@ class BackendToolRegistry:
                 # long-running handlers (analyze_context) whose progress stepper
                 # would otherwise jump straight to done.
                 doc._event_sink = lambda ev: self._bus.publish(session_id, ev)
+                # Make the doc visible to deep call sites (anthropic_client
+                # _log_cache_stats → mcp.usage events).
+                doc_token = set_active_doc(doc)
+                # Register the running task so POST /sessions/{sid}/cancel can
+                # interrupt it. Only mutate/emit tools are cancellable — query
+                # tools complete fast and aren't worth the bookkeeping.
+                self._store.register_task(session_id, asyncio.current_task())
                 try:
                     output = await tool.handler(doc, parsed)
+                except asyncio.CancelledError:
+                    # User-initiated cancel via the cancel endpoint. Emit a
+                    # phase.cancelled event before re-raising so the frontend
+                    # status bar can clear its in-progress state. Re-raise so
+                    # FastAPI sees the cancellation.
+                    try:
+                        doc._emit_phase_cancelled()
+                    except Exception:
+                        pass
+                    self._flush_history_to_bus(doc, session_id)
+                    raise
                 except Exception as exc:
                     classified = _classify_exception(exc)
                     if classified is not None:
                         return classified
                     return _err("internal_error", repr(exc), retryable=False)
                 finally:
+                    self._store.clear_task(session_id)
+                    reset_active_doc(doc_token)
                     doc._event_sink = None
                 self._flush_history_to_bus(doc, session_id)
         else:

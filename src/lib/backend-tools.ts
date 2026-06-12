@@ -144,4 +144,17 @@ export const backendTools = {
   propose_mask(sessionId: string, input: ProposeMaskInput) {
     return invokeTool<ProposeMaskOutput>('propose_mask', sessionId, input as unknown as Record<string, unknown>);
   },
+  /** Cancel the in-flight mutate/emit tool task for this session, if any.
+   *  Hits the dedicated /session/{sid}/cancel endpoint (not /tools/) since
+   *  cancellation targets the registry, not a specific tool. */
+  async cancelAnalyze(sessionId: string): Promise<{ cancelled: boolean }> {
+    const response = await fetch(`${BASE_URL}/api/session/${sessionId}/cancel`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+    });
+    if (!response.ok) {
+      throw new Error(`/api/session/${sessionId}/cancel → ${response.status} ${await response.text()}`);
+    }
+    return (await response.json()) as { cancelled: boolean };
+  },
 };

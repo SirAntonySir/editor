@@ -34,10 +34,23 @@ def _log_cache_stats(call: str, session_id: str | None, response: Any) -> None:
     create = getattr(usage, "cache_creation_input_tokens", 0) or 0
     read = getattr(usage, "cache_read_input_tokens", 0) or 0
     total_input = getattr(usage, "input_tokens", 0) or 0
+    total_output = getattr(usage, "output_tokens", 0) or 0
     logger.info(
-        "call=%s session=%s cache_create=%d cache_read=%d input_tokens=%d",
-        call, session_id, create, read, total_input,
+        "call=%s session=%s cache_create=%d cache_read=%d input_tokens=%d output_tokens=%d",
+        call, session_id, create, read, total_input, total_output,
     )
+    # Surface usage to any in-flight SSE consumer (frontend status bar).
+    # Import lazily to avoid pulling app.state into module-import order.
+    from app.state.active_doc import get_active_doc
+    doc = get_active_doc()
+    if doc is not None:
+        doc._emit_usage(
+            call=call,
+            input_tokens=total_input,
+            output_tokens=total_output,
+            cache_create=create,
+            cache_read=read,
+        )
 
 ANALYZE_SYSTEM_PROMPT = """You are a photo-editing assistant. Given an image, \
 produce a structured ImageContext capturing subjects, lighting, dominant \

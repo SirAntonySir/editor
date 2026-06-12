@@ -243,7 +243,9 @@ export type StateEventKind =
   | 'dismissal.added'
   | 'phase.started'
   | 'phase.progress'
-  | 'phase.completed';
+  | 'phase.completed'
+  | 'phase.cancelled'
+  | 'mcp.usage';
 
 export interface StateEvent {
   revision: number;

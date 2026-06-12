@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 import uuid
@@ -69,6 +70,11 @@ class SessionStore:
         self._ttl = ttl_seconds
         self._records: dict[str, SessionRecord] = {}
         self._lock = Lock()
+        # In-flight asyncio.Task per session — set by the tool registry while a
+        # mutate/emit tool is running so POST /sessions/{sid}/cancel can call
+        # task.cancel(). One slot is enough because the registry serialises
+        # mutate calls behind the per-session write_lock.
+        self._active_tasks: dict[str, asyncio.Task] = {}
 
     def _is_expired(self, record: SessionRecord) -> bool:
         return (time.monotonic() - record.last_seen) > self._ttl
@@ -140,6 +146,36 @@ class SessionStore:
             _rehydrate_document_context(record)
         with record.write_lock:
             yield record.document
+
+    # ---------------- cancellable in-flight tasks ----------------
+
+    def register_task(self, sid: str, task: asyncio.Task | None) -> None:
+        """Register the asyncio.Task currently running a mutate/emit tool so
+        cancel_task() can interrupt it. Safe to call with None (no-op).
+        Overwrites any previous registration — the per-session write_lock
+        guarantees at most one such task is live."""
+        if task is None:
+            return
+        with self._lock:
+            self._active_tasks[sid] = task
+
+    def clear_task(self, sid: str) -> None:
+        with self._lock:
+            self._active_tasks.pop(sid, None)
+
+    def cancel_task(self, sid: str) -> bool:
+        """Cancel the in-flight tool task for this session, if any.
+        Returns True when a task was cancelled, False otherwise.
+
+        Note: a synchronous Anthropic SDK call (which is what dominates analyze
+        runtime) is NOT preemptible; cancellation lands at the next await,
+        typically the next inter-phase asyncio.gather/sleep."""
+        with self._lock:
+            task = self._active_tasks.get(sid)
+        if task is None or task.done():
+            return False
+        task.cancel()
+        return True
 
     def prune_disk(self, max_age_seconds: float) -> int:
         """Delete on-disk session directories whose `created_at` is older than

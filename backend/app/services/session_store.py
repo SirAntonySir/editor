@@ -61,6 +61,7 @@ class SessionRecord:
     last_seen: float
     context: dict[str, Any] | None = None
     document: "SessionDocument | None" = None  # lazily created
+    history_engine: "Any" = None  # lazily created HistoryEngine
     write_lock: Lock = field(default_factory=Lock)
 
 
@@ -134,6 +135,19 @@ class SessionStore:
             record.document = _new_document(sid, record)
             _rehydrate_document_context(record)
         return record.document
+
+    def get_history(self, sid: str) -> "Any":
+        """Return the per-session HistoryEngine, lazy-creating it on first
+        access. Imported here (not at module top) to avoid pulling
+        app.session into the session_store import edge."""
+        record = self.get(sid)
+        if record.history_engine is None:
+            from app.config import get_app_config
+            from app.session.history import HistoryEngine
+            record.history_engine = HistoryEngine(
+                max_entries=get_app_config().runtime.undo_max_entries,
+            )
+        return record.history_engine
 
     @contextmanager
     def with_document_lock(self, sid: str) -> Iterator["SessionDocument"]:

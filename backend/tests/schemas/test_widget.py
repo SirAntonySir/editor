@@ -275,5 +275,11 @@ def test_state_event_kinds() -> None:
         "canonical.updated",
         "image_node_transform.updated",
         "mcp.usage",
+        # P2 SSE gap signal — emitted when Last-Event-ID points before the
+        # oldest entry the backend still carries in doc.history.
+        "state.gap",
+        # P3 undo/redo/revert restoration carries the full snapshot
+        # summary so the frontend can swap state in one shot.
+        "history.applied",
     }
     assert set(StateEventKind.__args__) == expected

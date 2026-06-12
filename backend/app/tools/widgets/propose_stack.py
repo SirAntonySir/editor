@@ -320,6 +320,7 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
     input_schema = _Input
     output_schema = _Output
     permissions = ToolPermissions(requires_image=True, requires_context=False)
+    is_user_action = True
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         scope = Scope.model_validate(input.scope)

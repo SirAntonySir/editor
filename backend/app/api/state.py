@@ -66,6 +66,66 @@ async def state_snapshot(sid: str) -> SessionStateSnapshot:
     return compute_snapshot(doc)
 
 
+def _apply_history_snapshot(sid: str, snap, action: str) -> dict:
+    """Shared body for undo/redo/revert: take the write lock, restore
+    state, publish events, dirty the checkpointer. `action` becomes the
+    `applied` field in the response so the frontend can log which path
+    fired. Returns the new revision + applied marker."""
+    store = _store()
+    bus = _bus()
+    with store.with_document_lock(sid) as doc:
+        ev = doc.apply_snapshot(snap)
+        bus.publish(sid, ev)
+        doc._published_idx = len(doc.history)
+        from app.config import get_app_config
+        doc.prune_history(get_app_config().runtime.history_max_entries)
+        doc.gc_dismissed_widgets()
+        store.checkpointer.mark_dirty(doc)
+    return {"revision": ev.revision, "applied": action}
+
+
+@router.post("/state/{sid}/undo")
+async def state_undo(sid: str) -> dict:
+    """Pop one entry off the undo stack and restore its `before` snapshot.
+    409 when nothing is undoable (cursor at -1)."""
+    try:
+        history = _store().get_history(sid)
+    except SessionNotFound:
+        raise HTTPException(status_code=404, detail="unknown or expired session")
+    snap = history.undo()
+    if snap is None:
+        raise HTTPException(status_code=409, detail="nothing to undo")
+    return _apply_history_snapshot(sid, snap, action="undo")
+
+
+@router.post("/state/{sid}/redo")
+async def state_redo(sid: str) -> dict:
+    """Restore the `after` snapshot of the next entry. 409 when already
+    at the newest entry."""
+    try:
+        history = _store().get_history(sid)
+    except SessionNotFound:
+        raise HTTPException(status_code=404, detail="unknown or expired session")
+    snap = history.redo()
+    if snap is None:
+        raise HTTPException(status_code=409, detail="nothing to redo")
+    return _apply_history_snapshot(sid, snap, action="redo")
+
+
+@router.post("/state/{sid}/revert")
+async def state_revert(sid: str) -> dict:
+    """Jump back to the pre-history baseline. Entries survive so the
+    user can redo afterwards. 409 when the stack is empty."""
+    try:
+        history = _store().get_history(sid)
+    except SessionNotFound:
+        raise HTTPException(status_code=404, detail="unknown or expired session")
+    snap = history.revert_all()
+    if snap is None:
+        raise HTTPException(status_code=409, detail="nothing to revert")
+    return _apply_history_snapshot(sid, snap, action="revert")
+
+
 @router.get("/state/{sid}/masks/{mask_id}")
 async def get_mask_bytes(sid: str, mask_id: str) -> dict:
     """Return the full MaskRecord for a single mask, including png_b64 bytes.

@@ -128,6 +128,14 @@ class BackendToolRegistry:
                 # interrupt it. Only mutate/emit tools are cancellable — query
                 # tools complete fast and aren't worth the bookkeeping.
                 self._store.register_task(session_id, asyncio.current_task())
+                # Phase 3: capture pre-state Snapshot for the history engine
+                # when the tool advertises itself as a user-action. We do this
+                # BEFORE the handler runs so a failed mutation doesn't poison
+                # the undo stack.
+                history_before = None
+                if tool.is_user_action:
+                    from app.session.history import Snapshot
+                    history_before = Snapshot.capture(doc)
                 try:
                     output = await tool.handler(doc, parsed)
                 except asyncio.CancelledError:
@@ -150,6 +158,17 @@ class BackendToolRegistry:
                     self._store.clear_task(session_id)
                     reset_active_doc(doc_token)
                     doc._event_sink = None
+                # Push the undo entry only on a successful user-action handler.
+                # Cancelled or errored handlers re-raise or short-circuit before
+                # this point — see the early-return branches above.
+                if history_before is not None:
+                    from app.session.history import Snapshot
+                    after = Snapshot.capture(doc)
+                    self._store.get_history(session_id).push(
+                        label=tool.name,
+                        before=history_before,
+                        after=after,
+                    )
                 self._flush_history_to_bus(doc, session_id)
         else:
             doc = self._store.get_document(session_id)

@@ -797,7 +797,9 @@ export interface StateEvent {
     | "phase.cancelled"
     | "canonical.updated"
     | "image_node_transform.updated"
-    | "mcp.usage";
+    | "mcp.usage"
+    | "history.applied"
+    | "state.gap";
   payload: {
     [k: string]: unknown;
   };

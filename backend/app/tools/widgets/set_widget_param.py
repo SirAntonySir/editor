@@ -38,6 +38,7 @@ class SetWidgetParamTool(BackendTool[_Input, _Output]):
     permissions = ToolPermissions(
         expose_mcp=False, expose_rest=True, requires_image=False,
     )
+    is_user_action = True
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         w = doc.widgets.get(input.widget_id)

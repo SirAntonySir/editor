@@ -27,6 +27,7 @@ class AcceptWidgetTool(BackendTool[_Input, _Output]):
     input_schema = _Input
     output_schema = _Output
     permissions = ToolPermissions(requires_image=False)
+    is_user_action = True
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         if input.widget_id not in doc.widgets:

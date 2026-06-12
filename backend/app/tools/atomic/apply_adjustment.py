@@ -32,6 +32,7 @@ class ApplyAdjustmentTool(BackendTool[_Input, _Output]):
     input_schema = _Input
     output_schema = _Output
     permissions = ToolPermissions(requires_image=False)
+    is_user_action = True
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         wid = f"w_{uuid.uuid4().hex[:8]}"

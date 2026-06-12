@@ -450,6 +450,14 @@ StateEventKind = Literal[
     "canonical.updated",
     "image_node_transform.updated",
     "mcp.usage",
+    # P3 — emitted by SessionDocument.apply_snapshot for undo/redo/revert.
+    # Carries the full restored snapshot summary (op_graph + widget list +
+    # masks index) so the frontend can swap state in one shot.
+    "history.applied",
+    # P2 SSE gap signal — backend can't replay missed events because the
+    # log was pruned past the client's Last-Event-ID. Frontend refetches
+    # the full snapshot.
+    "state.gap",
 ]
 
 

@@ -24,7 +24,9 @@
         "phase.cancelled",
         "canonical.updated",
         "image_node_transform.updated",
-        "mcp.usage"
+        "mcp.usage",
+        "history.applied",
+        "state.gap"
       ],
       "title": "Kind",
       "type": "string"

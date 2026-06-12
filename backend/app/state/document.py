@@ -18,6 +18,17 @@ from app.state.canonical import Canonical, clear_param_value, set_param_value
 ImageNodeTransform = dict[str, Any]  # {"layer_ids": list[str], "crop": dict|None, "rotate": dict|None}
 
 
+def _deep_copy(obj: Any) -> Any:
+    """Structural copy for canonical/transforms dicts (primitives + dicts +
+    lists by construction). Avoids pulling in `copy.deepcopy` for the hot
+    snapshot-restore path."""
+    if isinstance(obj, dict):
+        return {k: _deep_copy(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_deep_copy(v) for v in obj]
+    return obj
+
+
 class SessionDocument(BaseModel):
     """Authoritative per-session state. Owns widgets, masks, dismissals,
     notes, image context and an event log. All mutations bump `revision`
@@ -66,6 +77,35 @@ class SessionDocument(BaseModel):
             sink(ev)
             self._published_idx = len(self.history)
         return ev
+
+    def apply_snapshot(self, snap: "Any") -> StateEvent:
+        """Restore the doc's mutable state from a Snapshot in-place. Bumps
+        revision and emits one `history.applied` event carrying the new
+        operation_graph and snapshot summary.
+
+        Used by the undo/redo/revert endpoints. The snapshot is constructed
+        in app/session/history.py — typed as Any here to avoid a cycle
+        (history.py imports SessionDocument for type hints).
+        """
+        from app.schemas.widget import DismissalRule, MaskRecord, Widget
+
+        self.canonical = _deep_copy(snap.canonical)
+        self.widgets = {wid: Widget.model_validate(w) for wid, w in snap.widgets.items()}
+        self.widget_order = list(snap.widget_order)
+        self.masks = {mid: MaskRecord.model_validate(m) for mid, m in snap.masks.items()}
+        self.image_node_transforms = _deep_copy(snap.image_node_transforms)
+        self.dismissals = [DismissalRule.model_validate(d) for d in snap.dismissals]
+        return self._emit("history.applied", {
+            "operationGraph": self._op_graph_payload(),
+            "widgets": [self.widgets[wid].model_dump(mode="json", by_alias=True)
+                        for wid in self.widget_order if wid in self.widgets],
+            "widgetIds": list(self.widget_order),
+            "masksIndex": [
+                {"id": m.id, "width": m.width, "height": m.height,
+                 "source": m.source, "label": m.label}
+                for m in self.masks.values()
+            ],
+        })
 
     def prune_history(self, max_entries: int) -> int:
         """FIFO-drop oldest history entries beyond `max_entries`. Returns the

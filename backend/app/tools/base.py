@@ -35,6 +35,13 @@ class BackendTool(Generic[TIn, TOut]):
     input_schema: ClassVar[type[BaseModel]]
     output_schema: ClassVar[type[BaseModel]]
     permissions: ClassVar[ToolPermissions] = ToolPermissions()
+    # Phase 3: when True, the registry captures a Snapshot before/after the
+    # handler runs and pushes a HistoryEntry onto the session's undo stack.
+    # Set True for tools the user thinks of as one atomic undoable action
+    # (slider commit, widget create/dismiss/accept/restore, mask edit,
+    # image-node transform). System / analyze / audit tools stay False so
+    # background work doesn't pollute the undo stack.
+    is_user_action: ClassVar[bool] = False
 
     async def handler(self, doc: SessionDocument, input: TIn) -> TOut:  # noqa: A002
         raise NotImplementedError

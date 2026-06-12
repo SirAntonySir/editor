@@ -59,6 +59,7 @@ class ProposeWidgetTool(BackendTool[_Input, _Output]):
     # requires_context is False so the tool_invoked fast path (ships TOOL_DEFAULTS,
     # no LLM, no image_context use) isn't blocked before analyze_image runs.
     permissions = ToolPermissions(requires_image=True, requires_context=False)
+    is_user_action = True
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         scope = Scope.model_validate(input.scope)

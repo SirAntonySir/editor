@@ -1,0 +1,1512 @@
+{
+  "$defs": {
+    "BeforeAfterToggleSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controlType": {
+          "const": "before_after_toggle",
+          "enum": [
+            "before_after_toggle"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "splitOrientation": {
+          "default": "swap",
+          "enum": [
+            "horizontal",
+            "vertical",
+            "swap"
+          ],
+          "title": "Splitorientation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType"
+      ],
+      "title": "BeforeAfterToggleSchema",
+      "type": "object"
+    },
+    "BoolToggleSchema": {
+      "additionalProperties": false,
+      "description": "Boolean toggle \u2014 mirrors ToggleSchema.",
+      "properties": {
+        "controlType": {
+          "const": "bool_toggle",
+          "enum": [
+            "bool_toggle"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "offLabel": {
+          "default": "Off",
+          "title": "Offlabel",
+          "type": "string"
+        },
+        "onLabel": {
+          "default": "On",
+          "title": "Onlabel",
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType"
+      ],
+      "title": "BoolToggleSchema",
+      "type": "object"
+    },
+    "ChoiceOption": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "swatch": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Swatch"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value",
+        "label"
+      ],
+      "title": "ChoiceOption",
+      "type": "object"
+    },
+    "ChoiceSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "allowCustom": {
+          "default": false,
+          "title": "Allowcustom",
+          "type": "boolean"
+        },
+        "controlType": {
+          "const": "choice",
+          "enum": [
+            "choice"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/ChoiceOption"
+          },
+          "minItems": 1,
+          "title": "Options",
+          "type": "array"
+        }
+      },
+      "required": [
+        "controlType",
+        "options"
+      ],
+      "title": "ChoiceSchema",
+      "type": "object"
+    },
+    "ColorSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controlType": {
+          "const": "color",
+          "enum": [
+            "color"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "presets": {
+          "items": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "title": "Presets",
+          "type": "array"
+        },
+        "showAlpha": {
+          "default": false,
+          "title": "Showalpha",
+          "type": "boolean"
+        },
+        "space": {
+          "default": "rgb",
+          "enum": [
+            "rgb",
+            "lab",
+            "hsl"
+          ],
+          "title": "Space",
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType"
+      ],
+      "title": "ColorSchema",
+      "type": "object"
+    },
+    "ControlBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "controlSchema": {
+          "$ref": "#/$defs/ControlSchema"
+        },
+        "controlType": {
+          "enum": [
+            "slider",
+            "numeric_pair",
+            "toggle",
+            "choice",
+            "color",
+            "curve",
+            "curve_point",
+            "mask_thumbnail",
+            "region_picker",
+            "before_after_toggle",
+            "histogram_marker",
+            "text",
+            "swatch",
+            "hue_wheel",
+            "curve_editor",
+            "point_list",
+            "enum_select",
+            "bool_toggle",
+            "kelvin_strip"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "default": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "object"
+            }
+          ],
+          "title": "Default"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "paramKey": {
+          "minLength": 1,
+          "title": "Paramkey",
+          "type": "string"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning"
+        },
+        "target": {
+          "$ref": "#/$defs/NodeParamTarget"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "object"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "paramKey",
+        "label",
+        "controlType",
+        "target",
+        "controlSchema",
+        "value",
+        "default"
+      ],
+      "title": "ControlBinding",
+      "type": "object"
+    },
+    "ControlSchema": {
+      "description": "Discriminated union over all control_type schemas.",
+      "discriminator": {
+        "mapping": {
+          "before_after_toggle": "#/$defs/BeforeAfterToggleSchema",
+          "bool_toggle": "#/$defs/BoolToggleSchema",
+          "choice": "#/$defs/ChoiceSchema",
+          "color": "#/$defs/ColorSchema",
+          "curve": "#/$defs/CurveSchema",
+          "curve_editor": "#/$defs/CurveEditorSchema",
+          "curve_point": "#/$defs/CurvePointSchema",
+          "enum_select": "#/$defs/EnumSelectSchema",
+          "histogram_marker": "#/$defs/HistogramMarkerSchema",
+          "hue_wheel": "#/$defs/HueWheelSchema",
+          "kelvin_strip": "#/$defs/KelvinStripSchema",
+          "mask_thumbnail": "#/$defs/MaskThumbnailSchema",
+          "numeric_pair": "#/$defs/NumericPairSchema",
+          "point_list": "#/$defs/PointListSchema",
+          "region_picker": "#/$defs/RegionPickerSchema",
+          "slider": "#/$defs/SliderSchema",
+          "swatch": "#/$defs/SwatchSchema",
+          "text": "#/$defs/TextSchema",
+          "tint_strip": "#/$defs/TintStripSchema",
+          "toggle": "#/$defs/ToggleSchema"
+        },
+        "propertyName": "controlType"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SliderSchema"
+        },
+        {
+          "$ref": "#/$defs/NumericPairSchema"
+        },
+        {
+          "$ref": "#/$defs/ToggleSchema"
+        },
+        {
+          "$ref": "#/$defs/ChoiceSchema"
+        },
+        {
+          "$ref": "#/$defs/ColorSchema"
+        },
+        {
+          "$ref": "#/$defs/CurveSchema"
+        },
+        {
+          "$ref": "#/$defs/CurvePointSchema"
+        },
+        {
+          "$ref": "#/$defs/MaskThumbnailSchema"
+        },
+        {
+          "$ref": "#/$defs/RegionPickerSchema"
+        },
+        {
+          "$ref": "#/$defs/BeforeAfterToggleSchema"
+        },
+        {
+          "$ref": "#/$defs/HistogramMarkerSchema"
+        },
+        {
+          "$ref": "#/$defs/TextSchema"
+        },
+        {
+          "$ref": "#/$defs/SwatchSchema"
+        },
+        {
+          "$ref": "#/$defs/HueWheelSchema"
+        },
+        {
+          "$ref": "#/$defs/CurveEditorSchema"
+        },
+        {
+          "$ref": "#/$defs/PointListSchema"
+        },
+        {
+          "$ref": "#/$defs/EnumSelectSchema"
+        },
+        {
+          "$ref": "#/$defs/BoolToggleSchema"
+        },
+        {
+          "$ref": "#/$defs/KelvinStripSchema"
+        },
+        {
+          "$ref": "#/$defs/TintStripSchema"
+        }
+      ],
+      "title": "ControlSchema"
+    },
+    "CurveEditorSchema": {
+      "additionalProperties": false,
+      "description": "Full curve editor \u2014 mirrors CurveSchema but uses registry vocab.",
+      "properties": {
+        "channel": {
+          "anyOf": [
+            {
+              "enum": [
+                "luma",
+                "r",
+                "g",
+                "b"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Channel"
+        },
+        "controlType": {
+          "const": "curve_editor",
+          "enum": [
+            "curve_editor"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "maxPoints": {
+          "default": 16,
+          "title": "Maxpoints",
+          "type": "integer"
+        },
+        "minPoints": {
+          "default": 2,
+          "title": "Minpoints",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "controlType"
+      ],
+      "title": "CurveEditorSchema",
+      "type": "object"
+    },
+    "CurvePointSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "enum": [
+            "luma",
+            "r",
+            "g",
+            "b"
+          ],
+          "title": "Channel",
+          "type": "string"
+        },
+        "controlType": {
+          "const": "curve_point",
+          "enum": [
+            "curve_point"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "xMax": {
+          "default": 1.0,
+          "title": "Xmax",
+          "type": "number"
+        },
+        "xMin": {
+          "default": 0.0,
+          "title": "Xmin",
+          "type": "number"
+        },
+        "yMax": {
+          "default": 1.0,
+          "title": "Ymax",
+          "type": "number"
+        },
+        "yMin": {
+          "default": 0.0,
+          "title": "Ymin",
+          "type": "number"
+        }
+      },
+      "required": [
+        "controlType",
+        "channel"
+      ],
+      "title": "CurvePointSchema",
+      "type": "object"
+    },
+    "CurveSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "anyOf": [
+            {
+              "enum": [
+                "luma",
+                "r",
+                "g",
+                "b"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Channel"
+        },
+        "controlType": {
+          "const": "curve",
+          "enum": [
+            "curve"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "maxPoints": {
+          "default": 16,
+          "title": "Maxpoints",
+          "type": "integer"
+        },
+        "minPoints": {
+          "default": 2,
+          "title": "Minpoints",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "controlType"
+      ],
+      "title": "CurveSchema",
+      "type": "object"
+    },
+    "EnumSelectSchema": {
+      "additionalProperties": false,
+      "description": "Drop-down / segmented enum selector \u2014 mirrors ChoiceSchema.",
+      "properties": {
+        "allowCustom": {
+          "default": false,
+          "title": "Allowcustom",
+          "type": "boolean"
+        },
+        "controlType": {
+          "const": "enum_select",
+          "enum": [
+            "enum_select"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/ChoiceOption"
+          },
+          "minItems": 1,
+          "title": "Options",
+          "type": "array"
+        }
+      },
+      "required": [
+        "controlType",
+        "options"
+      ],
+      "title": "EnumSelectSchema",
+      "type": "object"
+    },
+    "GlobalScope": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "global",
+          "enum": [
+            "global"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "GlobalScope",
+      "type": "object"
+    },
+    "HistogramMarkerSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "enum": [
+            "luma",
+            "r",
+            "g",
+            "b"
+          ],
+          "title": "Channel",
+          "type": "string"
+        },
+        "controlType": {
+          "const": "histogram_marker",
+          "enum": [
+            "histogram_marker"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "markerKind": {
+          "enum": [
+            "black_point",
+            "white_point",
+            "gamma"
+          ],
+          "title": "Markerkind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType",
+        "channel",
+        "markerKind"
+      ],
+      "title": "HistogramMarkerSchema",
+      "type": "object"
+    },
+    "HueWheelSchema": {
+      "additionalProperties": false,
+      "description": "Hue wheel \u2014 degree range [min, max].",
+      "properties": {
+        "controlType": {
+          "const": "hue_wheel",
+          "enum": [
+            "hue_wheel"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "max": {
+          "default": 360.0,
+          "title": "Max",
+          "type": "number"
+        },
+        "min": {
+          "default": 0.0,
+          "title": "Min",
+          "type": "number"
+        }
+      },
+      "required": [
+        "controlType"
+      ],
+      "title": "HueWheelSchema",
+      "type": "object"
+    },
+    "ImageNodeScope": {
+      "additionalProperties": false,
+      "properties": {
+        "imageNodeId": {
+          "minLength": 1,
+          "title": "Imagenodeid",
+          "type": "string"
+        },
+        "kind": {
+          "const": "image_node",
+          "enum": [
+            "image_node"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "layerIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Layerids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "imageNodeId"
+      ],
+      "title": "ImageNodeScope",
+      "type": "object"
+    },
+    "KelvinStripSchema": {
+      "additionalProperties": false,
+      "description": "Kelvin temperature strip \u2014 same fields as SliderSchema.",
+      "properties": {
+        "controlType": {
+          "const": "kelvin_strip",
+          "enum": [
+            "kelvin_strip"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "max": {
+          "title": "Max",
+          "type": "number"
+        },
+        "min": {
+          "title": "Min",
+          "type": "number"
+        },
+        "step": {
+          "title": "Step",
+          "type": "number"
+        },
+        "unit": {
+          "default": "K",
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType",
+        "min",
+        "max",
+        "step"
+      ],
+      "title": "KelvinStripSchema",
+      "type": "object"
+    },
+    "MaskScope": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "mask",
+          "enum": [
+            "mask"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "maskId": {
+          "minLength": 1,
+          "title": "Maskid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "maskId"
+      ],
+      "title": "MaskScope",
+      "type": "object"
+    },
+    "MaskThumbnailSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "allowCombine": {
+          "items": {
+            "enum": [
+              "union",
+              "intersect",
+              "subtract"
+            ],
+            "type": "string"
+          },
+          "title": "Allowcombine",
+          "type": "array"
+        },
+        "allowReplace": {
+          "default": true,
+          "title": "Allowreplace",
+          "type": "boolean"
+        },
+        "controlType": {
+          "const": "mask_thumbnail",
+          "enum": [
+            "mask_thumbnail"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType"
+      ],
+      "title": "MaskThumbnailSchema",
+      "type": "object"
+    },
+    "NamedRegionScope": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "named_region",
+          "enum": [
+            "named_region"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "label"
+      ],
+      "title": "NamedRegionScope",
+      "type": "object"
+    },
+    "NodeParamTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "nodeId": {
+          "minLength": 1,
+          "title": "Nodeid",
+          "type": "string"
+        },
+        "paramKey": {
+          "minLength": 1,
+          "title": "Paramkey",
+          "type": "string"
+        }
+      },
+      "required": [
+        "nodeId",
+        "paramKey"
+      ],
+      "title": "NodeParamTarget",
+      "type": "object"
+    },
+    "NumericPairSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controlType": {
+          "const": "numeric_pair",
+          "enum": [
+            "numeric_pair"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "labelA": {
+          "title": "Labela",
+          "type": "string"
+        },
+        "labelB": {
+          "title": "Labelb",
+          "type": "string"
+        },
+        "maxA": {
+          "title": "Maxa",
+          "type": "number"
+        },
+        "maxB": {
+          "title": "Maxb",
+          "type": "number"
+        },
+        "minA": {
+          "title": "Mina",
+          "type": "number"
+        },
+        "minB": {
+          "title": "Minb",
+          "type": "number"
+        },
+        "stepA": {
+          "title": "Stepa",
+          "type": "number"
+        },
+        "stepB": {
+          "title": "Stepb",
+          "type": "number"
+        }
+      },
+      "required": [
+        "controlType",
+        "minA",
+        "maxA",
+        "stepA",
+        "labelA",
+        "minB",
+        "maxB",
+        "stepB",
+        "labelB"
+      ],
+      "title": "NumericPairSchema",
+      "type": "object"
+    },
+    "PointListSchema": {
+      "additionalProperties": false,
+      "description": "Editable list of curve/spline points (debug / advanced editor).",
+      "properties": {
+        "controlType": {
+          "const": "point_list",
+          "enum": [
+            "point_list"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "maxPoints": {
+          "default": 16,
+          "title": "Maxpoints",
+          "type": "integer"
+        },
+        "minPoints": {
+          "default": 2,
+          "title": "Minpoints",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "controlType"
+      ],
+      "title": "PointListSchema",
+      "type": "object"
+    },
+    "RegionPickerSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "allowActiveSelection": {
+          "default": true,
+          "title": "Allowactiveselection",
+          "type": "boolean"
+        },
+        "allowGlobal": {
+          "default": true,
+          "title": "Allowglobal",
+          "type": "boolean"
+        },
+        "candidateLabels": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Candidatelabels",
+          "type": "array"
+        },
+        "controlType": {
+          "const": "region_picker",
+          "enum": [
+            "region_picker"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType"
+      ],
+      "title": "RegionPickerSchema",
+      "type": "object"
+    },
+    "ResolvedNumbers": {
+      "additionalProperties": false,
+      "description": "One attempt's tunable values + optional reasoning. Used both by the\nfused-tool framework (Plan 2) and by Widget.rejected_attempts for the\nrepeat-widget anchor log.",
+      "properties": {
+        "reasoning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning"
+        },
+        "values": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
+          "title": "Values",
+          "type": "object"
+        }
+      },
+      "required": [
+        "values"
+      ],
+      "title": "ResolvedNumbers",
+      "type": "object"
+    },
+    "Scope": {
+      "description": "Discriminated union over the scope kinds.",
+      "discriminator": {
+        "mapping": {
+          "global": "#/$defs/GlobalScope",
+          "image_node": "#/$defs/ImageNodeScope",
+          "mask": "#/$defs/MaskScope",
+          "named_region": "#/$defs/NamedRegionScope"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/GlobalScope"
+        },
+        {
+          "$ref": "#/$defs/NamedRegionScope"
+        },
+        {
+          "$ref": "#/$defs/MaskScope"
+        },
+        {
+          "$ref": "#/$defs/ImageNodeScope"
+        }
+      ],
+      "title": "Scope"
+    },
+    "SliderSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controlType": {
+          "const": "slider",
+          "enum": [
+            "slider"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "max": {
+          "title": "Max",
+          "type": "number"
+        },
+        "min": {
+          "title": "Min",
+          "type": "number"
+        },
+        "step": {
+          "title": "Step",
+          "type": "number"
+        },
+        "unit": {
+          "default": "",
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType",
+        "min",
+        "max",
+        "step"
+      ],
+      "title": "SliderSchema",
+      "type": "object"
+    },
+    "SwatchSchema": {
+      "additionalProperties": false,
+      "description": "Colour swatch picker \u2014 mirrors ColorSchema but uses registry vocab.",
+      "properties": {
+        "controlType": {
+          "const": "swatch",
+          "enum": [
+            "swatch"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "presets": {
+          "items": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "title": "Presets",
+          "type": "array"
+        },
+        "showAlpha": {
+          "default": false,
+          "title": "Showalpha",
+          "type": "boolean"
+        },
+        "space": {
+          "default": "rgb",
+          "enum": [
+            "rgb",
+            "lab",
+            "hsl"
+          ],
+          "title": "Space",
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType"
+      ],
+      "title": "SwatchSchema",
+      "type": "object"
+    },
+    "TextSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controlType": {
+          "const": "text",
+          "enum": [
+            "text"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "maxLen": {
+          "default": 256,
+          "title": "Maxlen",
+          "type": "integer"
+        },
+        "placeholder": {
+          "default": "",
+          "title": "Placeholder",
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType"
+      ],
+      "title": "TextSchema",
+      "type": "object"
+    },
+    "TintStripSchema": {
+      "additionalProperties": false,
+      "description": "Green\u2194magenta tint strip \u2014 same fields as SliderSchema, painted with a\nteal-to-magenta gradient track on the frontend. Paired with kelvin_strip\non white-balance ops.",
+      "properties": {
+        "controlType": {
+          "const": "tint_strip",
+          "enum": [
+            "tint_strip"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "max": {
+          "title": "Max",
+          "type": "number"
+        },
+        "min": {
+          "title": "Min",
+          "type": "number"
+        },
+        "step": {
+          "title": "Step",
+          "type": "number"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "required": [
+        "controlType",
+        "min",
+        "max",
+        "step"
+      ],
+      "title": "TintStripSchema",
+      "type": "object"
+    },
+    "ToggleSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controlType": {
+          "const": "toggle",
+          "enum": [
+            "toggle"
+          ],
+          "title": "Controltype",
+          "type": "string"
+        },
+        "offLabel": {
+          "default": "Off",
+          "title": "Offlabel",
+          "type": "string"
+        },
+        "onLabel": {
+          "default": "On",
+          "title": "Onlabel",
+          "type": "string"
+        }
+      },
+      "required": [
+        "controlType"
+      ],
+      "title": "ToggleSchema",
+      "type": "object"
+    },
+    "WidgetNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Inputs",
+          "type": "array"
+        },
+        "layerId": {
+          "default": "legacy",
+          "title": "Layerid",
+          "type": "string"
+        },
+        "layerIds": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Layerids"
+        },
+        "opId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Opid"
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
+          "title": "Params",
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "type": {
+          "minLength": 1,
+          "title": "Type",
+          "type": "string"
+        },
+        "widgetId": {
+          "minLength": 1,
+          "title": "Widgetid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "scope",
+        "widgetId"
+      ],
+      "title": "WidgetNode",
+      "type": "object"
+    },
+    "WidgetOrigin": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anchor"
+        },
+        "kind": {
+          "enum": [
+            "mcp_user_prompt",
+            "mcp_autonomous",
+            "user_palette",
+            "fused_expansion",
+            "refine",
+            "repeat",
+            "tool_invoked"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "parentWidgetId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parentwidgetid"
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "WidgetOrigin",
+      "type": "object"
+    },
+    "WidgetPreview": {
+      "additionalProperties": false,
+      "properties": {
+        "autoBeforeAfter": {
+          "default": false,
+          "title": "Autobeforeafter",
+          "type": "boolean"
+        },
+        "kind": {
+          "enum": [
+            "thumbnail",
+            "histogram_delta",
+            "color_swatches",
+            "none"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "WidgetPreview",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "bindings": {
+      "items": {
+        "$ref": "#/$defs/ControlBinding"
+      },
+      "title": "Bindings",
+      "type": "array"
+    },
+    "category": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Category"
+    },
+    "composed": {
+      "default": false,
+      "title": "Composed",
+      "type": "boolean"
+    },
+    "createdAt": {
+      "format": "date-time",
+      "title": "Createdat",
+      "type": "string"
+    },
+    "displayName": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Displayname"
+    },
+    "id": {
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "intent": {
+      "minLength": 1,
+      "title": "Intent",
+      "type": "string"
+    },
+    "lockedParams": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Lockedparams",
+      "type": "array"
+    },
+    "nodes": {
+      "items": {
+        "$ref": "#/$defs/WidgetNode"
+      },
+      "title": "Nodes",
+      "type": "array"
+    },
+    "opId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Opid"
+    },
+    "origin": {
+      "$ref": "#/$defs/WidgetOrigin"
+    },
+    "preview": {
+      "$ref": "#/$defs/WidgetPreview"
+    },
+    "reasoning": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reasoning"
+    },
+    "rejectedAttempts": {
+      "items": {
+        "$ref": "#/$defs/ResolvedNumbers"
+      },
+      "title": "Rejectedattempts",
+      "type": "array"
+    },
+    "revision": {
+      "default": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "scope": {
+      "$ref": "#/$defs/Scope"
+    },
+    "status": {
+      "default": "active",
+      "enum": [
+        "active",
+        "dismissed",
+        "accepted"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "updatedAt": {
+      "format": "date-time",
+      "title": "Updatedat",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "intent",
+    "scope",
+    "origin"
+  ],
+  "title": "Widget",
+  "type": "object"
+}

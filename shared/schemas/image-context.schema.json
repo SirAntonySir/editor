@@ -1,0 +1,155 @@
+{
+  "$defs": {
+    "CandidateRegion": {
+      "additionalProperties": false,
+      "properties": {
+        "bbox": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "maskPngBase64": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maskpngbase64"
+        },
+        "paths": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paths"
+        },
+        "representativePoint": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Representativepoint"
+        }
+      },
+      "required": [
+        "label",
+        "description"
+      ],
+      "title": "CandidateRegion",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "candidateRegions": {
+      "items": {
+        "$ref": "#/$defs/CandidateRegion"
+      },
+      "title": "Candidateregions",
+      "type": "array"
+    },
+    "dominantTones": {
+      "items": {
+        "enum": [
+          "shadows",
+          "midtones",
+          "highlights"
+        ],
+        "type": "string"
+      },
+      "title": "Dominanttones",
+      "type": "array"
+    },
+    "generatedAt": {
+      "title": "Generatedat",
+      "type": "string"
+    },
+    "lighting": {
+      "enum": [
+        "flat",
+        "backlit",
+        "side",
+        "rim",
+        "mixed"
+      ],
+      "title": "Lighting",
+      "type": "string"
+    },
+    "modelName": {
+      "title": "Modelname",
+      "type": "string"
+    },
+    "modelVersion": {
+      "title": "Modelversion",
+      "type": "string"
+    },
+    "mood": {
+      "title": "Mood",
+      "type": "string"
+    },
+    "subjects": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Subjects",
+      "type": "array"
+    }
+  },
+  "required": [
+    "lighting",
+    "mood",
+    "modelName",
+    "modelVersion",
+    "generatedAt"
+  ],
+  "title": "ImageContext",
+  "type": "object"
+}

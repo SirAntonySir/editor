@@ -14,8 +14,10 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run --passWithNoTests",
-    "check": "tsc -b && eslint . && vitest run --passWithNoTests",
+    "check": "npm run gen:types:check && tsc -b && eslint . && vitest run --passWithNoTests",
     "lint:rules": "node tools/eslint-rules/no-nested-component-definition.test.js",
+    "gen:types": "cd backend && . .venv/bin/activate && python ../scripts/gen-shared-types.py",
+    "gen:types:check": "cd backend && . .venv/bin/activate && python ../scripts/gen-shared-types.py --check",
     "prepare": "git config core.hooksPath .git-hooks"
   },
   "build": {

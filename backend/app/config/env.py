@@ -1,10 +1,14 @@
-from functools import lru_cache
+"""Env-layer settings — read from .env / environment variables only.
+
+Use this for secrets, host/port, and anything the operator overrides at deploy time.
+Constants that the codebase needs to consume internally live in runtime.py / ui.py.
+"""
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings(BaseSettings):
+class EnvSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     anthropic_api_key: str
@@ -23,6 +27,4 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
 
 
-@lru_cache
-def get_settings() -> Settings:
-    return Settings()
+Settings = EnvSettings

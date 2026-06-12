@@ -67,6 +67,23 @@ class SessionDocument(BaseModel):
             self._published_idx = len(self.history)
         return ev
 
+    def prune_history(self, max_entries: int) -> int:
+        """FIFO-drop oldest history entries beyond `max_entries`. Returns the
+        count dropped. Adjusts `_published_idx` so the next flush picks up at
+        the right place after trim.
+
+        Called from the tool registry at the end of an invocation, AFTER
+        `_flush_history_to_bus`, so we only trim already-published events.
+        Within a single tool invocation history is unbounded — pruning between
+        invocations is enough to keep the persisted document small.
+        """
+        if len(self.history) <= max_entries:
+            return 0
+        drop = len(self.history) - max_entries
+        self.history = self.history[drop:]
+        self._published_idx = max(0, self._published_idx - drop)
+        return drop
+
     def _emit_phase_started(self, phase: str, *, index: int, total: int) -> StateEvent:
         """Convenience for the analyze pipeline's phase tracking."""
         return self._emit("phase.started", {"phase": phase, "index": index, "total": total})

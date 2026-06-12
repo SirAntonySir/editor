@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import ValidationError
 
+from app.config import get_app_config
 from app.schemas.errors import ToolError, ToolResponseEnvelope
 from app.services.session_store import SessionNotFound, SessionStore
 from app.state.active_doc import reset_active_doc, set_active_doc
@@ -165,8 +166,11 @@ class BackendToolRegistry:
     # ---------------- internals ----------------
 
     def _flush_history_to_bus(self, doc, session_id: str) -> None:
-        """Publish any history entries that haven't been published yet."""
+        """Publish any history entries that haven't been published yet, then
+        prune the event log to the configured history cap. Pruning happens
+        AFTER publish so we never drop an unpublished event."""
         last_idx = doc._published_idx
         for ev in doc.history[last_idx:]:
             self._bus.publish(session_id, ev)
         doc._published_idx = len(doc.history)
+        doc.prune_history(get_app_config().runtime.history_max_entries)

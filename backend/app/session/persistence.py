@@ -116,7 +116,14 @@ def load_document(sid: str) -> dict[str, Any] | None:
     corrupt. Raises CorruptDocumentError only when BOTH the primary and
     backup are unreadable — that's a real data loss event the caller should
     surface.
+
+    Older payloads (`_schema_version < SCHEMA_VERSION`) are forwarded through
+    the migrations chain in `app.session.migrations`. Payloads from a NEWER
+    backend (`> SCHEMA_VERSION`) are treated as corrupt — downgrade isn't
+    supported.
     """
+    from app.session.migrations import MigrationError, migrate_to_current
+
     target = _document_path(sid)
     backup = _backup_path(sid)
 
@@ -132,11 +139,10 @@ def load_document(sid: str) -> dict[str, Any] | None:
         if not isinstance(data, dict):
             primary_err = ValueError(f"{path.name}: top-level not an object")
             continue
-        version = data.get("_schema_version")
-        if version != SCHEMA_VERSION:
-            primary_err = ValueError(
-                f"{path.name}: schema_version {version!r} != {SCHEMA_VERSION}"
-            )
+        try:
+            data = migrate_to_current(data, SCHEMA_VERSION)
+        except MigrationError as exc:
+            primary_err = exc
             continue
         return data
 

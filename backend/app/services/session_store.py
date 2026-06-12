@@ -60,7 +60,6 @@ class SessionRecord:
     created_at: float
     last_seen: float
     context: dict[str, Any] | None = None
-    graphs: dict[str, dict[str, Any]] = field(default_factory=dict)
     document: "SessionDocument | None" = None  # lazily created
     write_lock: Lock = field(default_factory=Lock)
 
@@ -128,14 +127,6 @@ class SessionStore:
         record = self.get(sid)
         record.context = context
         disk_session_io.save_context(sid, context)
-
-    def store_graph(self, sid: str, graph_id: str, graph: dict[str, Any]) -> None:
-        record = self.get(sid)
-        record.graphs[graph_id] = graph
-
-    def get_graph(self, sid: str, graph_id: str) -> dict[str, Any] | None:
-        record = self.get(sid)
-        return record.graphs.get(graph_id)
 
     def get_document(self, sid: str) -> "SessionDocument":
         record = self.get(sid)

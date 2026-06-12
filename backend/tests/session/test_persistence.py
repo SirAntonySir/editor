@@ -139,3 +139,22 @@ def test_persistence_constants_aligned_with_module():
     # Sanity guard: the SCHEMA_VERSION the test asserts against must match what
     # the module exports. Catches accidental version bumps without test update.
     assert persistence.SCHEMA_VERSION == SCHEMA_VERSION
+
+
+def test_load_migrates_older_payload_forward(tmp_path: Path):
+    """A payload with `_schema_version=0` on disk gets brought forward to
+    the current SCHEMA_VERSION by the migrations chain. The v0→v1 stub is
+    a no-op today, so we only check the version field — but this guards
+    the dispatcher being wired in at all."""
+    target = tmp_path / "sid-old" / f"document.v{SCHEMA_VERSION}.json"
+    target.parent.mkdir(parents=True)
+    target.write_text(json.dumps({
+        "_schema_version": 0,
+        "session_id": "sid-old",
+        "mime_type": "image/jpeg",
+        "revision": 0,
+    }))
+    data = load_document("sid-old")
+    assert data is not None
+    assert data["_schema_version"] == SCHEMA_VERSION
+    assert data["session_id"] == "sid-old"

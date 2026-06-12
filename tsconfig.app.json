@@ -28,9 +28,10 @@
     /* Path aliases */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@shared/*": ["shared/*"]
     }
   },
-  "include": ["src"],
+  "include": ["src", "shared/types"],
   "exclude": ["src/**/*.test.ts", "tests/**/*.ts"]
 }

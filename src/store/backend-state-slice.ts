@@ -248,6 +248,25 @@ export const useBackendState = create<BackendState>()(
             }
             return;
           }
+          case 'history.applied': {
+            // Backend undo/redo/revert landed. Payload carries the full
+            // restored projection so we can swap snapshot state in one
+            // shot rather than re-fetching the REST snapshot.
+            if (!s.snapshot) return;
+            const p = payload as {
+              operationGraph?: SessionStateSnapshot['operationGraph'];
+              widgets?: SessionStateSnapshot['widgets'];
+              masksIndex?: SessionStateSnapshot['masksIndex'];
+            };
+            if (p.operationGraph) s.snapshot.operationGraph = p.operationGraph;
+            if (p.widgets) s.snapshot.widgets = p.widgets;
+            if (p.masksIndex) s.snapshot.masksIndex = p.masksIndex;
+            s.snapshot.revision = ev.revision;
+            // Any in-flight optimistic patches are stale — the restored
+            // snapshot is authoritative.
+            s.optimistic.clear();
+            return;
+          }
           case 'context.updated': {
             // Handled BEFORE the snapshot guard because partial deltas can
             // race the initial REST snapshot fetch. If the snapshot isn't

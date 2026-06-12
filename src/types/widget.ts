@@ -256,7 +256,8 @@ export type StateEventKind =
   | 'phase.completed'
   | 'phase.cancelled'
   | 'mcp.usage'
-  | 'state.gap';
+  | 'state.gap'
+  | 'history.applied';
 
 export interface StateEvent {
   revision: number;

@@ -58,6 +58,25 @@ async function invokeTool<T>(
   return (await response.json()) as ToolEnvelope<T>;
 }
 
+async function historyAction(
+  sessionId: string,
+  action: 'undo' | 'redo' | 'revert',
+): Promise<{ revision: number; applied: string } | null> {
+  const response = await fetch(`${BASE_URL}/api/state/${sessionId}/${action}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+  });
+  // 409 = nothing on the backend's stack — caller falls back to the
+  // frontend's workspace history. Anything else is a real failure.
+  if (response.status === 409) return null;
+  if (!response.ok) {
+    throw new Error(
+      `/api/state/${sessionId}/${action} → ${response.status} ${await response.text()}`,
+    );
+  }
+  return (await response.json()) as { revision: number; applied: string };
+}
+
 export const backendTools = {
   prepare_image(sessionId: string) {
     return invokeTool<PrepareImageOutput>('prepare_image', sessionId, {});
@@ -156,5 +175,18 @@ export const backendTools = {
       throw new Error(`/api/session/${sessionId}/cancel → ${response.status} ${await response.text()}`);
     }
     return (await response.json()) as { cancelled: boolean };
+  },
+
+  /** Backend snapshot-based history. Each returns null when the backend
+   *  has nothing on its stack (HTTP 409) so the caller can fall back to
+   *  the frontend's workspace history. Any other failure throws. */
+  async undo(sessionId: string): Promise<{ revision: number; applied: string } | null> {
+    return historyAction(sessionId, 'undo');
+  },
+  async redo(sessionId: string): Promise<{ revision: number; applied: string } | null> {
+    return historyAction(sessionId, 'redo');
+  },
+  async revertAll(sessionId: string): Promise<{ revision: number; applied: string } | null> {
+    return historyAction(sessionId, 'revert');
   },
 };

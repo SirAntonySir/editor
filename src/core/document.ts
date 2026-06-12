@@ -18,6 +18,7 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { clearInternalCanvasCache } from '@/lib/image-node-geometry';
 import { parseImageMetadata } from '@/lib/image-metadata';
+import { backendTools } from '@/lib/backend-tools';
 
 const DEBOUNCE_MS = 2000;
 
@@ -309,15 +310,40 @@ function recordSnapshot<T>(_label: string, fn: () => T): T {
 }
 
 // ─── Undo / redo ────────────────────────────────────────────────────
+//
+// Two stacks compose here: the backend's snapshot-based history (canonical
+// adjustments, widgets, masks, image-node transforms) and the frontend's
+// workspace-layout history (image-node positions, tether edges, widget
+// node placement). Undo/redo tries the BACKEND first — slider commits and
+// widget lifecycle are far more frequent than workspace ops — then falls
+// back to the frontend stack when the backend has nothing.
 
-function undoAction(): void {
+async function undoAction(): Promise<void> {
   if (interaction) endInteraction();
+  const sessionId = useBackendState.getState().sessionId;
+  if (sessionId) {
+    try {
+      const applied = await backendTools.undo(sessionId);
+      if (applied !== null) return;  // backend handled it
+    } catch (err) {
+      console.warn('[history] backend undo failed, falling back:', err);
+    }
+  }
   const snap = history.undo<SerializableState>();
   if (snap) restoreState(snap);
 }
 
-function redoAction(): void {
+async function redoAction(): Promise<void> {
   if (interaction) endInteraction();
+  const sessionId = useBackendState.getState().sessionId;
+  if (sessionId) {
+    try {
+      const applied = await backendTools.redo(sessionId);
+      if (applied !== null) return;
+    } catch (err) {
+      console.warn('[history] backend redo failed, falling back:', err);
+    }
+  }
   const snap = history.redo<SerializableState>();
   if (snap) restoreState(snap);
 }

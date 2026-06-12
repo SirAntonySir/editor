@@ -75,6 +75,12 @@ class SessionStore:
         # task.cancel(). One slot is enough because the registry serialises
         # mutate calls behind the per-session write_lock.
         self._active_tasks: dict[str, asyncio.Task] = {}
+        # Owned by the store so the registry, lifespan hooks, and tests share
+        # one checkpointer instance. Imported lazily — Checkpointer pulls in
+        # app.session, which imports app.config, which we don't want at the
+        # session_store module-import edge.
+        from app.session.checkpointer import Checkpointer
+        self.checkpointer = Checkpointer()
 
     def _is_expired(self, record: SessionRecord) -> bool:
         return (time.monotonic() - record.last_seen) > self._ttl

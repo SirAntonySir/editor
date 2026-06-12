@@ -10,18 +10,19 @@ from anthropic import Anthropic
 from PIL import Image
 from pydantic import BaseModel, ValidationError
 
-# Claude downsamples vision input to ~1568px on the long edge, so sending more
-# is pure upload/latency waste. Capping here keeps analyze fast on large source
-# images (a 14MP photo is ~19MB of base64 and was stalling the analyze stepper).
-MAX_VISION_DIM = 1568
-
-# Hard ceiling on a single Anthropic request so a slow/hung call surfaces as an
-# error instead of blocking on the SDK's 10-minute default.
-ANTHROPIC_TIMEOUT_S = 120.0
-
+from app.config import get_app_config
 from app.schemas.enriched_context import Problem
 from app.schemas.image_context import ContextRefinements, ImageContext, RegionLabel
 from app.schemas.operation_graph import OperationGraph
+
+_runtime = get_app_config().runtime
+MAX_VISION_DIM = _runtime.max_vision_dim
+ANTHROPIC_TIMEOUT_S = _runtime.anthropic_timeout_s
+MAX_TOKENS_ANALYZE = _runtime.max_tokens_analyze
+MAX_TOKENS_COMPOSE = _runtime.max_tokens_compose
+MAX_TOKENS_REFINE = _runtime.max_tokens_refine
+MAX_TOKENS_CLASSIFY = _runtime.max_tokens_classify
+MAX_TOKENS_SHORT = _runtime.max_tokens_short
 
 logger = logging.getLogger(__name__)
 
@@ -473,7 +474,7 @@ class AnthropicClient:
                 # label, description, bbox, representative_point) regularly
                 # exceeds 1024 tokens. 2048 leaves comfortable headroom and
                 # matches the panel endpoint.
-                max_tokens=2048,
+                max_tokens=MAX_TOKENS_ANALYZE,
                 system=[{"type": "text", "text": ANALYZE_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
                 tools=[IMAGE_CONTEXT_TOOL],
                 tool_choice={"type": "tool", "name": "emit_image_context"},
@@ -524,7 +525,7 @@ class AnthropicClient:
         for _ in range(3):
             response = self._client.messages.create(
                 model=self._model,
-                max_tokens=2048,
+                max_tokens=MAX_TOKENS_ANALYZE,
                 system=[{"type": "text", "text": REFINE_CONTEXT_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
                 tools=[CONTEXT_REFINEMENTS_TOOL],
                 tool_choice={"type": "tool", "name": "emit_context_refinements"},
@@ -572,7 +573,7 @@ class AnthropicClient:
         for _ in range(2):
             response = self._client.messages.create(
                 model=self._model,
-                max_tokens=128,
+                max_tokens=MAX_TOKENS_SHORT,
                 system=[{"type": "text", "text": NAME_REGION_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
                 tools=[LABEL_REGION_TOOL],
                 tool_choice={"type": "tool", "name": "emit_region_label"},
@@ -611,7 +612,7 @@ class AnthropicClient:
         for _ in range(3):  # initial + 2 retries
             response = self._client.messages.create(
                 model=self._model,
-                max_tokens=2048,
+                max_tokens=MAX_TOKENS_ANALYZE,
                 system=[{"type": "text", "text": PANEL_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
                 tools=[OPERATION_GRAPH_TOOL],
                 tool_choice={"type": "tool", "name": "emit_operation_graph"},
@@ -655,7 +656,7 @@ class AnthropicClient:
         for _ in range(3):
             response = self._client.messages.create(
                 model=self._model,
-                max_tokens=2048,
+                max_tokens=MAX_TOKENS_ANALYZE,
                 system=[{"type": "text", "text": REFINE_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
                 tools=[OPERATION_GRAPH_TOOL],
                 tool_choice={"type": "tool", "name": "emit_operation_graph"},
@@ -704,7 +705,7 @@ class AnthropicClient:
         }
         response = self._client.messages.create(
             model=self._model,
-            max_tokens=1024,
+            max_tokens=MAX_TOKENS_REFINE,
             system=[{"type": "text", "text": _FUSED_RESOLVE_PROMPT, "cache_control": {"type": "ephemeral"}}],
             tools=[tool],
             tool_choice={"type": "tool", "name": "emit_fused_tool_values"},
@@ -726,7 +727,7 @@ class AnthropicClient:
     ) -> str | None:
         response = self._client.messages.create(
             model=self._model,
-            max_tokens=512,
+            max_tokens=MAX_TOKENS_CLASSIFY,
             system=[{"type": "text", "text": "Pick the fused tool id whose description best matches the intent. Return null if nothing fits.", "cache_control": {"type": "ephemeral"}}],
             tools=[_NAME_PICK_TOOL],
             tool_choice={"type": "tool", "name": "emit_chosen_fused_tool"},
@@ -802,7 +803,7 @@ class AnthropicClient:
 
         response = self._client.messages.create(
             model=self._model,
-            max_tokens=512,
+            max_tokens=MAX_TOKENS_CLASSIFY,
             system=[{"type": "text", "text": "Pick fused tools whose typical_use best fits the image's character. Skip ids in the exclude list. Return an empty list if nothing fits.", "cache_control": {"type": "ephemeral"}}],
             tools=[tool_schema],
             tool_choice={"type": "tool", "name": "suggest_fused_tools"},
@@ -821,7 +822,7 @@ class AnthropicClient:
         self, request: str, widget: dict, response_schema: dict | None = None, session_id: str | None = None,
     ) -> dict:
         response = self._client.messages.create(
-            model=self._model, max_tokens=1024,
+            model=self._model, max_tokens=MAX_TOKENS_REFINE,
             system=[{"type": "text", "text": _FLESH_BINDING_PROMPT, "cache_control": {"type": "ephemeral"}}],
             tools=[_FLESH_BINDING_TOOL],
             tool_choice={"type": "tool", "name": "emit_new_binding"},
@@ -942,7 +943,7 @@ class AnthropicClient:
 
         response = self._client.messages.create(
             model=self._model,
-            max_tokens=2048,
+            max_tokens=MAX_TOKENS_ANALYZE,
             system=[{
                 "type": "text",
                 "text": _PLANNER_SYSTEM_PROMPT,
@@ -1001,7 +1002,7 @@ a strong prior if provided. Do not include markdown fences."""
         )
         response = self._client.messages.create(
             model=self._model,
-            max_tokens=1024,
+            max_tokens=MAX_TOKENS_REFINE,
             system=[{
                 "type": "text",
                 "text": self._RESOLVE_SYSTEM_PROMPT + f"\n\nOP-TYPE: {op.id}",
@@ -1057,7 +1058,7 @@ a strong prior if provided. Do not include markdown fences."""
         for attempt in range(3):
             response = self._client.messages.create(
                 model=self._model,
-                max_tokens=1500,
+                max_tokens=MAX_TOKENS_COMPOSE,
                 system=[{"type": "text", "text": _AUGMENT_PROMPT, "cache_control": {"type": "ephemeral"}}],
                 tools=[_SOFT_FIELDS_TOOL],
                 tool_choice={"type": "tool", "name": "emit_context_soft_fields"},

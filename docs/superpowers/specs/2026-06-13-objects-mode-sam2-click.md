@@ -35,7 +35,7 @@ Objects-Mode becomes a pure click-to-segment surface:
 |---|---|
 | `src/components/workspace/SegmentHitLayer.tsx` | Drop `candidateRegions` / `polygonsAtPoint` / `hoveredScope` / `clickAt` reads. Drop `SegmentOverlay`. Plain-click handler invokes `samCapability.decode([{x, y, label: 1}])` and sets `candidate` state. Cmd-click appends to `candidate.points` (label depends on whether the click is inside the current mask). Enter commits via `propose_mask`. Esc clears. New click while candidate exists = discard + new. |
 | `src/components/workspace/SegmentMaskPreview.tsx` *(new)* | Renders `DecodedMask` as a translucent overlay on the image-node. Uses a `<canvas ref>` painted from `mask.data` (Uint8Array, mask space) scaled to display size, with an `accent-tint` colorize pass. Pure presentational. |
-| `src/components/workspace/SegmentOverlay.tsx` | Delete. No remaining consumers after `SegmentHitLayer` change. |
+| `src/components/workspace/SegmentOverlay.tsx` | Delete. No remaining consumers after `SegmentHitLayer` change. Companion `SegmentOverlay.test.tsx` is also removed. |
 | `src/components/workspace/ImageNode.tsx` | Unchanged — already conditionally renders `<SegmentHitLayer>` when `currentMode === 'objects'`. |
 | `src/hooks/useMobileSam.ts` | Unchanged. Existing lazy encoder + per-imageNodeId embedding cache is reused. |
 | `src/lib/segmentation/mobile-sam-client.ts` | Unchanged. |
@@ -55,7 +55,7 @@ Objects-Mode becomes a pure click-to-segment surface:
 
 | File | Change |
 |---|---|
-| `src/components/workspace/SegmentHitLayer.test.tsx` *(new)* | Mocks `useMobileSam` returning a fake `decode`. Plain click → `decode` called with `[{x, y, label: 1}]`; candidate state visible (preview rendered). Cmd-click appends point. Enter calls `backendTools.propose_mask` with correct `origin`. Esc clears candidate. New click while candidate exists = discard + fresh decode. |
+| `src/components/workspace/SegmentHitLayer.test.tsx` *(rewrite)* | Existing test currently asserts hover-polygon + selection-via-`clickAt` behavior. Replace with: `useMobileSam` mocked to return a fake `decode`; plain click → `decode` called with `[{x, y, label: 1}]`; candidate state visible (preview rendered). Cmd-click appends point. Enter calls `backendTools.propose_mask` with correct `origin`. Esc clears candidate. New click while candidate exists = discard + fresh decode. |
 | `src/components/workspace/SegmentMaskPreview.test.tsx` *(new)* | Renders a known `DecodedMask`, asserts the `<canvas>` is mounted at the right size. (No pixel-level diff — too brittle. Component is thin.) |
 | `src/lib/segmentation/mobile-sam-client.test.ts` | Unchanged. |
 | `src/lib/segmentation/mask-utils.test.ts` | Unchanged. |

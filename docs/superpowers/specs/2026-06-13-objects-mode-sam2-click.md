@@ -46,10 +46,10 @@ Objects-Mode becomes a pure click-to-segment surface:
 
 | File | Change |
 |---|---|
-| `scripts/download_mobile_sam.sh` *(new)* | Bash script: `set -euo pipefail`. `mkdir -p public/models/mobile-sam`. Skips if both files already exist. `curl -L --fail -o … "$URL.partial"` then `mv .partial → final` (atomic). URLs come from env vars `MOBILE_SAM_ENCODER_URL` / `MOBILE_SAM_DECODER_URL` with HuggingFace defaults (resolved at script-write time — see "Open question" below). |
+| `scripts/download_mobile_sam.sh` *(new)* | Bash script: `set -euo pipefail`. `mkdir -p public/models/mobile-sam`. Skips per file if already present. `curl -L --fail -o … "$URL.partial"` then `mv .partial → final` (atomic). URLs come from env vars `MOBILE_SAM_ENCODER_URL` / `MOBILE_SAM_DECODER_URL` defaulting to `https://huggingface.co/Acly/MobileSAM/resolve/main/mobile_sam_image_encoder.onnx` and `https://huggingface.co/Acly/MobileSAM/resolve/main/sam_mask_decoder_single.onnx`. Output paths: `public/models/mobile-sam/encoder.onnx` + `decoder.onnx` (renamed to match the constants in `mobile-sam-client.ts`). |
 | `.gitignore` | Add `public/models/`. |
 | `Makefile` | New target `download-sam` → `./scripts/download_mobile_sam.sh`. Add to `help` list. |
-| `README.md` | Setup section: "Before first use of Objects-Mode: `make download-sam` (one-time, ~26 MB)". |
+| `README.md` | Setup section: "Before first use of Objects-Mode: `make download-sam` (one-time, ~45 MB)". |
 
 ### Tests
 
@@ -114,14 +114,14 @@ SegmentHitLayer drops the candidate on success.
 - Re-binding shift-click to a new behavior. Just dropped.
 - Re-enabling auto-analyze. Separate decision.
 
-## Open question
+## Source URLs (resolved)
 
-**ONNX model source URLs.** The HuggingFace location for MobileSAM ONNX exports (separate encoder + decoder, INT8 decoder) is not yet pinned in this spec. The download script accepts override env vars, so resolving the default URL is a script-write-time decision, not a design decision. Candidates to evaluate before writing the script:
+Default URLs in the download script point to `Acly/MobileSAM` on HuggingFace — a stable community export of the official ChaoningZhang/MobileSAM checkpoint:
 
-- Mirror at `huggingface.co/<org>/mobile-sam-onnx` (if a stable community export exists)
-- Fall back: instruct the user to export from `ChaoningZhang/MobileSAM` using their `scripts/export_onnx_model.py`
+- Encoder: `https://huggingface.co/Acly/MobileSAM/resolve/main/mobile_sam_image_encoder.onnx` (~28 MB)
+- Decoder: `https://huggingface.co/Acly/MobileSAM/resolve/main/sam_mask_decoder_single.onnx` (~16.5 MB, single-mask variant matching the `dims[0] = 1` assumption in `mobile-sam-client.ts:114`)
 
-The plan stage will resolve this with a web check + a documented fallback path in the script.
+Both URLs are overridable via env vars `MOBILE_SAM_ENCODER_URL` / `MOBILE_SAM_DECODER_URL`. If HuggingFace's safety scanner ever takes the decoder offline, the fallback is to export from `ChaoningZhang/MobileSAM` using `scripts/export_onnx_model.py --single-mask`.
 
 ## Verification
 

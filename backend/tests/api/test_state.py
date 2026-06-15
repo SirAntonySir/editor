@@ -3,6 +3,7 @@ import json
 import socket
 import threading
 import time
+from contextlib import contextmanager
 
 import httpx
 import pytest
@@ -335,3 +336,111 @@ async def test_sse_no_replay_when_last_event_id_at_or_past_newest() -> None:
     finally:
         server.should_exit = True
         thread.join(timeout=5.0)
+
+
+# ---------- C9 regression: read routes acquire the document write lock ----------
+
+
+@pytest.mark.asyncio
+async def test_state_snapshot_acquires_document_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """C9 regression: GET /api/state/{sid} reads under the document write lock."""
+    from app.main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        files = {"image": ("t.jpg", b"\xff\xd8\xff" + b"\x00" * 100, "image/jpeg")}
+        r = await ac.post("/api/session", files=files)
+        assert r.status_code == 200
+        sid = r.json()["session_id"]
+
+        store = deps.get_session_store()
+        calls: list[str] = []
+        real_lock = store.with_document_lock
+
+        @contextmanager
+        def spy(s: str):
+            calls.append(s)
+            with real_lock(s) as doc:
+                yield doc
+
+        monkeypatch.setattr(store, "with_document_lock", spy)
+        r = await ac.get(f"/api/state/{sid}")
+        assert r.status_code == 200
+        assert sid in calls
+
+
+@pytest.mark.asyncio
+async def test_state_events_acquires_document_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """C9 regression: GET /api/state/{sid}/events captures the replay under the lock."""
+    from app.main import app
+
+    port = _free_port()
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", lifespan="on")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(50):
+        if server.started:
+            break
+        time.sleep(0.05)
+    assert server.started, "uvicorn did not start"
+
+    try:
+        base = f"http://127.0.0.1:{port}"
+        async with httpx.AsyncClient(base_url=base, timeout=5.0) as ac:
+            files = {"image": ("t.jpg", b"\xff\xd8\xff" + b"\x00" * 100, "image/jpeg")}
+            r = await ac.post("/api/session", files=files)
+            assert r.status_code == 200
+            sid = r.json()["session_id"]
+
+            store = deps.get_session_store()
+            calls: list[str] = []
+            real_lock = store.with_document_lock
+
+            @contextmanager
+            def spy(s: str):
+                calls.append(s)
+                with real_lock(s) as doc:
+                    yield doc
+
+            monkeypatch.setattr(store, "with_document_lock", spy)
+
+            # Open the SSE stream and collect the initial burst; the lock is
+            # acquired during the subscribe + replay prologue before the live loop.
+            async with ac.stream("GET", f"/api/state/{sid}/events") as resp:
+                assert resp.status_code == 200
+                # Read at least one line to ensure the prologue has run.
+                await _collect_initial(resp, max_events=0, timeout=0.5)
+
+            assert sid in calls
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5.0)
+
+
+@pytest.mark.asyncio
+async def test_get_mask_bytes_acquires_document_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """C9 regression: GET /api/state/{sid}/masks/{mid} reads under the lock.
+    A missing mask id produces a 404 that is raised INSIDE the lock block,
+    so the lock is still acquired before the not-found response."""
+    from app.main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        files = {"image": ("t.jpg", b"\xff\xd8\xff" + b"\x00" * 100, "image/jpeg")}
+        r = await ac.post("/api/session", files=files)
+        assert r.status_code == 200
+        sid = r.json()["session_id"]
+
+        store = deps.get_session_store()
+        calls: list[str] = []
+        real_lock = store.with_document_lock
+
+        @contextmanager
+        def spy(s: str):
+            calls.append(s)
+            with real_lock(s) as doc:
+                yield doc
+
+        monkeypatch.setattr(store, "with_document_lock", spy)
+        r = await ac.get(f"/api/state/{sid}/masks/m_missing")
+        assert r.status_code == 404
+        assert sid in calls

@@ -301,7 +301,7 @@ async function addImage(file: File): Promise<void> {
     );
     const position = { x: existing.length > 0 ? maxRight + 80 : 0, y: 0 };
 
-    useEditorStore.getState().addImageNode(
+    const newNodeId = useEditorStore.getState().addImageNode(
       [layerId],
       position,
       { w: bitmap.width, h: bitmap.height },
@@ -323,6 +323,15 @@ async function addImage(file: File): Promise<void> {
       ],
       activeLayerId: layerId,
     }));
+
+    // Promote the new node to active so subsequent toolrail / Cmd+K
+    // spawns target it, and the inspector + layers panel scope to its
+    // layers. Without this, the second image is invisible to widget
+    // spawning until the user manually clicks it in the canvas, and
+    // every inspector edit would still write to the previous active
+    // node's layer — keeping activeLayerId (set above) and
+    // activeImageNodeId in sync.
+    useEditorStore.getState().setActiveImageNode(newNodeId);
   }
 
   const post = captureState();

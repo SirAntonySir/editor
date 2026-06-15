@@ -22,6 +22,12 @@ from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 
 
+class _MissingContext(Exception):
+    """Mapped to missing_context in the envelope by the registry. Raised by
+    the LLM path when analyze_context hasn't run yet."""
+    pass
+
+
 class _Input(BaseModel):
     model_config = camel_config(extra="forbid")
     intent: str = Field(min_length=1)
@@ -334,7 +340,6 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             return self._handle_tool_invoked(doc, input, scope)
 
         if doc.get_image_context(DEFAULT_IMAGE_NODE_ID) is None:
-            from app.tools.widgets.propose_widget import _MissingContext
             raise _MissingContext("call prepare_image then analyze_context first")
 
         return await self._handle_llm_path(doc, input, scope)

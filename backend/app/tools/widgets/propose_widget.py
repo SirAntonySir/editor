@@ -26,10 +26,9 @@ class _InvalidInput(Exception):
     pass
 
 
-class _MissingContext(Exception):
-    """Mapped to missing_context in the envelope by the registry.
-    Also re-raised by propose_stack for the LLM path guard."""
-    pass
+# Back-compat re-export. The canonical home is propose_stack.py; this alias
+# is kept until the deletion task removes propose_widget.py entirely.
+from app.tools.widgets.propose_stack import _MissingContext  # noqa: F401
 
 
 class _Input(BaseModel):

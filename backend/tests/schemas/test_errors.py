@@ -8,7 +8,7 @@ def test_error_codes_include_required_values() -> None:
     required = {
         "missing_session", "missing_image", "missing_context",
         "invalid_input", "unknown_tool", "unknown_widget",
-        "unknown_region", "unknown_mask",
+        "unknown_region", "unknown_mask", "orphan_binding",
         "scope_unresolvable", "sam_failed",
         "llm_validation_failed", "llm_envelope_violation",
         "fused_tool_not_found", "skin_safety_violation",

@@ -34,6 +34,8 @@ def _classify_exception(exc: Exception) -> ToolResponseEnvelope | None:
             code = "unknown_region"
         elif ex_name == "_UnknownMask":
             code = "unknown_mask"
+        elif ex_name == "_OrphanBinding":
+            code = "orphan_binding"
         elif ex_name == "_ScopeUnresolvable":
             code = "scope_unresolvable"
         elif ex_name == "_FusedToolNotFound":

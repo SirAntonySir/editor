@@ -272,6 +272,65 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
     expect(editor.widgetNodes[w.id]).toBeUndefined();
     expect(Object.values(editor.tetherEdges)).toEqual([]);
   });
+
+  it('applyEvent widget.created bridges autonomous origin to useSuggestionsUi.markPending', async () => {
+    const { useSuggestionsUi } = await import('./suggestions-ui-slice');
+    useSuggestionsUi.getState().reset();
+    useEditorStore.getState().resetWorkspace();
+
+    // Seed snapshot at revision 0 so subsequent widget.created events apply.
+    useBackendState.setState({
+      sessionId: 's_1',
+      snapshot: {
+        sessionId: 's_1',
+        revision: 0,
+        imageContext: null,
+        widgets: [],
+        masksIndex: [],
+        operationGraph: { id: 'g_1', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+      } as never,
+      sseStatus: 'open',
+    });
+
+    const fire = (id: string, kind: 'mcp_autonomous' | 'tool_invoked', revision: number) =>
+      useBackendState.getState().applyEvent({
+        revision,
+        kind: 'widget.created',
+        emitted_at: new Date().toISOString(),
+        payload: {
+          widget: makeWidget(id, {
+            origin: { kind, prompt: kind === 'mcp_autonomous' ? null : 'test' },
+            nodes: [{ id: `n_${id}`, type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widgetId: id }],
+          }),
+          operationGraph: { id: 'g_1', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+        },
+      } as never);
+
+    fire('w_auto_1', 'mcp_autonomous', 1);
+    fire('w_auto_2', 'mcp_autonomous', 2);
+    fire('w_tool', 'tool_invoked', 3);  // must NOT land in pending
+
+    const pending = useSuggestionsUi.getState().pendingSuggestionIds;
+    expect(pending.has('w_auto_1')).toBe(true);
+    expect(pending.has('w_auto_2')).toBe(true);
+    expect(pending.has('w_tool')).toBe(false);
+    expect(pending.size).toBe(2);
+  });
+
+  it('reset clears the cross-store useSuggestionsUi state too', async () => {
+    const { useSuggestionsUi } = await import('./suggestions-ui-slice');
+    useSuggestionsUi.getState().reset();
+    useSuggestionsUi.getState().addAcceptedSuggestion('w_accepted');
+    useSuggestionsUi.getState().markPending(['w_pending']);
+    useSuggestionsUi.getState().setPreview('w_preview', true);
+
+    useBackendState.getState().reset();
+
+    const ui = useSuggestionsUi.getState();
+    expect(ui.acceptedSuggestions.size).toBe(0);
+    expect(ui.pendingSuggestionIds.size).toBe(0);
+    expect(ui.previewingSuggestionIds.size).toBe(0);
+  });
 });
 
 describe('BackendStateSlice phase events', () => {

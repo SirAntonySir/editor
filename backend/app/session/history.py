@@ -36,13 +36,18 @@ if TYPE_CHECKING:
 class Snapshot(BaseModel):
     """Subset of SessionDocument captured at a user-action boundary.
 
-    Intentionally excludes:
-      - image_bytes        (multi-MB; identical across all snapshots)
-      - prepare_result     (regenerable)
+    Intentionally INCLUDED:
+      - canonical, widgets, masks, image_node_transforms, dismissals
+        (user-action-mutable; per the operations layer)
+      - image_context_by_node (per-image-node analysis result; mutated by
+        analyze_context / precompute_regions, which ARE user actions)
+
+    Intentionally EXCLUDED:
+      - image_bytes / image_bytes_by_node (multi-MB; identical across snapshots)
+      - prepare_result / prepare_result_by_node (regenerable by prepare_image)
       - history (event log; its own ledger, would compound quickly)
-      - image_context      (only widgets/canonical change per user action;
-                            context_updated is a separate audit event)
-      - revision/updated_at (rebuilt on apply)
+      - image_context (legacy singleton; the per-node dict is the SSoT)
+      - revision / updated_at (rebuilt on apply)
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
@@ -53,12 +58,14 @@ class Snapshot(BaseModel):
     masks: dict[str, Any] = Field(default_factory=dict)
     image_node_transforms: dict[str, Any] = Field(default_factory=dict)
     dismissals: list[Any] = Field(default_factory=list)
+    image_context_by_node: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
     def capture(cls, doc: "SessionDocument") -> "Snapshot":
         """Deep-copy the doc's mutable state into a Snapshot. Use `mode='python'`
-        on widgets/masks/dismissals so apply_snapshot can model_validate them
-        back to their typed shapes without round-tripping through JSON."""
+        on widgets/masks/dismissals/image_context so apply_snapshot can
+        model_validate them back to their typed shapes without round-tripping
+        through JSON."""
         return cls(
             canonical=_deep_copy_jsonable(doc.canonical),
             widgets={k: w.model_dump(mode="python") for k, w in doc.widgets.items()},
@@ -66,6 +73,10 @@ class Snapshot(BaseModel):
             masks={k: m.model_dump(mode="python") for k, m in doc.masks.items()},
             image_node_transforms=_deep_copy_jsonable(doc.image_node_transforms),
             dismissals=[r.model_dump(mode="python") for r in doc.dismissals],
+            image_context_by_node={
+                k: v.model_dump(mode="python")
+                for k, v in doc.image_context_by_node.items()
+            },
         )
 
 

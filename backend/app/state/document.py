@@ -106,6 +106,7 @@ class SessionDocument(BaseModel):
         in app/session/history.py — typed as Any here to avoid a cycle
         (history.py imports SessionDocument for type hints).
         """
+        from app.schemas.image_context import ImageContext
         from app.schemas.widget import DismissalRule, MaskRecord, Widget
 
         self.canonical = _deep_copy(snap.canonical)
@@ -114,6 +115,14 @@ class SessionDocument(BaseModel):
         self.masks = {mid: MaskRecord.model_validate(m) for mid, m in snap.masks.items()}
         self.image_node_transforms = _deep_copy(snap.image_node_transforms)
         self.dismissals = [DismissalRule.model_validate(d) for d in snap.dismissals]
+        # Per-image-node image_context: restore exactly what was captured.
+        # The legacy singleton is cleared so apply_snapshot leaves a doc
+        # that satisfies the per-node-only doctrine.
+        self.image_context_by_node = {
+            k: ImageContext.model_validate(v)
+            for k, v in snap.image_context_by_node.items()
+        }
+        self.image_context = None
         return self._emit("history.applied", {
             "operationGraph": self._op_graph_payload(),
             "widgets": [self.widgets[wid].model_dump(mode="json", by_alias=True)

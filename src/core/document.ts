@@ -235,9 +235,13 @@ async function openImage(file: File): Promise<void> {
   // immediately — analyse runs later, on explicit user click. Awaiting
   // would block image-open on a backend round-trip, so fire-and-forget.
   // Pass the OffscreenCanvas (not `bitmap` — closed below; not `file` —
-  // openSession's downscaleForUpload doesn't accept Blob). `openSession`
-  // is idempotent so re-opening the same image is a no-op.
+  // openSession's downscaleForUpload doesn't accept Blob).
+  // Reset useAiSession first: openSession early-returns when sessionId is
+  // already set, so without a reset a new image would either skip the
+  // upload entirely (re-opening) or inherit a stuck 'uploading'/'error'
+  // status from a previous attempt (backend reload, network blip).
   void import('@/hooks/useImageContext').then(({ useAiSession }) => {
+    useAiSession.getState().reset();
     void useAiSession.getState().openSession(offscreen);
   });
 

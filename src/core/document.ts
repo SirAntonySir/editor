@@ -16,6 +16,7 @@ import * as history from './history';
 import { putSource } from './pixel-source-store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
+import { useAiSession } from '@/hooks/useImageContext';
 import { clearInternalCanvasCache } from '@/lib/image-node-geometry';
 import { parseImageMetadata } from '@/lib/image-metadata';
 import { backendTools } from '@/lib/backend-tools';
@@ -242,10 +243,14 @@ async function openImage(file: File): Promise<void> {
   // already set, so without a reset a new image would either skip the
   // upload entirely (re-opening) or inherit a stuck 'uploading'/'error'
   // status from a previous attempt (backend reload, network blip).
-  void import('@/hooks/useImageContext').then(({ useAiSession }) => {
-    useAiSession.getState().reset();
-    void useAiSession.getState().openSession(offscreen);
-  });
+  //
+  // NOTE: openSession is async (uploads the offscreen canvas). If the user
+  // opens a second image while a prior upload is still in flight, the late
+  // upload can clobber the new session. Addressing that race requires a
+  // generation counter on useAiSession.openSession — out of scope for this
+  // cluster, tracked as a follow-up under audit C8.
+  useAiSession.getState().reset();
+  void useAiSession.getState().openSession(offscreen);
 
   bitmap.close();
 }

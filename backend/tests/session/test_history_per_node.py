@@ -43,3 +43,16 @@ def test_apply_snapshot_clears_legacy_singleton_image_context():
     doc.apply_snapshot(snap)
     assert doc.image_context is None
     assert doc.get_image_context(DEFAULT_IMAGE_NODE_ID).mood == "per-node"
+
+
+def test_apply_empty_snapshot_leaves_image_context_by_node_empty():
+    """Undo from a fresh-doc baseline (no analyze ever ran) yields a snapshot
+    with image_context_by_node == {}; applying it must NOT add a phantom
+    entry to the per-node dict."""
+    doc = SessionDocument(session_id="s1")
+    snap = Snapshot.capture(doc)
+    # Pretend a tool ran in between — should be rolled back to empty.
+    doc.set_image_context(DEFAULT_IMAGE_NODE_ID, _ctx("excited"))
+    doc.apply_snapshot(snap)
+    assert doc.image_context_by_node == {}
+    assert doc.image_context is None

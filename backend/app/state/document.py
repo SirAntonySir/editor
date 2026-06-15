@@ -134,6 +134,15 @@ class SessionDocument(BaseModel):
                  "imageNodeId": m.image_node_id}
                 for m in self.masks.values()
             ],
+            # Per-image-node image_context restored above. Carry it on the
+            # event so the frontend's history.applied handler can sync
+            # s.snapshot.imageContext without a full snapshot refetch.
+            # Frontend pickup lands in a separate FE-only commit; until then
+            # this is a no-op on the wire (extra field is ignored).
+            "imageContextByNode": {
+                k: v.model_dump(mode="json", by_alias=True)
+                for k, v in self.image_context_by_node.items()
+            },
         })
 
     def prune_history(self, max_entries: int) -> int:

@@ -75,10 +75,14 @@ function ObjectLabel({
         <div
           data-object-id={obj.id}
           // pointer-events-auto so the right-click hits this label and not
-          // the React Flow node beneath it.
+          // the React Flow node beneath it. stopPropagation on contextmenu
+          // (capture phase) prevents the event from bubbling past the
+          // Radix Trigger that wraps ImageNodeBody — without it the
+          // image-node's own ContextMenu opens instead of ours.
           className="pointer-events-auto absolute px-1.5 py-0.5 rounded-[3px] bg-surface/95 text-text-primary text-[10px] leading-none border border-separator shadow-sm cursor-default select-none"
           style={{ left: `${left}px`, top: `${Math.max(0, top - 18)}px` }}
           onClick={(e) => e.stopPropagation()}
+          onContextMenuCapture={(e) => e.stopPropagation()}
         >
           {obj.label}
         </div>
@@ -137,8 +141,13 @@ export function ImageNodeObjectsLayer({
   return (
     <div
       data-testid="image-node-objects-layer"
+      // zIndex sits ABOVE SegmentHitLayer (z=5) so right-clicks on a label
+      // land here instead of being swallowed by the hit-test surface — and
+      // bubbling up the (covered) image body then opening the image-node's
+      // ContextMenu instead of the object's. The canvas itself stays
+      // pointer-events-none so only the labels capture input.
       className="nodrag nopan pointer-events-none absolute inset-0"
-      style={{ zIndex: 4 }}
+      style={{ zIndex: 6 }}
     >
       <canvas
         ref={canvasRef}

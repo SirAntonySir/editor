@@ -80,6 +80,15 @@ export interface WorkspaceSlice {
   infoNodes: Record<string, InfoNodeState>;
   workspaceViewport: WorkspaceViewport;
   activeImageNodeId: string | null;
+  /**
+   * Last `activeImageNodeId` that was distinct from the current one. Updated
+   * by `setActiveImageNode` whenever the active node changes to a different
+   * non-null value. Used by the ImageNode header "Merge into previous" affordance
+   * so the user can fold the current node into the one they were just on.
+   *
+   * NOT part of the backend snapshot; UI-only.
+   */
+  previousImageNodeId: string | null;
 
   /** Per-ImageNode UI-only display mode. Absent ⇒ caller's default
    *  (typically 'objects' when candidateRegions exist, else 'layers').
@@ -174,6 +183,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
   infoNodes: {},
   workspaceViewport: { zoom: 1, pan: { x: 0, y: 0 } },
   activeImageNodeId: null,
+  previousImageNodeId: null,
   imageNodeMode: {},
   _nextNodeSeq: 1,
   _nextEdgeSeq: 1,
@@ -247,6 +257,9 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
         if (edge.targetImageNodeId === sourceId) edge.targetImageNodeId = targetId;
       }
       delete state.imageNodes[sourceId];
+      // Stale active/previous mirrors must not survive a node deletion.
+      if (state.activeImageNodeId === sourceId) state.activeImageNodeId = targetId;
+      if (state.previousImageNodeId === sourceId) state.previousImageNodeId = null;
     });
   },
 
@@ -263,6 +276,10 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       // Clear active mirror if it was this node.
       if (state.activeImageNodeId === id) {
         state.activeImageNodeId = null;
+      }
+      // Clear previous-mirror too — a deleted node is no longer a valid merge target.
+      if (state.previousImageNodeId === id) {
+        state.previousImageNodeId = null;
       }
       delete state.imageNodeMode[id];
     }),
@@ -295,6 +312,17 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
 
   setActiveImageNode: (activeImageNodeId) =>
     set((state) => {
+      // Track previous: when the active id changes to a different non-null
+      // value, the old value (if present and distinct) becomes "previous".
+      // Selecting the same node again is a no-op for `previous`; clearing to
+      // null preserves the previous so it remains a valid merge target.
+      if (
+        activeImageNodeId !== null &&
+        state.activeImageNodeId !== null &&
+        state.activeImageNodeId !== activeImageNodeId
+      ) {
+        state.previousImageNodeId = state.activeImageNodeId;
+      }
       state.activeImageNodeId = activeImageNodeId;
     }),
 
@@ -355,6 +383,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       state.infoNodes = {};
       state.workspaceViewport = { zoom: 1, pan: { x: 0, y: 0 } };
       state.activeImageNodeId = null;
+      state.previousImageNodeId = null;
       state.imageNodeMode = {};
       state._nextNodeSeq = 1;
       state._nextEdgeSeq = 1;

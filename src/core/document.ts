@@ -460,10 +460,43 @@ const workspace = {
     );
   },
 
+  /**
+   * Peel the currently active layer off `sourceNodeId` onto a new ImageNode.
+   * Guards: source node exists, an active layer is set, the layer actually
+   * belongs to the source, and the source has more than one layer.
+   *
+   * Wraps the slice action in a history snapshot so the user can undo the split.
+   */
+  splitActiveLayer(sourceNodeId: string): void {
+    const state = useEditorStore.getState();
+    const node = state.imageNodes[sourceNodeId];
+    const activeLayerId = state.activeLayerId;
+    if (!node || !activeLayerId) return;
+    if (!node.layerIds.includes(activeLayerId)) return;
+    if (node.layerIds.length < 2) return;
+    recordSnapshot('Split active layer', () => {
+      useEditorStore.getState().splitImageNode(sourceNodeId, activeLayerId);
+    });
+  },
+
   mergeImageNodes(sourceId: string, targetId: string): void {
     recordSnapshot('Merge image nodes', () =>
       useEditorStore.getState().mergeImageNodes(sourceId, targetId),
     );
+  },
+
+  /**
+   * Fold `sourceNodeId` into `targetNodeId`. Thin wrapper over `mergeImageNodes`
+   * with arg order matching "merge SOURCE into TARGET" (target first), guarding
+   * against missing nodes and self-merge.
+   */
+  mergeInto(targetNodeId: string, sourceNodeId: string): void {
+    const state = useEditorStore.getState();
+    if (!state.imageNodes[targetNodeId] || !state.imageNodes[sourceNodeId]) return;
+    if (targetNodeId === sourceNodeId) return;
+    recordSnapshot('Merge into image node', () => {
+      useEditorStore.getState().mergeImageNodes(sourceNodeId, targetNodeId);
+    });
   },
 
   removeImageNode(id: string): void {

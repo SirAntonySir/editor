@@ -1,4 +1,4 @@
-import { Eye, Image, MoreHorizontal } from 'lucide-react';
+import { Combine, Eye, Image, MoreHorizontal, Scissors } from 'lucide-react';
 import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
 import { useEffect, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
@@ -136,6 +136,12 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   // Merge with cropPreview when this node is the crop-tab target.
   const inspectorTab = usePreferencesStore((s) => s.inspectorTab);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
+  const previousImageNodeId = useEditorStore((s) => s.previousImageNodeId);
+  const activeLayerId = useEditorStore((s) => s.activeLayerId);
+  const imageNodeCount = useEditorStore((s) => Object.keys(s.imageNodes).length);
+  const previousImageNodeName = useEditorStore((s) =>
+    previousImageNodeId ? s.imageNodes[previousImageNodeId]?.id : undefined,
+  );
   const cropPreview = useEditorStore((s) => s.cropPreview);
   const imageNodeMode = useEditorStore((s) => s.imageNodeMode[id]);
   const objects = useImageNodeObjects(id);
@@ -194,6 +200,30 @@ const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
     if (!canSplit) return;
     const lastLayerId = data.layerIds[data.layerIds.length - 1];
     editorDocument.workspace.splitImageNode(id, lastLayerId);
+  }
+
+  // Header affordance: peel the *currently active* layer (not the last one)
+  // onto a new image node. Gated on selected + multi-layer + active layer
+  // belonging to this node (matches spec).
+  const canSplitActive =
+    selected &&
+    canSplit &&
+    activeLayerId !== null &&
+    data.layerIds.includes(activeLayerId);
+  function handleSplitActiveLayer() {
+    if (!canSplitActive) return;
+    editorDocument.workspace.splitActiveLayer(id);
+  }
+
+  // Header affordance: merge THIS node into the last-active different one.
+  // Gated on ≥2 nodes existing and a known previous distinct from `id`.
+  const canMergeIntoPrevious =
+    imageNodeCount >= 2 &&
+    previousImageNodeId !== null &&
+    previousImageNodeId !== id;
+  function handleMergeIntoPrevious() {
+    if (!canMergeIntoPrevious || previousImageNodeId === null) return;
+    editorDocument.workspace.mergeInto(previousImageNodeId, id);
   }
 
   function handleDelete() {
@@ -303,6 +333,38 @@ const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
               >
                 <Eye size={10} aria-hidden />
               </button>
+              {canSplitActive && (
+                <button
+                  type="button"
+                  aria-label="Split selected layer to new image node"
+                  title="Split selected layer to new image node"
+                  onPointerDownCapture={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); handleSplitActiveLayer(); }}
+                  className="ml-0.5 inline-flex items-center justify-center w-3.5 h-3.5 rounded-[3px] text-text-secondary hover:bg-surface-secondary hover:text-text-primary cursor-pointer"
+                >
+                  <Scissors size={10} aria-hidden />
+                </button>
+              )}
+              {canMergeIntoPrevious && (
+                <button
+                  type="button"
+                  aria-label={
+                    previousImageNodeName
+                      ? `Merge into ${previousImageNodeName}`
+                      : 'Merge into previous image node'
+                  }
+                  title={
+                    previousImageNodeName
+                      ? `Merge into ${previousImageNodeName}`
+                      : 'Merge into previous image node'
+                  }
+                  onPointerDownCapture={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); handleMergeIntoPrevious(); }}
+                  className="ml-0.5 inline-flex items-center justify-center w-3.5 h-3.5 rounded-[3px] text-text-secondary hover:bg-surface-secondary hover:text-text-primary cursor-pointer"
+                >
+                  <Combine size={10} aria-hidden />
+                </button>
+              )}
               <DropdownMenu.Root>
                 <DropdownMenu.Trigger asChild>
                   <button

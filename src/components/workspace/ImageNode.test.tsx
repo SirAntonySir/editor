@@ -218,6 +218,93 @@ describe('right-click context menu', () => {
   });
 });
 
+describe('ImageNode · header split affordance', () => {
+  beforeEach(() => {
+    useEditorStore.getState().resetWorkspace();
+  });
+
+  it('Split button peels the active layer to a new image node', async () => {
+    const user = userEvent.setup();
+    // Seed: one image node with two layers. Mark l-2 as active.
+    const nodeId = useEditorStore.getState().addImageNode(['l-1', 'l-2']);
+    useEditorStore.setState({
+      layers: [
+        { id: 'l-1', type: 'image', name: 'L1', visible: true, opacity: 1, blendMode: 'normal', locked: false, order: 0 },
+        { id: 'l-2', type: 'image', name: 'L2', visible: true, opacity: 1, blendMode: 'normal', locked: false, order: 1 },
+      ],
+      activeLayerId: 'l-2',
+    } as never);
+
+    renderInFlow(
+      <ImageNode id={nodeId} data={{ ...baseData, layerIds: ['l-1', 'l-2'], name: 'Sky' }} selected />,
+    );
+
+    const btn = screen.getByRole('button', { name: /Split selected layer to new image node/i });
+    await user.click(btn);
+
+    const after = useEditorStore.getState();
+    const nodes = Object.values(after.imageNodes);
+    expect(nodes).toHaveLength(2);
+    expect(after.imageNodes[nodeId].layerIds).toEqual(['l-1']);
+    const peeled = nodes.find((n) => n.id !== nodeId);
+    expect(peeled?.layerIds).toEqual(['l-2']);
+  });
+
+  it('Split button is absent when the node has only one layer', () => {
+    const nodeId = useEditorStore.getState().addImageNode(['l-1']);
+    useEditorStore.setState({
+      layers: [
+        { id: 'l-1', type: 'image', name: 'L1', visible: true, opacity: 1, blendMode: 'normal', locked: false, order: 0 },
+      ],
+      activeLayerId: 'l-1',
+    } as never);
+
+    renderInFlow(
+      <ImageNode id={nodeId} data={{ ...baseData, layerIds: ['l-1'], name: 'Sky' }} selected />,
+    );
+
+    expect(
+      screen.queryByRole('button', { name: /Split selected layer to new image node/i }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe('ImageNode · header merge affordance', () => {
+  beforeEach(() => {
+    useEditorStore.getState().resetWorkspace();
+  });
+
+  it('Merge button folds this node into the previously-active one', async () => {
+    const user = userEvent.setup();
+    const idA = useEditorStore.getState().addImageNode(['l-1']);
+    const idB = useEditorStore.getState().addImageNode(['l-2']);
+    // Simulate selection history: A first, then B → previous = A, active = B.
+    useEditorStore.getState().setActiveImageNode(idA);
+    useEditorStore.getState().setActiveImageNode(idB);
+    expect(useEditorStore.getState().previousImageNodeId).toBe(idA);
+
+    renderInFlow(
+      <ImageNode id={idB} data={{ ...baseData, layerIds: ['l-2'], name: 'B' }} selected />,
+    );
+
+    const btn = screen.getByRole('button', { name: /Merge into/i });
+    await user.click(btn);
+
+    const after = useEditorStore.getState();
+    expect(after.imageNodes[idB]).toBeUndefined();
+    expect(after.imageNodes[idA].layerIds).toEqual(['l-1', 'l-2']);
+  });
+
+  it('Merge button is absent when only one image node exists', () => {
+    const idA = useEditorStore.getState().addImageNode(['l-1']);
+    // No second node → no previous → button shouldn't render.
+    renderInFlow(
+      <ImageNode id={idA} data={{ ...baseData, layerIds: ['l-1'], name: 'A' }} selected />,
+    );
+    expect(screen.queryByRole('button', { name: /Merge into/i })).not.toBeInTheDocument();
+  });
+});
+
 describe('ImageNode · compare button', () => {
   beforeEach(() => {
     useImageNodeRenderMock.mockClear();

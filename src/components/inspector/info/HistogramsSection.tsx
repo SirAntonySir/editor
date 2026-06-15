@@ -4,7 +4,7 @@ import type { ImageContext } from '@/types/image-context';
 import { HistogramPlot } from '@/components/ui/HistogramPlot';
 import type { HistogramBins } from '@/lib/histogram-compute';
 import { SectionHeader } from './SectionHeader';
-import { MetricChipGrid } from './MetricChip';
+import { MetricChipGrid } from '@/components/ui/MetricChip';
 import { MetricChipMenu } from './MetricChipMenu';
 import { useEditorStore } from '@/store';
 import { editorDocument } from '@/core/document';

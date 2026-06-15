@@ -1,7 +1,7 @@
 import { Info as InfoIcon, Sparkles, Copy as CopyIcon } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import type { InfoNodeState, InfoHistogramPayload, InfoNodeContent } from '@/types/workspace';
-import { MetricChip, MetricChipGrid } from '@/components/inspector/info/MetricChip';
+import { MetricChip, MetricChipGrid } from '@/components/ui/MetricChip';
 import { HistogramPlot } from '@/components/ui/HistogramPlot';
 import type { HistogramBins } from '@/lib/histogram-compute';
 import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';

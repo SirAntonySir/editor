@@ -17,7 +17,7 @@ import {
 } from '@/lib/image-metadata';
 import { SectionHeader } from './SectionHeader';
 import { MetadataMap } from './MetadataMap';
-import { MetricChipGrid } from './MetricChip';
+import { MetricChipGrid } from '@/components/ui/MetricChip';
 import { MetricChipMenu } from './MetricChipMenu';
 
 /** EXIF + document + file metadata. Each chip group renders only when at

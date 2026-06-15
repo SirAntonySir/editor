@@ -13,9 +13,9 @@ const TINT_R = 124;
 const TINT_G = 58;
 const TINT_B = 237;
 const TINT_ALPHA = 110;
-const DASH = 4;
-const GAP = 3;
-const ANTS_SPEED_PX_PER_FRAME = 0.25;
+const DASH = 5;
+const GAP = 4;
+const ANTS_SPEED_PX_PER_FRAME = 0.6;
 
 /** Build a Path2D tracing the boundary of the binary mask — every set pixel
  *  emits an edge segment on each side that borders an unset pixel. */
@@ -78,15 +78,17 @@ export function SegmentMaskPreview({ mask, widthPx, heightPx }: SegmentMaskPrevi
     const tick = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       if (fill) ctx.drawImage(fill, 0, 0);
+      // Soft solid halo behind the dashed line so the ants stay visible on
+      // any background. Drawn first, slightly wider, dark + low alpha.
+      ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.stroke(path);
+      // Marching ants: single white dashed stroke whose phase shifts each frame.
       ctx.lineWidth = 1.25;
       ctx.setLineDash([DASH, GAP]);
-      // White ants moving forward.
-      ctx.strokeStyle = '#ffffff';
       ctx.lineDashOffset = -offset;
-      ctx.stroke(path);
-      // Black ants interleaved (offset by half-period) for contrast on any background.
-      ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-      ctx.lineDashOffset = -offset + DASH;
+      ctx.strokeStyle = '#ffffff';
       ctx.stroke(path);
       offset = (offset + ANTS_SPEED_PX_PER_FRAME) % (DASH + GAP);
       raf = requestAnimationFrame(tick);

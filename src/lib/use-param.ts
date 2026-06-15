@@ -100,15 +100,19 @@ export function useParam<T extends ControlValue = number>(
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => {
         // Stale-write guard: a history op (undo/redo/revert) between
-        // the user input and now would have cleared s.optimistic. If
-        // our intended patch is no longer present, suppress the write.
-        const opt = useBackendState.getState().optimistic.get(optimisticKey);
-        const stillIntended = opt?.bindings.some(
-          (b) => b.paramKey === paramName && b.value === (v as ControlValue),
-        );
-        if (!stillIntended) return;
+        // the user input and now would have cleared s.optimistic. We
+        // only need to check the key — if any patch for our slot is
+        // still present, our setTimeout is the latest (each `set` call
+        // clears the previous timer above), so the value question is
+        // moot. Checking the key handles object-valued ControlValues
+        // (curves, point lists) where reference-equality would be
+        // brittle.
+        if (!useBackendState.getState().optimistic.has(optimisticKey)) return;
         if (target.kind === 'canonical') {
           void backendTools.set_param(sessionId, {
+            // Non-null assertion is safe: optimisticKey would be '' when
+            // layerId is null, and the early-return above would have
+            // suppressed the write.
             layerId: target.layerId!,
             op: target.op,
             param: target.param,

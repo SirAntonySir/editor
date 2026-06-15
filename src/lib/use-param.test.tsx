@@ -106,3 +106,30 @@ it('cleanup on unmount cancels a pending debounced write', () => {
   act(() => { vi.advanceTimersByTime(400); });
   expect(backendTools.set_param).not.toHaveBeenCalled();
 });
+
+// ---- disabled paths ----
+
+it('canonical setter is a no-op when layerId is null', () => {
+  seedSnapshot([]);
+  const { result } = renderHook(() => useParam({ kind: 'canonical', layerId: null, op: 'basic', param: 'exposure' }, 0 as number));
+  act(() => { result.current[1](42); });
+  act(() => { vi.advanceTimersByTime(400); });
+  expect(backendTools.set_param).not.toHaveBeenCalled();
+});
+
+it('widget setter is a no-op when widgetId is undefined', () => {
+  seedSnapshot([]);
+  const { result } = renderHook(() => useParam({ kind: 'widget', widgetId: undefined, paramKey: 'exposure' }, 0 as number));
+  act(() => { result.current[1](42); });
+  act(() => { vi.advanceTimersByTime(400); });
+  expect(backendTools.set_widget_param).not.toHaveBeenCalled();
+});
+
+it('setter is a no-op when sseStatus is not open (offline)', () => {
+  seedSnapshot([]);
+  useBackendState.setState((s) => ({ ...s, sseStatus: 'closed' } as never));
+  const { result } = renderHook(() => useParam({ kind: 'canonical', layerId: 'L1', op: 'basic', param: 'exposure' }, 0 as number));
+  act(() => { result.current[1](99); });
+  act(() => { vi.advanceTimersByTime(400); });
+  expect(backendTools.set_param).not.toHaveBeenCalled();
+});

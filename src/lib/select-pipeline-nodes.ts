@@ -73,8 +73,7 @@ export function mergeOptimistic(
 
 /**
  * Returns the projected OperationGraph nodes as PipelineNodes (with optimistic
- * overrides merged in). Consumed by layer-compositor, use-adjustment, and
- * useNodePreview.
+ * overrides merged in). Consumed by layer-compositor and useNodePreview.
  */
 export function selectPipelineNodes(): PipelineNode[] {
   const snap = useBackendState.getState().snapshot;

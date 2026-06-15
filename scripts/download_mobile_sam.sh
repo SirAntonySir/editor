@@ -31,5 +31,31 @@ download() {
 download "$ENCODER_URL" "$DEST/encoder.onnx"
 download "$DECODER_URL" "$DEST/decoder.onnx"
 
+# Copy ONNX Runtime Web's bundled WASM assets into public/ort/. ORT-Web fetches
+# these at runtime via `ort.env.wasm.wasmPaths`; without them Vite returns
+# index.html and the wasm streaming-compile fails with
+# "expected magic word 00 61 73 6d, found 3c 21 64 6f" (which is "<!do…").
+ORT_SRC="node_modules/onnxruntime-web/dist"
+ORT_DEST="public/ort"
+if [ ! -d "$ORT_SRC" ]; then
+  echo "✗ $ORT_SRC missing — run 'npm install' first"
+  exit 1
+fi
+mkdir -p "$ORT_DEST"
+# jsep = WebGPU EP, plain = CPU WASM fallback. The two combos mobile-sam-client
+# requests via executionProviders: ['webgpu', 'wasm'].
+for base in ort-wasm-simd-threaded.jsep ort-wasm-simd-threaded; do
+  for ext in wasm mjs; do
+    src="$ORT_SRC/$base.$ext"
+    dst="$ORT_DEST/$base.$ext"
+    if [ -f "$dst" ] && [ "$src" -ot "$dst" ]; then
+      continue
+    fi
+    cp "$src" "$dst"
+    echo "✓ $dst"
+  done
+done
+
 echo
 echo "MobileSAM ONNX files ready at $DEST"
+echo "ONNX Runtime Web assets ready at $ORT_DEST"

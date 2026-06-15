@@ -34,6 +34,12 @@ export async function loadSessions(): Promise<Sessions> {
     _sessionsPromise = (async () => {
       const ort = await import('onnxruntime-web');
       ort.env.wasm.numThreads = 1;
+      // ORT-Web fetches its bundled WASM/glue at runtime. Vite doesn't serve
+      // them by default, so they're copied to public/ort/ by
+      // scripts/download_mobile_sam.sh. Setting wasmPaths points ORT at that
+      // mirror; otherwise the streaming compile pulls index.html and dies
+      // with "expected magic word 00 61 73 6d, found 3c 21 64 6f".
+      ort.env.wasm.wasmPaths = '/ort/';
       const [encoder, decoder] = await Promise.all([
         ort.InferenceSession.create(ENCODER_URL, {
           executionProviders: ['webgpu', 'wasm'],

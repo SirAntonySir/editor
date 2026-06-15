@@ -32,7 +32,7 @@ function _scopeForSpawn(
 /**
  * Handle a toolrail click for a tool with a `processingId`.
  *
- * Returns `true` when the click was handled (a `propose_widget` was kicked
+ * Returns `true` when the click was handled (a `proposeStack` was kicked
  * off, the click was gated out, or there's no backend session) and `false`
  * when the tool isn't backed by a processing definition.
  */

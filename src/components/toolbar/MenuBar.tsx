@@ -4,6 +4,7 @@ import { useSyncExternalStore } from 'react';
 import { Undo2, Redo2, RotateCcw } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { useEditorStore } from '@/store';
+import { useBackendState } from '@/store/backend-state-slice';
 import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { revertToOriginal } from '@/lib/revert';
 import { editorDocument } from '@/core/document';
@@ -96,7 +97,7 @@ function TriggerButton({ children }: { children: React.ReactNode }) {
 /* ------------------------------------------------------------------ */
 
 export function MenuBar() {
-  const { handleOpen, handleClose, handleExport } = useFileIO();
+  const { handleOpen, handleAddImage, handleClose, handleExport } = useFileIO();
   const { transformImage } = useImageTransform();
   const { applyZoom, fitOnScreen, zoomIn, zoomOut } = useCanvasZoom();
 
@@ -104,7 +105,7 @@ export function MenuBar() {
     <>
       <div className="flex items-center w-full">
         <Menubar.Root className="flex items-center gap-0 text-sm text-text-primary">
-          <FileMenu onOpen={handleOpen} onExport={handleExport} onClose={handleClose} />
+          <FileMenu onOpen={handleOpen} onAddImage={handleAddImage} onExport={handleExport} onClose={handleClose} />
           <EditMenu />
           <ImageMenu transformImage={transformImage} />
           <LayerMenu />
@@ -138,14 +139,19 @@ export function MenuBar() {
 
 function FileMenu({
   onOpen,
+  onAddImage,
   onExport,
   onClose,
 }: {
   onOpen: () => void;
+  onAddImage: () => void;
   onExport: (format: 'png' | 'jpeg' | 'webp') => void;
   onClose: () => void;
 }) {
   const hasLayers = useEditorStore((s) => s.layers.length > 0);
+  const hasDocument = useEditorStore((s) => s.documentMeta !== null);
+  const sseStatus = useBackendState((s) => s.sseStatus);
+  const canAddImage = hasDocument && sseStatus === 'open';
   return (
     <Menubar.Menu>
       <TriggerButton>File</TriggerButton>
@@ -153,6 +159,9 @@ function FileMenu({
         <Menubar.Content className={menuContentClass} align="start" sideOffset={4}>
           <Item keys={['mod', 'O']} onSelect={onOpen}>
             Open...
+          </Item>
+          <Item keys={['mod', 'shift', 'O']} disabled={!canAddImage} onSelect={onAddImage}>
+            Add image...
           </Item>
           <Sep />
           <Sub label="Export As">

@@ -20,6 +20,8 @@ import { clearInternalCanvasCache } from '@/lib/image-node-geometry';
 import { parseImageMetadata } from '@/lib/image-metadata';
 import { backendTools } from '@/lib/backend-tools';
 
+const BACKEND_BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
+
 const DEBOUNCE_MS = 2000;
 
 let store: StoreApi<EditorState> | null = null;
@@ -248,6 +250,83 @@ async function openImage(file: File): Promise<void> {
   bitmap.close();
 }
 
+/**
+ * Append a second (or Nth) image to the current document/session without
+ * resetting any existing state. Creates a new layer + image node placed to
+ * the right of the existing ones.
+ *
+ * Fire-and-forget backend upload: posts the file to
+ * `/api/session/{sid}/images`. The backend mints its own image_node_id;
+ * the frontend separately mints a workspace id via `addImageNode`. For
+ * this slice we accept that the two ids may not match — revival will
+ * reconcile.
+ */
+async function addImage(file: File): Promise<void> {
+  const bitmap = await createImageBitmap(file);
+  const offscreen = new OffscreenCanvas(bitmap.width, bitmap.height);
+  const ctx = offscreen.getContext('2d');
+  if (ctx) ctx.drawImage(bitmap, 0, 0);
+
+  const layerId = crypto.randomUUID();
+  pixelStore.register(layerId, offscreen);
+
+  const sid = useBackendState.getState().sessionId;
+
+  // Best-effort persist source blob so revival can rehydrate this layer.
+  if (sid) void putSource(sid, layerId, file);
+
+  // Best-effort backend upload — fire-and-forget. Mismatch in ids is a known
+  // gap for this slice; the revival ticket will reconcile.
+  if (sid) {
+    const fd = new FormData();
+    fd.append('image', file);
+    void fetch(`${BACKEND_BASE_URL}/api/session/${sid}/images`, {
+      method: 'POST',
+      body: fd,
+    }).catch((err) => {
+      console.warn('[addImage] backend upload failed:', err);
+    });
+  }
+
+  if (store) {
+    const existing = Object.values(store.getState().imageNodes);
+    const maxRight = existing.reduce(
+      (m, n) => Math.max(m, n.position.x + n.size.w),
+      0,
+    );
+    const position = { x: existing.length > 0 ? maxRight + 80 : 0, y: 0 };
+
+    useEditorStore.getState().addImageNode(
+      [layerId],
+      position,
+      { w: bitmap.width, h: bitmap.height },
+    );
+
+    store.setState((s) => ({
+      layers: [
+        ...s.layers,
+        {
+          id: layerId,
+          type: 'image',
+          name: file.name,
+          visible: true,
+          opacity: 1,
+          blendMode: 'normal',
+          locked: false,
+          order: s.layers.length,
+        },
+      ],
+      activeLayerId: layerId,
+    }));
+  }
+
+  const post = captureState();
+  if (post) history.push(post);
+  markDirty();
+
+  bitmap.close();
+}
+
 // ─── Interaction sessions (slider debouncing) ───────────────────────
 
 function beginInteraction(label: string): void {
@@ -465,6 +544,7 @@ export const editorDocument = {
   newDocument,
   closeDocument,
   openImage,
+  addImage,
 
   // Interactions (slider debouncing)
   beginInteraction,

@@ -1,11 +1,15 @@
 import { useCallback } from 'react';
 import { exportImage, saveAs } from '@/lib/export';
 import { editorDocument } from '@/core/document';
-import { openImageFromPicker } from '@/lib/open-file';
+import { openImageFromPicker, addImageFromPicker } from '@/lib/open-file';
 
 export function useFileIO() {
   const handleOpen = useCallback(() => {
     openImageFromPicker();
+  }, []);
+
+  const handleAddImage = useCallback(() => {
+    addImageFromPicker();
   }, []);
 
   const handleClose = useCallback(() => {
@@ -22,5 +26,5 @@ export function useFileIO() {
     [],
   );
 
-  return { handleOpen, handleClose, handleExport };
+  return { handleOpen, handleAddImage, handleClose, handleExport };
 }

@@ -11,3 +11,15 @@ export function openImageFromPicker(): void {
   };
   input.click();
 }
+
+export function addImageFromPicker(): void {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    await editorDocument.addImage(file);
+  };
+  input.click();
+}

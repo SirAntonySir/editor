@@ -3,8 +3,9 @@ import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
 import { revertToOriginal } from '@/lib/revert';
-import { openImageFromPicker } from '@/lib/open-file';
+import { openImageFromPicker, addImageFromPicker } from '@/lib/open-file';
 import { editorDocument } from '@/core/document';
+import { useBackendState } from '@/store/backend-state-slice';
 
 const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent);
 
@@ -55,6 +56,20 @@ function buildShortcuts(): ShortcutEntry[] {
     ctrl: true,
     action: () => openImageFromPicker(),
     label: 'Open…',
+  });
+  // Add image to the current session — same disable gate as the menu entry:
+  // requires an open document AND a live backend SSE.
+  shortcuts.push({
+    key: 'o',
+    ctrl: true,
+    shift: true,
+    action: () => {
+      const hasDocument = useEditorStore.getState().documentMeta !== null;
+      const sseOpen = useBackendState.getState().sseStatus === 'open';
+      if (!hasDocument || !sseOpen) return;
+      addImageFromPicker();
+    },
+    label: 'Add image…',
   });
   shortcuts.push({
     key: 'z',

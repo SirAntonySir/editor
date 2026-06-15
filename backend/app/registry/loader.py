@@ -125,3 +125,20 @@ def reload_registry() -> Registry:
     global _cached
     _cached = load_registry()
     return _cached
+
+
+def effective_tool_defaults(op: RegistryOp) -> list[str]:
+    """Return the curated `tool_defaults` list. When the op did not declare
+    one, fall back to its binding param keys in declaration order. Mirrors
+    the now-removed engine/registry.py view layer's `toolDefaults` field."""
+    if op.tool_defaults is not None:
+        return list(op.tool_defaults)
+    return [b.param_key for b in op.bindings]
+
+
+def param_label(op: RegistryOp, param_key: str) -> str:
+    """Return the human-readable label for `param_key` on `op`. Resolved via
+    the first binding that targets the param; falls back to the key when no
+    binding exposes it (engine-internal params, future ops). Mirrors the
+    now-removed engine view's `params[key]["label"]` field."""
+    return next((b.label for b in op.bindings if b.param_key == param_key), param_key)

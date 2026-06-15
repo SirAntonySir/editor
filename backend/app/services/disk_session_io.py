@@ -57,6 +57,25 @@ def save_session(sid: str, image_bytes: bytes, mime_type: str, created_at: float
     )
 
 
+def write_image(sid: str, image_node_id: str, image_bytes: bytes, mime_type: str) -> None:
+    """Persist an additional image keyed by `image_node_id` next to the
+    session's primary `image.<ext>` file. Layout:
+
+        backend/.sessions/<sid>/
+            image.<ext>           — primary (single-image carrier, unchanged)
+            <image_node_id>.<ext> — additional image(s)
+
+    The primary disk path is intentionally NOT touched even when the caller
+    passes `image_node_id == "in-default"`, so the single-image bootstrap
+    layout stays backwards-compatible. Creates the session dir if it doesn't
+    already exist (defensive — callers usually create the session first via
+    `save_session`).
+    """
+    d = _session_dir(sid)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{image_node_id}.{_ext_for(mime_type)}").write_bytes(image_bytes)
+
+
 def save_context(sid: str, context: dict[str, Any]) -> None:
     """Persist the per-session context.json. Creates the session dir if
     save_session hasn't been called yet (defensive — callers usually

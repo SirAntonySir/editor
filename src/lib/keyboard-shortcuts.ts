@@ -1,7 +1,7 @@
 import { CanvasToolRegistry } from './canvas-tool-registry';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
-import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
+import { useAiSession, analyseActiveImageLayer } from '@/hooks/useImageContext';
 import { revertToOriginal } from '@/lib/revert';
 import { openImageFromPicker, addImageFromPicker } from '@/lib/open-file';
 import { editorDocument } from '@/core/document';
@@ -125,7 +125,7 @@ function buildShortcuts(): ShortcutEntry[] {
       if (layers.length === 0) return;
       const status = useAiSession.getState().status;
       if (status === 'uploading' || status === 'analysing') return;
-      void analyseFirstImageLayer();
+      void analyseActiveImageLayer();
     },
     label: 'Analyze image',
   });

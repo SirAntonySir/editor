@@ -20,7 +20,7 @@ const LightToolStub: ToolDefinition = {
 import { toast } from '@/components/ui/Toast';
 import { spawnRegistryOp, spawnRegistryPreset } from '@/lib/toolrail-spawn';
 import { proposeFromPalette } from '@/lib/palette-actions';
-import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
+import { useAiSession, analyseActiveImageLayer } from '@/hooks/useImageContext';
 
 vi.mock('@/lib/toolrail-spawn', () => ({
   // CommandPalette routes registry-driven picks through these helpers;
@@ -39,7 +39,7 @@ vi.mock('@/hooks/useImageContext', async (importActual) => {
   const actual = await importActual<typeof import('@/hooks/useImageContext')>();
   return {
     ...actual,
-    analyseFirstImageLayer: vi.fn().mockResolvedValue(undefined),
+    analyseActiveImageLayer: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -139,7 +139,7 @@ describe('CommandPalette execution', () => {
       { kind: 'image_node', imageNodeId: nodeId, layerIds: ['l1'] },
       [],
     );
-    expect(analyseFirstImageLayer).not.toHaveBeenCalled();
+    expect(analyseActiveImageLayer).not.toHaveBeenCalled();
   });
 
   it('Cmd+Enter forwards a mask scope when one is active (user-selected scope wins)', async () => {
@@ -163,7 +163,7 @@ describe('CommandPalette execution', () => {
     // Set a context AFTER analyze "resolves" so the guard inside the AI run
     // doesn't bail. Vitest mocks resolve synchronously in microtasks.
     useAiSession.setState({ context: null });
-    (analyseFirstImageLayer as unknown as { mockImplementation: (f: () => Promise<void>) => void }).mockImplementation(async () => {
+    (analyseActiveImageLayer as unknown as { mockImplementation: (f: () => Promise<void>) => void }).mockImplementation(async () => {
       useAiSession.setState({ context: { subjects: [], lighting: 'flat', dominantTones: [], mood: '', candidateRegions: [], modelName: '', modelVersion: '', generatedAt: '' } as unknown as never });
     });
     render(<CommandPalette />);
@@ -171,7 +171,7 @@ describe('CommandPalette execution', () => {
     const input = screen.getByPlaceholderText(/search tools/i);
     await userEvent.type(input, 'make it warmer');
     await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
-    await waitFor(() => expect(analyseFirstImageLayer).toHaveBeenCalled());
+    await waitFor(() => expect(analyseActiveImageLayer).toHaveBeenCalled());
     await waitFor(() => expect(proposeFromPalette).toHaveBeenCalledWith(
       'make it warmer',
       { kind: 'image_node', imageNodeId: nodeId, layerIds: ['l1'] },

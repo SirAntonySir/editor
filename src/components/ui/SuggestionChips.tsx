@@ -57,6 +57,7 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
   const sessionId = useBackendState((s) => s.sessionId);
   const resolve = useSuggestionsUi((s) => s.resolvePending);
   const addAccepted = useSuggestionsUi((s) => s.addAcceptedSuggestion);
+  const recordDecision = useSuggestionsUi((s) => s.recordSuggestionDecision);
   const previewingIds = useSuggestionsUi((s) => s.previewingSuggestionIds);
   const setPreview = useSuggestionsUi((s) => s.setPreview);
   const rf = useReactFlow();
@@ -72,6 +73,13 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
     const screen = { w: window.innerWidth, h: window.innerHeight };
     tetherWorkspaceWidgetOnEngage(widget, { pan: { x, y }, zoom, screen });
     addAccepted(widget.id);
+    recordDecision({
+      id: widget.id,
+      intent: widget.intent,
+      reasoning: widget.reasoning ?? undefined,
+      decision: 'allowed',
+      decidedAt: Date.now(),
+    });
     resolve(widget.id);
   }
 
@@ -82,6 +90,13 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
         suppressSimilar: false,
       });
     }
+    recordDecision({
+      id: widget.id,
+      intent: widget.intent,
+      reasoning: widget.reasoning ?? undefined,
+      decision: 'denied',
+      decidedAt: Date.now(),
+    });
     resolve(widget.id);
   }
 

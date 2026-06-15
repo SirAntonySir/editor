@@ -166,6 +166,29 @@ function contextIsStale(context: ImageContext): boolean {
   return regions.every((r) => !r.paths || r.paths.length === 0);
 }
 
+/**
+ * Pick which image layer the AI should target. Prefers the layer of the
+ * currently active ImageNode on the canvas (so the user's selection drives
+ * analysis), then falls back to `activeLayerId`, then the first image layer
+ * in the document. Returns null only when the document has no image layers.
+ */
+export function resolveTargetImageLayerId(): string | null {
+  const editor = useEditorStore.getState();
+  const { activeImageNodeId, imageNodes, layers, activeLayerId } = editor;
+  if (activeImageNodeId) {
+    const node = imageNodes[activeImageNodeId];
+    if (node) {
+      for (const lid of node.layerIds) {
+        if (layers.find((l) => l.id === lid)?.type === 'image') return lid;
+      }
+    }
+  }
+  if (activeLayerId && layers.find((l) => l.id === activeLayerId)?.type === 'image') {
+    return activeLayerId;
+  }
+  return layers.find((l) => l.type === 'image')?.id ?? null;
+}
+
 export const useAiSession = create<AiSessionState>((set, get) => ({
   sessionId: null,
   context: null,
@@ -197,9 +220,7 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
     }
     set({ status: 'analysing' });
     try {
-      const activeLayerId =
-        useEditorStore.getState().activeLayerId
-        ?? useEditorStore.getState().layers.find((l) => l.type === 'image')?.id;
+      const activeLayerId = resolveTargetImageLayerId();
 
       // Phase 1: prepare (cv2 + SAM embed). Required before analyze_context;
       // its output is reused server-side via doc.prepare_result.
@@ -320,8 +341,7 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
       status: 'ready',
       error: null,
     });
-    const activeLayerId = useEditorStore.getState().activeLayerId
-      ?? useEditorStore.getState().layers.find((l) => l.type === 'image')?.id;
+    const activeLayerId = resolveTargetImageLayerId();
     if (activeLayerId) {
       void registerRegionPaths(context, activeLayerId);
     }
@@ -332,39 +352,41 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
 }));
 
 /**
- * Run AI analyze for the first image layer. If a session is already alive
+ * Run AI analyze for the active image layer (the one belonging to the
+ * currently selected ImageNode on the canvas, falling back to activeLayerId
+ * or the document's first image layer). If a session is already alive
  * (the normal case now — `editorDocument.openImage` opens one on image
  * load), just call `runAnalyse`. Otherwise upload pixels first via
  * `uploadAndAnalyse`. Used by the Info tab "Analyze with AI" CTA, by
  * `.edp` open, and by IndexedDB session-restore.
  */
-export async function analyseFirstImageLayer(): Promise<void> {
+export async function analyseActiveImageLayer(): Promise<void> {
   const ai = useAiSession.getState();
   if (ai.sessionId) {
     await ai.runAnalyse();
     return;
   }
-  const firstImage = useEditorStore.getState().layers.find((l) => l.type === 'image');
-  if (!firstImage) return;
-  const source = pixelStore.getSource(firstImage.id);
+  const targetLayerId = resolveTargetImageLayerId();
+  if (!targetLayerId) return;
+  const source = pixelStore.getSource(targetLayerId);
   if (!source) return;
   const bitmap = await createImageBitmap(source);
   await ai.uploadAndAnalyse(bitmap);
 }
 
 /**
- * Lazy-bind a backend session from the first image layer's pixels, using the
- * cached `ImageContext` if available (no Claude call). Falls back to a full
- * `uploadAndAnalyse` if no cached context.
+ * Lazy-bind a backend session from the active image layer's pixels, using
+ * the cached `ImageContext` if available (no Claude call). Falls back to a
+ * full `uploadAndAnalyse` if no cached context.
  *
  * Called from `handlePaletteSubmit` when the user invokes Cmd+K after a
  * reload — the cached context is on disk but the backend session has died.
  */
-export async function bindSessionFromFirstImageLayer(): Promise<void> {
+export async function bindSessionFromActiveImageLayer(): Promise<void> {
   if (useAiSession.getState().sessionId) return;
-  const firstImage = useEditorStore.getState().layers.find((l) => l.type === 'image');
-  if (!firstImage) return;
-  const source = pixelStore.getSource(firstImage.id);
+  const targetLayerId = resolveTargetImageLayerId();
+  if (!targetLayerId) return;
+  const source = pixelStore.getSource(targetLayerId);
   if (!source) return;
   const bitmap = await createImageBitmap(source);
   await useAiSession.getState().bindCachedSession(bitmap);

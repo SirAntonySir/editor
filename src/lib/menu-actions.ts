@@ -15,7 +15,7 @@
 
 import { useMemo } from 'react';
 import { useEditorStore } from '@/store';
-import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
+import { useAiSession, analyseActiveImageLayer } from '@/hooks/useImageContext';
 import { useFileIO } from '@/hooks/useFileIO';
 import { useCanvasZoom } from '@/hooks/useCanvasZoom';
 import { useImageTransform } from '@/hooks/useImageTransform';
@@ -150,7 +150,7 @@ export function useMenuActions(): MenuAction[] {
       aliases: ['get context', 'analyze with ai', 'reanalyze', 'image context'],
       shortcut: ['mod', 'alt', 'A'],
       disabled: !hasLayers || analysing,
-      run: () => { void analyseFirstImageLayer(); } },
+      run: () => { void analyseActiveImageLayer(); } },
   ], [
     handleOpen, handleClose, handleExport, applyZoom, fitOnScreen, zoomIn, zoomOut,
     transformImage, hasLayers, canUndo, canRedo, hasContext, analysing, mech,

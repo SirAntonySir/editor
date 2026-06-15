@@ -1,17 +1,9 @@
 import { useEditorStore } from '@/store';
-import { useBackendState } from '@/store/backend-state-slice';
-import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import type { ProcessingDefinition } from '@/types/processing';
-import type { Widget } from '@/types/widget';
 import { ToolSection } from './ToolSection';
-import { AiSection } from './AiSection';
 import { PresetsSection } from './PresetsSection';
-
-// Stable empty reference so the selector below doesn't return a fresh literal
-// each render (avoids useSyncExternalStore re-render churn when snapshot is null).
-const EMPTY_WIDGETS: Widget[] = [];
 
 // Per-def label overrides for the accordion. Most defs use their own `.label`
 // directly; a few need a slightly different toolrail-style name here. Empty
@@ -40,17 +32,6 @@ function sectionDef(def: ProcessingDefinition): ProcessingDefinition {
 
 export function AdjustmentsAccordion() {
   const layerId = useEditorStore((s) => s.activeLayerId);
-  const widgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
-  // Pending suggestions are gated by the SuggestionChips row at the top of
-  // the editor; hide them from the inspector AI section so they don't appear
-  // anywhere until the user has clicked Allow.
-  const pendingIds = useSuggestionsUi((s) => s.pendingSuggestionIds);
-  const aiWidgets = widgets.filter(
-    (w) =>
-      (w.status === 'active' || w.status === 'accepted') &&
-      w.origin.kind === 'mcp_autonomous' &&
-      !pendingIds.has(w.id),
-  );
 
   // Build the ordered list of (def, isLastInGroup) tuples so the renderer can
   // decide where to drop separators. Defs not in TOOL_GROUPS are ignored —
@@ -64,16 +45,6 @@ export function AdjustmentsAccordion() {
 
   return (
     <ScrollArea className="flex-1 min-h-0">
-      {aiWidgets.length > 0 && (
-        <div className="px-2.5 pt-2 pb-3 flex flex-col gap-2">
-          <div className="text-[9px] uppercase tracking-wide text-text-secondary">
-            AI Suggestions
-          </div>
-          {aiWidgets.map((w) => (
-            <AiSection key={w.id} widget={w} />
-          ))}
-        </div>
-      )}
       <div className="text-[9px] uppercase tracking-wide text-text-secondary px-2.5 pt-2 pb-1">
         Tools
       </div>

@@ -10,7 +10,7 @@ import { spawnRegistryOp, spawnRegistryPreset } from '@/lib/toolrail-spawn';
 import { proposeFromPalette } from '@/lib/palette-actions';
 import { useMenuActions } from '@/lib/menu-actions';
 import { usePreferencesStore } from '@/store/preferences-store';
-import { analyseFirstImageLayer, useAiSession } from '@/hooks/useImageContext';
+import { analyseActiveImageLayer, useAiSession } from '@/hooks/useImageContext';
 import type { Scope } from '@/types/widget';
 import {
   buildAdjustmentSections,
@@ -252,7 +252,7 @@ export function CommandPalette() {
         if (!aiSession.context) {
           setPendingPhase('analyze');
           try {
-            await analyseFirstImageLayer();
+            await analyseActiveImageLayer();
           } catch (err) {
             setPending(null);
             setPendingPhase(null);

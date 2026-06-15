@@ -10,7 +10,8 @@ import { revertToOriginal } from '@/lib/revert';
 import { editorDocument } from '@/core/document';
 import { useFileIO } from '@/hooks/useFileIO';
 import { BackendStatusBadge } from '@/components/ui/BackendStatusBadge';
-import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
+import { useAiSession, analyseActiveImageLayer } from '@/hooks/useImageContext';
+import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { useCanvasZoom } from '@/hooks/useCanvasZoom';
 import { useImageTransform } from '@/hooks/useImageTransform';
 import { UI } from '@/config';
@@ -429,6 +430,54 @@ function ViewMenu({
 /*  AI                                                                */
 /* ------------------------------------------------------------------ */
 
+function formatHistoryTime(ms: number): string {
+  // Compact "HH:MM" so a 50-entry submenu stays readable. Locale-aware so
+  // 24h vs 12h matches the user's environment.
+  return new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+function SuggestionHistorySubmenu() {
+  const history = useSuggestionsUi((s) => s.suggestionHistory);
+  if (history.length === 0) {
+    return (
+      <Sub label="Suggestion history">
+        <Menubar.Item className={menuItemClass} disabled>
+          <span className="flex-1 text-text-secondary italic">No decisions yet</span>
+        </Menubar.Item>
+      </Sub>
+    );
+  }
+  return (
+    <Sub label="Suggestion history">
+      {history.map((entry) => (
+        <Menubar.Item
+          key={`${entry.id}:${entry.decidedAt}`}
+          className={menuItemClass}
+          // Read-only entries — selecting one does nothing today. Future:
+          // re-show the SuggestionChip / re-tether an allowed widget.
+          disabled
+          title={entry.reasoning ?? undefined}
+        >
+          <span
+            className={
+              entry.decision === 'allowed'
+                ? 'text-ai shrink-0 mr-1.5'
+                : 'text-text-secondary shrink-0 mr-1.5'
+            }
+            aria-hidden
+          >
+            {entry.decision === 'allowed' ? '✓' : '✗'}
+          </span>
+          <span className="flex-1 truncate">{entry.intent}</span>
+          <span className="ml-3 text-text-secondary text-[10px] tabular-nums">
+            {formatHistoryTime(entry.decidedAt)}
+          </span>
+        </Menubar.Item>
+      ))}
+    </Sub>
+  );
+}
+
 function AiMenu() {
   const status = useAiSession((s) => s.status);
   const hasContext = useAiSession((s) => s.context != null);
@@ -436,7 +485,7 @@ function AiMenu() {
   const analysing = status === 'uploading' || status === 'analysing';
 
   const handleReanalyse = () => {
-    void analyseFirstImageLayer();
+    void analyseActiveImageLayer();
   };
 
   return (
@@ -451,6 +500,8 @@ function AiMenu() {
           >
             {hasContext ? 'Re-analyze image' : 'Analyze image'}
           </Item>
+          <Sep />
+          <SuggestionHistorySubmenu />
         </Menubar.Content>
       </Menubar.Portal>
     </Menubar.Menu>

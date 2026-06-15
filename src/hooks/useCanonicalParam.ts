@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 import { RUNTIME } from '@/config';
@@ -28,6 +28,13 @@ export function useCanonicalParam<T extends ControlValue = number>(
   });
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cancel any pending debounced write on unmount so a slider drag
+  // that's still in flight when the panel closes doesn't fire
+  // backendTools.set_param on a dead session.
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
   const set = useCallback((v: T) => {
     if (!layerId || !sessionId || offline) return;
     const baseRevision = useBackendState.getState().snapshot?.revision ?? 0;

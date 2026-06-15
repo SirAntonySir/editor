@@ -42,6 +42,11 @@ function paintAllOutlines(
       }
     }
   }
+  // Marching-ants outline over arbitrary image content: deliberately
+  // *not* themed. The black-then-white stroke pair guarantees contrast
+  // against both bright and dark areas of the underlying photo. Theme
+  // tokens (which target chrome, not image overlays) would lose
+  // visibility on light-on-light or dark-on-dark images.
   ctx.lineWidth = 2;
   ctx.setLineDash([]);
   ctx.strokeStyle = 'rgba(0,0,0,0.40)';

@@ -78,7 +78,9 @@ export function autoTone(m: MechanicalSnapshot): AutoSpawnSpec {
  *  warm (raise kelvin). Coarse single-knob correction; real cast correction
  *  needs per-channel curves. Good enough as a first pass. */
 export function autoColor(m: MechanicalSnapshot): AutoSpawnSpec {
-  const [a, b] = m.castDirection;
+  // Defensive default: a malformed snapshot (or partial mock) may omit
+  // castDirection. Treat absent as "no cast detected".
+  const [a, b] = m.castDirection ?? [0, 0];
   // Kelvin is in [2000, 10000], neutral 6500. Warm = higher k, cool = lower.
   // Use b* (yellow/blue axis) as the primary signal: positive b* (yellow
   // cast) → cool toward lower kelvin. a* (red/green) is secondary; we

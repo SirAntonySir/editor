@@ -80,9 +80,13 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
     return () => el.removeEventListener('pointerdown', stopPointerDownNative);
   }, [chromeVisible]);
 
-  // Reset compareHeld synchronously when chrome hides (e.g. user pans
-  // away while pressing Compare). Previous-prop pattern avoids
-  // setState-during-effect.
+  // Reset compareHeld synchronously when chrome hides. We use the
+  // documented previous-prop-during-render pattern intentionally —
+  // putting this in useEffect causes the cascading-renders ESLint
+  // warning and lets the user see a "still held" Compare button for
+  // one paint before it resets. React explicitly endorses this idiom
+  // when guarded by `prev !== current` (see react.dev/reference/react/
+  // useState#storing-information-from-previous-renders).
   const [prevChromeVisible, setPrevChromeVisible] = useState(chromeVisible);
   if (prevChromeVisible !== chromeVisible) {
     setPrevChromeVisible(chromeVisible);

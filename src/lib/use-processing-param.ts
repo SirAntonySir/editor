@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 
@@ -22,6 +22,12 @@ export function useProcessingParam(
   defaultValue: number,
 ): [number, (v: number) => void] {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cancel any pending debounced write on unmount — a mid-drag panel
+  // close would otherwise fire set_widget_param against a stale session.
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  }, []);
 
   // Read: resolve via backend snapshot. If we have a widgetId, look up the
   // binding value from the widget; fall back to the operation_graph node param.

@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 
@@ -14,6 +14,12 @@ export function useGraphAdjustmentParam(
   defaultValue: number,
 ): [number, (v: number) => void] {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cancel a pending debounced write on unmount so an in-flight slider
+  // drag doesn't fire set_widget_param against a stale session.
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  }, []);
 
   const value = useBackendState((s) => {
     if (!adjustmentId || !s.snapshot) return defaultValue;

@@ -44,7 +44,6 @@ export function CurveEditor({ value, onChange, channel: lockedChannel }: CurveEd
   // tabs are hidden and the active channel is always the locked one.
   const channel: Channel = lockedChannel ?? internalChannel;
   const setChannel = lockedChannel ? (_: Channel) => { /* no-op when locked */ } : setInternalChannel;
-  const svgRef = useRef<SVGSVGElement>(null);
   const draggingIdx = useRef<number | null>(null);
 
   // Normalise upstream once per render so every downstream read sees the
@@ -52,8 +51,11 @@ export function CurveEditor({ value, onChange, channel: lockedChannel }: CurveEd
   const safeValue = normalizeCurvesValue(value);
   const points = safeValue[channel];
 
-  const svgToPoint = useCallback((cx: number, cy: number): CurvePoint => {
-    const rect = svgRef.current!.getBoundingClientRect();
+  // Take the SVG element from the event itself rather than dereffing
+  // svgRef — currentTarget can never be null inside a pointer handler
+  // for this element, so we get the non-assertion property safely.
+  const svgToPoint = useCallback((svg: SVGSVGElement, cx: number, cy: number): CurvePoint => {
+    const rect = svg.getBoundingClientRect();
     return {
       x: Math.max(0, Math.min(1, (cx - rect.left) / rect.width)),
       y: Math.max(0, Math.min(1, 1 - (cy - rect.top) / rect.height)),
@@ -76,7 +78,7 @@ export function CurveEditor({ value, onChange, channel: lockedChannel }: CurveEd
   // every mounted editor's handler fire for every move, with re-registration
   // churn on each `points` change.
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    const pt = svgToPoint(e.clientX, e.clientY);
+    const pt = svgToPoint(e.currentTarget, e.clientX, e.clientY);
     const idx = points.findIndex(
       (p) => Math.abs(p.x - pt.x) < 0.04 && Math.abs(p.y - pt.y) < 0.04,
     );
@@ -92,7 +94,7 @@ export function CurveEditor({ value, onChange, channel: lockedChannel }: CurveEd
 
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     if (draggingIdx.current === null) return;
-    const pt = svgToPoint(e.clientX, e.clientY);
+    const pt = svgToPoint(e.currentTarget, e.clientX, e.clientY);
     const idx = draggingIdx.current;
     const newPts = [...points];
     if (idx === 0) {
@@ -117,7 +119,7 @@ export function CurveEditor({ value, onChange, channel: lockedChannel }: CurveEd
   };
 
   const handleDoubleClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    const pt = svgToPoint(e.clientX, e.clientY);
+    const pt = svgToPoint(e.currentTarget, e.clientX, e.clientY);
     const idx = points.findIndex(
       (p) => Math.abs(p.x - pt.x) < 0.04 && Math.abs(p.y - pt.y) < 0.04,
     );
@@ -160,7 +162,6 @@ export function CurveEditor({ value, onChange, channel: lockedChannel }: CurveEd
 
       {/* Curve SVG editor */}
       <svg
-        ref={svgRef}
         viewBox="0 0 200 200"
         className="w-full aspect-square bg-surface-secondary rounded cursor-crosshair touch-none"
         onPointerDown={onPointerDown}

@@ -2,24 +2,36 @@ import type { ImageContext } from '@/types/image-context';
 
 const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
+/** Read `response.text()` exactly once and JSON-parse if it looks like
+ *  JSON. Response bodies can only be consumed once; without this helper
+ *  an error path that logs + a caller that parses would race. */
+async function readBodyOnce(response: Response): Promise<{ text: string; json: unknown }> {
+  const text = await response.text();
+  let json: unknown = null;
+  try { json = text ? JSON.parse(text) : null; } catch { json = null; }
+  return { text, json };
+}
+
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
+  const cached = await readBodyOnce(response);
   if (!response.ok) {
-    throw new Error(`${path} → ${response.status} ${await response.text()}`);
+    throw new Error(`${path} → ${response.status} ${cached.text}`);
   }
-  return (await response.json()) as T;
+  return cached.json as T;
 }
 
 export async function createSession(blob: Blob): Promise<string> {
   const form = new FormData();
   form.append('image', blob, 'image.jpg');
   const response = await fetch(`${BASE_URL}/api/session`, { method: 'POST', body: form });
-  if (!response.ok) throw new Error(`/api/session → ${response.status} ${await response.text()}`);
-  const body = (await response.json()) as { session_id: string };
+  const cached = await readBodyOnce(response);
+  if (!response.ok) throw new Error(`/api/session → ${response.status} ${cached.text}`);
+  const body = cached.json as { session_id: string };
   return body.session_id;
 }
 

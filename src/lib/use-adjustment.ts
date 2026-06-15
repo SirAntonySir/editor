@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
@@ -20,6 +20,12 @@ export function useAdjustmentParam(
 ): [number, (v: number) => void] {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
+
+  // Cancel a pending debounced write on unmount so an in-flight slider
+  // drag doesn't fire set_widget_param against a stale session.
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  }, []);
 
   const value = useBackendState((s) => {
     if (!activeLayerId || !s.snapshot) return defaultValue;

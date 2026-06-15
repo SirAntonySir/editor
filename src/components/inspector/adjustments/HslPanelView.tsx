@@ -33,23 +33,25 @@ export function HslPanelView({ renderSlider, bandEdited, onReset, availableBands
   const [view, setView] = useState<View>('band');
   const [band, setBand] = useState<string>(bands[0]?.key ?? HSL_BANDS[0].key);
   const [channel, setChannel] = useState<HslChannel>('hue');
-  // If the active band falls out of `availableBands` (e.g. widget shape
-  // changed), snap back to the first available one.
-  if (!bands.some((b) => b.key === band) && bands[0]) {
-    setBand(bands[0].key);
-  }
-  const activeLabel = bands.find((b) => b.key === band)?.label ?? '';
+  // If the stored `band` isn't in the current `availableBands` set (e.g.
+  // widget shape changed), derive a clamped value instead of mutating
+  // state during render. `setBand` still flips state when the user
+  // explicitly picks a different band.
+  const activeBand = bands.some((b) => b.key === band)
+    ? band
+    : (bands[0]?.key ?? band);
+  const activeLabel = bands.find((b) => b.key === activeBand)?.label ?? '';
 
   return (
     <div className="flex flex-col gap-3">
       <Segmented options={VIEW_OPTS} value={view} onChange={setView} aria-label="HSL view" />
       {view === 'band' ? (
         <>
-          <HslBandRail activeBand={band} onSelect={setBand} bandEdited={bandEdited} bands={bands} />
+          <HslBandRail activeBand={activeBand} onSelect={setBand} bandEdited={bandEdited} bands={bands} />
           <div className="text-[10px] text-text-secondary">
             Editing <span className="text-text-primary font-medium">{activeLabel}</span>
           </div>
-          <HslBandSliders band={band} renderSlider={renderSlider} />
+          <HslBandSliders band={activeBand} renderSlider={renderSlider} />
         </>
       ) : (
         <HslChannelRows channel={channel} onChannelChange={setChannel} renderSlider={renderSlider} bands={bands} />

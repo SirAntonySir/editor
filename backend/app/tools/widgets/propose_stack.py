@@ -506,11 +506,86 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
 
         return _Output(widgets=[w.model_dump(mode="json", by_alias=True) for w in widgets])
 
+    def _handle_filter_spawn(
+        self, doc: SessionDocument, input: _Input, scope: Scope,
+    ) -> _Output:
+        """Build a LUT widget without touching the registry.
+
+        Filter/LUT presets are managed client-side via LutRegistry — the
+        backend just produces the widget shell (one lut node + an
+        intensity slider). This is the only forced_ops member that's not
+        a registry op. If filter ever moves into the registry, this
+        carve-out can fold into the normal _handle_tool_invoked path.
+        """
+        widget_id = f"w_{uuid.uuid4().hex[:8]}"
+
+        image_node_layer_ids: list[str] | None = None
+        if scope.root.kind == "image_node":
+            image_node_layer_ids = list(scope.root.layer_ids)
+            layer_id_for_node = (
+                image_node_layer_ids[0] if image_node_layer_ids else input.layer_id
+            )
+        else:
+            layer_id_for_node = input.layer_id
+
+        node_id = f"n_{uuid.uuid4().hex[:6]}"
+        node = WidgetNode(
+            id=node_id,
+            type="lut",
+            params={"intensity": 1.0},
+            scope=scope,
+            inputs=[],
+            widget_id=widget_id,
+            layer_id=layer_id_for_node,
+            layer_ids=image_node_layer_ids,
+        )
+
+        binding = ControlBinding(
+            param_key="intensity",
+            label="Intensity",
+            control_type="slider",
+            control_schema=ControlSchema.model_validate({
+                "control_type": "slider", "min": 0, "max": 1, "step": 0.01,
+            }),
+            value=1.0,
+            default=1.0,
+            target=NodeParamTarget(node_id=node_id, param_key="intensity"),
+        )
+
+        widget = Widget(
+            id=widget_id,
+            intent=input.intent,
+            scope=scope,
+            origin=WidgetOrigin(kind="tool_invoked", prompt=None, parent_widget_id=None),
+            op_id="filter",
+            composed=False,
+            nodes=[node],
+            bindings=[binding],
+            preview=WidgetPreview(kind="none", auto_before_after=False),
+            rejected_attempts=[],
+            status="active",
+            revision=1,
+        )
+        doc.add_widget(widget)
+        return _Output(widgets=[widget.model_dump(mode="json", by_alias=True)])
+
     def _handle_tool_invoked(
         self, doc: SessionDocument, input: _Input, scope: Scope,
     ) -> _Output:
         if not input.forced_ops:
             raise ValueError("tool_invoked origin requires forced_ops")
+
+        # Filter/LUT is intentionally outside the registry (presets live
+        # client-side via LutRegistry). Route the single-op `filter` case
+        # to its own builder. Mixed lists are explicitly rejected.
+        if "filter" in input.forced_ops:
+            if input.forced_ops != ["filter"]:
+                raise ValueError(
+                    "forced_ops with 'filter' must contain only 'filter' — "
+                    "the LUT path is single-op."
+                )
+            return self._handle_filter_spawn(doc, input, scope)
+
         reg = get_registry()
 
         image_node_layer_ids = None

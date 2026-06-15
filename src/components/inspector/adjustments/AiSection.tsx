@@ -12,6 +12,7 @@ import { LevelsWidgetBody, isFullLevelsWidget } from '@/components/widget/Levels
 import { WhyPopover } from '@/components/widget/WhyPopover';
 import { bindingProvenance, touchKey } from '@/hooks/useParamProvenance';
 import { engineNeutralForBinding } from '@/engine/registry';
+import { maskMatchesImageNode } from '@/lib/mask-filters';
 import type { ControlBinding, ControlValue, MaskSummary, Widget } from '@/types/widget';
 
 // Stable empty reference so the masks selector doesn't return a fresh literal
@@ -42,10 +43,7 @@ export function AiSection({ widget }: AiSectionProps) {
   // isn't the active one, hide it from the binding pickers. Masks with no
   // imageNodeId (legacy / global) stay visible for every node.
   const maskSummaries = useMemo(
-    () =>
-      allMaskSummaries.filter(
-        (m) => !m.imageNodeId || !activeImageNodeId || m.imageNodeId === activeImageNodeId,
-      ),
+    () => allMaskSummaries.filter((m) => maskMatchesImageNode(m, activeImageNodeId)),
     [allMaskSummaries, activeImageNodeId],
   );
   const touched = useEditorStore((s) => s.touchedParams);

@@ -17,6 +17,7 @@ import { CurvesWidgetBody, isCurvesWidget } from './CurvesWidgetBody';
 import { CompoundWidgetBody } from './CompoundWidgetBody';
 import { WidgetAutoButton } from './WidgetAutoButton';
 import { loadRegistry } from '@/lib/registry/loader';
+import { maskMatchesImageNode } from '@/lib/mask-filters';
 
 /**
  * Minimum WidgetShell width in CSS pixels. The shell grows past this to fit
@@ -46,10 +47,7 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
   // Soft filter: hide masks scoped to a different ImageNode. Legacy / global
   // masks (no imageNodeId) remain visible.
   const masks = useMemo(
-    () =>
-      allMasks.filter(
-        (m) => !m.imageNodeId || !activeImageNodeId || m.imageNodeId === activeImageNodeId,
-      ),
+    () => allMasks.filter((m) => maskMatchesImageNode(m, activeImageNodeId)),
     [allMasks, activeImageNodeId],
   );
   const offline = useBackendState((s) => s.sseStatus !== 'open');

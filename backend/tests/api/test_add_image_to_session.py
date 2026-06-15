@@ -92,9 +92,11 @@ def test_add_image_persists_under_session_document() -> None:
     doc = store.get_document(sid)
     assert doc.get_image_bytes(new_id) == b"BBBB"
     assert doc.get_mime_type(new_id) == "image/png"
-    # The primary image path must still be intact — singleton untouched.
-    assert doc.image_bytes == b"AAAA"
-    assert doc.mime_type == "image/jpeg"
+    # Per-node doctrine: primary image lives in image_bytes_by_node["in-default"],
+    # not the legacy singleton (which is left empty for fresh sessions).
+    assert doc.get_image_bytes("in-default") == b"AAAA"
+    assert doc.get_mime_type("in-default") == "image/jpeg"
+    assert doc.image_bytes == b""
 
 
 def test_add_image_persists_to_disk(tmp_path, monkeypatch) -> None:

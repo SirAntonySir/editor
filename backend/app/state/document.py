@@ -117,7 +117,9 @@ class SessionDocument(BaseModel):
         self.dismissals = [DismissalRule.model_validate(d) for d in snap.dismissals]
         # Per-image-node image_context: restore exactly what was captured.
         # The legacy singleton is cleared so apply_snapshot leaves a doc
-        # that satisfies the per-node-only doctrine.
+        # that satisfies the per-node-only doctrine. image_bytes / mime_type /
+        # prepare_result are NOT in Snapshot (huge / regenerable) — there's
+        # nothing to restore and nothing to clear for them here.
         self.image_context_by_node = {
             k: ImageContext.model_validate(v)
             for k, v in snap.image_context_by_node.items()

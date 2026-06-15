@@ -23,12 +23,17 @@ def _new_document(sid: str, record: "SessionRecord") -> "SessionDocument":
     SessionStore.get_document on first access for a session that has
     no document yet (e.g. a freshly-uploaded image before its first
     tool invocation).
+
+    Per-image-node-only doctrine: the primary upload bytes go into
+    image_bytes_by_node[DEFAULT_IMAGE_NODE_ID] directly. The legacy
+    singleton fields are left empty so fresh in-memory sessions match
+    the post-revive shape.
     """
-    return SessionDocument(
-        session_id=sid,
-        image_bytes=record.image_bytes,
-        mime_type=record.mime_type,
+    doc = SessionDocument(session_id=sid)
+    doc.set_image_bytes(
+        DEFAULT_IMAGE_NODE_ID, record.image_bytes, mime_type=record.mime_type,
     )
+    return doc
 
 
 def _rehydrate_document_context(record: "SessionRecord") -> None:

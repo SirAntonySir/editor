@@ -57,12 +57,15 @@ from app.state.document import SessionDocument
 
 
 def test_get_document_returns_aggregate() -> None:
+    from app.state.document import DEFAULT_IMAGE_NODE_ID
     store = SessionStore(ttl_seconds=60)
     sid = store.create(image_bytes=b"abc", mime_type="image/jpeg")
     doc = store.get_document(sid)
     assert isinstance(doc, SessionDocument)
     assert doc.session_id == sid
-    assert doc.image_bytes == b"abc"
+    # Per-node doctrine: bytes live in per-node dict, not the legacy singleton.
+    assert doc.image_bytes == b""
+    assert doc.image_bytes_by_node[DEFAULT_IMAGE_NODE_ID] == b"abc"
 
 
 def test_get_document_returns_same_instance_within_session() -> None:
@@ -171,3 +174,21 @@ def test_get_document_leaves_context_absent_on_corrupt_cache(tmp_path, monkeypat
     doc = store.get_document(sid)
     assert doc.image_context is None
     assert DEFAULT_IMAGE_NODE_ID not in doc.image_context_by_node
+
+
+def test_get_document_on_fresh_session_uses_per_node_bytes(tmp_path, monkeypatch):
+    """A session whose document is being lazy-created (never persisted yet)
+    must end up with the upload bytes in image_bytes_by_node[in-default]
+    and the legacy singleton empty — matching the post-revive shape."""
+    from app.services import disk_session_io
+    from app.services.session_store import SessionStore
+    from app.state.document import DEFAULT_IMAGE_NODE_ID
+
+    monkeypatch.setattr(disk_session_io, "SESSIONS_DIR", tmp_path)
+    store = SessionStore(ttl_seconds=60)
+    sid = store.create(image_bytes=b"PAYLOAD", mime_type="image/png")
+    doc = store.get_document(sid)
+    assert doc.image_bytes == b""
+    assert doc.mime_type == "image/jpeg"  # neutral default — never touched
+    assert doc.image_bytes_by_node[DEFAULT_IMAGE_NODE_ID] == b"PAYLOAD"
+    assert doc.mime_type_by_node[DEFAULT_IMAGE_NODE_ID] == "image/png"

@@ -74,11 +74,10 @@ export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}
     const adjustmentId = crypto.randomUUID();
     LutRegistry.register(adjustmentId, lut.size, lut.data);
 
-    // Propose a filter widget — default scope to active selection, then to the
-    // active ImageNode (so the backend knows which canvas the filter targets),
-    // and finally fall back to Global. NOTE: filters/LUT remain on
-    // propose_widget; the 'filter' op_id is not yet modeled in the SSoT
-    // registry (it uses TOOL_DEFAULTS + LutRegistry instead).
+    // Propose a filter widget via proposeStack with forced_ops=['filter'].
+    // The 'filter' op_id is intentionally outside the SSoT registry —
+    // LUT presets live client-side in LutRegistry. proposeStack carves
+    // it out as a single-op forced spawn (see _handle_filter_spawn).
     const state = useEditorStore.getState();
     const active = state.activeScope ?? { kind: 'global' as const };
     const node = state.activeImageNodeId ? state.imageNodes[state.activeImageNodeId] : null;
@@ -88,10 +87,10 @@ export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}
         : node
           ? { kind: 'image_node' as const, imageNodeId: node.id, layerIds: [...node.layerIds] }
           : { kind: 'global' as const };
-    void backendTools.propose_widget(sid, {
+    void backendTools.proposeStack(sid, {
       intent: `Apply ${lut.title} filter`,
       scope,
-      opId: 'filter',
+      forced_ops: ['filter'],
       layerId: activeLayerId,
       origin: 'tool_invoked',
     });

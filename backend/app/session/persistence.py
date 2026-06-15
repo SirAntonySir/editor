@@ -33,9 +33,17 @@ from app.services import disk_session_io
 SCHEMA_VERSION: int = 1
 
 # Fields the persisted JSON intentionally omits. Order matches SessionDocument.
+# Per-image-node doctrine: image_bytes are on disk under
+# .sessions/<sid>/<image_node_id>.<ext>; prepare_result is a numpy-laden
+# dataclass regenerated on demand by PrepareImageTool. image_context_by_node
+# IS persisted (small + costly to regenerate). See _promote_singletons_to_per_node
+# in app/state/document.py for the migration doctrine.
 _EXCLUDE_FROM_PERSIST: set[str] = {
-    "image_bytes",      # multi-MB; image.<ext> already on disk
-    "prepare_result",   # dataclass; regenerable by prepare_image tool
+    "image_bytes",            # legacy singleton; multi-MB; image.<ext> already on disk
+    "prepare_result",         # legacy singleton; regenerable by prepare_image tool
+    "image_bytes_by_node",    # multi-MB per entry; restored on revive from disk
+    "mime_type_by_node",      # restored on revive alongside the bytes
+    "prepare_result_by_node", # numpy-laden dataclass; regenerable by prepare_image tool
 }
 
 

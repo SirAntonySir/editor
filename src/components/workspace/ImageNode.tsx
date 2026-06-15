@@ -10,7 +10,6 @@ import { ObjectModeFooter } from './ObjectModeFooter';
 import { SegmentHitLayer } from './SegmentHitLayer';
 import { editorDocument } from '@/core/document';
 import { useChromeVisible } from '@/hooks/useChromeVisible';
-import { useChromeMinFloor } from '@/hooks/useChromeMinFloor';
 import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
 import { ImageNodeObjectsLayer } from './ImageNodeObjectsLayer';
 import { backendTools } from '@/lib/backend-tools';
@@ -47,38 +46,15 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   const showStrip = stacked && selected;
   const canSplit = data.layerIds.length >= 2;
   const chromeVisible = useChromeVisible();
-  // Chrome strips live in canvas space (Figma model) so they scale with zoom.
-  // Image nodes are normally viewed at small zoom (a 6000-px photo barely
-  // fits on screen at zoom 1), which would shrink the strips below
-  // readability. `useChromeMinFloor` returns 1 at usable zoom and a bounded
-  // counter-scale below the floor — applied as a CSS transform per strip with
-  // a width compensation so the strip still fits the image horizontally.
-  const chromeFloor = useChromeMinFloor(22, 18);
-  // `position: relative` + `z-index: 2` on every strip keeps the visually
-  // counter-scaled chrome painting OVER the canvas body when zoomed out:
-  // `transform: scale()` doesn't add layout, so without an explicit
-  // z-index the canvas (a later sibling with its own stacking context)
-  // paints on top of the top strip's overflow area, leaving the title bar
-  // covered by image pixels at low zoom. Applied even when chromeFloor is
-  // 1 so the stacking order is consistent across zoom levels.
-  const stripScaleTop: React.CSSProperties = chromeFloor === 1
-    ? { position: 'relative', zIndex: 2 }
-    : {
-        transform: `scale(${chromeFloor})`,
-        transformOrigin: 'top left',
-        width: `${100 / chromeFloor}%`,
-        position: 'relative',
-        zIndex: 2,
-      };
-  const stripScaleBottom: React.CSSProperties = chromeFloor === 1
-    ? { position: 'relative', zIndex: 2 }
-    : {
-        transform: `scale(${chromeFloor})`,
-        transformOrigin: 'bottom left',
-        width: `${100 / chromeFloor}%`,
-        position: 'relative',
-        zIndex: 2,
-      };
+  // Chrome strips live in canvas space (Figma model) so they scale down with
+  // zoom-out like everything else in the node. We deliberately do NOT
+  // counter-scale them: a `transform: scale()` keeps the strip readable on
+  // screen but doesn't claim layout space, so the strip's visually-overflowing
+  // area landed on top of the image body (or vice-versa, depending on
+  // stacking order) and a narrowed strip wrapped its toolbar to two rows
+  // when its CSS width was percentage-compensated. The strip is hidden
+  // entirely below the `useChromeVisible` LOD threshold (0.05); above that
+  // it shrinks with the rest of the node, never overlaps, never wraps.
   const [compareHeld, setCompareHeld] = useState(false);
 
   // Stop native pointerdown bubbling so React Flow's drag-handle never sees it.
@@ -331,7 +307,6 @@ const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
           <ImageNodeSelectionPopover layerIds={data.layerIds}>
             <div
               className="workspace-drag-handle flex items-center gap-1.5 px-2 py-1 bg-surface border-b border-separator cursor-grab active:cursor-grabbing"
-              style={stripScaleTop}
             >
               <Image size={11} className="text-text-secondary" aria-hidden />
               <span className="text-[10px] font-medium flex-1 truncate">{data.name ?? 'Image'}</span>
@@ -437,7 +412,6 @@ const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
         {chromeVisible && (
           <div
             className="flex items-center gap-1.5 px-2 py-1 text-[9px] text-text-secondary bg-surface border-t border-separator"
-            style={stripScaleBottom}
           >
             <span className="num">{Math.round(effectiveSource.w)} × {Math.round(effectiveSource.h)}</span>
             <span className="flex-1" />
@@ -454,7 +428,6 @@ const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
           <div
             aria-label="Layer strip"
             className="flex gap-1 px-2 py-1 bg-surface-secondary border-t border-separator"
-            style={stripScaleBottom}
           >
             {data.layerIds.map((lid, i) => (
               <div

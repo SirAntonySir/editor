@@ -71,7 +71,7 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
 
         # Decode image once for region_stats. The encoder embedding was done
         # in prepare; here we only need numeric stats off the source pixels.
-        arr, _, _ = decode_image(doc.image_bytes)
+        arr, _, _ = decode_image(doc.get_image_bytes("in-default"))
 
         # Claude analyze (LLM).
         doc._emit_phase_started("ai_context", index=3, total=4)
@@ -79,8 +79,8 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
         base_ctx = await loop.run_in_executor(
             None,
             lambda: client.analyze_image(
-                image_bytes=doc.image_bytes,
-                mime_type=doc.mime_type,
+                image_bytes=doc.get_image_bytes("in-default"),
+                mime_type=doc.get_mime_type("in-default"),
                 session_id=doc.session_id,
             ),
         )
@@ -98,8 +98,8 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
         soft = await loop.run_in_executor(
             None,
             lambda: client.augment_context_soft_fields(
-                image_bytes=doc.image_bytes,
-                mime_type=doc.mime_type,
+                image_bytes=doc.get_image_bytes("in-default"),
+                mime_type=doc.get_mime_type("in-default"),
                 base_context_json=base_ctx.model_dump(mode="json", by_alias=True),
                 cheap_pass_summary={
                     "median_luma": pr.cheap.median_luma,

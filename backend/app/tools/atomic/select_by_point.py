@@ -46,7 +46,7 @@ class SelectByPointTool(BackendTool[_Input, _Output]):
     permissions = ToolPermissions(requires_image=True)
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
-        img = Image.open(io.BytesIO(doc.image_bytes)).convert("RGB")
+        img = Image.open(io.BytesIO(doc.get_image_bytes("in-default"))).convert("RGB")
         arr = np.array(img)
         h, w = arr.shape[:2]
         sam = deps.get_sam_client()

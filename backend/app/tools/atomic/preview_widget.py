@@ -40,7 +40,12 @@ class PreviewWidgetTool(BackendTool[_Input, _Output]):
         widget = doc.widgets.get(input.widget_id)
         if widget is None:
             raise _UnknownWidget(input.widget_id)
-        b64 = render_widget_preview(doc.image_bytes, doc.mime_type, widget, max_dim=input.max_dim)
+        b64 = render_widget_preview(
+            doc.get_image_bytes("in-default"),
+            doc.get_mime_type("in-default"),
+            widget,
+            max_dim=input.max_dim,
+        )
         if b64 is None:
             return _Output(mime_type="image/jpeg", image_b64=None, reason="unsupported_node_type")
         return _Output(mime_type="image/jpeg", image_b64=b64)

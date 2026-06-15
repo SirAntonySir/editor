@@ -68,7 +68,7 @@ class PrepareImageTool(BackendTool[_Input, _Output]):
 
         sam_on = _sam_enabled()
         sam = deps.get_sam_client() if sam_on else None
-        arr, w_img, h_img = decode_image(doc.image_bytes)
+        arr, w_img, h_img = decode_image(doc.get_image_bytes("in-default"))
 
         if sam_on and sam is not None:
             cheap, sam_ok = await asyncio.gather(

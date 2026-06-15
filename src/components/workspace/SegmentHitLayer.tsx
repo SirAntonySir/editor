@@ -5,6 +5,7 @@ import { backendTools } from '@/lib/backend-tools';
 import { maskToPngBase64 } from '@/lib/segmentation/mask-png';
 import { Kbd } from '@/components/ui/kbd';
 import { toast } from '@/components/ui/Toast';
+import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
 import { SegmentMaskPreview } from './SegmentMaskPreview';
 import type { SamPoint, DecodedMask } from '@/lib/segmentation/mobile-sam-types';
 
@@ -38,6 +39,7 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
   const layerRef = useRef<HTMLDivElement>(null);
   const sessionId = useAiSession((s) => s.sessionId);
   const samCapability = useMobileSam(imageNodeId);
+  const existingObjects = useImageNodeObjects(imageNodeId);
 
   const [candidate, setCandidate] = useState<CandidateState | null>(null);
   // Tracks in-flight decode calls so a newer click can invalidate an older
@@ -49,27 +51,27 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
 
   const commitCandidate = useCallback(async () => {
     const c = candidate;
-    console.log('[segment] commit', { hasMask: !!c?.mask, hasSession: !!sessionId });
     if (!c?.mask || !sessionId) return;
     const pngBase64 = await maskToPngBase64(c.mask);
     const hasNegativePoint = c.points.some((p) => p.label === 0);
+    const autoName = `Object ${existingObjects.length + 1}`;
     const env = await backendTools.propose_mask(sessionId, {
       imageNodeId,
       pngBase64,
       paths: [],
+      label: autoName,
       origin: hasNegativePoint ? 'client_refinement' : 'client_new',
     });
-    console.log('[segment] propose_mask result', env);
     if (env.ok) {
       // Drop the candidate; the new mask appears via SSE `mask.proposed`
       // merging into snapshot.masksIndex. Toast gives immediate feedback
       // until the persistent committed-mask overlay lands (separate spec).
-      toast.info(`Object saved (${env.output?.maskId?.slice(0, 8) ?? 'unknown'})`);
+      toast.info(`Saved as "${autoName}"`);
       setCandidate(null);
     } else {
       toast.info(`Save failed: ${env.error?.message ?? 'unknown error'}`);
     }
-  }, [candidate, sessionId, imageNodeId]);
+  }, [candidate, sessionId, imageNodeId, existingObjects.length]);
 
   // Esc / Enter while a candidate is live.
   useEffect(() => {

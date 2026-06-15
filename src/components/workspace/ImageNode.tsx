@@ -11,7 +11,8 @@ import { SegmentHitLayer } from './SegmentHitLayer';
 import { editorDocument } from '@/core/document';
 import { useChromeVisible } from '@/hooks/useChromeVisible';
 import { useChromeMinFloor } from '@/hooks/useChromeMinFloor';
-import { useAiSession } from '@/hooks/useImageContext';
+import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
+import { ImageNodeObjectsLayer } from './ImageNodeObjectsLayer';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
@@ -137,7 +138,8 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   const cropPreview = useEditorStore((s) => s.cropPreview);
   const imageNodeMode = useEditorStore((s) => s.imageNodeMode[id]);
-  const objectCount = useAiSession((s) => s.context?.candidateRegions?.length ?? 0);
+  const objects = useImageNodeObjects(id);
+  const objectCount = objects.length;
   const currentMode: 'layers' | 'objects' =
     imageNodeMode ?? (objectCount > 0 ? 'objects' : 'layers');
 const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
@@ -341,11 +343,18 @@ const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
             </ContextMenu.Portal>
           </ContextMenu.Root>
           {currentMode === 'objects' && (
-            <SegmentHitLayer
-              imageNodeId={id}
-              widthPx={displayW}
-              heightPx={displayH}
-            />
+            <>
+              <ImageNodeObjectsLayer
+                imageNodeId={id}
+                widthPx={displayW}
+                heightPx={displayH}
+              />
+              <SegmentHitLayer
+                imageNodeId={id}
+                widthPx={displayW}
+                heightPx={displayH}
+              />
+            </>
           )}
         </div>
         {chromeVisible && (

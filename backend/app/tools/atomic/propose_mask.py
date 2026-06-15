@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from app.schemas._camel import camel_config
 from app.schemas.widget import MaskRecord
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 
 try:
@@ -90,7 +90,7 @@ class ProposeMaskTool(BackendTool[_Input, _Output]):
             png_b64=input.png_base64,
             source=source,  # type: ignore[arg-type]
             label=label,
-            image_node_id="in-default",
+            image_node_id=DEFAULT_IMAGE_NODE_ID,
         )
 
         # add_mask already fires `mask.created` SSE which the frontend

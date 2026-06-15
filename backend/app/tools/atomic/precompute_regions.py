@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from app.api import deps
 from app.schemas._camel import camel_config
 from app.schemas.enriched_context import EnrichedImageContext
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.atomic._analyze_phases import (
     RegionMaskResult, apply_region_masks, decode_region_mask,
 )
@@ -46,10 +46,10 @@ class PrecomputeRegionsTool(BackendTool[_Input, _Output]):
     permissions = ToolPermissions(requires_image=True, requires_context=True)
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
-        ctx = doc.get_image_context("in-default")
+        ctx = doc.get_image_context(DEFAULT_IMAGE_NODE_ID)
         if not isinstance(ctx, EnrichedImageContext):
             return _Output(mask_ids=[])
-        pr = doc.get_prepare_result("in-default")
+        pr = doc.get_prepare_result(DEFAULT_IMAGE_NODE_ID)
         if pr is None or not pr.sam_ok:
             return _Output(mask_ids=[])
 
@@ -74,7 +74,7 @@ class PrecomputeRegionsTool(BackendTool[_Input, _Output]):
         # Apply masks onto candidate_regions via model_copy (no mutation).
         new_ctx = apply_region_masks(ctx, live)
         doc.image_context = new_ctx
-        doc.set_image_context("in-default", new_ctx)
+        doc.set_image_context(DEFAULT_IMAGE_NODE_ID, new_ctx)
         deps.get_session_store().set_context(
             doc.session_id, new_ctx.model_dump(mode="json", by_alias=True),
         )

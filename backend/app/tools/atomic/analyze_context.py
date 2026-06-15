@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from app.api import deps
 from app.schemas._camel import camel_config
 from app.schemas.enriched_context import EnrichedImageContext
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.atomic._analyze_phases import (
     PrepareResult,
     build_enriched,
@@ -53,18 +53,18 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         # Cached short-circuit: re-running on a doc that already has enriched
         # context returns it without re-billing Claude.
-        cached_ctx = doc.get_image_context("in-default")
+        cached_ctx = doc.get_image_context(DEFAULT_IMAGE_NODE_ID)
         if isinstance(cached_ctx, EnrichedImageContext):
             return _Output.model_validate(cached_ctx.model_dump())
 
         # Prepare-step results are required (mechanical stats). Lazily run
         # prepare so callers can skip the explicit prepare call.
-        if doc.get_prepare_result("in-default") is None:
+        if doc.get_prepare_result(DEFAULT_IMAGE_NODE_ID) is None:
             from app.tools.atomic.prepare_image import PrepareImageTool
             from app.tools.atomic.prepare_image import _Input as _PI
 
             await PrepareImageTool().handler(doc, _PI())
-        pr: PrepareResult = doc.get_prepare_result("in-default")
+        pr: PrepareResult = doc.get_prepare_result(DEFAULT_IMAGE_NODE_ID)
         assert pr is not None
 
         client = deps.get_anthropic_client()
@@ -72,7 +72,7 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
 
         # Decode image once for region_stats. The encoder embedding was done
         # in prepare; here we only need numeric stats off the source pixels.
-        arr, _, _ = decode_image(doc.get_image_bytes("in-default"))
+        arr, _, _ = decode_image(doc.get_image_bytes(DEFAULT_IMAGE_NODE_ID))
 
         # Claude analyze (LLM).
         doc._emit_phase_started("ai_context", index=3, total=4)
@@ -80,8 +80,8 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
         base_ctx = await loop.run_in_executor(
             None,
             lambda: client.analyze_image(
-                image_bytes=doc.get_image_bytes("in-default"),
-                mime_type=doc.get_mime_type("in-default"),
+                image_bytes=doc.get_image_bytes(DEFAULT_IMAGE_NODE_ID),
+                mime_type=doc.get_mime_type(DEFAULT_IMAGE_NODE_ID),
                 session_id=doc.session_id,
             ),
         )
@@ -99,8 +99,8 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
         soft = await loop.run_in_executor(
             None,
             lambda: client.augment_context_soft_fields(
-                image_bytes=doc.get_image_bytes("in-default"),
-                mime_type=doc.get_mime_type("in-default"),
+                image_bytes=doc.get_image_bytes(DEFAULT_IMAGE_NODE_ID),
+                mime_type=doc.get_mime_type(DEFAULT_IMAGE_NODE_ID),
                 base_context_json=base_ctx.model_dump(mode="json", by_alias=True),
                 cheap_pass_summary={
                     "median_luma": pr.cheap.median_luma,
@@ -119,7 +119,7 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
 
         enriched = build_enriched(base_ctx, pr.cheap, soft, region_stats)
         doc.image_context = enriched
-        doc.set_image_context("in-default", enriched)
+        doc.set_image_context(DEFAULT_IMAGE_NODE_ID, enriched)
         deps.get_session_store().set_context(
             doc.session_id, enriched.model_dump(mode="json", by_alias=True),
         )

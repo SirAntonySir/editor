@@ -3,7 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from app.schemas._camel import camel_config
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.state.preview_renderer import render_widget_preview
 from app.tools.base import BackendTool, ToolPermissions
 
@@ -41,8 +41,8 @@ class PreviewWidgetTool(BackendTool[_Input, _Output]):
         if widget is None:
             raise _UnknownWidget(input.widget_id)
         b64 = render_widget_preview(
-            doc.get_image_bytes("in-default"),
-            doc.get_mime_type("in-default"),
+            doc.get_image_bytes(DEFAULT_IMAGE_NODE_ID),
+            doc.get_mime_type(DEFAULT_IMAGE_NODE_ID),
             widget,
             max_dim=input.max_dim,
         )

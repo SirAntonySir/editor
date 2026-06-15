@@ -12,7 +12,7 @@ from app.schemas.widget import (
     Scope,
     WidgetNode,
 )
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 from app.tools.fused import all_fused_templates
 from app.tools.fused_framework import run_fused_tool
@@ -104,7 +104,7 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
         template = templates[w.op_id]
         new_widget = await run_fused_tool(
             template, intent=w.intent, scope=w.scope,
-            ctx=doc.get_image_context("in-default"), prior=w, instruction=input.instruction,
+            ctx=doc.get_image_context(DEFAULT_IMAGE_NODE_ID), prior=w, instruction=input.instruction,
             anthropic=anthropic, origin=w.origin,
         )
         new_widget.id = w.id

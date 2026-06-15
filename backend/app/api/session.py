@@ -6,6 +6,7 @@ from app.config import get_settings
 from app.schemas.image_context import ImageContext
 from app.services import disk_session_io
 from app.services.session_store import SessionNotFound, SessionStore
+from app.state.document import DEFAULT_IMAGE_NODE_ID
 
 from .deps import get_session_store
 
@@ -111,7 +112,7 @@ async def set_session_context(
         # Also write the typed model onto the document so tools can read it directly.
         doc = store.get_document(sid)
         doc.image_context = body
-        doc.set_image_context("in-default", body)
+        doc.set_image_context(DEFAULT_IMAGE_NODE_ID, body)
     except SessionNotFound:
         raise HTTPException(status_code=404, detail="unknown or expired session")
     return {"session_id": sid}

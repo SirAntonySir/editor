@@ -44,6 +44,7 @@ def _rehydrate_document_context(record: "SessionRecord") -> None:
     if record.document is None or record.context is None:
         return
     from app.schemas.enriched_context import EnrichedImageContext
+    from app.state.document import DEFAULT_IMAGE_NODE_ID
     try:
         parsed = EnrichedImageContext.model_validate(record.context)
         record.document.image_context = parsed
@@ -51,7 +52,7 @@ def _rehydrate_document_context(record: "SessionRecord") -> None:
         # get_image_context("in-default") and fall back to the singleton, but
         # an explicit set here makes the rehydrated doc symmetric with the
         # writer side (analyze_context / api.session) which writes both.
-        record.document.set_image_context("in-default", parsed)
+        record.document.set_image_context(DEFAULT_IMAGE_NODE_ID, parsed)
     except Exception:
         # Corrupt cache → leave image_context as None.
         record.document.image_context = None

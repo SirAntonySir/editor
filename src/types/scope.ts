@@ -11,6 +11,11 @@ export type Scope =
 
 export const GLOBAL_SCOPE: Scope = { kind: 'global' };
 
+/** Reserved image-node id for the "primary" image — mirrors the backend
+ *  DEFAULT_IMAGE_NODE_ID. All call sites that don't yet know which
+ *  ImageNode they target use this id. */
+export const DEFAULT_IMAGE_NODE_ID = 'in-default';
+
 export function scopeEquals(a: Scope, b: Scope): boolean {
   if (a.kind !== b.kind) return false;
   if (a.kind === 'global') return true;

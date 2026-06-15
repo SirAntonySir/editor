@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 
 
@@ -27,7 +27,7 @@ class GetImageContextTool(BackendTool[_Input, _Output]):
     permissions = ToolPermissions(requires_image=True, requires_context=False)
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
-        ctx = doc.get_image_context("in-default")
+        ctx = doc.get_image_context(DEFAULT_IMAGE_NODE_ID)
         if ctx is None:
             return _Output(available=False, context=None)
         return _Output(available=True, context=ctx.model_dump(mode="json", by_alias=True))

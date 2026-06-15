@@ -15,6 +15,12 @@ from app.schemas.widget import (
 )
 from app.state.canonical import Canonical, clear_param_value, set_param_value
 
+# Reserved image-node id for the "primary" image — the one carried by the
+# legacy singleton fields (image_bytes, image_context, etc). All call sites
+# that don't yet know which ImageNode they target use this id so the
+# accessors fall back to the singleton.
+DEFAULT_IMAGE_NODE_ID = "in-default"
+
 ImageNodeTransform = dict[str, Any]  # {"layer_ids": list[str], "crop": dict|None, "rotate": dict|None}
 
 
@@ -328,7 +334,7 @@ class SessionDocument(BaseModel):
         change."""
         if image_node_id in self.image_bytes_by_node:
             return self.image_bytes_by_node[image_node_id]
-        if image_node_id == "in-default":
+        if image_node_id == DEFAULT_IMAGE_NODE_ID:
             return self.image_bytes
         return b""
 
@@ -337,7 +343,7 @@ class SessionDocument(BaseModel):
         `in-default`, defaults to `image/jpeg` for unknown ids."""
         if image_node_id in self.mime_type_by_node:
             return self.mime_type_by_node[image_node_id]
-        if image_node_id == "in-default":
+        if image_node_id == DEFAULT_IMAGE_NODE_ID:
             return self.mime_type
         return "image/jpeg"
 
@@ -357,7 +363,7 @@ class SessionDocument(BaseModel):
         analyze-path change."""
         if image_node_id in self.image_context_by_node:
             return self.image_context_by_node[image_node_id]
-        if image_node_id == "in-default":
+        if image_node_id == DEFAULT_IMAGE_NODE_ID:
             return self.image_context
         return None
 
@@ -373,7 +379,7 @@ class SessionDocument(BaseModel):
         legacy singleton for `in-default`, returns None for unknown ids."""
         if image_node_id in self.prepare_result_by_node:
             return self.prepare_result_by_node[image_node_id]
-        if image_node_id == "in-default":
+        if image_node_id == DEFAULT_IMAGE_NODE_ID:
             return self.prepare_result
         return None
 

@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from app.api import deps
 from app.schemas._camel import camel_config
 from app.schemas.enriched_context import EnrichedImageContext
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 
 
@@ -42,7 +42,7 @@ class SuggestWidgetsTool(BackendTool[_Input, _Output]):
     permissions = ToolPermissions(requires_image=True, requires_context=True)
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
-        ctx = doc.get_image_context("in-default")
+        ctx = doc.get_image_context(DEFAULT_IMAGE_NODE_ID)
         if not isinstance(ctx, EnrichedImageContext):
             # No context → no suggestions. Still emit the widget_mint phase so
             # the frontend status bar can resolve to "complete" instead of

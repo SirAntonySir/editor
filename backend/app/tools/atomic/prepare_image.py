@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from app.api import deps
 from app.schemas._camel import camel_config
 from app.state.context_stats import CheapPassResult
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.atomic._analyze_phases import (
     PrepareResult,
     decode_image,
@@ -57,7 +57,7 @@ class PrepareImageTool(BackendTool[_Input, _Output]):
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         # Idempotency: if prepare already ran on this doc, return its result.
-        pr_cached = doc.get_prepare_result("in-default")
+        pr_cached = doc.get_prepare_result(DEFAULT_IMAGE_NODE_ID)
         if pr_cached is not None:
             return _Output(
                 sam_ok=pr_cached.sam_ok,
@@ -68,7 +68,7 @@ class PrepareImageTool(BackendTool[_Input, _Output]):
 
         sam_on = _sam_enabled()
         sam = deps.get_sam_client() if sam_on else None
-        arr, w_img, h_img = decode_image(doc.get_image_bytes("in-default"))
+        arr, w_img, h_img = decode_image(doc.get_image_bytes(DEFAULT_IMAGE_NODE_ID))
 
         if sam_on and sam is not None:
             cheap, sam_ok = await asyncio.gather(
@@ -82,7 +82,7 @@ class PrepareImageTool(BackendTool[_Input, _Output]):
             cheap=cheap, sam_ok=sam_ok, image_width=w_img, image_height=h_img,
         )
         doc.prepare_result = pr
-        doc.set_prepare_result("in-default", pr)
+        doc.set_prepare_result(DEFAULT_IMAGE_NODE_ID, pr)
         return _Output(
             sam_ok=sam_ok, image_width=w_img, image_height=h_img, cheap=cheap,
         )

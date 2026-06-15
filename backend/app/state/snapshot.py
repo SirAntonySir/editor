@@ -7,7 +7,7 @@ from app.schemas._camel import camel_config
 from app.schemas.enriched_context import EnrichedImageContext
 from app.schemas.operation_graph import OperationGraph
 from app.schemas.widget import Widget
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.state.operations import project_to_graph
 
 
@@ -22,7 +22,7 @@ class SessionStateSnapshot(BaseModel):
 
 
 def compute_snapshot(doc: SessionDocument) -> SessionStateSnapshot:
-    ctx = doc.get_image_context("in-default")
+    ctx = doc.get_image_context(DEFAULT_IMAGE_NODE_ID)
     return SessionStateSnapshot(
         session_id=doc.session_id,
         image_context=ctx if isinstance(ctx, EnrichedImageContext) else None,

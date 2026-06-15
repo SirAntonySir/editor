@@ -20,7 +20,7 @@ from app.schemas.enriched_context import EnrichedImageContext, RegionStats
 from app.schemas.image_context import CandidateRegion, ImageContext
 from app.schemas.widget import MaskRecord
 from app.state.context_stats import CheapPassResult, compute_cheap_pass
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.atomic.select_by_point import _encode_mask_png_b64
 
 
@@ -101,7 +101,7 @@ async def decode_region_mask(
         png_b64=png_b64,
         source="sam_box",
         label=region.label,
-        image_node_id="in-default",
+        image_node_id=DEFAULT_IMAGE_NODE_ID,
     )
     return RegionMaskResult(
         region_index=region_index,

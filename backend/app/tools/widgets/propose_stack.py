@@ -18,7 +18,7 @@ from app.schemas.widget import (
     WidgetOriginKind,
     WidgetPreview,
 )
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 
 
@@ -333,7 +333,7 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
         if input.origin == "tool_invoked":
             return self._handle_tool_invoked(doc, input, scope)
 
-        if doc.get_image_context("in-default") is None:
+        if doc.get_image_context(DEFAULT_IMAGE_NODE_ID) is None:
             from app.tools.widgets.propose_widget import _MissingContext
             raise _MissingContext("call prepare_image then analyze_context first")
 
@@ -349,7 +349,7 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
 
         reg = get_registry()
         anthropic = deps.get_anthropic_client()
-        ctx = doc.get_image_context("in-default")
+        ctx = doc.get_image_context(DEFAULT_IMAGE_NODE_ID)
         assert ctx is not None  # guarded above
         image_context = ctx.model_dump(mode="json", by_alias=True)
 

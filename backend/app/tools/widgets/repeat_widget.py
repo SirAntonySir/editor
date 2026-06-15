@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from app.schemas._camel import camel_config
 from app.api import deps
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 from app.tools.fused import all_fused_templates
 from app.tools.fused_framework import ResolvedNumbers, run_fused_tool
@@ -56,7 +56,7 @@ class RepeatWidgetTool(BackendTool[_Input, _Output]):
         instruction = input.feedback or "The user rejected the previous attempt. Produce a meaningfully different result for the same intent."
         anthropic = deps.get_anthropic_client()
         new_widget = await run_fused_tool(
-            template, intent=w.intent, scope=w.scope, ctx=doc.get_image_context("in-default"),
+            template, intent=w.intent, scope=w.scope, ctx=doc.get_image_context(DEFAULT_IMAGE_NODE_ID),
             prior=w, instruction=instruction, anthropic=anthropic, origin=w.origin,
         )
         new_widget.id = w.id

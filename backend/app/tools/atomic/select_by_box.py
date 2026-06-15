@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.api import deps
 from app.schemas.widget import MaskRecord
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.atomic.select_by_point import _SamFailed, _encode_mask_png_b64
 from app.tools.base import BackendTool, ToolPermissions
 
@@ -36,7 +36,7 @@ class SelectByBoxTool(BackendTool[_Input, _Output]):
     permissions = ToolPermissions(requires_image=True)
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
-        img = Image.open(io.BytesIO(doc.get_image_bytes("in-default"))).convert("RGB")
+        img = Image.open(io.BytesIO(doc.get_image_bytes(DEFAULT_IMAGE_NODE_ID))).convert("RGB")
         arr = np.array(img)
         h_img, w_img = arr.shape[:2]
         sam = deps.get_sam_client()
@@ -56,7 +56,7 @@ class SelectByBoxTool(BackendTool[_Input, _Output]):
         record = MaskRecord(
             id=mid, width=mask.shape[1], height=mask.shape[0],
             png_b64=png_b64, source="sam_box",
-            image_node_id="in-default",
+            image_node_id=DEFAULT_IMAGE_NODE_ID,
         )
         doc.add_mask(record)
         if input.commit:

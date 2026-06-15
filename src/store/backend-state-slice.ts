@@ -12,6 +12,7 @@ import { maskPngBase64ToBytes } from '@/lib/sam/sam-client';
 import { deletePrefix } from '@/core/pixel-source-store';
 import { tetherWorkspaceWidget } from '@/lib/workspace-tether';
 import { useEditorStore } from '@/store';
+import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 
 // Required so immer can produce drafts of Map<WidgetId, OptimisticPatch>.
 enableMapSet();
@@ -95,17 +96,6 @@ interface BackendState {
   sessionId: string | null;
   snapshot: SessionStateSnapshot | null;
   optimistic: Map<WidgetId, OptimisticPatch>;
-  acceptedSuggestions: Set<string>;
-  /** AI-origin widget ids that arrived in the most recent analyze run and have
-   *  not yet been allowed or denied. Pending widgets are hidden from the
-   *  inspector AI section and the canvas until the user resolves them via the
-   *  per-widget chips. Surfaced via SuggestionChips → resolvePendingSuggestion. */
-  pendingSuggestionIds: Set<string>;
-  /** Subset of pendingSuggestionIds whose effect the user is previewing on
-   *  the canvas via the chip eye icon. Pending widgets whose id is in this
-   *  set are NOT filtered out of the render, so the user can see what their
-   *  adjustments would do before committing. Empty by default. */
-  previewingSuggestionIds: Set<string>;
   sseStatus: SseStatus;
   /** Per-phase status of the in-flight (or just-completed) analyze run; null before any analyze. */
   phases: PhaseMap | null;
@@ -131,18 +121,6 @@ interface BackendState {
   applyEvent: (ev: StateEvent) => void;
   applyOptimistic: (widgetId: WidgetId, patch: OptimisticPatch) => void;
   clearOptimistic: (widgetId: WidgetId) => void;
-  /** Frontend-only engage: moves a suggestion widget into the acceptedSuggestions set
-   *  so it appears on the canvas shell. Does NOT call backendTools.accept_widget. */
-  addAcceptedSuggestion: (widgetId: WidgetId) => void;
-  /** Replace the pending-suggestion set with the supplied ids. Called by the
-   *  AnalyzeSuggestionsGate on the rising edge of mcpAnalyzeComplete. */
-  markPendingSuggestions: (ids: string[]) => void;
-  /** Remove one id from the pending set after the user allowed or denied it.
-   *  Also clears the matching preview flag. */
-  resolvePendingSuggestion: (id: string) => void;
-  /** Toggle whether one pending suggestion's effect is shown on the canvas
-   *  preview. Caller passes true for ON, false for OFF. */
-  setPreviewSuggestion: (id: string, on: boolean) => void;
   setSseStatus: (status: SseStatus) => void;
   setSnapshot: (snapshot: SessionStateSnapshot) => void;
   setSessionId: (sessionId: string | null) => void;
@@ -156,9 +134,6 @@ export const useBackendState = create<BackendState>()(
     sessionId: null,
     snapshot: null,
     optimistic: new Map(),
-    acceptedSuggestions: new Set(),
-    pendingSuggestionIds: new Set(),
-    previewingSuggestionIds: new Set(),
     sseStatus: 'idle',
     phases: null,
     mcpAnalyzeComplete: false,
@@ -305,11 +280,17 @@ export const useBackendState = create<BackendState>()(
             const w = payload.widget as Widget;
             s.snapshot.widgets.push(w);
             // Autonomous AI suggestions must wait for user Allow/Deny via
-            // SuggestionChips before they reach the inspector or canvas, so
-            // gate them as pending the moment they arrive — not on the rising
-            // edge of mcpAnalyzeComplete (which races with widget.created).
+            // SuggestionChips. Bridge into the FE-only suggestions UI slice;
+            // we additively include the new id alongside whatever is already
+            // pending. (Cross-store call from an Immer producer — same
+            // pattern as the consumePinRequest/setPinnedWidgetParams calls
+            // below; audit C8 will sweep them together.)
+            // NOTE: the pending mark must land at widget.created time, not
+            // later — marking on the rising edge of mcpAnalyzeComplete races
+            // with widget.created and can gate the wrong revision.
             if (w.origin.kind === 'mcp_autonomous') {
-              s.pendingSuggestionIds.add(w.id);
+              const existing = useSuggestionsUi.getState().pendingSuggestionIds;
+              useSuggestionsUi.getState().markPending([...existing, w.id]);
             }
             // Drain a matching per-slider Pin request (queued before the
             // backend roundtrip). When one is present, narrow the widget to
@@ -349,10 +330,13 @@ export const useBackendState = create<BackendState>()(
           }
           case 'widget.accepted': {
             const id = payload.widgetId as string;
-            s.acceptedSuggestions.add(id);
             // Remove widget from snapshot — accept is a backend-confirmed terminal state.
             // Adjustment materialization now happens server-side; the backend will emit
             // updated operation_graph nodes that the pipeline picks up automatically.
+            // NOTE: we deliberately do NOT touch useSuggestionsUi.acceptedSuggestions
+            // here — by the time backend confirms acceptance, the FE has already
+            // added the widget via either SuggestionChips.handleAllow (user click)
+            // or useAutoTetherAiSuggestions (auto-tether on session resume).
             if (s.snapshot) {
               s.snapshot.widgets = s.snapshot.widgets.filter((w) => w.id !== id);
             }
@@ -426,28 +410,6 @@ export const useBackendState = create<BackendState>()(
         s.optimistic.delete(widgetId);
       }),
 
-    addAcceptedSuggestion: (widgetId) =>
-      set((s) => {
-        s.acceptedSuggestions.add(widgetId);
-      }),
-
-    markPendingSuggestions: (ids) =>
-      set((s) => {
-        s.pendingSuggestionIds = new Set(ids);
-      }),
-
-    resolvePendingSuggestion: (id) =>
-      set((s) => {
-        s.pendingSuggestionIds.delete(id);
-        s.previewingSuggestionIds.delete(id);
-      }),
-
-    setPreviewSuggestion: (id, on) =>
-      set((s) => {
-        if (on) s.previewingSuggestionIds.add(id);
-        else s.previewingSuggestionIds.delete(id);
-      }),
-
     setSseStatus: (status) => set((s) => { s.sseStatus = status; }),
     setSnapshot: (snapshot) => set((s) => { s.snapshot = snapshot; }),
     setCancelling: (cancelling) => set((s) => { s.cancelling = cancelling; }),
@@ -465,7 +427,7 @@ export const useBackendState = create<BackendState>()(
         }
       }),
 
-    reset: () =>
+    reset: () => {
       set((s) => {
         // Fire-and-forget IDB wipe of the outgoing session's blobs before
         // we clear the id from in-memory state.
@@ -473,9 +435,6 @@ export const useBackendState = create<BackendState>()(
         s.sessionId = null;
         s.snapshot = null;
         s.optimistic = new Map();
-        s.acceptedSuggestions = new Set();
-        s.pendingSuggestionIds = new Set();
-        s.previewingSuggestionIds = new Set();
         s.sseStatus = 'idle';
         s.phases = null;
         s.mcpAnalyzeComplete = false;
@@ -485,7 +444,9 @@ export const useBackendState = create<BackendState>()(
         try {
           localStorage.removeItem(SESSION_STORAGE_KEY);
         } catch { /* localStorage may be disabled (private mode); ignore. */ }
-      }),
+      });
+      useSuggestionsUi.getState().reset();
+    },
   })),
 );
 

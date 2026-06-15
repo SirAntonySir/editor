@@ -44,17 +44,15 @@ function baseSnapshot(): SessionStateSnapshot {
 beforeEach(() => useBackendState.getState().reset());
 
 describe('BackendStateSlice', () => {
-  it('reset clears snapshot, optimistic, and acceptedSuggestions', () => {
+  it('reset clears snapshot and optimistic', () => {
     useBackendState.setState({
       snapshot: baseSnapshot(),
       sessionId: 's1',
-      acceptedSuggestions: new Set(['w_x']),
     });
     useBackendState.getState().reset();
     expect(useBackendState.getState().snapshot).toBeNull();
     expect(useBackendState.getState().sessionId).toBeNull();
     expect(useBackendState.getState().optimistic.size).toBe(0);
-    expect(useBackendState.getState().acceptedSuggestions.size).toBe(0);
   });
 
   it('applyEvent widget.created appends a widget and bumps revision', () => {
@@ -146,14 +144,14 @@ describe('BackendStateSlice', () => {
     expect(useBackendState.getState().optimistic.size).toBe(0);
   });
 
-  it('applyEvent widget.accepted adds to acceptedSuggestions set', () => {
+  it('applyEvent widget.accepted removes the widget from the snapshot', () => {
     useBackendState.setState({ snapshot: baseSnapshot() });
     useBackendState.getState().applyEvent({
       revision: 2, kind: 'widget.accepted',
       payload: { widgetId: 'w_1' },
       emitted_at: '2026-05-23T00:00:01Z',
     });
-    expect(useBackendState.getState().acceptedSuggestions.has('w_1')).toBe(true);
+    expect(useBackendState.getState().snapshot?.widgets.find((w) => w.id === 'w_1')).toBeUndefined();
   });
 
   it('applyEvent drops same-or-lower revision events defensively', () => {
@@ -185,8 +183,6 @@ describe('BackendStateSlice', () => {
 
     // Widget is removed from snapshot.
     expect(useBackendState.getState().snapshot!.widgets.find(w => w.id === 'w_x')).toBeUndefined();
-    // Widget ID is in acceptedSuggestions.
-    expect(useBackendState.getState().acceptedSuggestions.has('w_x')).toBe(true);
   });
 });
 

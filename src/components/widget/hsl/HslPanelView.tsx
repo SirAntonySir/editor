@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Segmented, type SegmentedOption } from '@/components/ui/Segmented';
-import { HSL_BANDS } from './hsl-bands';
-import { HslBandRail } from './HslBandRail';
-import { HslBandSliders, type RenderSlider } from './HslBandSliders';
-import { HslChannelRows, type HslChannel } from './HslChannelRows';
+import { HSL_BANDS } from '@/components/widget/hsl/hsl-bands';
+import { HslBandRail } from '@/components/widget/hsl/HslBandRail';
+import { HslBandSliders, type RenderSlider } from '@/components/widget/hsl/HslBandSliders';
+import { HslChannelRows, type HslChannel } from '@/components/widget/hsl/HslChannelRows';
 
 type View = 'band' | 'channel';
 

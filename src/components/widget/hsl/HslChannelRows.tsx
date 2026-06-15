@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import { Segmented, type SegmentedOption } from '@/components/ui/Segmented';
-import { HSL_BANDS, hueTrack, satTrack, lumTrack, type HslBand } from './hsl-bands';
-import type { RenderSlider } from './HslBandSliders';
+import { HSL_BANDS, hueTrack, satTrack, lumTrack, type HslBand } from '@/components/widget/hsl/hsl-bands';
+import type { RenderSlider } from '@/components/widget/hsl/HslBandSliders';
 
 export type HslChannel = 'hue' | 'sat' | 'lum';
 

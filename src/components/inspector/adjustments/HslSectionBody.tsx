@@ -1,7 +1,7 @@
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
-import { HSL_BANDS } from './hsl-bands';
-import { HslPanelView } from './HslPanelView';
+import { HSL_BANDS } from '@/components/widget/hsl/hsl-bands';
+import { HslPanelView } from '@/components/widget/hsl/HslPanelView';
 import { HslParamSlider } from './HslParamSlider';
 
 const CHANNELS = ['hue', 'sat', 'lum'] as const;

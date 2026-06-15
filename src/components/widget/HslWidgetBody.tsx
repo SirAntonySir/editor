@@ -1,6 +1,6 @@
 import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
-import { HslPanelView } from '@/components/inspector/adjustments/HslPanelView';
-import { HslSingleBandView } from '@/components/inspector/adjustments/HslSingleBandView';
+import { HslPanelView } from '@/components/widget/hsl/HslPanelView';
+import { HslSingleBandView } from '@/components/widget/hsl/HslSingleBandView';
 import { bindingProvenance, touchKey } from '@/hooks/useParamProvenance';
 import { useEditorStore } from '@/store';
 import type { Widget, ControlBinding, ControlValue } from '@/types/widget';

@@ -1,4 +1,4 @@
-import { HSL_BANDS, bandDisplayColor, type HslBand } from './hsl-bands';
+import { HSL_BANDS, bandDisplayColor, type HslBand } from '@/components/widget/hsl/hsl-bands';
 
 interface HslBandRailProps {
   activeBand: string;

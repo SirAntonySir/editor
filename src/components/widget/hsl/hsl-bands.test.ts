@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { HSL_BANDS, bandDisplayColor, hueTrack, satTrack, lumTrack } from './hsl-bands';
+import { HSL_BANDS, bandDisplayColor, hueTrack, satTrack, lumTrack } from '@/components/widget/hsl/hsl-bands';
 
 describe('HSL_BANDS', () => {
   it('lists the 8 bands in canonical order with shader-matching hue centres', () => {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pin } from 'lucide-react';
 import { promoteToCanvas } from './promote';
 import { promoteSingleBand } from '@/lib/colour-band-spawn';
-import { HSL_BANDS, bandDisplayColor } from './hsl-bands';
+import { HSL_BANDS, bandDisplayColor } from '@/components/widget/hsl/hsl-bands';
 import { UI } from '@/config';
 
 const CONIC = `conic-gradient(from 0deg, ${HSL_BANDS.map((b) => bandDisplayColor(b.centerHue)).join(', ')}, ${bandDisplayColor(HSL_BANDS[0].centerHue)})`;

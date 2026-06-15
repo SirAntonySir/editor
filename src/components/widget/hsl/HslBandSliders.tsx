@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from 'react';
-import { HSL_BANDS, hueTrack, satTrack, lumTrack } from './hsl-bands';
+import { HSL_BANDS, hueTrack, satTrack, lumTrack } from '@/components/widget/hsl/hsl-bands';
 
 /** Renders one HSL param as a colour-track slider. Supplied by each surface
  *  (canonical = inspector, bindings = widget) so the layout stays source-agnostic. */

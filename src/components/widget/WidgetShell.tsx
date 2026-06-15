@@ -10,7 +10,7 @@ import { engineNeutralForBinding } from '@/engine/registry';
 import { WidgetShellHeader } from './WidgetShellHeader';
 import { RefineInput } from './RefineInput';
 import { WhyPopover } from './WhyPopover';
-import { BindingRow } from '@/components/inspector/widget/BindingRow';
+import { BindingRow } from '@/components/widget/BindingRow';
 import { HslWidgetBody, isHslWidget } from './HslWidgetBody';
 import { LevelsWidgetBody, isFullLevelsWidget } from './LevelsWidgetBody';
 import { CurvesWidgetBody, isCurvesWidget } from './CurvesWidgetBody';

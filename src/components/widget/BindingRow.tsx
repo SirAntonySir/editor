@@ -2,17 +2,17 @@ import { Pin } from 'lucide-react';
 import type { ControlBinding, CurvesValue, MaskSummary } from '@/types/widget';
 import { AdjustmentSlider, type SliderProvenance } from '@/components/ui/AdjustmentSlider';
 import { engineNeutralForBinding } from '@/engine/registry';
-import { ToggleControl } from './primitives/ToggleControl';
-import { ChoiceControl } from './primitives/ChoiceControl';
-import { ColorControl } from './primitives/ColorControl';
-import { RegionPickerControl } from './primitives/RegionPickerControl';
-import { MaskThumbnailControl } from './primitives/MaskThumbnailControl';
-import { CurveControl } from './primitives/CurveControl';
+import { ToggleControl } from '@/components/widget/primitives/ToggleControl';
+import { ChoiceControl } from '@/components/widget/primitives/ChoiceControl';
+import { ColorControl } from '@/components/widget/primitives/ColorControl';
+import { RegionPickerControl } from '@/components/widget/primitives/RegionPickerControl';
+import { MaskThumbnailControl } from '@/components/widget/primitives/MaskThumbnailControl';
+import { CurveControl } from '@/components/widget/primitives/CurveControl';
 import { CurveEditor as RegistryCurveEditor } from '@/components/registry-controls/CurveEditor';
 import { hueGradient } from '@/components/registry-controls/HueWheel';
 import { kelvinGradient } from '@/components/registry-controls/KelvinStrip';
 import { tintGradient } from '@/components/registry-controls/TintStrip';
-import type { OpParam } from '../../../../shared/registry/schema';
+import type { OpParam } from '@shared/registry/schema';
 
 // Stub schema for the registry CurveEditor — it only reads channel-locking
 // from paramKey and ignores `schema` itself (min/max-point enforcement is

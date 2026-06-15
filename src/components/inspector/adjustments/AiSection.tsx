@@ -6,7 +6,7 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
-import { BindingRow } from '@/components/inspector/widget/BindingRow';
+import { BindingRow } from '@/components/widget/BindingRow';
 import { HslWidgetBody, isHslWidget } from '@/components/widget/HslWidgetBody';
 import { LevelsWidgetBody, isFullLevelsWidget } from '@/components/widget/LevelsWidgetBody';
 import { WhyPopover } from '@/components/widget/WhyPopover';

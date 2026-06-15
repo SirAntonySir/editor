@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { CurveControl } from '@/components/inspector/widget/primitives/CurveControl';
+import { CurveControl } from '@/components/widget/primitives/CurveControl';
 import { useCanonicalParam } from '@/hooks/useCanonicalParam';
 import { IDENTITY_CURVES, type CurvesValue, type CurvePoint } from '@/types/curve';
 import type { ControlValue } from '@/types/widget';

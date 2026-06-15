@@ -6,7 +6,7 @@ import { backendTools } from '@/lib/backend-tools';
 import { IDENTITY_CURVES } from '@/types/curve';
 
 vi.mock('@/lib/backend-tools', () => ({ backendTools: { set_param: vi.fn().mockResolvedValue({ ok: true }) } }));
-vi.mock('@/components/inspector/widget/primitives/CurveControl', () => ({
+vi.mock('@/components/widget/primitives/CurveControl', () => ({
   CurveControl: ({ onChange }: { onChange: (v: unknown) => void }) => (
     <button onClick={() => onChange({ ...IDENTITY_CURVES, rgb: [{ x: 0, y: 0 }, { x: 0.5, y: 0.7 }, { x: 1, y: 1 }] })}>edit-curve</button>
   ),

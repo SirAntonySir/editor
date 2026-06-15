@@ -10,7 +10,6 @@ vi.mock('@/lib/backend-tools', () => ({
   backendTools: {
     set_widget_param: vi.fn(),
     unlock_widget_param: vi.fn(),
-    propose_widget: vi.fn().mockResolvedValue({ ok: true, output: { widget: {} } }),
   },
 }));
 

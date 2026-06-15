@@ -1,4 +1,4 @@
-import type { Widget, Scope, ControlValue, WidgetOriginKind } from '@/types/widget';
+import type { Widget, Scope, ControlValue } from '@/types/widget';
 import type { ImageContext } from '@/types/image-context';
 
 export interface PrepareImageOutput {
@@ -92,16 +92,6 @@ export const backendTools = {
   },
   list_widgets(sessionId: string) {
     return invokeTool<{ widgets: Widget[] }>('list_widgets', sessionId, {});
-  },
-  propose_widget(sessionId: string, args: {
-    intent: string;
-    scope: Scope;
-    opId?: string;
-    prompt?: string;
-    layerId: string;
-    origin: WidgetOriginKind;
-  }) {
-    return invokeTool<{ widget: Widget }>('propose_widget', sessionId, args);
   },
   proposeStack(sessionId: string, args: {
     intent: string;

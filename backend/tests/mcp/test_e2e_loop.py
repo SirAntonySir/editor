@@ -152,7 +152,7 @@ async def test_full_mcp_loop_create_propose_refine_delete() -> None:
             # 3. tools/list contains the headline widget tools.
             listing = (await _mcp(ac, sid, "tools/list", {}, 2))["result"]["tools"]
             names = {t["name"] for t in listing}
-            assert {"propose_stack", "propose_widget", "refine_widget", "repeat_widget", "delete_widget"}.issubset(names)
+            assert {"propose_stack", "refine_widget", "repeat_widget", "delete_widget"}.issubset(names)
 
             # 4. Run the 4-tool analyze pipeline via MCP — sets record.context
             # satisfying propose_stack's requires_context permission.
@@ -165,7 +165,7 @@ async def test_full_mcp_loop_create_propose_refine_delete() -> None:
                 outer = json.loads(env["content"][0]["text"])
                 assert outer["ok"] is True, f"{tool_name} failed: {outer}"
 
-            # 5. propose_stack via MCP (migrated from propose_widget for LLM path).
+            # 5. propose_stack via MCP.
             envp = (await _mcp(ac, sid, "tools/call", {
                 "name": "propose_stack",
                 "arguments": {

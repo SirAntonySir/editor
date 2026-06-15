@@ -29,7 +29,8 @@ def compute_snapshot(doc: SessionDocument) -> SessionStateSnapshot:
         widgets=[doc.widgets[wid] for wid in doc.widget_order],
         masks_index=[
             {"id": m.id, "width": m.width, "height": m.height,
-             "source": m.source, "label": m.label}
+             "source": m.source, "label": m.label,
+             "imageNodeId": m.image_node_id}
             for m in doc.masks.values()
         ],
         operation_graph=project_to_graph(doc),

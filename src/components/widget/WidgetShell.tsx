@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Widget, MaskSummary } from '@/types/widget';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
@@ -41,7 +41,17 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
   const { hoveredWidgetId, setHoveredWidget } = useHoveredWidget();
   const sessionId = useBackendState((s) => s.sessionId);
   const optimistic = useBackendState((s) => s.optimistic);
-  const masks = useBackendState((s) => s.snapshot?.masksIndex ?? EMPTY_MASKS);
+  const allMasks = useBackendState((s) => s.snapshot?.masksIndex ?? EMPTY_MASKS);
+  const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
+  // Soft filter: hide masks scoped to a different ImageNode. Legacy / global
+  // masks (no imageNodeId) remain visible.
+  const masks = useMemo(
+    () =>
+      allMasks.filter(
+        (m) => !m.imageNodeId || !activeImageNodeId || m.imageNodeId === activeImageNodeId,
+      ),
+    [allMasks, activeImageNodeId],
+  );
   const offline = useBackendState((s) => s.sseStatus !== 'open');
   const touched = useEditorStore((s) => s.touchedParams);
 

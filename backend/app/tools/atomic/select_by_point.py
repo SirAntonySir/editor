@@ -66,6 +66,7 @@ class SelectByPointTool(BackendTool[_Input, _Output]):
         record = MaskRecord(
             id=mid, width=mask.shape[1], height=mask.shape[0],
             png_b64=png_b64, source="sam_point",
+            image_node_id="in-default",
         )
         doc.add_mask(record)
         if input.commit:

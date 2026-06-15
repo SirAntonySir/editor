@@ -90,6 +90,7 @@ class ProposeMaskTool(BackendTool[_Input, _Output]):
             png_b64=input.png_base64,
             source=source,  # type: ignore[arg-type]
             label=label,
+            image_node_id="in-default",
         )
 
         # add_mask already fires `mask.created` SSE which the frontend

@@ -391,6 +391,10 @@ class MaskRecord(BaseModel):
     source: Literal["sam_point", "sam_box", "named_region", "painted", "combined"]
     parent_mask_ids: list[str] = Field(default_factory=list)
     label: str | None = None
+    # Multi-image-canvas: identifies the ImageNode this mask targets.
+    # Optional for backwards-compat; None is treated as a "global"
+    # mask by frontend consumers so legacy fixtures keep rendering.
+    image_node_id: str | None = None
 
 
 class NoteAnchorRegion(BaseModel):

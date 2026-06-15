@@ -71,6 +71,7 @@ class CombineMasksTool(BackendTool[_Input, _Output]):
             id=mid, width=m.shape[1], height=m.shape[0],
             png_b64=_encode(m), source="combined",
             parent_mask_ids=[input.a, input.b],
+            image_node_id="in-default",
         )
         doc.add_mask(record)
         return _Output(mask_id=mid)

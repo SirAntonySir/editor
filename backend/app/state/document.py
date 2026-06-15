@@ -115,7 +115,8 @@ class SessionDocument(BaseModel):
             "widgetIds": list(self.widget_order),
             "masksIndex": [
                 {"id": m.id, "width": m.width, "height": m.height,
-                 "source": m.source, "label": m.label}
+                 "source": m.source, "label": m.label,
+                 "imageNodeId": m.image_node_id}
                 for m in self.masks.values()
             ],
         })
@@ -410,6 +411,7 @@ class SessionDocument(BaseModel):
             "width": mask.width,
             "height": mask.height,
             "png_b64": mask.png_b64,
+            "image_node_id": mask.image_node_id,
         })]
 
     def emit_selection_changed(self, mask_id: str | None, state: str, label: str | None) -> list[StateEvent]:

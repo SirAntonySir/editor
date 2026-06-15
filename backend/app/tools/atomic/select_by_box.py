@@ -56,6 +56,7 @@ class SelectByBoxTool(BackendTool[_Input, _Output]):
         record = MaskRecord(
             id=mid, width=mask.shape[1], height=mask.shape[0],
             png_b64=png_b64, source="sam_box",
+            image_node_id="in-default",
         )
         doc.add_mask(record)
         if input.commit:

@@ -36,7 +36,18 @@ export function AiSection({ widget }: AiSectionProps) {
   const sessionId = useBackendState((s) => s.sessionId);
   const offline = useBackendState((s) => s.sseStatus !== 'open');
   const optimistic = useBackendState((s) => s.optimistic);
-  const maskSummaries = useBackendState((s) => s.snapshot?.masksIndex ?? EMPTY_MASKS);
+  const allMaskSummaries = useBackendState((s) => s.snapshot?.masksIndex ?? EMPTY_MASKS);
+  const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
+  // Soft filter: when a mask is scoped to a specific ImageNode and that node
+  // isn't the active one, hide it from the binding pickers. Masks with no
+  // imageNodeId (legacy / global) stay visible for every node.
+  const maskSummaries = useMemo(
+    () =>
+      allMaskSummaries.filter(
+        (m) => !m.imageNodeId || !activeImageNodeId || m.imageNodeId === activeImageNodeId,
+      ),
+    [allMaskSummaries, activeImageNodeId],
+  );
   const touched = useEditorStore((s) => s.touchedParams);
   const onCanvas = useEditorStore((s) => Boolean(s.widgetNodes[widget.id]));
   const hidden = useEditorStore((s) => s.hiddenWidgetIds.has(widget.id));

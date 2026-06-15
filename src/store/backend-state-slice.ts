@@ -367,6 +367,7 @@ export const useBackendState = create<BackendState>()(
               width: number;
               height: number;
               png_b64?: string;
+              image_node_id?: string | null;
             };
             // Push MaskSummary into snapshot.masks_index so the inspector chip
             // cloud sees it.
@@ -377,6 +378,7 @@ export const useBackendState = create<BackendState>()(
                 height: p.height,
                 source: p.source,
                 label: p.label ?? null,
+                imageNodeId: p.image_node_id ?? null,
               });
             }
             // Decode PNG → Uint8Array → register in maskStore so hover

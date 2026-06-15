@@ -226,6 +226,12 @@ export interface MaskSummary {
   height: number;
   source: string;
   label: string | null;
+  /**
+   * ImageNode this mask belongs to. Optional for backwards-compat — legacy
+   * fixtures and pre-multi-image masks leave it undefined, in which case
+   * consumers treat the mask as global and render it for every ImageNode.
+   */
+  imageNodeId?: string | null;
 }
 
 // Re-export the existing OperationGraph type for the snapshot.

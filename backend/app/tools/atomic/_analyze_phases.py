@@ -101,6 +101,7 @@ async def decode_region_mask(
         png_b64=png_b64,
         source="sam_box",
         label=region.label,
+        image_node_id="in-default",
     )
     return RegionMaskResult(
         region_index=region_index,

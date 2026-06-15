@@ -38,12 +38,14 @@ def test_revive_round_trip_restores_state():
     store = SessionStore(ttl_seconds=3600)
     assert revive.revive_all(store) == 1
 
+    from app.state.document import DEFAULT_IMAGE_NODE_ID
     doc = store.get_document("sid-1")
     assert doc.canonical["layer-1"]["basic"]["exposure"] == 0.7
     # Revision was bumped once by set_param.
     assert doc.revision == 1
-    # image_bytes attached from disk.
-    assert doc.image_bytes == b"image-bytes"
+    # image_bytes promoted to per-node store; legacy singleton is cleared.
+    assert doc.get_image_bytes(DEFAULT_IMAGE_NODE_ID) == b"image-bytes"
+    assert doc.image_bytes == b""
 
 
 def test_revive_skips_session_without_document(tmp_path: Path):

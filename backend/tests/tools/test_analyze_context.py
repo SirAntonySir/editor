@@ -41,6 +41,7 @@ async def test_analyze_context_short_circuits_on_cached_doc(make_doc, fake_anthr
     from app.schemas.image_context import CandidateRegion
 
     monkeypatch.setenv("ANALYZE_SAM", "0")
+    from app.state.document import DEFAULT_IMAGE_NODE_ID
     doc = make_doc()
     cached = EnrichedImageContext(
         subjects=["x"], lighting="flat", dominant_tones=["midtones"], mood="m",
@@ -50,7 +51,7 @@ async def test_analyze_context_short_circuits_on_cached_doc(make_doc, fake_anthr
         model_name="cached", model_version="1", generated_at="2026-06-11T00:00:00Z",
         grade_character="cached-grade",
     )
-    doc.image_context = cached
+    doc.set_image_context(DEFAULT_IMAGE_NODE_ID, cached)
     out = await AnalyzeContextTool().handler(doc, _Input())
     assert out.grade_character == "cached-grade"
     assert out.candidate_regions[0].label == "r0"

@@ -11,7 +11,7 @@ def make_doc():
     ``_MissingContext`` before reaching the monkeypatched Anthropic client.
     """
     from app.schemas.image_context import ImageContext
-    from app.state.document import SessionDocument
+    from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 
     def _factory(
         session_id: str = "test-session",
@@ -24,7 +24,7 @@ def make_doc():
             mime_type="image/jpeg",
         )
         if with_image_context:
-            doc.image_context = ImageContext(
+            doc.set_image_context(DEFAULT_IMAGE_NODE_ID, ImageContext(
                 subjects=["subject"],
                 lighting="flat",
                 dominant_tones=["midtones"],
@@ -33,7 +33,7 @@ def make_doc():
                 model_name="claude-opus-4-7",
                 model_version="2026-01",
                 generated_at="2026-01-01T00:00:00Z",
-            )
+            ))
         return doc
 
     return _factory

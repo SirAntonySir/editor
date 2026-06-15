@@ -44,8 +44,9 @@ async def test_suggest_widgets_returns_empty_when_suggest_canned_empty(
     """With the canned fake_anthropic returning [] for suggest_fused, the
     tool completes without minting anything — exercises the happy path
     without real LLM cost."""
+    from app.state.document import DEFAULT_IMAGE_NODE_ID
     doc = make_doc()
-    doc.image_context = _enriched_stub()
+    doc.set_image_context(DEFAULT_IMAGE_NODE_ID, _enriched_stub())
     out = await SuggestWidgetsTool().handler(doc, _Input())
     assert out.widget_ids == []
 

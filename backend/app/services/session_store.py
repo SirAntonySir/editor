@@ -39,23 +39,19 @@ def _rehydrate_document_context(record: "SessionRecord") -> None:
     EnrichedImageContext and attach it to the freshly-created document.
 
     Called once per document lifetime (right after _new_document). On
-    parse failure the document.image_context is left as None so the next
-    analyze run repopulates it cleanly."""
+    parse failure the document's per-node entry is left absent so the
+    next analyze run repopulates it cleanly. Per-node-only doctrine:
+    we do NOT touch the legacy `image_context` singleton."""
     if record.document is None or record.context is None:
         return
     from app.schemas.enriched_context import EnrichedImageContext
     from app.state.document import DEFAULT_IMAGE_NODE_ID
     try:
         parsed = EnrichedImageContext.model_validate(record.context)
-        record.document.image_context = parsed
-        # Keep the per-node view in sync — readers will already go through
-        # get_image_context("in-default") and fall back to the singleton, but
-        # an explicit set here makes the rehydrated doc symmetric with the
-        # writer side (analyze_context / api.session) which writes both.
         record.document.set_image_context(DEFAULT_IMAGE_NODE_ID, parsed)
     except Exception:
-        # Corrupt cache → leave image_context as None.
-        record.document.image_context = None
+        # Corrupt cache → leave the per-node entry absent.
+        record.document.image_context_by_node.pop(DEFAULT_IMAGE_NODE_ID, None)
 
 
 @dataclass

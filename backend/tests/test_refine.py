@@ -87,13 +87,15 @@ def _create_session_with_active_widget(client: TestClient) -> tuple[str, str]:
     with image_path.open("rb") as fh:
         sid = client.post("/api/session", files={"image": ("t.jpg", fh, "image/jpeg")}).json()["session_id"]
     # Prime context directly on the document — avoids calling SAM via /api/analyze.
+    from app.state.document import DEFAULT_IMAGE_NODE_ID
     doc = deps.get_session_store().get_document(sid)
-    doc.image_context = EnrichedImageContext(
+    ctx = EnrichedImageContext(
         subjects=[], lighting="flat", dominant_tones=[], mood="calm",
         candidate_regions=[],
         model_name="x", model_version="y", generated_at="2026-05-21T00:00:00Z",
     )
-    deps.get_session_store().set_context(sid, doc.image_context.model_dump(mode="json"))
+    doc.set_image_context(DEFAULT_IMAGE_NODE_ID, ctx)
+    deps.get_session_store().set_context(sid, ctx.model_dump(mode="json"))
     # Mint a warm_grade widget directly via the fused framework so the shim has
     # something to refine and resolve_fused_tool is invoked once here.
     templates = {t.id: t for t in all_fused_templates()}
@@ -102,7 +104,7 @@ def _create_session_with_active_widget(client: TestClient) -> tuple[str, str]:
     origin = WidgetOrigin(kind="mcp_user_prompt", prompt=None)
     anthropic = deps.get_anthropic_client()
     widget = asyncio.get_event_loop().run_until_complete(
-        run_fused_tool(template, intent="warmer", scope=scope, ctx=doc.image_context,
+        run_fused_tool(template, intent="warmer", scope=scope, ctx=ctx,
                        prior=None, instruction=None, anthropic=anthropic, origin=origin)
     )
     doc.add_widget(widget)

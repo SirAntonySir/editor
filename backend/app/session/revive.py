@@ -75,19 +75,40 @@ def _hydrate_into_store(
     payload: dict,
 ) -> None:
     """Build a SessionDocument from `payload` (already-validated dict) and a
-    SessionRecord around it, register it with the store."""
+    SessionRecord around it, register it with the store.
+
+    The on-disk document never carries image_bytes / mime / per-node image
+    bytes — those are reattached here from disk_session_io. After
+    model_validate we run `_promote_singletons_to_per_node()` so any
+    pre-migration payload (singleton image_context / prepare_result) converges
+    to the per-node-only doctrine before any tool touches it.
+    """
     import time
 
     from app.services.session_store import SessionRecord
-    from app.state.document import SessionDocument
+    from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 
     # Drop the version marker so model_validate doesn't trip on `extra="forbid"`.
     doc_dict = {k: v for k, v in payload.items() if k != "_schema_version"}
-    # image_bytes is excluded from persistence; re-attach from disk_session_io.
+    # Legacy singletons may carry stale (or absent) data; we'll empty them
+    # in the promotion step below. Re-attach the primary image just so
+    # _promote_singletons_to_per_node can move it into in-default.
     doc_dict["image_bytes"] = disk.image_bytes
     doc_dict["mime_type"] = disk.mime_type
 
     doc = SessionDocument.model_validate(doc_dict)
+    # Step 1: promote any legacy singleton state into the per-node dicts.
+    # After this, doc.image_bytes / doc.image_context / doc.prepare_result
+    # are empty; everything lives under image_*_by_node.
+    doc._promote_singletons_to_per_node()
+    # Step 2: rehydrate any additional per-node images written via
+    # api/session.py:add_image_to_session. read_per_node_images returns
+    # {image_node_id: (bytes, mime)} for every file other than the primary.
+    for image_node_id, (data, mime) in disk_session_io.read_per_node_images(sid).items():
+        # Don't overwrite — promotion above already put the primary at in-default.
+        if image_node_id in doc.image_bytes_by_node:
+            continue
+        doc.set_image_bytes(image_node_id, data, mime_type=mime)
 
     now = time.monotonic()
     record = SessionRecord(

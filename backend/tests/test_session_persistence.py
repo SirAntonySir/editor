@@ -84,9 +84,11 @@ def test_get_document_rehydrates_enriched_context():
     b = SessionStore(ttl_seconds=999)
     doc = b.get_document(sid)
     from app.schemas.enriched_context import EnrichedImageContext
-    assert isinstance(doc.image_context, EnrichedImageContext)
-    assert doc.image_context.subjects == ["x"]
-    assert doc.image_context.grade_character == "neutral"
+    from app.state.document import DEFAULT_IMAGE_NODE_ID
+    ctx = doc.get_image_context(DEFAULT_IMAGE_NODE_ID)
+    assert isinstance(ctx, EnrichedImageContext)
+    assert ctx.subjects == ["x"]
+    assert ctx.grade_character == "neutral"
 
 
 def test_prune_disk_removes_old_records(tmp_path, monkeypatch):

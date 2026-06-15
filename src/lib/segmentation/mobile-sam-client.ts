@@ -58,14 +58,14 @@ export async function loadSessions(): Promise<Sessions> {
  *  consumes. Caller is responsible for caching per imageNodeId — this
  *  function always runs the encoder when called. */
 export async function encode(image: ImageBitmap): Promise<EncoderEmbedding> {
-  const { ort, encoder } = await loadSessions();
-  // MobileSAM encoder expects 1024×1024 float32 RGB in CHW order.
+  const { encoder } = await loadSessions();
+  // MobileSAM encoder expects HWC float32 in 0–255 range. The model normalises,
+  // permutes to CHW, and pads to 1024×1024 internally (see Acly README).
   const sourceWidth = image.width;
   const sourceHeight = image.height;
-  const tensor = await imageToTensor(ort, image, 1024);
-  const output = await encoder.run({ input_image: tensor });
-  // The encoder's output key depends on the export. The official
-  // ChaoningZhang/MobileSAM export uses "image_embeddings".
+  const tensor = await imageToTensor(image, 1024);
+  const inputKey = encoder.inputNames[0] ?? 'input_image';
+  const output = await encoder.run({ [inputKey]: tensor });
   const embedding = output.image_embeddings ?? Object.values(output)[0];
   return { imageWidth: sourceWidth, imageHeight: sourceHeight, embedding };
 }
@@ -89,19 +89,33 @@ export async function decode(
   //   - point_labels: float32 [1, N]
   //   - mask_input + has_mask_input: zeros + 0 for a fresh decode
   //   - orig_im_size: float32 [2]
+  // Cap orig_im_size at 1024 max edge. The decoder upsamples its internal
+  // mask to orig_im_size exactly — for a 3867x5152 source we'd get a 3867x5152
+  // float32 mask (~80MB), then allocate a 3867x5152 canvas downstream, which
+  // OOMs the second click. The model's coord transform uses
+  // scale = 1024 / max(origH, origW), so a 1024-max orig_im_size means
+  // scale = 1 and point_coords are already in model-space. Aspect preserved.
+  const sourceMax = Math.max(embedding.imageWidth, embedding.imageHeight);
+  const capScale = sourceMax > 1024 ? 1024 / sourceMax : 1;
+  const capW = Math.round(embedding.imageWidth * capScale);
+  const capH = Math.round(embedding.imageHeight * capScale);
   const N = points.length;
   const coords = new Float32Array(N * 2);
   const labels = new Float32Array(N);
   for (let i = 0; i < N; i++) {
-    // Click coords already in normalised 0..1; scale to 1024 for the model.
-    coords[i * 2] = points[i].x * 1024;
-    coords[i * 2 + 1] = points[i].y * 1024;
+    // Decoder expects point coords in orig_im_size pixel space. Normalised → capped pixel.
+    coords[i * 2] = points[i].x * capW;
+    coords[i * 2 + 1] = points[i].y * capH;
     labels[i] = points[i].label;
   }
   const maskInput = new Float32Array(1 * 1 * 256 * 256);
   const hasMaskInput = new Float32Array([0]);
-  const origImSize = new Float32Array([embedding.imageHeight, embedding.imageWidth]);
+  const origImSize = new Float32Array([capH, capW]);
 
+  // NOTE: decoder.inputNames lists `image_embedings` (one 'd') for the Acly
+  // export, but ORT's run() actually validates against `image_embeddings`
+  // (two 'd') — apparent name-mismatch inside the loader. We pass the
+  // canonical SAM spelling that ORT.run() accepts.
   const feeds: Record<string, unknown> = {
     image_embeddings: embedding.embedding,
     point_coords: new ort.Tensor('float32', coords, [1, N, 2]),
@@ -111,13 +125,18 @@ export async function decode(
     orig_im_size: new ort.Tensor('float32', origImSize, [2]),
   };
   const output = await decoder.run(feeds as Record<string, never>);
-  // The decoder returns "masks" as a float32 tensor of [N_masks, H, W].
-  // Pick the highest-IoU mask (index 0 is typically the multi-mask mode's best).
+  // Acly's single-mask decoder returns "masks" with dims [B, 1, H, W] at the
+  // original image resolution (because we passed orig_im_size). We take the
+  // single mask in [B=0, C=0]. Strides: data is row-major across the last two
+  // dims, so the H*W floats live contiguously starting at offset 0.
   const masksTensor = (output.masks ?? Object.values(output)[0]) as unknown as {
     data: Float32Array;
     dims: readonly number[];
   };
-  const [, height, width] = [masksTensor.dims[0], masksTensor.dims[1], masksTensor.dims[2]];
+  // dims = [batch, n_masks, H, W] for rank 4; [n_masks, H, W] for rank 3.
+  const d = masksTensor.dims;
+  const height = d.length === 4 ? d[2] : d[1];
+  const width = d.length === 4 ? d[3] : d[2];
   const data = new Uint8Array(width * height);
   for (let i = 0; i < width * height; i++) {
     // Threshold logits at 0 (SAM convention).
@@ -135,10 +154,10 @@ export function _resetForTests(): void {
 // helpers
 
 async function imageToTensor(
-  ort: OrtModule,
   bitmap: ImageBitmap,
   side: number,
 ): Promise<InstanceType<OrtModule['Tensor']>> {
+  const { ort } = await loadSessions();
   const canvas = new OffscreenCanvas(side, side);
   const ctx = canvas.getContext('2d')!;
   // Letterbox preserve aspect ratio.
@@ -147,18 +166,21 @@ async function imageToTensor(
   const h = bitmap.height * scale;
   ctx.drawImage(bitmap, 0, 0, w, h);
   const imgData = ctx.getImageData(0, 0, side, side);
-  // CHW float32, mean-normalised per ImageNet (MobileSAM uses ImageNet stats).
-  const mean = [123.675, 116.28, 103.53];
-  const std = [58.395, 57.12, 57.375];
-  const arr = new Float32Array(3 * side * side);
+  // Acly/MobileSAM encoder expects HWC float32 with raw 0–255 values — the
+  // model does ImageNet mean/std normalisation, padding, and HWC→NCHW
+  // internally (see Acly/MobileSAM/mobile_sam_encoder_onnx/onnx_image_encoder.py).
+  // If you swap in the ChaoningZhang export, switch back to CHW with explicit
+  // mean/std normalisation. ORT throws a clear "Invalid rank/dimensions"
+  // error if the shape is wrong, so the mismatch is loud, not silent.
+  const arr = new Float32Array(side * side * 3);
   for (let y = 0; y < side; y++) {
     for (let x = 0; x < side; x++) {
       const i = (y * side + x) * 4;
-      for (let c = 0; c < 3; c++) {
-        arr[c * side * side + y * side + x] =
-          (imgData.data[i + c] - mean[c]) / std[c];
-      }
+      const o = (y * side + x) * 3;
+      arr[o] = imgData.data[i];
+      arr[o + 1] = imgData.data[i + 1];
+      arr[o + 2] = imgData.data[i + 2];
     }
   }
-  return new ort.Tensor('float32', arr, [1, 3, side, side]);
+  return new ort.Tensor('float32', arr, [side, side, 3]);
 }

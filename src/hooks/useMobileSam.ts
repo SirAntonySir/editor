@@ -72,6 +72,7 @@ export function useMobileSam(imageNodeId: string | null): UseMobileSam {
           _cache.set(imageNodeId, emb);
           embeddingRef.current = emb;
         } catch (err) {
+          console.error('[useMobileSam] encoder failed', err);
           setError(err instanceof Error ? err : new Error(String(err)));
           return null;
         } finally {
@@ -79,7 +80,13 @@ export function useMobileSam(imageNodeId: string | null): UseMobileSam {
         }
       }
     }
-    return samDecode(embeddingRef.current, points);
+    try {
+      return await samDecode(embeddingRef.current, points);
+    } catch (err) {
+      console.error('[useMobileSam] decoder failed', err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+      return null;
+    }
   }, [imageNodeId]);
 
   return { ready, error, decode };

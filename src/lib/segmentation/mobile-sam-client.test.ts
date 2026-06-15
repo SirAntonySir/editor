@@ -34,8 +34,8 @@ beforeEach(() => {
   mockDecoderRun.mockReset();
   mockEncoderRun.mockResolvedValue(fakeEncoderOutput);
   mockSessionCreate.mockImplementation(async (url: string) => {
-    if (url.includes('encoder')) return { run: mockEncoderRun };
-    return { run: mockDecoderRun };
+    if (url.includes('encoder')) return { run: mockEncoderRun, inputNames: ['input_image'], outputNames: ['image_embeddings'] };
+    return { run: mockDecoderRun, inputNames: ['image_embeddings'], outputNames: ['masks'] };
   });
 });
 

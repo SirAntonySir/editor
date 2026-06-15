@@ -327,6 +327,47 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
     expect(pending.size).toBe(2);
   });
 
+  it('applyEvent widget.created drains side-effects AFTER the immer producer commits', async () => {
+    const { useSuggestionsUi } = await import('./suggestions-ui-slice');
+    useSuggestionsUi.getState().reset();
+
+    useBackendState.setState({
+      sessionId: 's_1',
+      snapshot: {
+        sessionId: 's_1', revision: 0, widgets: [], masksIndex: [],
+        operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+        imageContext: null,
+      } as never,
+      sseStatus: 'open',
+    });
+
+    useBackendState.getState().applyEvent({
+      revision: 1, kind: 'widget.created',
+      emitted_at: new Date().toISOString(),
+      payload: {
+        widget: {
+          id: 'w_auto', intent: '', scope: { kind: 'global' },
+          origin: { kind: 'mcp_autonomous', prompt: null },
+          composed: false, nodes: [], bindings: [],
+          preview: { kind: 'none', auto_before_after: false },
+          rejected_attempts: [], status: 'active', revision: 1,
+          createdAt: '2026-05-23T00:00:00Z',
+          updatedAt: '2026-05-23T00:00:00Z',
+        },
+        operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+      },
+    } as never);
+
+    // After applyEvent returns synchronously: BOTH the immer commit (widget
+    // pushed onto snapshot.widgets) AND the side-effects drain
+    // (useSuggestionsUi.markPending) must be visible. This pins the
+    // drain-after-set ordering of the side-effects queue.
+    const bs = useBackendState.getState();
+    const ui = useSuggestionsUi.getState();
+    expect(bs.snapshot?.widgets.find((w) => w.id === 'w_auto')).toBeDefined();
+    expect(ui.pendingSuggestionIds.has('w_auto')).toBe(true);
+  });
+
   it('reset clears the cross-store useSuggestionsUi state too', async () => {
     const { useSuggestionsUi } = await import('./suggestions-ui-slice');
     useSuggestionsUi.getState().reset();
@@ -344,7 +385,8 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
 
   it('state.gap async refetch is dropped when sessionId changed mid-fetch', async () => {
     const { fetchSnapshot } = await import('@/lib/sse-subscriber');
-    vi.mocked(fetchSnapshot).mockResolvedValueOnce({
+    const fetchMock = vi.mocked(fetchSnapshot);
+    fetchMock.mockResolvedValueOnce({
       sessionId: 's_old', revision: 5, widgets: [], masksIndex: [],
       operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
       imageContext: null,
@@ -372,10 +414,12 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
     // Let the async refetch microtask + macrotask run.
     await new Promise((r) => setTimeout(r, 0));
 
-    // The stale-session re-check should have dropped the refetched
-    // snapshot — sessionId stays 's_new', revision didn't jump to 5.
+    // Spy on setSnapshot to assert the late refetch is dropped without
+    // relying on a coincidental revision check. The refetch should have
+    // called fetchSnapshot but NOT applied the result via setSnapshot.
     expect(useBackendState.getState().sessionId).toBe('s_new');
-    expect(useBackendState.getState().snapshot?.revision).not.toBe(5);
+    expect(fetchMock).toHaveBeenCalled();
+    expect(useBackendState.getState().snapshot?.revision).toBe(1);
   });
 });
 

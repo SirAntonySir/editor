@@ -15,7 +15,10 @@ class EnvSettings(BaseSettings):
     anthropic_model: str = "claude-opus-4-7"
     host: str = "127.0.0.1"
     port: int = 8787
-    allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    # Empty by default so a fresh prod install doesn't accidentally accept
+    # `http://localhost:5173` requests from a co-located dev server. For
+    # local development, set ALLOWED_ORIGINS in .env (see .env.example).
+    allowed_origins: str = ""
     session_ttl_seconds: int = 1800
     max_image_bytes: int = 2 * 1024 * 1024
     sam_checkpoint_path: str | None = None

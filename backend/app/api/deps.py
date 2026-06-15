@@ -33,16 +33,26 @@ def get_sam_client() -> SamClient:
     return _sam_client
 
 
+from app.mcp.rate_limit import RateLimiter
 from app.state.events import EventBus
 from app.tools.registry import BackendToolRegistry
 
 _event_bus = EventBus()
 _registry: BackendToolRegistry | None = None
 _registry_lock = threading.Lock()
+# Shared between the MCP JSON-RPC `/mcp` endpoint and the REST `/api/tools/{name}`
+# endpoint. Both invoke the same tool registry, so they must share one bucket
+# per session — otherwise a client can multiply the throttle by hitting both
+# surfaces in parallel.
+_tool_rate_limiter = RateLimiter(rate_per_minute=30)
 
 
 def get_event_bus() -> EventBus:
     return _event_bus
+
+
+def get_tool_rate_limiter() -> RateLimiter:
+    return _tool_rate_limiter
 
 
 def get_tool_registry() -> BackendToolRegistry:

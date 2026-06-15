@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import io
 import logging
@@ -383,7 +384,11 @@ async def analyze(
         return ImageContext.model_validate(record.context)
 
     try:
-        context = client.analyze_image(
+        # Run the blocking Anthropic SDK call off the event loop — otherwise
+        # the 30–120 s `analyze_image` invocation freezes all other requests,
+        # SSE deltas, and health checks for the duration.
+        context = await asyncio.to_thread(
+            client.analyze_image,
             image_bytes=record.image_bytes,
             mime_type=record.mime_type,
             session_id=body.session_id,
@@ -393,7 +398,10 @@ async def analyze(
 
     if _presegment_enabled():
         image_rgb = _decode_image_rgb(record.image_bytes)
-        _refine_regions(context, image_rgb, sam, client, body.session_id)
+        # _refine_regions calls Claude + SAM synchronously; both block.
+        await asyncio.to_thread(
+            _refine_regions, context, image_rgb, sam, client, body.session_id,
+        )
     else:
         # New chip workflow: /analyze returns labels + bbox + representative_point
         # only; SAM runs per-click in the frontend. Drop regions without a
@@ -487,15 +495,18 @@ async def name_region(
     except SessionNotFound:
         raise HTTPException(status_code=404, detail="unknown or expired session")
 
-    image_rgb = _decode_image_rgb(record.image_bytes)
-    h, w = image_rgb.shape[:2]
-    mask = _decode_mask_png_base64(body.mask_png_base64)
-    mask = _resize_mask_to(mask, h, w)
-    annotated = _render_outlined_region(image_rgb, mask)
-    summary = _summarise_context(record.context)
+    def _build_annotated() -> tuple[bytes, str]:
+        image_rgb = _decode_image_rgb(record.image_bytes)
+        h, w = image_rgb.shape[:2]
+        mask = _decode_mask_png_base64(body.mask_png_base64)
+        mask = _resize_mask_to(mask, h, w)
+        return _render_outlined_region(image_rgb, mask), _summarise_context(record.context)
+
+    annotated, summary = await asyncio.to_thread(_build_annotated)
 
     try:
-        label = client.name_region(
+        label = await asyncio.to_thread(
+            client.name_region,
             annotated_image=annotated,
             mime_type="image/jpeg",
             context_summary=summary,

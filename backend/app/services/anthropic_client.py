@@ -6,7 +6,15 @@ import json
 import logging
 from typing import Any
 
-from anthropic import Anthropic
+import time
+
+from anthropic import (
+    Anthropic,
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    RateLimitError,
+)
 from PIL import Image
 from pydantic import BaseModel, ValidationError
 
@@ -427,6 +435,45 @@ class AnthropicClient:
         self._client = Anthropic(api_key=api_key, timeout=ANTHROPIC_TIMEOUT_S)
         self._model = model
 
+    def _messages_create(self, **kwargs):
+        """`self._messages_create` with transport-level retries.
+
+        The SDK raises distinct error classes for different failure modes.
+        Validation retries (handled by callers) only make sense for the
+        small subset where Claude emitted a tool call with malformed
+        fields. Transport failures (connection drop, 5xx, 429) deserve
+        their own retry with backoff before we surface them. Without
+        this, a single network blip is reported to the user as a hard
+        failure — yet retrying succeeds the vast majority of the time.
+
+        4xx (other than 429) still raise: those are caller bugs, not
+        transient — retrying just wastes tokens.
+        """
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                return self._client.messages.create(**kwargs)
+            except (APIConnectionError, APITimeoutError, RateLimitError) as exc:
+                last_exc = exc
+                logger.warning(
+                    "Anthropic transient error (attempt %d/3): %s", attempt + 1, exc,
+                )
+            except APIStatusError as exc:
+                last_exc = exc
+                if exc.status_code is None or exc.status_code < 500:
+                    # 4xx — caller bug, no point retrying.
+                    raise
+                logger.warning(
+                    "Anthropic 5xx (attempt %d/3): %s", attempt + 1, exc,
+                )
+            # Exponential backoff: 0.5s, 1.0s. (No sleep after the final
+            # attempt — we'll raise immediately.)
+            if attempt < 2:
+                time.sleep(0.5 * (2 ** attempt))
+        raise RuntimeError(
+            f"Anthropic transport failed after 3 attempts: {last_exc}",
+        ) from last_exc
+
     @staticmethod
     def _cap_image(image_bytes: bytes, mime_type: str) -> tuple[bytes, str]:
         """Downscale to MAX_VISION_DIM on the long edge if larger, re-encoding as
@@ -468,7 +515,7 @@ class AnthropicClient:
     ) -> ImageContext:
         last_error: ValidationError | None = None
         for _ in range(3):  # initial + 2 retries — Claude occasionally omits required fields
-            response = self._client.messages.create(
+            response = self._messages_create(
                 model=self._model,
                 # Output budget: ImageContext + 6–10 candidate_regions (each with
                 # label, description, bbox, representative_point) regularly
@@ -506,7 +553,7 @@ class AnthropicClient:
                     return ctx
             else:
                 raise RuntimeError("Anthropic did not emit emit_image_context tool call")
-        raise RuntimeError(f"Image analysis failed after retries: {last_error}")
+        raise RuntimeError(f"Image analysis failed after retries: {last_error}") from last_error
 
     def refine_image_context(
         self,
@@ -523,7 +570,7 @@ class AnthropicClient:
         )
         last_error: ValidationError | None = None
         for _ in range(3):
-            response = self._client.messages.create(
+            response = self._messages_create(
                 model=self._model,
                 max_tokens=MAX_TOKENS_ANALYZE,
                 system=[{"type": "text", "text": REFINE_CONTEXT_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
@@ -557,7 +604,7 @@ class AnthropicClient:
                         break
             else:
                 raise RuntimeError("Anthropic did not emit emit_context_refinements tool call")
-        raise RuntimeError(f"Context refinement failed after retries: {last_error}")
+        raise RuntimeError(f"Context refinement failed after retries: {last_error}") from last_error
 
     def name_region(
         self,
@@ -571,7 +618,7 @@ class AnthropicClient:
         so Claude can disambiguate similar objects (e.g. left vs right person)."""
         last_error: ValidationError | None = None
         for _ in range(2):
-            response = self._client.messages.create(
+            response = self._messages_create(
                 model=self._model,
                 max_tokens=MAX_TOKENS_SHORT,
                 system=[{"type": "text", "text": NAME_REGION_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
@@ -598,7 +645,7 @@ class AnthropicClient:
                         break
             else:
                 raise RuntimeError("Anthropic did not emit emit_region_label tool call")
-        raise RuntimeError(f"Region naming failed after retries: {last_error}")
+        raise RuntimeError(f"Region naming failed after retries: {last_error}") from last_error
 
     def generate_panel(
         self,
@@ -610,7 +657,7 @@ class AnthropicClient:
     ) -> OperationGraph:
         last_error: ValidationError | None = None
         for _ in range(3):  # initial + 2 retries
-            response = self._client.messages.create(
+            response = self._messages_create(
                 model=self._model,
                 max_tokens=MAX_TOKENS_ANALYZE,
                 system=[{"type": "text", "text": PANEL_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
@@ -641,7 +688,7 @@ class AnthropicClient:
                         break
             else:
                 raise RuntimeError("Anthropic did not emit emit_operation_graph tool call")
-        raise RuntimeError(f"Panel generation failed validation after retries: {last_error}")
+        raise RuntimeError(f"Panel generation failed validation after retries: {last_error}") from last_error
 
     def generate_refined_panel(
         self,
@@ -654,7 +701,7 @@ class AnthropicClient:
     ) -> OperationGraph:
         last_error: ValidationError | None = None
         for _ in range(3):
-            response = self._client.messages.create(
+            response = self._messages_create(
                 model=self._model,
                 max_tokens=MAX_TOKENS_ANALYZE,
                 system=[{"type": "text", "text": REFINE_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
@@ -689,7 +736,7 @@ class AnthropicClient:
                         break
             else:
                 raise RuntimeError("Anthropic did not emit emit_operation_graph tool call")
-        raise RuntimeError(f"Refine generation failed validation after retries: {last_error}")
+        raise RuntimeError(f"Refine generation failed validation after retries: {last_error}") from last_error
 
     def resolve_fused_tool(
         self,
@@ -703,7 +750,7 @@ class AnthropicClient:
             "description": f"Emit tunable values for fused tool {template_id}",
             "input_schema": response_schema,
         }
-        response = self._client.messages.create(
+        response = self._messages_create(
             model=self._model,
             max_tokens=MAX_TOKENS_REFINE,
             system=[{"type": "text", "text": _FUSED_RESOLVE_PROMPT, "cache_control": {"type": "ephemeral"}}],
@@ -725,7 +772,7 @@ class AnthropicClient:
     def name_pick_fused_tool(
         self, intent: str, candidates: list[dict], session_id: str | None = None,
     ) -> str | None:
-        response = self._client.messages.create(
+        response = self._messages_create(
             model=self._model,
             max_tokens=MAX_TOKENS_CLASSIFY,
             system=[{"type": "text", "text": "Pick the fused tool id whose description best matches the intent. Return null if nothing fits.", "cache_control": {"type": "ephemeral"}}],
@@ -801,7 +848,7 @@ class AnthropicClient:
             f"Return picks as fused-tool ids in priority order. Empty list is fine if nothing fits."
         )
 
-        response = self._client.messages.create(
+        response = self._messages_create(
             model=self._model,
             max_tokens=MAX_TOKENS_CLASSIFY,
             system=[{"type": "text", "text": "Pick fused tools whose typical_use best fits the image's character. Skip ids in the exclude list. Return an empty list if nothing fits.", "cache_control": {"type": "ephemeral"}}],
@@ -821,7 +868,7 @@ class AnthropicClient:
     def flesh_out_binding(
         self, request: str, widget: dict, response_schema: dict | None = None, session_id: str | None = None,
     ) -> dict:
-        response = self._client.messages.create(
+        response = self._messages_create(
             model=self._model, max_tokens=MAX_TOKENS_REFINE,
             system=[{"type": "text", "text": _FLESH_BINDING_PROMPT, "cache_control": {"type": "ephemeral"}}],
             tools=[_FLESH_BINDING_TOOL],
@@ -941,7 +988,7 @@ class AnthropicClient:
             ],
         }]
 
-        response = self._client.messages.create(
+        response = self._messages_create(
             model=self._model,
             max_tokens=MAX_TOKENS_ANALYZE,
             system=[{
@@ -1000,7 +1047,7 @@ a strong prior if provided. Do not include markdown fences."""
             f"IMAGE CONTEXT: {image_context}\n\n"
             "Return JSON object with one key per param, values within the schema range."
         )
-        response = self._client.messages.create(
+        response = self._messages_create(
             model=self._model,
             max_tokens=MAX_TOKENS_REFINE,
             system=[{
@@ -1056,7 +1103,7 @@ a strong prior if provided. Do not include markdown fences."""
 
         last_error = None
         for attempt in range(3):
-            response = self._client.messages.create(
+            response = self._messages_create(
                 model=self._model,
                 max_tokens=MAX_TOKENS_COMPOSE,
                 system=[{"type": "text", "text": _AUGMENT_PROMPT, "cache_control": {"type": "ephemeral"}}],
@@ -1083,4 +1130,4 @@ a strong prior if provided. Do not include markdown fences."""
                         logger.warning("augment_context validation failed (attempt %d): %s", attempt, e)
                         last_error = e
                         break
-        raise RuntimeError(f"augment_context_soft_fields failed: {last_error}")
+        raise RuntimeError(f"augment_context_soft_fields failed: {last_error}") from last_error

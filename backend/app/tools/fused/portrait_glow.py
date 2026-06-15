@@ -34,6 +34,16 @@ _RESPONSE_SCHEMA = {
 
 
 class PortraitGlowTemplate(FusedToolTemplate):
+    """Portrait-glow template — overrides `resolve` because the base
+    `_build_context_summary` doesn't model renaming the output container
+    from `region_stats` → `skin_regions`. The LLM prompt is meaningfully
+    clearer with the semantic key name.
+
+    A previous refactor attempt (75a4d3a → 99f9727) tried to delete this
+    override; senior review caught it and reverted. If a future change
+    adds a container-alias capability to the base resolver, this can
+    finally fold in. Until then, the rename lives here on purpose.
+    """
     id = "portrait_glow"
     label = "Portrait glow"
     description = "Soft portrait glow — reduces clarity and adds a gentle warmth nudge for flattering skin."

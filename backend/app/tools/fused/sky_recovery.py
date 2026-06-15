@@ -35,6 +35,20 @@ _RESPONSE_SCHEMA = {
 
 
 class SkyRecoveryTemplate(FusedToolTemplate):
+    """Sky-recovery template — overrides `resolve` because the base
+    `_build_context_summary` doesn't model two custom shaping needs:
+      1. Filter `region_stats` by `is_sky_likely` (only sky-tagged regions
+         go to the LLM — non-sky regions are noise here).
+      2. Rename the output container from `region_stats` → `sky_swatches`
+         AND flatten each region's `dominant_swatches` into the entry as
+         a `swatches` list of `model_dump()`'d swatches.
+
+    A previous refactor attempt (b744135 → d1cabdd) tried to delete this
+    override; senior review caught it and reverted. If a future change
+    extends the base resolver with a filter-predicate + container-alias
+    + list-flatten capability, this override can finally fold in. Until
+    then, the bespoke shaping lives here on purpose.
+    """
     id = "sky_recovery"
     label = "Recover sky"
     description = "Recovers blown-out sky detail — pulls highlights/whites with a curve refinement."

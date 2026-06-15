@@ -75,7 +75,18 @@ export class WebGLPipeline {
   private shaders: Map<string, ShaderPass> = new Map();
   private blendProgram: WebGLProgram;
   private sourceTexture: WebGLTexture | null = null;
+  /** Identity for the source bound to `sourceTexture`. Lets `setSource`
+   *  skip the GPU upload when the caller passes the same canvas/bitmap
+   *  again (common: only an adjustment param moved). */
+  private sourceIdentity: object | null = null;
   private lutTextureCache = new Map<string, WebGLTexture>();
+  /** Per-curve-adjustment LUT textures. Persistent — reused across
+   *  frames; each frame's `texImage2D` re-uploads pixels onto the same
+   *  GL handle instead of allocating a new texture. */
+  private curvesLutTextures = new Map<string, WebGLTexture>();
+  /** Shared identity LUT — bound for curves channels that don't have a
+   *  per-channel LUT set. Created once at init. */
+  private identityLutTexture: WebGLTexture | null = null;
   private maskTexture: WebGLTexture | null = null;
   private width = 0;
   private height = 0;
@@ -98,6 +109,22 @@ export class WebGLPipeline {
     this.blendProgram = createProgram(gl, fullscreenQuadVertex, blendFragment);
     this.initShaders();
     this.maskTexture = gl.createTexture();
+    this.identityLutTexture = this.createIdentityLut();
+  }
+
+  /** Build a 256×1 RGBA identity LUT (value[i]=i). Curves channels
+   *  without a real LUT bind this so the shader samples a passthrough,
+   *  saving a per-frame texture alloc for inactive channels. */
+  private createIdentityLut(): WebGLTexture {
+    const { gl } = this;
+    const tex = createTexture(gl, 256, 1);
+    const data = new Uint8Array(256 * 4);
+    for (let j = 0; j < 256; j++) {
+      data[j * 4] = j; data[j * 4 + 1] = j; data[j * 4 + 2] = j; data[j * 4 + 3] = 255;
+    }
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+    return tex;
   }
 
   private createFBO(width: number, height: number): FBO {
@@ -110,14 +137,13 @@ export class WebGLPipeline {
 
   private resizeFBOs(width: number, height: number): void {
     const { gl } = this;
-    this.deleteFBO(this.fboA);
-    this.deleteFBO(this.fboB);
-    this.deleteFBO(this.fboC);
-    this.deleteFBO(this.fboD);
-    this.fboA = this.createFBO(width, height);
-    this.fboB = this.createFBO(width, height);
-    this.fboC = this.createFBO(width, height);
-    this.fboD = this.createFBO(width, height);
+    // Resize textures in place. Recreating the FBO + texture pair every
+    // zoom-octave cost 10–50 ms at 4K because gl.createTexture allocates
+    // GPU storage; texImage2D reuses the existing storage handle.
+    for (const fbo of [this.fboA, this.fboB, this.fboC, this.fboD]) {
+      gl.bindTexture(gl.TEXTURE_2D, fbo.texture);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    }
     this.outputCanvas.width = width;
     this.outputCanvas.height = height;
     gl.viewport(0, 0, width, height);
@@ -315,33 +341,36 @@ export class WebGLPipeline {
       },
       extraTextures: (gl, program, adj) => {
         const p = adj.params;
-        const textures: WebGLTexture[] = [];
         const channels = ['rgb', 'red', 'green', 'blue'] as const;
-        // Always bind all four LUT samplers. A missing channel falls back to
-        // identity; leaving the sampler unbound makes it default to texture
-        // unit 0 (the source image), which causes the curves shader to read
-        // arbitrary source pixels as if they were a LUT — visible as
-        // per-pixel colour noise.
+        // For each channel: if the adjustment supplies a LUT, reuse a
+        // persistent per-(adjustment,channel) texture and re-upload pixels
+        // onto it; if not, bind the shared identity LUT. We previously
+        // allocated four fresh textures every frame (240 alloc/dealloc/s
+        // at 60 fps with curves active).
         channels.forEach((ch, i) => {
           const lut = p[ch] as Float32Array | undefined;
           const unit = i + 1;
           gl.activeTexture(gl.TEXTURE0 + unit);
-          const tex = createTexture(gl, 256, 1);
-          const data = new Uint8Array(256 * 4);
-          for (let j = 0; j < 256; j++) {
-            const v = lut
-              ? Math.round(Math.max(0, Math.min(255, lut[j] * 255)))
-              : j;
-            data[j * 4] = v;
-            data[j * 4 + 1] = v;
-            data[j * 4 + 2] = v;
-            data[j * 4 + 3] = 255;
+          if (lut) {
+            const key = `${adj.id}:${ch}`;
+            let tex = this.curvesLutTextures.get(key);
+            if (!tex) {
+              tex = createTexture(gl, 256, 1);
+              this.curvesLutTextures.set(key, tex);
+            }
+            const data = new Uint8Array(256 * 4);
+            for (let j = 0; j < 256; j++) {
+              const v = Math.round(Math.max(0, Math.min(255, lut[j] * 255)));
+              data[j * 4] = v; data[j * 4 + 1] = v; data[j * 4 + 2] = v; data[j * 4 + 3] = 255;
+            }
+            gl.bindTexture(gl.TEXTURE_2D, tex);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+          } else {
+            gl.bindTexture(gl.TEXTURE_2D, this.identityLutTexture);
           }
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
           gl.uniform1i(gl.getUniformLocation(program, `u_lut_${ch}`), unit);
-          textures.push(tex);
         });
-        return textures;
+        return []; // Persistent textures — drawPass does not delete.
       },
     });
 
@@ -408,12 +437,24 @@ export class WebGLPipeline {
         gl.bindTexture(gl.TEXTURE_3D, lutTex);
         gl.uniform1i(gl.getUniformLocation(program, 'u_lut'), 1);
 
-        return []; // cached — don't delete
+        // No drawPass cleanup hook for 3D textures; cache lives across
+        // frames and is freed via clearLutCache / dispose.
+        return [];
       },
     });
   }
 
-  setSource(source: HTMLCanvasElement | HTMLImageElement | OffscreenCanvas | ImageBitmap): void {
+  /** Upload `source` as the input texture for the next render.
+   *
+   *  `dirty` (default true): re-upload pixels even when `source` is the
+   *  same object as last call. Callers that know nothing has changed
+   *  since the last `setSource` (e.g. only an adjustment param moved)
+   *  can pass `false` to skip the upload entirely — a 4 K full-canvas
+   *  reupload is ~100 MB and used to dominate frame time. */
+  setSource(
+    source: HTMLCanvasElement | HTMLImageElement | OffscreenCanvas | ImageBitmap,
+    dirty = true,
+  ): void {
     const { gl } = this;
 
     const w = source.width;
@@ -425,10 +466,20 @@ export class WebGLPipeline {
       this.resizeFBOs(w, h);
     }
 
-    if (this.sourceTexture) {
-      gl.deleteTexture(this.sourceTexture);
+    if (this.sourceTexture === null) {
+      this.sourceTexture = createTexture(gl, w, h, source as TexImageSource);
+      this.sourceIdentity = source as unknown as object;
+      return;
     }
-    this.sourceTexture = createTexture(gl, w, h, source);
+    // Reuse the existing texture handle.
+    if (!dirty && this.sourceIdentity === (source as unknown as object)) {
+      return; // No pixel change requested; the texture is still current.
+    }
+    gl.bindTexture(gl.TEXTURE_2D, this.sourceTexture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source as TexImageSource);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    this.sourceIdentity = source as unknown as object;
   }
 
   render(adjustments: Adjustment[]): HTMLCanvasElement {
@@ -610,9 +661,18 @@ export class WebGLPipeline {
         gl.deleteTexture(tex);
         this.lutTextureCache.delete(adjustmentId);
       }
+      // Same key shape as the persistent curves cache.
+      for (const key of Array.from(this.curvesLutTextures.keys())) {
+        if (key.startsWith(`${adjustmentId}:`)) {
+          gl.deleteTexture(this.curvesLutTextures.get(key)!);
+          this.curvesLutTextures.delete(key);
+        }
+      }
     } else {
       for (const tex of this.lutTextureCache.values()) gl.deleteTexture(tex);
       this.lutTextureCache.clear();
+      for (const tex of this.curvesLutTextures.values()) gl.deleteTexture(tex);
+      this.curvesLutTextures.clear();
     }
   }
 
@@ -628,6 +688,7 @@ export class WebGLPipeline {
     this.deleteFBO(this.fboD);
     if (this.sourceTexture) gl.deleteTexture(this.sourceTexture);
     if (this.maskTexture) gl.deleteTexture(this.maskTexture);
+    if (this.identityLutTexture) gl.deleteTexture(this.identityLutTexture);
     for (const shader of this.shaders.values()) {
       gl.deleteProgram(shader.program);
     }

@@ -18,7 +18,7 @@
 
 import { CanvasRegistry } from './canvas-registry';
 import { PipelineManager } from './pipeline-manager';
-import { applyGeometry, getInternalCanvas, getScratchCanvas, type Crop, type Rotate } from './image-node-geometry';
+import { applyGeometry, getInternalCanvas, getMemoisedScratchCanvas, type Crop, type Rotate } from './image-node-geometry';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { nodeToAdjustment } from './node-to-adjustment';
@@ -115,17 +115,6 @@ function clampRenderScale(scale: number | undefined): number {
   return Math.max(scale, 1 / 64);
 }
 
-/** Draw `source` into `dest` at dest's full dims and return it. */
-function downscaleInto(
-  dest: HTMLCanvasElement,
-  source: HTMLCanvasElement | OffscreenCanvas,
-): HTMLCanvasElement {
-  const dctx = dest.getContext('2d');
-  if (!dctx) return dest;
-  dctx.clearRect(0, 0, dest.width, dest.height);
-  dctx.drawImage(source, 0, 0, dest.width, dest.height);
-  return dest;
-}
 
 /** Scale crop rect from source-pixel units into scaled-internal-pixel units. */
 function scaleCrop(crop: Crop | undefined, scale: number): Crop | undefined {
@@ -250,7 +239,7 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
       // dims. Without this, every shader pass runs at full source resolution
       // even when the visible canvas is tiny — defeating the LOD entirely.
       const pipelineInput = renderScale < 1
-        ? downscaleInto(getScratchCanvas(args.imageNodeId, scaledW, scaledH), source)
+        ? getMemoisedScratchCanvas(args.imageNodeId, source, scaledW, scaledH)
         : source;
       PipelineManager.setSourceCanvas(pipelineInput);
       rendered = PipelineManager.renderSync(adjustments);

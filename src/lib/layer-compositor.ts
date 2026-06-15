@@ -65,13 +65,24 @@ class LayerCompositorImpl {
   }
 
   /** Render a single layer through its adjustment pipeline. Returns an HTMLCanvasElement. */
-  renderLayer(layer: Layer): HTMLCanvasElement | null {
+  renderLayer(layer: Layer, seen: Set<string> = new Set()): HTMLCanvasElement | null {
+    // Cycle / self-reference guard. A malformed layer tree (e.g. a layer
+    // pointing to itself or a closed loop) would otherwise recurse
+    // infinitely and crash the tab. Bail and log instead.
+    if (seen.has(layer.id)) {
+      console.warn('LayerCompositor: cycle detected in parentLayerId chain', {
+        layerId: layer.id, chain: Array.from(seen),
+      });
+      return null;
+    }
+    seen.add(layer.id);
+
     // 1. Determine source pixels.
     let source: HTMLCanvasElement | OffscreenCanvas | null;
     if (layer.parentLayerId) {
       const parent = useEditorStore.getState().layers.find((l) => l.id === layer.parentLayerId);
       if (!parent) return null;
-      source = this.renderLayer(parent);
+      source = this.renderLayer(parent, seen);
       if (!source) return null;
     } else {
       source = CanvasRegistry.get(layer.id) ?? null;

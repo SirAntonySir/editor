@@ -54,19 +54,30 @@ export function ImageNode({ id, data, selected }: ImageNodeProps) {
   // counter-scale below the floor — applied as a CSS transform per strip with
   // a width compensation so the strip still fits the image horizontally.
   const chromeFloor = useChromeMinFloor(22, 18);
+  // `position: relative` + `z-index: 2` on every strip keeps the visually
+  // counter-scaled chrome painting OVER the canvas body when zoomed out:
+  // `transform: scale()` doesn't add layout, so without an explicit
+  // z-index the canvas (a later sibling with its own stacking context)
+  // paints on top of the top strip's overflow area, leaving the title bar
+  // covered by image pixels at low zoom. Applied even when chromeFloor is
+  // 1 so the stacking order is consistent across zoom levels.
   const stripScaleTop: React.CSSProperties = chromeFloor === 1
-    ? {}
+    ? { position: 'relative', zIndex: 2 }
     : {
         transform: `scale(${chromeFloor})`,
         transformOrigin: 'top left',
         width: `${100 / chromeFloor}%`,
+        position: 'relative',
+        zIndex: 2,
       };
   const stripScaleBottom: React.CSSProperties = chromeFloor === 1
-    ? {}
+    ? { position: 'relative', zIndex: 2 }
     : {
         transform: `scale(${chromeFloor})`,
         transformOrigin: 'bottom left',
         width: `${100 / chromeFloor}%`,
+        position: 'relative',
+        zIndex: 2,
       };
   const [compareHeld, setCompareHeld] = useState(false);
 

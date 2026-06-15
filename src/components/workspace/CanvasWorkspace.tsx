@@ -157,19 +157,27 @@ export function CanvasWorkspace() {
   }, [imageNodes, activeImageNodeId, setActiveImageNode]);
 
   const storeNodes = useMemo<WorkspaceNode[]>(() => {
-    const imgs: ImageNodeType[] = Object.values(imageNodes).map((n) => ({
-      id: n.id,
-      type: 'image',
-      position: n.position,
-      // Only the header strip drags the node; the canvas body and footer ignore drag.
-      dragHandle: '.workspace-drag-handle',
-      data: {
-        layerIds: n.layerIds,
-        size: n.size,
-        sourceSize: n.sourceSize,
-        name: n.layerIds[0] ?? 'Image',
-      },
-    }));
+    const imgs: ImageNodeType[] = Object.values(imageNodes).map((n) => {
+      // Header title: prefer the first layer's human-readable name (set to
+      // file.name by openImage / addImage). Falls back to the layer id only
+      // if the layer record is missing — which shouldn't happen in practice
+      // but keeps the header populated for resurrected sessions before the
+      // layer-slice rehydrates.
+      const firstLayer = n.layerIds[0] ? layers.find((l) => l.id === n.layerIds[0]) : undefined;
+      return {
+        id: n.id,
+        type: 'image',
+        position: n.position,
+        // Only the header strip drags the node; the canvas body and footer ignore drag.
+        dragHandle: '.workspace-drag-handle',
+        data: {
+          layerIds: n.layerIds,
+          size: n.size,
+          sourceSize: n.sourceSize,
+          name: firstLayer?.name ?? n.layerIds[0] ?? 'Image',
+        },
+      };
+    });
     // Render only widgets that have been tethered. Untethered widgets (e.g.
     // unengaged AI suggestions or Cmd+K palette widgets) live in the
     // Suggestions panel until the user engages them; rendering them at the
@@ -195,7 +203,7 @@ export function CanvasWorkspace() {
       data: { infoNodeId: n.id },
     }));
     return [...imgs, ...widgets, ...infos];
-  }, [imageNodes, widgetNodes, snapshotWidgets, infoNodes]);
+  }, [imageNodes, widgetNodes, snapshotWidgets, infoNodes, layers]);
 
   // Local RF state mirrors the store. React Flow needs to own positions during
   // drag (via onNodesChange) so the visual position follows the cursor without

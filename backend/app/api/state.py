@@ -59,11 +59,15 @@ def _bus() -> EventBus:
 
 @router.get("/state/{sid}", response_model=SessionStateSnapshot, response_model_by_alias=True)
 async def state_snapshot(sid: str) -> SessionStateSnapshot:
+    """Compute a snapshot under the per-session write lock so a mutating
+    tool can't be mid-write while we read. `compute_snapshot` is a pure
+    function over the document — narrow lock scope, released before the
+    wire serialisation runs in the response renderer."""
     try:
-        doc = _store().get_document(sid)
+        with _store().with_document_lock(sid) as doc:
+            return compute_snapshot(doc)
     except SessionNotFound:
         raise HTTPException(status_code=404, detail="unknown or expired session")
-    return compute_snapshot(doc)
 
 
 def _apply_history_snapshot(sid: str, snap, action: str) -> dict:
@@ -132,22 +136,25 @@ async def get_mask_bytes(sid: str, mask_id: str) -> dict:
 
     Used by the frontend to rehydrate mask pixel data for masks whose
     mask.created SSE event was dropped during the connection handshake window.
+
+    Read under the per-session write lock so a precompute_regions tool
+    mid-mutation can't leave us observing a torn `doc.masks` dict.
     """
     try:
-        doc = _store().get_document(sid)
+        with _store().with_document_lock(sid) as doc:
+            mask = doc.masks.get(mask_id)
+            if not mask:
+                raise HTTPException(status_code=404, detail="mask not found")
+            return {
+                "id": mask.id,
+                "label": mask.label,
+                "source": mask.source,
+                "width": mask.width,
+                "height": mask.height,
+                "png_b64": mask.png_b64,
+            }
     except SessionNotFound:
         raise HTTPException(status_code=404, detail="session not found")
-    mask = doc.masks.get(mask_id)
-    if not mask:
-        raise HTTPException(status_code=404, detail="mask not found")
-    return {
-        "id": mask.id,
-        "label": mask.label,
-        "source": mask.source,
-        "width": mask.width,
-        "height": mask.height,
-        "png_b64": mask.png_b64,
-    }
 
 
 @router.get("/state/{sid}/events")
@@ -173,28 +180,32 @@ async def state_events(
     discriminator from `payload.kind`. Emitting `event: <kind>` here
     silently drops every live event on the client.
     """
-    try:
-        doc = _store().get_document(sid)
-    except SessionNotFound:
-        raise HTTPException(status_code=404, detail="unknown or expired session")
     bus = _bus()
-    queue = bus.subscribe(sid)
     resume_from = _parse_last_event_id(last_event_id)
 
-    # Capture replay events under the document write_lock so we don't race a
-    # mutator that's appending to history. The lock is held only for the
-    # snapshot copy; the live loop below doesn't need it (the bus serialises).
+    # Subscribe + capture replay under the document write_lock so the
+    # transition is atomic with respect to any mutating tool. Tools hold
+    # the same lock for the entire publish + prune sequence (see
+    # tools/registry.py), so while we're under the lock no event can land
+    # twice (post-subscribe live AND in our replay slice) and no event
+    # can land in neither (between our history read and our subscribe).
     replay: list[StateEvent] = []
     gap_revision: int | None = None
-    if resume_from is not None and doc.history:
-        oldest = doc.history[0].revision
-        newest = doc.history[-1].revision
-        if resume_from < oldest - 1:
-            # The frontend last saw an event we no longer carry — pure replay
-            # would skip everything in (resume_from, oldest). Tell it.
-            gap_revision = newest
-        elif resume_from < newest:
-            replay = [ev for ev in doc.history if ev.revision > resume_from]
+    try:
+        with _store().with_document_lock(sid) as doc:
+            queue = bus.subscribe(sid)
+            if resume_from is not None and doc.history:
+                oldest = doc.history[0].revision
+                newest = doc.history[-1].revision
+                if resume_from < oldest - 1:
+                    # The frontend last saw an event we no longer carry —
+                    # pure replay would skip everything in (resume_from,
+                    # oldest). Tell it.
+                    gap_revision = newest
+                elif resume_from < newest:
+                    replay = [ev for ev in doc.history if ev.revision > resume_from]
+    except SessionNotFound:
+        raise HTTPException(status_code=404, detail="unknown or expired session")
 
     async def gen():
         try:

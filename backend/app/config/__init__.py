@@ -4,9 +4,11 @@ Single source of truth for:
   - env-layer settings (env.py): secrets, host/port, deploy-time overrides
   - runtime constants (runtime.py): timings, limits, LLM token budgets
   - UI tokens (ui.py): z-index tiers, motion, layout bounds
-  - domain config (domain.py): op param ranges read from shared/registry/ops
 
 Frontend consumes runtime + ui via shared/types/generated.ts.
+
+Op param ranges are NOT in this package — backend code that needs them
+goes through `app.registry.loader.load_registry()` directly.
 
 Common imports:
     from app.config import get_app_config

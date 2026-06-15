@@ -1,3 +1,20 @@
+"""SSoT for editor-session state.
+
+This is the single source of truth for session lifecycle, document handle,
+per-session write lock, history engine, on-disk persistence, and the
+cancellable-in-flight-task slot. All transport surfaces converge here:
+
+- ``api/session.py`` — REST ``POST /api/session`` (multipart upload).
+- ``tools/atomic/create_session.py`` — MCP ``create_session`` tool.
+- ``mcp/session.py`` — wire-layer pairing registry (separate concern;
+  it indexes editor session ids, it doesn't own them).
+
+If you need session state, you go through ``SessionStore``. If you're
+adding a third transport, route it through ``store.create`` after
+sharing the validation in ``services/image_validation.py`` so the new
+surface gets the same 413/415 + bytes-cap enforcement the others have.
+"""
+
 from __future__ import annotations
 
 import asyncio

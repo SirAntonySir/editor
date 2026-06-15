@@ -33,3 +33,32 @@ def test_create_session_from_image_b64(client) -> None:
     sid = body["output"]["session_id"]
     rec = deps.get_session_store().get(sid)
     assert rec.mime_type == "image/jpeg"
+
+
+def test_create_session_rejects_non_image_mime(client) -> None:
+    """MCP create_session must reject non-image/* MIME types — same contract
+    as REST POST /session. Before the session-surface SSoT fix the MCP path
+    accepted arbitrary mime strings."""
+    b64 = base64.b64encode(b"not really an image").decode()
+    body = client.post(
+        "/api/tools/create_session",
+        json={"session_id": "", "input": {"image_b64": b64, "mime_type": "application/pdf"}},
+    ).json()
+    assert body["ok"] is False
+    assert "image" in (body.get("error") or {}).get("message", "").lower()
+
+
+def test_create_session_rejects_oversize_image(client) -> None:
+    """MCP create_session must reject payloads above max_image_bytes — same
+    contract as REST POST /session. Before the fix the MCP path bypassed
+    the size cap completely (cheap DoS / config drift)."""
+    from app.config import get_settings
+
+    oversize = b"\x00" * (get_settings().max_image_bytes + 1)
+    b64 = base64.b64encode(oversize).decode()
+    body = client.post(
+        "/api/tools/create_session",
+        json={"session_id": "", "input": {"image_b64": b64, "mime_type": "image/jpeg"}},
+    ).json()
+    assert body["ok"] is False
+    assert "too large" in (body.get("error") or {}).get("message", "").lower()

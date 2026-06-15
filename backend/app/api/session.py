@@ -1,10 +1,28 @@
+"""HTTP transport for editor sessions.
+
+This module is one of FOUR files that touch ``session`` — each has a
+distinct responsibility, none own state on their own:
+
+- ``services/session_store.py`` is the **SSoT** (in-memory + on-disk).
+- ``api/session.py`` (this file) is the **HTTP transport** — REST routes
+  that the browser frontend hits to upload / cancel / set context.
+- ``tools/atomic/create_session.py`` is the equivalent **MCP transport**
+  for the create path (base64 instead of multipart).
+- ``mcp/session.py`` is unrelated to lifecycle — it maps MCP wire-layer
+  session ids to editor session ids for the JSON-RPC pairing layer.
+
+Validation of inbound image bytes is shared with the MCP path via
+:func:`app.services.image_validation.validate_image_upload`; both surfaces
+must enforce the same MIME + size guards.
+"""
+
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
-from app.config import get_settings
 from app.schemas.image_context import ImageContext
 from app.services import disk_session_io
+from app.services.image_validation import ImageValidationError, validate_image_upload
 from app.services.session_store import SessionNotFound, SessionStore
 from app.state.document import DEFAULT_IMAGE_NODE_ID
 
@@ -18,13 +36,12 @@ async def create_session(
     image: UploadFile = File(...),
     store: SessionStore = Depends(get_session_store),
 ) -> dict[str, str]:
-    settings = get_settings()
-    if not image.content_type or not image.content_type.startswith("image/"):
-        raise HTTPException(status_code=415, detail="image/* MIME type required")
     data = await image.read()
-    if len(data) > settings.max_image_bytes:
-        raise HTTPException(status_code=413, detail="image too large")
-    sid = store.create(image_bytes=data, mime_type=image.content_type)
+    try:
+        validated = validate_image_upload(data, image.content_type)
+    except ImageValidationError as exc:
+        raise HTTPException(status_code=exc.http_status, detail=str(exc)) from exc
+    sid = store.create(image_bytes=validated.image_bytes, mime_type=validated.mime_type)
     return {"session_id": sid}
 
 
@@ -61,21 +78,20 @@ async def add_image_to_session(
     minted `in-N` image_node_id. The primary single-file disk layout is
     preserved; the new image is persisted next to it keyed by node id so it
     survives a server restart. See Task 4 of the multi-image-canvas plan."""
-    settings = get_settings()
-    if not image.content_type or not image.content_type.startswith("image/"):
-        raise HTTPException(status_code=415, detail="image/* MIME type required")
     data = await image.read()
-    if len(data) > settings.max_image_bytes:
-        raise HTTPException(status_code=413, detail="image too large")
+    try:
+        validated = validate_image_upload(data, image.content_type)
+    except ImageValidationError as exc:
+        raise HTTPException(status_code=exc.http_status, detail=str(exc)) from exc
     try:
         doc = store.get_document(sid)
     except SessionNotFound:
         raise HTTPException(status_code=404, detail="unknown or expired session")
     image_node_id = _mint_image_node_id(list(doc.image_bytes_by_node.keys()))
-    doc.set_image_bytes(image_node_id, data, mime_type=image.content_type)
+    doc.set_image_bytes(image_node_id, validated.image_bytes, mime_type=validated.mime_type)
     # Persist to disk so the bytes survive a server restart. Keyed by node id,
     # NOT touching the primary `image.<ext>` file.
-    disk_session_io.write_image(sid, image_node_id, data, image.content_type)
+    disk_session_io.write_image(sid, image_node_id, validated.image_bytes, validated.mime_type)
     return {"image_node_id": image_node_id}
 
 

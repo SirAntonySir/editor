@@ -37,8 +37,13 @@ function maskBbox(mask: Mask): ImageObject['bbox'] | null {
  */
 export function useImageNodeObjects(imageNodeId: string): ImageObject[] {
   const masksIndex = useBackendState((s) => s.snapshot?.masksIndex);
-  // Re-render when any mapping in objectOwnership changes.
-  useSyncExternalStore(objectOwnership.subscribe, objectOwnership.snapshot, objectOwnership.snapshot);
+  // Re-render when any mapping in objectOwnership changes; the version is
+  // also memo key so the filter re-runs on ownership mutations.
+  const ownershipVersion = useSyncExternalStore(
+    objectOwnership.subscribe,
+    objectOwnership.snapshot,
+    objectOwnership.snapshot,
+  );
 
   return useMemo(() => {
     if (!masksIndex) return [];
@@ -57,5 +62,7 @@ export function useImageNodeObjects(imageNodeId: string): ImageObject[] {
       out.push({ id, mask, label, bbox });
     }
     return out;
-  }, [masksIndex, imageNodeId]);
+    // ownershipVersion is part of the deps so the filter re-runs whenever
+    // a new mask gets owned (or one is reassigned).
+  }, [masksIndex, imageNodeId, ownershipVersion]);
 }

@@ -17,10 +17,15 @@
 
 const owners = new Map<string, string>();
 const subscribers = new Set<() => void>();
+// Version bumps on every mutation so useSyncExternalStore sees a different
+// snapshot value (the Map ref alone wouldn't change and React would skip
+// the re-render).
+let version = 0;
 
 export const objectOwnership = {
   set(maskId: string, imageNodeId: string): void {
     owners.set(maskId, imageNodeId);
+    version += 1;
     subscribers.forEach((fn) => fn());
   },
   get(maskId: string): string | undefined {
@@ -30,13 +35,15 @@ export const objectOwnership = {
     subscribers.add(fn);
     return () => subscribers.delete(fn);
   },
-  /** Stable identity that changes when any mapping does — for
-   *  useSyncExternalStore. */
-  snapshot(): Map<string, string> {
-    return owners;
+  /** Returns a fresh integer on every mutation so useSyncExternalStore
+   *  detects the change via Object.is. The underlying map is exposed via
+   *  `get()` for the consumer. */
+  snapshot(): number {
+    return version;
   },
   _resetForTests(): void {
     owners.clear();
     subscribers.clear();
+    version = 0;
   },
 };

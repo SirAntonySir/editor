@@ -37,8 +37,16 @@ class SessionDocument(BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     session_id: str
+    # Legacy singletons — kept as the "primary image" carrier while call
+    # sites migrate to the per-image-node accessors below. New readers
+    # should call get_image_bytes(image_node_id) / get_mime_type(image_node_id).
     image_bytes: bytes = b""
     mime_type: str = "image/jpeg"
+    # Per-ImageNode storage. `in-default` is reserved for the singleton's
+    # backing image until the bootstrap path is migrated; unmigrated callers
+    # still read .image_bytes directly.
+    image_bytes_by_node: dict[str, bytes] = Field(default_factory=dict)
+    mime_type_by_node: dict[str, str] = Field(default_factory=dict)
     image_context: ImageContext | None = None
     # Cached output of the prepare_image tool (PrepareResult dataclass from
     # app.tools.atomic._analyze_phases). Typed as Any to avoid a circular
@@ -294,6 +302,38 @@ class SessionDocument(BaseModel):
             "layer_id": layer_id, "op": op, "param": param, "value": value,
             "operationGraph": self._op_graph_payload(),
         })]
+
+    # ---------------- per-image-node accessors ----------------
+
+    def set_image_bytes(self, image_node_id: str, data: bytes, *, mime_type: str) -> None:
+        """Store image bytes + MIME under a specific image-node id.
+
+        Does NOT touch the legacy `image_bytes`/`mime_type` singletons even
+        when `image_node_id == "in-default"`, so unmigrated readers keep
+        seeing the original primary image until they migrate."""
+        self.image_bytes_by_node[image_node_id] = data
+        self.mime_type_by_node[image_node_id] = mime_type
+
+    def get_image_bytes(self, image_node_id: str) -> bytes:
+        """Return image bytes for `image_node_id`. Falls back to the legacy
+        singleton when asked for `in-default` and no explicit entry exists,
+        so migrating readers can swap from `doc.image_bytes` to
+        `doc.get_image_bytes('in-default')` without a coordinated upload-path
+        change."""
+        if image_node_id in self.image_bytes_by_node:
+            return self.image_bytes_by_node[image_node_id]
+        if image_node_id == "in-default":
+            return self.image_bytes
+        return b""
+
+    def get_mime_type(self, image_node_id: str) -> str:
+        """Mirror of `get_image_bytes`: falls back to the singleton MIME for
+        `in-default`, defaults to `image/jpeg` for unknown ids."""
+        if image_node_id in self.mime_type_by_node:
+            return self.mime_type_by_node[image_node_id]
+        if image_node_id == "in-default":
+            return self.mime_type
+        return "image/jpeg"
 
     def set_image_node_transform(
         self,

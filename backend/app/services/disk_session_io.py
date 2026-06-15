@@ -76,6 +76,41 @@ def write_image(sid: str, image_node_id: str, image_bytes: bytes, mime_type: str
     (d / f"{image_node_id}.{_ext_for(mime_type)}").write_bytes(image_bytes)
 
 
+# Inverse of _EXT_FOR_MIME — used by read_per_node_images to recover the
+# MIME from a file extension on disk. Tracks _EXT_FOR_MIME exactly; if a
+# new MIME is added there, mirror it here.
+_MIME_FOR_EXT = {ext: mime for mime, ext in _EXT_FOR_MIME.items()}
+
+
+def read_per_node_images(sid: str) -> dict[str, tuple[bytes, str]]:
+    """Scan a session directory for per-image-node image files written by
+    `write_image()`. Returns `{image_node_id: (bytes, mime_type)}`.
+
+    Skips the primary `image.<ext>` (it lives in DiskRecord). Skips any
+    file whose extension isn't a known image type — defends against
+    incidental `.json` / `.txt` / dotfiles in the session dir.
+
+    Used by revive to restore SessionDocument.image_bytes_by_node +
+    mime_type_by_node. Returns `{}` when the session dir doesn't exist.
+    """
+    d = _session_dir(sid)
+    if not d.exists():
+        return {}
+    out: dict[str, tuple[bytes, str]] = {}
+    for path in d.iterdir():
+        if not path.is_file():
+            continue
+        stem = path.stem
+        if stem == "image":
+            continue  # primary, owned by save_session/load_session
+        ext = path.suffix.lstrip(".")
+        mime = _MIME_FOR_EXT.get(ext)
+        if mime is None:
+            continue
+        out[stem] = (path.read_bytes(), mime)
+    return out
+
+
 def save_context(sid: str, context: dict[str, Any]) -> None:
     """Persist the per-session context.json. Creates the session dir if
     save_session hasn't been called yet (defensive — callers usually

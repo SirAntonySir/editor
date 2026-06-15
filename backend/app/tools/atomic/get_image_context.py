@@ -27,7 +27,7 @@ class GetImageContextTool(BackendTool[_Input, _Output]):
     permissions = ToolPermissions(requires_image=True, requires_context=False)
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
-        ctx = doc.image_context
+        ctx = doc.get_image_context("in-default")
         if ctx is None:
             return _Output(available=False, context=None)
         return _Output(available=True, context=ctx.model_dump(mode="json", by_alias=True))

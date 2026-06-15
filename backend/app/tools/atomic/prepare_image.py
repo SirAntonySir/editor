@@ -57,13 +57,13 @@ class PrepareImageTool(BackendTool[_Input, _Output]):
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         # Idempotency: if prepare already ran on this doc, return its result.
-        if doc.prepare_result is not None:
-            pr = doc.prepare_result
+        pr_cached = doc.get_prepare_result("in-default")
+        if pr_cached is not None:
             return _Output(
-                sam_ok=pr.sam_ok,
-                image_width=pr.image_width,
-                image_height=pr.image_height,
-                cheap=pr.cheap,
+                sam_ok=pr_cached.sam_ok,
+                image_width=pr_cached.image_width,
+                image_height=pr_cached.image_height,
+                cheap=pr_cached.cheap,
             )
 
         sam_on = _sam_enabled()
@@ -78,9 +78,11 @@ class PrepareImageTool(BackendTool[_Input, _Output]):
             cheap = await run_mechanical(arr)
             sam_ok = False
 
-        doc.prepare_result = PrepareResult(
+        pr = PrepareResult(
             cheap=cheap, sam_ok=sam_ok, image_width=w_img, image_height=h_img,
         )
+        doc.prepare_result = pr
+        doc.set_prepare_result("in-default", pr)
         return _Output(
             sam_ok=sam_ok, image_width=w_img, image_height=h_img, cheap=cheap,
         )

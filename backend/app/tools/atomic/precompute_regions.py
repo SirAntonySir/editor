@@ -46,15 +46,17 @@ class PrecomputeRegionsTool(BackendTool[_Input, _Output]):
     permissions = ToolPermissions(requires_image=True, requires_context=True)
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
-        if not isinstance(doc.image_context, EnrichedImageContext):
+        ctx = doc.get_image_context("in-default")
+        if not isinstance(ctx, EnrichedImageContext):
             return _Output(mask_ids=[])
-        if doc.prepare_result is None or not doc.prepare_result.sam_ok:
+        pr = doc.get_prepare_result("in-default")
+        if pr is None or not pr.sam_ok:
             return _Output(mask_ids=[])
 
         sam = deps.get_sam_client()
-        regions = doc.image_context.candidate_regions
-        w_img = doc.prepare_result.image_width
-        h_img = doc.prepare_result.image_height
+        regions = ctx.candidate_regions
+        w_img = pr.image_width
+        h_img = pr.image_height
 
         doc._emit_phase_started("mask_precompute", index=4, total=4)
         start = time.monotonic()
@@ -70,8 +72,9 @@ class PrecomputeRegionsTool(BackendTool[_Input, _Output]):
             doc.add_mask(r.mask_record)
 
         # Apply masks onto candidate_regions via model_copy (no mutation).
-        new_ctx = apply_region_masks(doc.image_context, live)
+        new_ctx = apply_region_masks(ctx, live)
         doc.image_context = new_ctx
+        doc.set_image_context("in-default", new_ctx)
         deps.get_session_store().set_context(
             doc.session_id, new_ctx.model_dump(mode="json", by_alias=True),
         )

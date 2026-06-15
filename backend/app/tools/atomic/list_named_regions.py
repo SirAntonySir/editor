@@ -32,7 +32,7 @@ class ListNamedRegionsTool(BackendTool[_Input, _Output]):
     permissions = ToolPermissions(requires_image=False)
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
-        ctx = doc.image_context
+        ctx = doc.get_image_context("in-default")
         if ctx is None:
             return _Output(regions=[])
         mask_labels = {m.label for m in doc.masks.values() if m.label}

@@ -56,7 +56,7 @@ class RepeatWidgetTool(BackendTool[_Input, _Output]):
         instruction = input.feedback or "The user rejected the previous attempt. Produce a meaningfully different result for the same intent."
         anthropic = deps.get_anthropic_client()
         new_widget = await run_fused_tool(
-            template, intent=w.intent, scope=w.scope, ctx=doc.image_context,
+            template, intent=w.intent, scope=w.scope, ctx=doc.get_image_context("in-default"),
             prior=w, instruction=instruction, anthropic=anthropic, origin=w.origin,
         )
         new_widget.id = w.id

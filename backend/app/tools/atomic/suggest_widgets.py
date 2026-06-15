@@ -42,7 +42,8 @@ class SuggestWidgetsTool(BackendTool[_Input, _Output]):
     permissions = ToolPermissions(requires_image=True, requires_context=True)
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
-        if not isinstance(doc.image_context, EnrichedImageContext):
+        ctx = doc.get_image_context("in-default")
+        if not isinstance(ctx, EnrichedImageContext):
             # No context → no suggestions. Still emit the widget_mint phase so
             # the frontend status bar can resolve to "complete" instead of
             # spinning forever on a no-op call.
@@ -61,7 +62,7 @@ class SuggestWidgetsTool(BackendTool[_Input, _Output]):
         before = set(doc.widgets.keys())
         try:
             await mint_autonomous_suggestions(
-                doc, doc.image_context, client, input.layer_id,
+                doc, ctx, client, input.layer_id,
             )
         finally:
             duration_ms = (time.monotonic_ns() // 1_000_000) - started_ms

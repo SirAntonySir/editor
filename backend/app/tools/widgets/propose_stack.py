@@ -333,7 +333,7 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
         if input.origin == "tool_invoked":
             return self._handle_tool_invoked(doc, input, scope)
 
-        if doc.image_context is None:
+        if doc.get_image_context("in-default") is None:
             from app.tools.widgets.propose_widget import _MissingContext
             raise _MissingContext("call prepare_image then analyze_context first")
 
@@ -349,7 +349,9 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
 
         reg = get_registry()
         anthropic = deps.get_anthropic_client()
-        image_context = doc.image_context.model_dump(mode="json", by_alias=True)
+        ctx = doc.get_image_context("in-default")
+        assert ctx is not None  # guarded above
+        image_context = ctx.model_dump(mode="json", by_alias=True)
 
         plan_result = await asyncio.to_thread(
             anthropic.plan_widget_stack,

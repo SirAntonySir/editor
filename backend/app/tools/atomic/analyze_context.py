@@ -53,18 +53,19 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         # Cached short-circuit: re-running on a doc that already has enriched
         # context returns it without re-billing Claude.
-        if isinstance(doc.image_context, EnrichedImageContext):
-            return _Output.model_validate(doc.image_context.model_dump())
+        cached_ctx = doc.get_image_context("in-default")
+        if isinstance(cached_ctx, EnrichedImageContext):
+            return _Output.model_validate(cached_ctx.model_dump())
 
         # Prepare-step results are required (mechanical stats). Lazily run
         # prepare so callers can skip the explicit prepare call.
-        if doc.prepare_result is None:
+        if doc.get_prepare_result("in-default") is None:
             from app.tools.atomic.prepare_image import PrepareImageTool
             from app.tools.atomic.prepare_image import _Input as _PI
 
             await PrepareImageTool().handler(doc, _PI())
-        assert doc.prepare_result is not None
-        pr: PrepareResult = doc.prepare_result
+        pr: PrepareResult = doc.get_prepare_result("in-default")
+        assert pr is not None
 
         client = deps.get_anthropic_client()
         loop = asyncio.get_running_loop()
@@ -118,6 +119,7 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
 
         enriched = build_enriched(base_ctx, pr.cheap, soft, region_stats)
         doc.image_context = enriched
+        doc.set_image_context("in-default", enriched)
         deps.get_session_store().set_context(
             doc.session_id, enriched.model_dump(mode="json", by_alias=True),
         )

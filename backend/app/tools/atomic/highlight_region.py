@@ -29,7 +29,7 @@ class HighlightRegionTool(BackendTool[_Input, _Output]):
     permissions = ToolPermissions(requires_image=False)
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
-        ctx = doc.image_context
+        ctx = doc.get_image_context("in-default")
         if ctx is None:
             raise _ScopeUnresolvable("no image context yet")
         if not any(r.label == input.label for r in ctx.candidate_regions):

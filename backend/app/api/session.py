@@ -59,6 +59,7 @@ async def set_session_context(
         # Also write the typed model onto the document so tools can read it directly.
         doc = store.get_document(sid)
         doc.image_context = body
+        doc.set_image_context("in-default", body)
     except SessionNotFound:
         raise HTTPException(status_code=404, detail="unknown or expired session")
     return {"session_id": sid}

@@ -52,6 +52,11 @@ class SessionDocument(BaseModel):
     # app.tools.atomic._analyze_phases). Typed as Any to avoid a circular
     # import — document.py → _analyze_phases.py → document.py.
     prepare_result: Any = None
+    # Per-ImageNode storage for image_context and prepare_result. Mirrors the
+    # image_bytes_by_node / mime_type_by_node pattern: `in-default` falls back
+    # to the legacy singleton on read so call sites can migrate piecewise.
+    image_context_by_node: dict[str, ImageContext] = Field(default_factory=dict)
+    prepare_result_by_node: dict[str, Any] = Field(default_factory=dict)
     masks: dict[str, MaskRecord] = Field(default_factory=dict)
     active_mask_id: str | None = None
     committed_mask_id: str | None = None
@@ -334,6 +339,42 @@ class SessionDocument(BaseModel):
         if image_node_id == "in-default":
             return self.mime_type
         return "image/jpeg"
+
+    def set_image_context(self, image_node_id: str, ctx: ImageContext) -> None:
+        """Store an ImageContext under a specific image-node id.
+
+        Does NOT touch the legacy `image_context` singleton even when
+        `image_node_id == "in-default"`, so unmigrated readers keep seeing
+        whatever the singleton already held."""
+        self.image_context_by_node[image_node_id] = ctx
+
+    def get_image_context(self, image_node_id: str) -> ImageContext | None:
+        """Return the ImageContext for `image_node_id`. Falls back to the
+        legacy singleton when asked for `in-default` and no explicit entry
+        exists, so migrating readers can swap from `doc.image_context` to
+        `doc.get_image_context('in-default')` without coordinating an
+        analyze-path change."""
+        if image_node_id in self.image_context_by_node:
+            return self.image_context_by_node[image_node_id]
+        if image_node_id == "in-default":
+            return self.image_context
+        return None
+
+    def set_prepare_result(self, image_node_id: str, result: Any) -> None:
+        """Store a PrepareResult under a specific image-node id.
+
+        Does NOT touch the legacy `prepare_result` singleton even when
+        `image_node_id == "in-default"`."""
+        self.prepare_result_by_node[image_node_id] = result
+
+    def get_prepare_result(self, image_node_id: str) -> Any:
+        """Return the PrepareResult for `image_node_id`. Falls back to the
+        legacy singleton for `in-default`, returns None for unknown ids."""
+        if image_node_id in self.prepare_result_by_node:
+            return self.prepare_result_by_node[image_node_id]
+        if image_node_id == "in-default":
+            return self.prepare_result
+        return None
 
     def set_image_node_transform(
         self,

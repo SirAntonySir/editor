@@ -22,9 +22,10 @@ class SessionStateSnapshot(BaseModel):
 
 
 def compute_snapshot(doc: SessionDocument) -> SessionStateSnapshot:
+    ctx = doc.get_image_context("in-default")
     return SessionStateSnapshot(
         session_id=doc.session_id,
-        image_context=doc.image_context if isinstance(doc.image_context, EnrichedImageContext) else None,
+        image_context=ctx if isinstance(ctx, EnrichedImageContext) else None,
         widgets=[doc.widgets[wid] for wid in doc.widget_order],
         masks_index=[
             {"id": m.id, "width": m.width, "height": m.height,

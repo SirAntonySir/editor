@@ -104,7 +104,7 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
         template = templates[w.op_id]
         new_widget = await run_fused_tool(
             template, intent=w.intent, scope=w.scope,
-            ctx=doc.image_context, prior=w, instruction=input.instruction,
+            ctx=doc.get_image_context("in-default"), prior=w, instruction=input.instruction,
             anthropic=anthropic, origin=w.origin,
         )
         new_widget.id = w.id

@@ -1,4 +1,4 @@
-import { CurveEditor } from './CurveEditor';
+import { CurveEditor } from '@/components/ui/CurveEditor';
 import type { CurvesValue } from '@/types/widget';
 
 interface CurveControlProps {

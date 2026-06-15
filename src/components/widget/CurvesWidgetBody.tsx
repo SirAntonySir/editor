@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Square, Grid2x2, AlignJustify } from 'lucide-react';
 import type { Widget, ControlBinding, ControlValue, CurvesValue, CurvePoint } from '@/types/widget';
 import { IDENTITY_CURVES } from '@/types/widget';
-import { CurveEditor } from '@/components/inspector/widget/primitives/CurveEditor';
+import { CurveEditor } from '@/components/ui/CurveEditor';
 
 type Channel = keyof CurvesValue;
 const CHANNELS: Channel[] = ['rgb', 'red', 'green', 'blue'];

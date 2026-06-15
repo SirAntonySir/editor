@@ -1,4 +1,4 @@
-import { CurveEditor as CurveEditorPrimitive } from '@/components/inspector/widget/primitives/CurveEditor';
+import { CurveEditor as CurveEditorPrimitive } from '@/components/ui/CurveEditor';
 import { IDENTITY_CURVES } from '@/types/widget';
 import type { CurvesValue, CurvePoint } from '@/types/widget';
 import type { RegistryControlProps } from './Slider';

@@ -383,6 +383,35 @@ class SessionDocument(BaseModel):
             return self.prepare_result
         return None
 
+    def _promote_singletons_to_per_node(self) -> None:
+        """One-shot migration: lift any legacy singleton image-data into the
+        `in-default` per-image-node slot and clear the singleton. Idempotent.
+
+        Called by revive after model_validate. The per-image-node dicts are
+        the canonical storage; the singleton fields exist only to load older
+        persisted documents written before this migration landed.
+
+        Rule when both sides are populated: per-node wins (it was the more
+        recent write); the singleton is just cleared. See the docstring
+        block at the top of this section for the full doctrine.
+        """
+        # image_bytes / mime_type
+        if self.image_bytes and DEFAULT_IMAGE_NODE_ID not in self.image_bytes_by_node:
+            self.image_bytes_by_node[DEFAULT_IMAGE_NODE_ID] = self.image_bytes
+            self.mime_type_by_node[DEFAULT_IMAGE_NODE_ID] = self.mime_type
+        self.image_bytes = b""
+        self.mime_type = "image/jpeg"
+
+        # image_context
+        if self.image_context is not None and DEFAULT_IMAGE_NODE_ID not in self.image_context_by_node:
+            self.image_context_by_node[DEFAULT_IMAGE_NODE_ID] = self.image_context
+        self.image_context = None
+
+        # prepare_result
+        if self.prepare_result is not None and DEFAULT_IMAGE_NODE_ID not in self.prepare_result_by_node:
+            self.prepare_result_by_node[DEFAULT_IMAGE_NODE_ID] = self.prepare_result
+        self.prepare_result = None
+
     def set_image_node_transform(
         self,
         image_node_id: str,

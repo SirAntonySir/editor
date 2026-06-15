@@ -14,6 +14,7 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '@xyflow/react';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { renderImageNodeComposite } from '@/lib/image-node-renderer';
@@ -83,8 +84,8 @@ export function useImageNodeRender({
   // don't live-apply before the user clicks Allow on the chip — unless the
   // user is previewing one via the chip's eye icon, in which case its id sits
   // in previewingSuggestionIds and is unmuted here.
-  const pendingSuggestionIds = useBackendState((s) => s.pendingSuggestionIds);
-  const previewingSuggestionIds = useBackendState((s) => s.previewingSuggestionIds);
+  const pendingSuggestionIds = useSuggestionsUi((s) => s.pendingSuggestionIds);
+  const previewingSuggestionIds = useSuggestionsUi((s) => s.previewingSuggestionIds);
 
   // Subscribe to the RF viewport zoom. `renderScale` is derived from the ratio
   // of target screen pixels (display × zoom × dpr) to source pixels and

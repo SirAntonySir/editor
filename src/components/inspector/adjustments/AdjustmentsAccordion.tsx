@@ -1,5 +1,6 @@
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import type { ProcessingDefinition } from '@/types/processing';
@@ -43,7 +44,7 @@ export function AdjustmentsAccordion() {
   // Pending suggestions are gated by the SuggestionChips row at the top of
   // the editor; hide them from the inspector AI section so they don't appear
   // anywhere until the user has clicked Allow.
-  const pendingIds = useBackendState((s) => s.pendingSuggestionIds);
+  const pendingIds = useSuggestionsUi((s) => s.pendingSuggestionIds);
   const aiWidgets = widgets.filter(
     (w) =>
       (w.status === 'active' || w.status === 'accepted') &&

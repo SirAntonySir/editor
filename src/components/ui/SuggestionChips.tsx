@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import * as Popover from '@radix-ui/react-popover';
 import { useReactFlow } from '@xyflow/react';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { backendTools } from '@/lib/backend-tools';
 import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
 import type { Widget } from '@/types/widget';
@@ -22,7 +23,7 @@ import { UI } from '@/config';
  * + canvas); denied widgets are gone.
  */
 export function SuggestionChips() {
-  const pendingIds = useBackendState((s) => s.pendingSuggestionIds);
+  const pendingIds = useSuggestionsUi((s) => s.pendingSuggestionIds);
   const widgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
 
   const pending: Widget[] = [];
@@ -54,10 +55,10 @@ interface SuggestionChipProps {
 
 function SuggestionChip({ widget }: SuggestionChipProps) {
   const sessionId = useBackendState((s) => s.sessionId);
-  const resolve = useBackendState((s) => s.resolvePendingSuggestion);
-  const addAccepted = useBackendState((s) => s.addAcceptedSuggestion);
-  const previewingIds = useBackendState((s) => s.previewingSuggestionIds);
-  const setPreview = useBackendState((s) => s.setPreviewSuggestion);
+  const resolve = useSuggestionsUi((s) => s.resolvePending);
+  const addAccepted = useSuggestionsUi((s) => s.addAcceptedSuggestion);
+  const previewingIds = useSuggestionsUi((s) => s.previewingSuggestionIds);
+  const setPreview = useSuggestionsUi((s) => s.setPreview);
   const rf = useReactFlow();
 
   // Info popover: open on hover, click toggles sticky-open.

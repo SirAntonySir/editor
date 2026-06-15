@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from app.state.document import DEFAULT_IMAGE_NODE_ID
 from app.tools.atomic.prepare_image import PrepareImageTool, _Input
 
 _FIXTURE_IMAGE = Path(__file__).parent.parent / "fixtures" / "test_image.jpg"
@@ -19,7 +20,7 @@ async def test_prepare_image_runs_without_sam(make_doc, monkeypatch):
     assert out.sam_ok is False
     assert out.image_width > 0
     assert out.image_height > 0
-    assert doc.prepare_result is not None
+    assert doc.get_prepare_result(DEFAULT_IMAGE_NODE_ID) is not None
 
 
 @pytest.mark.asyncio
@@ -50,4 +51,4 @@ async def test_prepare_image_is_idempotent(make_doc, monkeypatch):
     out2 = await PrepareImageTool().handler(doc, _Input())
     assert out1.image_width == out2.image_width
     # Same PrepareResult object reused.
-    assert doc.prepare_result is not None
+    assert doc.get_prepare_result(DEFAULT_IMAGE_NODE_ID) is not None

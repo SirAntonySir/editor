@@ -73,7 +73,6 @@ class PrecomputeRegionsTool(BackendTool[_Input, _Output]):
 
         # Apply masks onto candidate_regions via model_copy (no mutation).
         new_ctx = apply_region_masks(ctx, live)
-        doc.image_context = new_ctx
         doc.set_image_context(DEFAULT_IMAGE_NODE_ID, new_ctx)
         deps.get_session_store().set_context(
             doc.session_id, new_ctx.model_dump(mode="json", by_alias=True),

@@ -109,9 +109,10 @@ async def set_session_context(
     """
     try:
         store.set_context(sid, body.model_dump(mode="json", by_alias=True))
-        # Also write the typed model onto the document so tools can read it directly.
+        # Per-image-node-only doctrine: set_context above persists to disk for
+        # legacy callers; the typed model goes on the per-node dict so tools
+        # can read it directly via doc.get_image_context(image_node_id).
         doc = store.get_document(sid)
-        doc.image_context = body
         doc.set_image_context(DEFAULT_IMAGE_NODE_ID, body)
     except SessionNotFound:
         raise HTTPException(status_code=404, detail="unknown or expired session")

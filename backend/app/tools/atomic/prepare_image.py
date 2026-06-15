@@ -81,7 +81,6 @@ class PrepareImageTool(BackendTool[_Input, _Output]):
         pr = PrepareResult(
             cheap=cheap, sam_ok=sam_ok, image_width=w_img, image_height=h_img,
         )
-        doc.prepare_result = pr
         doc.set_prepare_result(DEFAULT_IMAGE_NODE_ID, pr)
         return _Output(
             sam_ok=sam_ok, image_width=w_img, image_height=h_img, cheap=cheap,

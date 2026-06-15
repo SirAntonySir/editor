@@ -118,7 +118,6 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
         )
 
         enriched = build_enriched(base_ctx, pr.cheap, soft, region_stats)
-        doc.image_context = enriched
         doc.set_image_context(DEFAULT_IMAGE_NODE_ID, enriched)
         deps.get_session_store().set_context(
             doc.session_id, enriched.model_dump(mode="json", by_alias=True),

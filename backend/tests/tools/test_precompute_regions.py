@@ -6,6 +6,7 @@ import pytest
 from app.schemas.enriched_context import EnrichedImageContext
 from app.schemas.image_context import CandidateRegion
 from app.state.context_stats import CheapPassResult
+from app.state.document import DEFAULT_IMAGE_NODE_ID
 from app.tools.atomic._analyze_phases import PrepareResult
 from app.tools.atomic.precompute_regions import PrecomputeRegionsTool, _Input
 
@@ -64,16 +65,17 @@ async def test_precompute_regions_writes_paths(make_doc, monkeypatch):
     monkeypatch.setattr("app.api.deps.get_session_store", lambda: MagicMock())
 
     doc = make_doc()
-    doc.image_context = _enriched_with_one_region()
-    doc.prepare_result = PrepareResult(
+    doc.set_image_context(DEFAULT_IMAGE_NODE_ID, _enriched_with_one_region())
+    doc.set_prepare_result(DEFAULT_IMAGE_NODE_ID, PrepareResult(
         cheap=_cheap(), sam_ok=True, image_width=100, image_height=100,
-    )
+    ))
 
     out = await PrecomputeRegionsTool().handler(doc, _Input())
     assert len(out.mask_ids) == 1
     # Region now carries paths + png — applied via model_copy, no in-place edit.
-    assert doc.image_context.candidate_regions[0].paths is not None
-    assert doc.image_context.candidate_regions[0].mask_png_base64 is not None
+    updated_ctx = doc.get_image_context(DEFAULT_IMAGE_NODE_ID)
+    assert updated_ctx.candidate_regions[0].paths is not None
+    assert updated_ctx.candidate_regions[0].mask_png_base64 is not None
 
 
 @pytest.mark.asyncio
@@ -81,10 +83,10 @@ async def test_precompute_regions_returns_empty_when_sam_off(make_doc, monkeypat
     """If prepare_result.sam_ok is False (SAM disabled or failed), no masks."""
     monkeypatch.setenv("ANALYZE_SAM", "0")
     doc = make_doc()
-    doc.image_context = _enriched_with_one_region()
-    doc.prepare_result = PrepareResult(
+    doc.set_image_context(DEFAULT_IMAGE_NODE_ID, _enriched_with_one_region())
+    doc.set_prepare_result(DEFAULT_IMAGE_NODE_ID, PrepareResult(
         cheap=_cheap(), sam_ok=False, image_width=100, image_height=100,
-    )
+    ))
     out = await PrecomputeRegionsTool().handler(doc, _Input())
     assert out.mask_ids == []
 

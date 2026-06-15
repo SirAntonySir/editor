@@ -48,3 +48,6 @@ backend/.sessions/
 
 # Worktrees (created by superpowers:using-git-worktrees)
 .worktrees/
+
+# Vendored ML models (download via `make download-sam`)
+public/models/

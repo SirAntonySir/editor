@@ -1,4 +1,4 @@
-.PHONY: help install dev dev-backend electron build electron-build lint test test-run check preview clean
+.PHONY: help install dev dev-backend electron build electron-build lint test test-run check preview clean download-sam
 
 help:
 	@echo "Photo Editor — make targets"
@@ -15,6 +15,7 @@ help:
 	@echo "  make check           tsc + eslint + vitest (full pre-commit)"
 	@echo "  make preview         Preview the production build"
 	@echo "  make clean           Remove dist, release, node_modules/.vite"
+	@echo "  make download-sam    Vendor MobileSAM ONNX files (~45 MB, one-time)"
 
 install:
 	npm install
@@ -51,3 +52,6 @@ preview:
 
 clean:
 	rm -rf dist release node_modules/.vite
+
+download-sam:
+	./scripts/download_mobile_sam.sh

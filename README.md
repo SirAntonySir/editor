@@ -36,6 +36,22 @@ npm run build
 npm run preview
 ```
 
+### Objects-Mode (SAM 2 click-to-segment)
+
+Before first use of the Objects-Mode panel, vendor the MobileSAM ONNX model files
+(one-time, ~45 MB):
+
+```bash
+make download-sam
+```
+
+The files land in `public/models/mobile-sam/{encoder,decoder}.onnx` and are
+gitignored. If the default HuggingFace source is unreachable, override with:
+
+```bash
+MOBILE_SAM_ENCODER_URL=... MOBILE_SAM_DECODER_URL=... make download-sam
+```
+
 ## Project Structure
 
 ```

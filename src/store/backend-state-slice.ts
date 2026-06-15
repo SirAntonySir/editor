@@ -141,7 +141,13 @@ export const useBackendState = create<BackendState>()(
     cancelling: false,
     usage: null,
 
-    applyEvent: (ev) =>
+    applyEvent: (ev) => {
+      // Side-effects queue: cross-store mutations and async refetches that
+      // happen during SSE handling are pushed here from inside the Immer
+      // producer, then drained AFTER `set(...)` returns. Keeps the reducer
+      // pure and lets side effects observe a settled store.
+      const sideEffects: Array<() => void> = [];
+
       set((s) => {
         const payload = ev.payload as Record<string, unknown>;
 
@@ -206,20 +212,32 @@ export const useBackendState = create<BackendState>()(
           }
           case 'state.gap': {
             // Backend signaled that replay can't catch us up — doc.history was
-            // pruned past our lastEventId. Refetch the full snapshot to
-            // resync. Out of the immer producer because fetchSnapshot is
-            // async; defer to the next microtask.
+            // pruned past our lastEventId. Refetch the full snapshot to resync.
             const sid = s.sessionId;
             if (sid) {
-              void (async () => {
-                try {
-                  const { fetchSnapshot } = await import('@/lib/sse-subscriber');
-                  const snap = await fetchSnapshot(sid);
-                  useBackendState.getState().setSnapshot(snap);
-                } catch (err) {
-                  console.warn('[sse] state.gap refetch failed:', err);
-                }
-              })();
+              // Defer the async refetch to a side-effect; the closure
+              // observes a settled store. Re-check that `sid` is still
+              // the active session at write time — between event and
+              // refetch completion the user may have opened a new image,
+              // and writing the stale snapshot would clobber the new
+              // session's state.
+              sideEffects.push(() => {
+                void (async () => {
+                  try {
+                    const { fetchSnapshot } = await import('@/lib/sse-subscriber');
+                    const snap = await fetchSnapshot(sid);
+                    if (useBackendState.getState().sessionId !== sid) {
+                      console.warn(
+                        '[sse] state.gap refetch dropped — session changed during fetch',
+                      );
+                      return;
+                    }
+                    useBackendState.getState().setSnapshot(snap);
+                  } catch (err) {
+                    console.warn('[sse] state.gap refetch failed:', err);
+                  }
+                })();
+              });
             }
             return;
           }
@@ -279,35 +297,33 @@ export const useBackendState = create<BackendState>()(
           case 'widget.created': {
             const w = payload.widget as Widget;
             s.snapshot.widgets.push(w);
-            // Autonomous AI suggestions must wait for user Allow/Deny via
-            // SuggestionChips. Bridge into the FE-only suggestions UI slice;
-            // we additively include the new id alongside whatever is already
-            // pending. (Cross-store call from an Immer producer — same
-            // pattern as the consumePinRequest/setPinnedWidgetParams calls
-            // below; audit C8 will sweep them together.)
-            // NOTE: the pending mark must land at widget.created time, not
-            // later — marking on the rising edge of mcpAnalyzeComplete races
-            // with widget.created and can gate the wrong revision.
+            // Bridge into the FE-only suggestions UI slice for autonomous
+            // suggestions — deferred to a side-effect so the cross-store
+            // call observes a settled `useSuggestionsUi`.
             if (w.origin.kind === 'mcp_autonomous') {
-              const existing = useSuggestionsUi.getState().pendingSuggestionIds;
-              useSuggestionsUi.getState().markPending([...existing, w.id]);
+              sideEffects.push(() => {
+                const existing = useSuggestionsUi.getState().pendingSuggestionIds;
+                useSuggestionsUi.getState().markPending([...existing, w.id]);
+              });
             }
             // Drain a matching per-slider Pin request (queued before the
-            // backend roundtrip). When one is present, narrow the widget to
-            // just those bindings via `pinnedWidgetParams` so it lands on the
-            // canvas as a one-control shell rather than the full op widget.
+            // backend roundtrip). Deferred for the same reason.
             if (w.origin.kind === 'tool_invoked') {
               const firstNode = w.nodes[0];
               const layerId = firstNode?.layerId;
               const opType = firstNode?.type;
               if (layerId && opType) {
-                const keys = useEditorStore.getState().consumePinRequest(layerId, opType);
-                if (keys && keys.length > 0) {
-                  useEditorStore.getState().setPinnedWidgetParams(w.id, keys);
-                }
+                sideEffects.push(() => {
+                  const keys = useEditorStore.getState().consumePinRequest(layerId, opType);
+                  if (keys && keys.length > 0) {
+                    useEditorStore.getState().setPinnedWidgetParams(w.id, keys);
+                  }
+                });
               }
             }
-            tetherWorkspaceWidget(w);
+            // Workspace tether placement also touches useEditorStore;
+            // defer to keep the producer pure.
+            sideEffects.push(() => tetherWorkspaceWidget(w));
             break;
           }
           case 'widget.updated': {
@@ -391,7 +407,10 @@ export const useBackendState = create<BackendState>()(
         for (const [wid, patch] of s.optimistic) {
           if (patch.baseRevision < ev.revision) s.optimistic.delete(wid);
         }
-      }),
+      });
+
+      for (const effect of sideEffects) effect();
+    },
 
     applyOptimistic: (widgetId, patch) =>
       set((s) => {

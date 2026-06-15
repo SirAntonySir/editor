@@ -4,6 +4,16 @@ import { useBackendState, getPersistedSessionId } from './backend-state-slice';
 import { useEditorStore } from '@/store';
 import type { SessionStateSnapshot, StateEvent, Widget } from '@/types/widget';
 
+// Module-level mock so that the dynamic `import('@/lib/sse-subscriber')` inside
+// applyEvent's state.gap handler resolves to this factory. Individual tests can
+// override `fetchSnapshot`'s behaviour via `vi.mocked(fetchSnapshot)`.
+vi.mock('@/lib/sse-subscriber', () => ({
+  fetchSnapshot: vi.fn(async () => ({ sessionId: 's_default', revision: 99, widgets: [], masksIndex: [],
+    operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+    imageContext: null,
+  })),
+}));
+
 function makeWidget(id: string, overrides: Partial<Widget> = {}): Widget {
   return {
     id,
@@ -330,6 +340,42 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
     expect(ui.acceptedSuggestions.size).toBe(0);
     expect(ui.pendingSuggestionIds.size).toBe(0);
     expect(ui.previewingSuggestionIds.size).toBe(0);
+  });
+
+  it('state.gap async refetch is dropped when sessionId changed mid-fetch', async () => {
+    const { fetchSnapshot } = await import('@/lib/sse-subscriber');
+    vi.mocked(fetchSnapshot).mockResolvedValueOnce({
+      sessionId: 's_old', revision: 5, widgets: [], masksIndex: [],
+      operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+      imageContext: null,
+    } as never);
+
+    useBackendState.setState({
+      sessionId: 's_old',
+      snapshot: {
+        sessionId: 's_old', revision: 1, widgets: [], masksIndex: [],
+        operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+        imageContext: null,
+      } as never,
+      sseStatus: 'open',
+    });
+
+    useBackendState.getState().applyEvent({
+      revision: 2, kind: 'state.gap',
+      emitted_at: new Date().toISOString(), payload: {},
+    } as never);
+
+    // Simulate the user opening a new image AFTER the gap event but BEFORE
+    // the async refetch resolves.
+    useBackendState.getState().setSessionId('s_new');
+
+    // Let the async refetch microtask + macrotask run.
+    await new Promise((r) => setTimeout(r, 0));
+
+    // The stale-session re-check should have dropped the refetched
+    // snapshot — sessionId stays 's_new', revision didn't jump to 5.
+    expect(useBackendState.getState().sessionId).toBe('s_new');
+    expect(useBackendState.getState().snapshot?.revision).not.toBe(5);
   });
 });
 

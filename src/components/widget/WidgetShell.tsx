@@ -70,7 +70,16 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
   const [refinePending, setRefinePending] = useState(false);
 
   const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  // Coalesce backend writes per (widget, paramKey). The optimistic patch in
+  // setParam below makes the slider feel instant; the backend POST is
+  // debounced so a drag (60–120 ticks/s) doesn't flood
+  // /api/tools/set_widget_param and trip the 30/min rate limiter.
+  const setParamTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  useEffect(() => () => {
+    mountedRef.current = false;
+    for (const timer of setParamTimersRef.current.values()) clearTimeout(timer);
+    setParamTimersRef.current.clear();
+  }, []);
 
   const hovered = hoveredWidgetId === widget.id;
 
@@ -114,7 +123,17 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
         useEditorStore.getState().markParamTouched(touchKey(node.layerId, node.type, binding.target.paramKey));
       }
     }
-    void backendTools.set_widget_param(sessionId, { widgetId: widget.id, paramKey, value });
+    // Debounce backend writes per paramKey so the optimistic UI stays
+    // instant but the network sees one POST per ~100ms of dragging
+    // instead of one per pointer-move tick. Always sends the LATEST value.
+    const existing = setParamTimersRef.current.get(paramKey);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      setParamTimersRef.current.delete(paramKey);
+      if (!mountedRef.current) return;
+      void backendTools.set_widget_param(sessionId, { widgetId: widget.id, paramKey, value });
+    }, 100);
+    setParamTimersRef.current.set(paramKey, timer);
   }
 
   function handleApply() {

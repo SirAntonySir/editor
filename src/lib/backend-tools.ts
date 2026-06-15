@@ -52,6 +52,17 @@ async function invokeTool<T>(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId, input }),
   });
+  // 429 = backend rate limiter tripped (e.g. drag flooding set_widget_param).
+  // Return a soft-fail envelope instead of throwing so fire-and-forget
+  // call sites (the slider-drag write path is the canonical example) don't
+  // produce unhandled-promise-rejection console spam. The optimistic UI
+  // patch already reflects the value; the next debounced flush succeeds.
+  if (response.status === 429) {
+    return {
+      ok: false,
+      error: { code: 'rate_limited', message: 'rate limited', retryable: true },
+    };
+  }
   if (!response.ok) {
     throw new Error(`/api/tools/${name} → ${response.status} ${await response.text()}`);
   }

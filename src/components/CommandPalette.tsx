@@ -227,12 +227,18 @@ export function CommandPalette() {
       }
       if (cmd.kind === 'ai') {
         if (pending) return; // already in flight — ignore double-submit
-        // Mirrors the former AskAiInput behavior: only mask scope is forwarded;
-        // all other scopes collapse to global for AI prompts.
-        const active = useEditorStore.getState().activeScope ?? { kind: 'global' as const };
+        // Forward an explicit mask scope when one is set; otherwise lift the
+        // bare global default to an `image_node` scope keyed on the active
+        // ImageNode so the backend knows which canvas the prompt targets.
+        // Falls back to plain global when no node is active.
+        const state = useEditorStore.getState();
+        const active = state.activeScope ?? { kind: 'global' as const };
+        const node = state.activeImageNodeId ? state.imageNodes[state.activeImageNodeId] : null;
         const scope: Scope = active.kind === 'mask'
           ? { kind: 'mask', mask_id: active.mask_id }
-          : { kind: 'global' };
+          : node
+            ? { kind: 'image_node', imageNodeId: node.id, layerIds: [...node.layerIds] }
+            : { kind: 'global' };
         const submitted = query.trim();
         setPending(submitted);
         setErrorState(null);

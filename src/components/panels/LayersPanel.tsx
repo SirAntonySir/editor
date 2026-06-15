@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useEffect, useState } from 'react';
+import { startTransition, useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Eye,
@@ -79,7 +79,24 @@ const LAYER_BLEND_MODES: BlendMode[] = [
 const EMPTY_MASKS: MaskSummary[] = [];
 
 export function LayersPanelBody() {
-  const layers = useEditorStore((s) => s.layers);
+  // Filter the document's layers to those that belong to the currently
+  // selected ImageNode so the panel reflects the canvas the user is
+  // editing. When no ImageNode is active (e.g. empty workspace or pre-
+  // selection state), fall back to the full layer list — legacy behaviour
+  // that keeps the panel useful before/while the user is setting things up.
+  // We subscribe to the raw inputs (so identity stays stable across renders
+  // that don't actually change the relevant slices) and derive the filtered
+  // list with useMemo — a selector that returns `array.filter(...)` would
+  // produce a fresh array on every store tick and force a re-render loop.
+  const allLayers = useEditorStore((s) => s.layers);
+  const activeImageNode = useEditorStore((s) =>
+    s.activeImageNodeId ? s.imageNodes[s.activeImageNodeId] : null,
+  );
+  const layers = useMemo(() => {
+    if (!activeImageNode) return allLayers;
+    const idSet = new Set(activeImageNode.layerIds);
+    return allLayers.filter((l) => idSet.has(l.id));
+  }, [allLayers, activeImageNode]);
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
   const activeLayer = useEditorStore((s) => s.layers.find((l) => l.id === s.activeLayerId));
   const setActiveLayer = useEditorStore((s) => s.setActiveLayer);

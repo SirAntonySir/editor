@@ -10,6 +10,24 @@ import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { toast } from '@/components/ui/Toast';
+import { GLOBAL_SCOPE, type Scope } from '@/types/scope';
+import type { ImageNodeState } from '@/types/workspace';
+
+/** Build the default propose-widget scope for a spawn against `node`.
+ *  An explicit mask / named_region scope on `activeScope` always wins —
+ *  the user picked it for a reason. Otherwise we lift the bare GLOBAL_SCOPE
+ *  default to an `image_node` scope so the backend can tie the new widget
+ *  to the currently selected ImageNode's layer set. When no node is active
+ *  (legacy / pre-spawn flow) we fall back to GLOBAL_SCOPE. */
+function _scopeForSpawn(
+  node: ImageNodeState | null,
+  activeScope: Scope | undefined,
+): Scope {
+  if (activeScope && activeScope.kind !== 'global') return activeScope;
+  return node
+    ? { kind: 'image_node', imageNodeId: node.id, layerIds: [...node.layerIds] }
+    : GLOBAL_SCOPE;
+}
 
 /**
  * Handle a toolrail click for a tool with a `processingId`.
@@ -45,7 +63,7 @@ export function spawnToolWidget(toolName: string): boolean {
 
   void backendTools.proposeStack(sid, {
     intent: tool.label ?? tool.processingId,
-    scope: editor.activeScope ?? { kind: 'global' },
+    scope: _scopeForSpawn(node, editor.activeScope),
     forced_ops: [tool.processingId],
     layerId,
     origin: 'tool_invoked',
@@ -77,7 +95,7 @@ function _resolveSpawnContext(): {
       ? editor.activeLayerId
       : node.layerIds[0];
   if (!layerId) return null;
-  return { sid, layerId, scope: editor.activeScope ?? { kind: 'global' } };
+  return { sid, layerId, scope: _scopeForSpawn(node, editor.activeScope) };
 }
 
 /** Spawn a single-op widget by registry op id. Used by Cmd+K when the user

@@ -74,10 +74,20 @@ export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}
     const adjustmentId = crypto.randomUUID();
     LutRegistry.register(adjustmentId, lut.size, lut.data);
 
-    // Propose a filter widget — default scope to active selection, fallback Global.
-    // NOTE: filters/LUT remain on propose_widget; the 'filter' op_id is not yet
-    // modeled in the SSoT registry (it uses TOOL_DEFAULTS + LutRegistry instead).
-    const scope = useEditorStore.getState().activeScope ?? { kind: 'global' as const };
+    // Propose a filter widget — default scope to active selection, then to the
+    // active ImageNode (so the backend knows which canvas the filter targets),
+    // and finally fall back to Global. NOTE: filters/LUT remain on
+    // propose_widget; the 'filter' op_id is not yet modeled in the SSoT
+    // registry (it uses TOOL_DEFAULTS + LutRegistry instead).
+    const state = useEditorStore.getState();
+    const active = state.activeScope ?? { kind: 'global' as const };
+    const node = state.activeImageNodeId ? state.imageNodes[state.activeImageNodeId] : null;
+    const scope =
+      active.kind !== 'global'
+        ? active
+        : node
+          ? { kind: 'image_node' as const, imageNodeId: node.id, layerIds: [...node.layerIds] }
+          : { kind: 'global' as const };
     void backendTools.propose_widget(sid, {
       intent: `Apply ${lut.title} filter`,
       scope,

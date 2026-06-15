@@ -120,8 +120,9 @@ describe('CommandPalette execution', () => {
     expect(spawnRegistryPreset).toHaveBeenCalledWith('golden_hour', expect.any(String));
   });
 
-  it('Cmd+Enter sends the query to the AI (when context already exists)', async () => {
-    useEditorStore.getState().addImageNode(['l1']);
+  it('Cmd+Enter sends the query to the AI with an image_node scope keyed on the active node', async () => {
+    const nodeId = useEditorStore.getState().addImageNode(['l1']);
+    useEditorStore.getState().setActiveImageNode(nodeId);
     // Pre-populate AI context so the auto-analyze branch is skipped.
     useAiSession.setState({ context: { subjects: [], lighting: 'flat', dominantTones: [], mood: '', candidateRegions: [], modelName: '', modelVersion: '', generatedAt: '' } as unknown as never });
     render(<CommandPalette />);
@@ -131,15 +132,34 @@ describe('CommandPalette execution', () => {
     await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
     // proposeFromPalette now accepts an optional third arg for attached
     // context items (from the chip-menu / context-attachment strip). An
-    // empty array is sent when no chips were attached.
+    // empty array is sent when no chips were attached. The scope is now
+    // `image_node` so the backend knows which canvas the prompt targets.
     expect(proposeFromPalette).toHaveBeenCalledWith(
-      'make it warmer', expect.objectContaining({ kind: 'global' }), [],
+      'make it warmer',
+      { kind: 'image_node', imageNodeId: nodeId, layerIds: ['l1'] },
+      [],
     );
     expect(analyseFirstImageLayer).not.toHaveBeenCalled();
   });
 
+  it('Cmd+Enter forwards a mask scope when one is active (user-selected scope wins)', async () => {
+    const nodeId = useEditorStore.getState().addImageNode(['l1']);
+    useEditorStore.getState().setActiveImageNode(nodeId);
+    useEditorStore.getState().setActiveScope({ kind: 'mask', mask_id: 'm1' });
+    useAiSession.setState({ context: { subjects: [], lighting: 'flat', dominantTones: [], mood: '', candidateRegions: [], modelName: '', modelVersion: '', generatedAt: '' } as unknown as never });
+    render(<CommandPalette />);
+    open();
+    const input = screen.getByPlaceholderText(/search tools/i);
+    await userEvent.type(input, 'make it warmer');
+    await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
+    expect(proposeFromPalette).toHaveBeenCalledWith(
+      'make it warmer', { kind: 'mask', mask_id: 'm1' }, [],
+    );
+  });
+
   it('Cmd+Enter without context auto-runs analyze before sending to the AI', async () => {
-    useEditorStore.getState().addImageNode(['l1']);
+    const nodeId = useEditorStore.getState().addImageNode(['l1']);
+    useEditorStore.getState().setActiveImageNode(nodeId);
     // Set a context AFTER analyze "resolves" so the guard inside the AI run
     // doesn't bail. Vitest mocks resolve synchronously in microtasks.
     useAiSession.setState({ context: null });
@@ -153,7 +173,9 @@ describe('CommandPalette execution', () => {
     await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
     await waitFor(() => expect(analyseFirstImageLayer).toHaveBeenCalled());
     await waitFor(() => expect(proposeFromPalette).toHaveBeenCalledWith(
-      'make it warmer', expect.objectContaining({ kind: 'global' }), [],
+      'make it warmer',
+      { kind: 'image_node', imageNodeId: nodeId, layerIds: ['l1'] },
+      [],
     ));
   });
 });

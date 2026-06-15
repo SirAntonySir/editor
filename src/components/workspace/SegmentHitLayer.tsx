@@ -4,6 +4,7 @@ import { useMobileSam } from '@/hooks/useMobileSam';
 import { backendTools } from '@/lib/backend-tools';
 import { maskToPngBase64 } from '@/lib/segmentation/mask-png';
 import { Kbd } from '@/components/ui/kbd';
+import { toast } from '@/components/ui/Toast';
 import { SegmentMaskPreview } from './SegmentMaskPreview';
 import type { SamPoint, DecodedMask } from '@/lib/segmentation/mobile-sam-types';
 
@@ -48,6 +49,7 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
 
   const commitCandidate = useCallback(async () => {
     const c = candidate;
+    console.log('[segment] commit', { hasMask: !!c?.mask, hasSession: !!sessionId });
     if (!c?.mask || !sessionId) return;
     const pngBase64 = await maskToPngBase64(c.mask);
     const hasNegativePoint = c.points.some((p) => p.label === 0);
@@ -57,10 +59,15 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
       paths: [],
       origin: hasNegativePoint ? 'client_refinement' : 'client_new',
     });
+    console.log('[segment] propose_mask result', env);
     if (env.ok) {
       // Drop the candidate; the new mask appears via SSE `mask.proposed`
-      // merging into snapshot.masksIndex.
+      // merging into snapshot.masksIndex. Toast gives immediate feedback
+      // until the persistent committed-mask overlay lands (separate spec).
+      toast.info(`Object saved (${env.output?.maskId?.slice(0, 8) ?? 'unknown'})`);
       setCandidate(null);
+    } else {
+      toast.info(`Save failed: ${env.error?.message ?? 'unknown error'}`);
     }
   }, [candidate, sessionId, imageNodeId]);
 

@@ -64,7 +64,7 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
   });
 
   it('Enter after a successful decode commits via propose_mask with origin client_new', async () => {
-    const { findByTestId, getByText } = render(
+    const { findByTestId, getByTestId } = render(
       <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} />,
     );
     const layer = await findByTestId('segment-hit-layer');
@@ -73,7 +73,7 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
     // Wait for the candidate to settle to mask-resolved state. The footer text
     // flips from "Segmenting…" to the commit hint once the decode resolves —
     // a deterministic signal we can wait on.
-    await waitFor(() => getByText(/Enter to commit/));
+    await waitFor(() => expect(getByTestId('segment-candidate-hint').dataset.state).toBe('ready'));
     fireEvent.keyDown(window, { key: 'Enter' });
     await waitFor(() => expect(backendTools.propose_mask).toHaveBeenCalledTimes(1));
     const [sessionId, input] = (backendTools.propose_mask as ReturnType<typeof vi.fn>).mock.calls[0];
@@ -84,7 +84,7 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
     expect(input.pngBase64.length).toBeGreaterThan(0);
   });
 
-  it('cmd-click after a candidate appends a refinement point (label 0 if inside mask)', async () => {
+  it('shift-click after a candidate appends a refinement point (label 0 if inside mask)', async () => {
     const { findByTestId } = render(
       <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} />,
     );
@@ -94,9 +94,9 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
     fireEvent.click(layer, { clientX: 100, clientY: 75 });
     await new Promise((r) => setTimeout(r, 0));
     decodeMock.mockClear();
-    // 2) cmd-click on the same spot — that point falls inside the fake mask's
+    // 2) shift-click on the same spot — that point falls inside the fake mask's
     //    top-left "on" quadrant, so the new point's label must be 0 (negative).
-    fireEvent.click(layer, { clientX: 100, clientY: 75, metaKey: true });
+    fireEvent.click(layer, { clientX: 100, clientY: 75, shiftKey: true });
     await new Promise((r) => setTimeout(r, 0));
     expect(decodeMock).toHaveBeenCalledTimes(1);
     const points = decodeMock.mock.calls[0][0];
@@ -105,17 +105,17 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
   });
 
   it('Enter after a refinement commits with origin client_refinement', async () => {
-    const { findByTestId, getByText } = render(
+    const { findByTestId, getByTestId } = render(
       <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} />,
     );
     const layer = await findByTestId('segment-hit-layer');
     stubRect(layer);
     fireEvent.click(layer, { clientX: 100, clientY: 75 });
-    await waitFor(() => getByText(/Enter to commit/));
-    fireEvent.click(layer, { clientX: 100, clientY: 75, metaKey: true });
+    await waitFor(() => expect(getByTestId('segment-candidate-hint').dataset.state).toBe('ready'));
+    fireEvent.click(layer, { clientX: 100, clientY: 75, shiftKey: true });
     await waitFor(() => expect(decodeMock).toHaveBeenCalledTimes(2));
     // Re-wait for the refinement's mask to settle before pressing Enter.
-    await waitFor(() => getByText(/Enter to commit/));
+    await waitFor(() => expect(getByTestId('segment-candidate-hint').dataset.state).toBe('ready'));
     fireEvent.keyDown(window, { key: 'Enter' });
     await waitFor(() => expect(backendTools.propose_mask).toHaveBeenCalledTimes(1));
     const [, input] = (backendTools.propose_mask as ReturnType<typeof vi.fn>).mock.calls[0];
@@ -123,15 +123,15 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
   });
 
   it('Esc discards the candidate (Enter after Esc does not commit)', async () => {
-    const { findByTestId, getByText, queryByText } = render(
+    const { findByTestId, getByTestId, queryByTestId } = render(
       <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} />,
     );
     const layer = await findByTestId('segment-hit-layer');
     stubRect(layer);
     fireEvent.click(layer, { clientX: 100, clientY: 75 });
-    await waitFor(() => getByText(/Enter to commit/));
+    await waitFor(() => expect(getByTestId('segment-candidate-hint').dataset.state).toBe('ready'));
     fireEvent.keyDown(window, { key: 'Escape' });
-    await waitFor(() => expect(queryByText(/Enter to commit/)).toBeNull());
+    await waitFor(() => expect(queryByTestId('segment-candidate-hint')).toBeNull());
     fireEvent.keyDown(window, { key: 'Enter' });
     await new Promise((r) => setTimeout(r, 0));
     expect(backendTools.propose_mask).not.toHaveBeenCalled();

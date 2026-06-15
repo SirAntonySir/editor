@@ -3,6 +3,7 @@ import { useAiSession } from '@/hooks/useImageContext';
 import { useMobileSam } from '@/hooks/useMobileSam';
 import { backendTools } from '@/lib/backend-tools';
 import { maskToPngBase64 } from '@/lib/segmentation/mask-png';
+import { Kbd } from '@/components/ui/kbd';
 import { SegmentMaskPreview } from './SegmentMaskPreview';
 import type { SamPoint, DecodedMask } from '@/lib/segmentation/mobile-sam-types';
 
@@ -88,27 +89,21 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
       if (!el) return;
       const [nx, ny] = clientToNormalised(e, el);
 
-      // Cmd-click while a candidate is live: append a refinement point.
+      // Shift-click while a candidate is live: append a refinement point.
       // Positive (label 1) if outside the current mask, negative (label 0)
       // if inside — mirrors the SAM convention for click-driven refinement.
-      if ((e.metaKey || e.ctrlKey) && candidate) {
+      if (e.shiftKey && candidate) {
         const insideMask = isInsideMask(nx, ny, candidate.mask);
         const point: SamPoint = { x: nx, y: ny, label: insideMask ? 0 : 1 };
         void runDecode([...candidate.points, point]);
         return;
       }
 
-      // Plain click: start a fresh candidate from a single positive point.
+      // Plain click (or shift without a candidate): start a fresh candidate.
       void runDecode([{ x: nx, y: ny, label: 1 }]);
     },
     [candidate, runDecode],
   );
-
-  const statusText = !candidate
-    ? null
-    : candidate.mask
-      ? 'Enter to commit · Esc to cancel · Cmd-click to refine'
-      : 'Segmenting…';
 
   return (
     <div
@@ -125,11 +120,26 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
         widthPx={widthPx}
         heightPx={heightPx}
       />
-      {statusText && (
+      {candidate && (
         <div
-          className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-1 rounded-[4px] bg-surface text-text-primary text-[10px] leading-none border border-separator shadow-sm whitespace-nowrap"
+          data-testid="segment-candidate-hint"
+          data-state={candidate.mask ? 'ready' : 'pending'}
+          className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-1 rounded-[4px] bg-surface text-text-primary text-[10px] leading-none border border-separator shadow-sm whitespace-nowrap flex items-center gap-1.5"
         >
-          {statusText}
+          {candidate.mask ? (
+            <>
+              <Kbd keys="enter" className="ml-0" />
+              <span>commit</span>
+              <span className="opacity-40">·</span>
+              <Kbd keys="esc" className="ml-0" />
+              <span>cancel</span>
+              <span className="opacity-40">·</span>
+              <Kbd keys="shift" className="ml-0" />
+              <span>+ click to refine</span>
+            </>
+          ) : (
+            <span>Segmenting…</span>
+          )}
         </div>
       )}
     </div>

@@ -59,3 +59,18 @@ if (typeof globalThis.DOMMatrix === 'undefined') {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (globalThis as any).DOMMatrix = DOMMatrixReadOnlyPolyfill;
 }
+
+// jsdom does not implement Path2D. SegmentMaskPreview builds one to stroke
+// the marching-ants outline each frame. Tests just need the constructor +
+// the methods we call to exist as no-ops.
+if (typeof globalThis.Path2D === 'undefined') {
+  class Path2DPolyfill {
+    moveTo() {}
+    lineTo() {}
+    closePath() {}
+    rect() {}
+    arc() {}
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).Path2D = Path2DPolyfill;
+}

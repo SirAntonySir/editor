@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { useBackendState } from '@/store/backend-state-slice';
-import { useEditorStore } from '@/store';
 import { maskStore, type Mask } from '@/core/mask-store';
+import { objectOwnership } from '@/lib/segmentation/object-ownership';
 
 export interface ImageObject {
   id: string;
@@ -31,26 +31,25 @@ function maskBbox(mask: Mask): ImageObject['bbox'] | null {
 
 /**
  * Resolves the committed objects (client-saved masks) belonging to an
- * image-node. The backend stores every mask in `snapshot.masksIndex` keyed
- * by `mask_id`; the per-mask `layerId` lives on the maskStore entry that
- * the SSE subscriber populated from the `mask.proposed` payload. We filter
- * to masks whose layerId is one of this node's layers.
+ * image-node. The backend's `mask.created` SSE event has no imageNodeId
+ * on it, so we filter via the `objectOwnership` map that the commit path
+ * populates after each successful `propose_mask`.
  */
 export function useImageNodeObjects(imageNodeId: string): ImageObject[] {
   const masksIndex = useBackendState((s) => s.snapshot?.masksIndex);
-  const layerIds = useEditorStore((s) => s.imageNodes[imageNodeId]?.layerIds);
+  // Re-render when any mapping in objectOwnership changes.
+  useSyncExternalStore(objectOwnership.subscribe, objectOwnership.snapshot, objectOwnership.snapshot);
 
   return useMemo(() => {
-    if (!masksIndex || !layerIds) return [];
-    const layerSet = new Set(layerIds);
+    if (!masksIndex) return [];
     const out: ImageObject[] = [];
     let autoIdx = 0;
     for (const entry of masksIndex) {
       const id = (entry as { id?: string }).id;
       if (!id) continue;
+      if (objectOwnership.get(id) !== imageNodeId) continue;
       const mask = maskStore.get(id);
       if (!mask) continue;
-      if (!layerSet.has(mask.layerId)) continue;
       const bbox = maskBbox(mask);
       if (!bbox) continue;
       const label = (entry as { label?: string | null }).label ?? mask.label ?? `Object ${autoIdx + 1}`;
@@ -58,5 +57,5 @@ export function useImageNodeObjects(imageNodeId: string): ImageObject[] {
       out.push({ id, mask, label, bbox });
     }
     return out;
-  }, [masksIndex, layerIds]);
+  }, [masksIndex, imageNodeId]);
 }

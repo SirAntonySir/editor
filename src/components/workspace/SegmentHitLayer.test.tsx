@@ -4,6 +4,7 @@ import { SegmentHitLayer } from './SegmentHitLayer';
 import { useEditorStore } from '@/store';
 import { useAiSession } from '@/hooks/useImageContext';
 import { backendTools } from '@/lib/backend-tools';
+import { objectOwnership } from '@/lib/segmentation/object-ownership';
 import type { DecodedMask, SamPoint } from '@/lib/segmentation/mobile-sam-types';
 
 const decodeMock = vi.fn<(points: SamPoint[]) => Promise<DecodedMask | null>>();
@@ -43,6 +44,7 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
     decodeMock.mockReset();
     decodeMock.mockResolvedValue(fakeMask());
     (backendTools.propose_mask as ReturnType<typeof vi.fn>).mockClear();
+    objectOwnership._resetForTests();
     useEditorStore.getState().clearSelection();
     useAiSession.setState({ sessionId: 'sess-1', context: null, status: 'idle', error: null });
   });

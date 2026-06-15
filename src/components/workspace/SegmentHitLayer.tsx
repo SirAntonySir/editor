@@ -3,6 +3,7 @@ import { useAiSession } from '@/hooks/useImageContext';
 import { useMobileSam } from '@/hooks/useMobileSam';
 import { backendTools } from '@/lib/backend-tools';
 import { maskToPngBase64 } from '@/lib/segmentation/mask-png';
+import { objectOwnership } from '@/lib/segmentation/object-ownership';
 import { Kbd } from '@/components/ui/kbd';
 import { toast } from '@/components/ui/Toast';
 import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
@@ -63,9 +64,11 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
       origin: hasNegativePoint ? 'client_refinement' : 'client_new',
     });
     if (env.ok) {
-      // Drop the candidate; the new mask appears via SSE `mask.proposed`
-      // merging into snapshot.masksIndex. Toast gives immediate feedback
-      // until the persistent committed-mask overlay lands (separate spec).
+      // Record the imageNodeId-for-this-mask mapping on the client. The
+      // SSE event doesn't carry it, so without this the objects layer
+      // can't filter masksIndex per image-node.
+      const maskId = env.output?.maskId;
+      if (maskId) objectOwnership.set(maskId, imageNodeId);
       toast.info(`Saved as "${autoName}"`);
       setCandidate(null);
     } else {

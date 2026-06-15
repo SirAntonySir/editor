@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
-import { LevelsHistogramControl } from '@/components/inspector/LevelsHistogramControl';
+import { LevelsHistogramControl } from '@/components/ui/LevelsHistogramControl';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { PipelineManager } from '@/lib/pipeline-manager';
 import type { Widget, ControlBinding, ControlValue } from '@/types/widget';

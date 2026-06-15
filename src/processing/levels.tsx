@@ -5,7 +5,7 @@ import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/process
 
 const LevelsIcon = createMaterialIcon('tune');
 import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
-import { LevelsHistogramControl } from '@/components/inspector/LevelsHistogramControl';
+import { LevelsHistogramControl } from '@/components/ui/LevelsHistogramControl';
 import { useProcessingParam } from '@/lib/use-processing-param';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { PipelineManager } from '@/lib/pipeline-manager';

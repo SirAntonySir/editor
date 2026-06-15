@@ -1,19 +1,11 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { useBackendState } from '@/store/backend-state-slice';
-import { backendTools } from '@/lib/backend-tools';
+import { useParam } from '@/lib/use-param';
 
-const DEBOUNCE_MS = 300;
-
-/**
- * Unified hook for reading/writing adjustment parameters.
- * Works in any context: inspector panel, graph node, graph properties panel.
+/** Thin wrapper over {@link useParam} preserving the legacy positional
+ *  signature for widget bodies. All real work lives in `useParam`.
  *
- * @param _layerId - Target layer ID (kept for API compatibility; routing via widget)
- * @param _adjustmentType - Adjustment type (kept for API compatibility)
- * @param adjustmentId - Widget ID from the backend snapshot, or undefined
- * @param paramName - Parameter key
- * @param defaultValue - Default value when param doesn't exist
- */
+ *  The first two positional arguments (`_layerId`, `_adjustmentType`)
+ *  are kept for API compatibility with existing call sites; routing
+ *  is via the widget id only. */
 export function useProcessingParam(
   _layerId: string,
   _adjustmentType: string,
@@ -21,71 +13,5 @@ export function useProcessingParam(
   paramName: string,
   defaultValue: number,
 ): [number, (v: number) => void] {
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Cancel any pending debounced write on unmount — a mid-drag panel
-  // close would otherwise fire set_widget_param against a stale session.
-  useEffect(() => () => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-  }, []);
-
-  // Read: resolve via backend snapshot. If we have a widgetId, look up the
-  // binding value from the widget; fall back to the operation_graph node param.
-  const value = useBackendState((s) => {
-    if (!adjustmentId) return defaultValue;
-
-    // 1. Check optimistic patches first for instant slider feedback.
-    const patch = s.optimistic.get(adjustmentId);
-    if (patch) {
-      const b = patch.bindings.find((p) => p.paramKey === paramName);
-      if (b !== undefined && typeof b.value === 'number') return b.value;
-    }
-
-    // 2. Check widget bindings in snapshot.
-    if (s.snapshot) {
-      const widget = s.snapshot.widgets.find((w) => w.id === adjustmentId);
-      if (widget) {
-        const binding = widget.bindings.find((b) => b.paramKey === paramName);
-        if (binding !== undefined && typeof binding.value === 'number') return binding.value;
-      }
-
-      // 3. Fall back to operation_graph node params (node id === adjustmentId).
-      const node = s.snapshot.operationGraph.nodes.find((n) => n.id === adjustmentId);
-      if (node && typeof node.params[paramName] === 'number') {
-        return node.params[paramName] as number;
-      }
-    }
-
-    return defaultValue;
-  });
-
-  const setValue = useCallback(
-    (v: number) => {
-      if (!adjustmentId) return;
-
-      const { sessionId, snapshot } = useBackendState.getState();
-      if (!sessionId || !snapshot) return;
-
-      const revision = snapshot.revision;
-
-      // Apply optimistic patch for immediate visual feedback.
-      useBackendState.getState().applyOptimistic(adjustmentId, {
-        bindings: [{ paramKey: paramName, value: v }],
-        baseRevision: revision,
-      });
-
-      // Debounced backend call.
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        void backendTools.set_widget_param(sessionId, {
-          widgetId: adjustmentId,
-          paramKey: paramName,
-          value: v,
-        });
-      }, DEBOUNCE_MS);
-    },
-    [adjustmentId, paramName],
-  );
-
-  return [value, setValue];
+  return useParam<number>({ kind: 'widget', widgetId: adjustmentId, paramKey: paramName }, defaultValue);
 }

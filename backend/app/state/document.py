@@ -334,6 +334,15 @@ class SessionDocument(BaseModel):
         })]
 
     # ---------------- per-image-node accessors ----------------
+    #
+    # DOCTRINE — per-image-node addressing is the canonical storage. The
+    # legacy `image_bytes` / `mime_type` / `image_context` / `prepare_result`
+    # singleton fields exist solely to load older persisted documents and are
+    # emptied on revive by `_promote_singletons_to_per_node()`. New code MUST
+    # write through these `set_*(image_node_id, …)` accessors and read through
+    # `get_*(image_node_id)`. `prepare_result_by_node` is regenerable from
+    # `image_bytes_by_node` via PrepareImageTool — it is intentionally not
+    # persisted and not snapshotted.
 
     def set_image_bytes(self, image_node_id: str, data: bytes, *, mime_type: str) -> None:
         """Store image bytes + MIME under a specific image-node id.

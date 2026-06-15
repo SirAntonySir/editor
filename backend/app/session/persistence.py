@@ -3,14 +3,18 @@
 Storage layout under `backend/.sessions/<sid>/`:
 
     image.<ext>             — raw uploaded bytes (owned by disk_session_io)
+    <image_node_id>.<ext>   — additional per-image-node bytes (owned by disk_session_io)
     meta.json               — mime_type + created_at (owned by disk_session_io)
     context.json            — legacy ImageContext cache (owned by disk_session_io)
     document.v1.json        — full SessionDocument snapshot — owned by us
     document.v1.bak.json    — rotated previous version (crash recovery)
 
-`document.v1.json` excludes fields that are either huge (image_bytes —
-already on disk), regenerable (prepare_result — produced by prepare_image),
-or runtime-only (private event-sink attrs).
+`document.v1.json` excludes fields that are either huge (image_bytes,
+image_bytes_by_node — already on disk), regenerable (prepare_result,
+prepare_result_by_node — produced by prepare_image), or runtime-only
+(private event-sink attrs). It DOES include image_context_by_node (small,
+expensive to regenerate). See `_promote_singletons_to_per_node` in
+app/state/document.py for the per-image-node doctrine.
 
 This module is intentionally pure. Caller hands us a SessionDocument and a
 session id; we serialise, write atomically, rotate. No knowledge of the

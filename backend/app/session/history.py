@@ -10,8 +10,9 @@ Why snapshots, not event-sourced inverses:
   "remember to define the inverse" foot-gun.
 
   Snapshot size is small (KBs, not MBs): we capture only the canonical
-  state + the widgets/masks/transforms metadata. Pixel data, image
-  bytes, and the event log itself are excluded.
+  state + the widgets/masks/transforms metadata + per-image-node
+  image_context. Pixel data, image bytes, prepare_result (regenerable),
+  and the event log itself are excluded.
 
 What lives where:
   - One HistoryEngine per SessionRecord (in-memory; not persisted today).
@@ -19,6 +20,14 @@ What lives where:
     `is_user_action` is True.
   - apply_snapshot() lives on SessionDocument so the undo/redo/revert
     endpoints share one rehydration path.
+
+Per-image-node doctrine (see app/state/document.py):
+  - image_context_by_node IS captured and restored.
+  - image_bytes_by_node and prepare_result_by_node are NOT captured —
+    bytes are huge and identical across snapshots; prepare_result is
+    regenerable on demand via PrepareImageTool.
+  - apply_snapshot clears the legacy singleton image_context so a
+    post-undo document satisfies the per-node-only doctrine.
 """
 
 from __future__ import annotations

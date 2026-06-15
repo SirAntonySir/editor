@@ -149,3 +149,25 @@ def test_clear_task_removes_registration() -> None:
         assert store.cancel_task(sid) is False
 
     asyncio.run(runner())
+
+
+def test_get_document_leaves_context_absent_on_corrupt_cache(tmp_path, monkeypatch):
+    """If record.context is a malformed dict that doesn't satisfy
+    EnrichedImageContext, _rehydrate_document_context's exception branch
+    must leave BOTH the legacy singleton AND the per-node entry empty so
+    the next analyze run repopulates cleanly."""
+    from app.services import disk_session_io
+    from app.services.session_store import SessionStore
+    from app.state.document import DEFAULT_IMAGE_NODE_ID
+
+    monkeypatch.setattr(disk_session_io, "SESSIONS_DIR", tmp_path)
+    store = SessionStore(ttl_seconds=60)
+    sid = store.create(image_bytes=b"X", mime_type="image/jpeg")
+    # Inject a malformed context dict on the record so the rehydration's
+    # try/except fires when get_document instantiates the document.
+    record = store.get(sid)
+    record.context = {"this": "is not an EnrichedImageContext"}
+    record.document = None  # force lazy creation on get_document
+    doc = store.get_document(sid)
+    assert doc.image_context is None
+    assert DEFAULT_IMAGE_NODE_ID not in doc.image_context_by_node

@@ -9,6 +9,15 @@ Errors per session are logged and skipped — one bad session doesn't
 prevent the rest from coming back. The disk_session_io image file is
 required (no document is useful without its source image); sessions
 without one are left alone (they'll be cleaned up by prune_disk).
+
+Per-image-node doctrine (see app/state/document.py):
+  After model_validate, every revived document is passed through
+  `_promote_singletons_to_per_node()` so legacy singleton state is
+  promoted into the per-node dicts and the singletons are cleared.
+  Then `disk_session_io.read_per_node_images()` rebuilds any
+  additional per-node image bytes from disk (written by
+  `api/session.py:add_image_to_session`). After revive, no document
+  in the store has any data in the legacy singleton fields.
 """
 
 from __future__ import annotations

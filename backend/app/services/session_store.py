@@ -9,7 +9,9 @@ from dataclasses import dataclass, field
 from threading import Lock
 from typing import TYPE_CHECKING, Any, Iterator
 
+from app.schemas.enriched_context import EnrichedImageContext
 from app.services import disk_session_io
+from app.state.document import DEFAULT_IMAGE_NODE_ID
 
 if TYPE_CHECKING:
     from app.state.document import SessionDocument
@@ -22,10 +24,9 @@ class SessionNotFound(KeyError):
 def _new_document(sid: str, record: "SessionRecord") -> "SessionDocument":
     """Lazy-create a SessionDocument from a SessionRecord.
 
-    Imported inside the function to avoid pulling app.state.document into
-    the session-store module at definition time — keeps the store a pure
-    registry. SessionDocument transitively imports image_context etc.,
-    so we defer until actually needed."""
+    SessionDocument is imported lazily here (despite the top-level import of
+    DEFAULT_IMAGE_NODE_ID from the same module) to avoid the class being
+    resolved before all Pydantic validators are registered at startup."""
     from app.state.document import SessionDocument
     return SessionDocument(
         session_id=sid,
@@ -44,8 +45,6 @@ def _rehydrate_document_context(record: "SessionRecord") -> None:
     we do NOT touch the legacy `image_context` singleton."""
     if record.document is None or record.context is None:
         return
-    from app.schemas.enriched_context import EnrichedImageContext
-    from app.state.document import DEFAULT_IMAGE_NODE_ID
     try:
         parsed = EnrichedImageContext.model_validate(record.context)
         record.document.set_image_context(DEFAULT_IMAGE_NODE_ID, parsed)

@@ -77,8 +77,8 @@ def write_image(sid: str, image_node_id: str, image_bytes: bytes, mime_type: str
 
 
 # Inverse of _EXT_FOR_MIME — used by read_per_node_images to recover the
-# MIME from a file extension on disk. Tracks _EXT_FOR_MIME exactly; if a
-# new MIME is added there, mirror it here.
+# MIME from a file extension on disk. Derived automatically at import time;
+# adding a new MIME to _EXT_FOR_MIME is sufficient.
 _MIME_FOR_EXT = {ext: mime for mime, ext in _EXT_FOR_MIME.items()}
 
 
@@ -88,7 +88,11 @@ def read_per_node_images(sid: str) -> dict[str, tuple[bytes, str]]:
 
     Skips the primary `image.<ext>` (it lives in DiskRecord). Skips any
     file whose extension isn't a known image type — defends against
-    incidental `.json` / `.txt` / dotfiles in the session dir.
+    incidental `.json` / `.txt` / dotfiles in the session dir. Assumes
+    each stem appears with at most one known extension; today the caller
+    in api/session.py mints fresh image_node_ids per upload, so this
+    holds. If write_image is ever called twice for the same id with
+    different MIME types, last-iterated wins (undefined filesystem order).
 
     Used by revive to restore SessionDocument.image_bytes_by_node +
     mime_type_by_node. Returns `{}` when the session dir doesn't exist.

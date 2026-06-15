@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
+import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
 import { LevelsHistogramControl } from '@/components/inspector/LevelsHistogramControl';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { PipelineManager } from '@/lib/pipeline-manager';

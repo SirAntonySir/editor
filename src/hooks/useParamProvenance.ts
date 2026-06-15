@@ -1,6 +1,6 @@
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
-import type { SliderProvenance } from '@/components/inspector/AdjustmentSlider';
+import type { SliderProvenance } from '@/components/ui/AdjustmentSlider';
 
 /** Key a canonical (layer, op, param) slot for the touched-params set. */
 export function touchKey(layerId: string, op: string, param: string): string {

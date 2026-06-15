@@ -4,7 +4,7 @@ import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
 
 const LevelsIcon = createMaterialIcon('tune');
-import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
+import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
 import { LevelsHistogramControl } from '@/components/inspector/LevelsHistogramControl';
 import { useProcessingParam } from '@/lib/use-processing-param';
 import { CanvasRegistry } from '@/lib/canvas-registry';

@@ -1,4 +1,4 @@
-import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
+import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
 import type { RegistryControlProps } from './Slider';
 
 /**

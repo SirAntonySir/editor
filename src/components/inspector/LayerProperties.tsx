@@ -1,5 +1,5 @@
 import { useEditorStore } from '@/store';
-import { AdjustmentSlider } from './AdjustmentSlider';
+import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
 import type { BlendMode } from '@/types/adjustment';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { ChevronDown } from 'lucide-react';

@@ -1,4 +1,4 @@
-import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
+import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
 import { HslPanelView } from '@/components/inspector/adjustments/HslPanelView';
 import { HslSingleBandView } from '@/components/inspector/adjustments/HslSingleBandView';
 import { bindingProvenance, touchKey } from '@/hooks/useParamProvenance';

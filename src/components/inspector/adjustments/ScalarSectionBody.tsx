@@ -1,4 +1,4 @@
-import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
+import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
 import { useCanonicalParam } from '@/hooks/useCanonicalParam';
 import { useParamProvenance, touchKey } from '@/hooks/useParamProvenance';
 import { useEditorStore } from '@/store';

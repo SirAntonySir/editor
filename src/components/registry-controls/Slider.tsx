@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
+import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
 import type { OpParam } from '../../../shared/registry/schema';
 
 export interface RegistryControlProps {

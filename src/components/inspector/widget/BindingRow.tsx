@@ -1,6 +1,6 @@
 import { Pin } from 'lucide-react';
 import type { ControlBinding, CurvesValue, MaskSummary } from '@/types/widget';
-import { AdjustmentSlider, type SliderProvenance } from '@/components/inspector/AdjustmentSlider';
+import { AdjustmentSlider, type SliderProvenance } from '@/components/ui/AdjustmentSlider';
 import { engineNeutralForBinding } from '@/engine/registry';
 import { ToggleControl } from './primitives/ToggleControl';
 import { ChoiceControl } from './primitives/ChoiceControl';

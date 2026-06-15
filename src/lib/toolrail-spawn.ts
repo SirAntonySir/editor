@@ -40,32 +40,14 @@ export function spawnToolWidget(toolName: string): boolean {
   const tool = CanvasToolRegistry.get(toolName);
   if (!tool?.processingId) return false;
 
-  // Must have an active ImageNode to know where to tether the new widget.
-  const editor = useEditorStore.getState();
-  const activeImageNodeId = editor.activeImageNodeId;
-  if (!activeImageNodeId) {
-    toast.info('Select an image first.');
-    return true;
-  }
+  const ctx = _resolveSpawnContext();
+  if (!ctx) return true;
 
-  const sid = useBackendState.getState().sessionId;
-  if (!sid) return true;
-
-  // Resolve layer_id: prefer the editor's activeLayerId when it belongs to
-  // the active image node, otherwise fall back to the node's first layer.
-  const node = editor.imageNodes[activeImageNodeId];
-  if (!node) return true;
-  const layerId =
-    editor.activeLayerId && node.layerIds.includes(editor.activeLayerId)
-      ? editor.activeLayerId
-      : node.layerIds[0];
-  if (!layerId) return true;
-
-  void backendTools.proposeStack(sid, {
+  void backendTools.proposeStack(ctx.sid, {
     intent: tool.label ?? tool.processingId,
-    scope: _scopeForSpawn(node, editor.activeScope),
+    scope: ctx.scope,
     forced_ops: [tool.processingId],
-    layerId,
+    layerId: ctx.layerId,
     origin: 'tool_invoked',
   });
   return true;

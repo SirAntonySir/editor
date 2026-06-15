@@ -16,6 +16,8 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 import { editorDocument } from '@/core/document';
 import { ImageNode, type ImageNodeData } from './ImageNode';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import type { NodeProps } from '@xyflow/react';
 import { WidgetNode, type WidgetNodeData } from './WidgetNode';
 import { TetherEdge, type TetherEdgeType } from './TetherEdge';
 import { pickTetherHandles } from './tether-handles';
@@ -23,7 +25,20 @@ import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
 import { InfoNode, type InfoNodeData } from './InfoNode';
 import type { Widget } from '@/types/widget';
 
-const nodeTypes = { image: ImageNode, widget: WidgetNode, info: InfoNode };
+/** Per-node ErrorBoundary so a render throw in one ImageNode doesn't
+ *  unmount the whole React Flow canvas (and with it every sibling node).
+ *  Defined here rather than inside ImageNode itself because a function
+ *  component cannot catch its own render throws — the boundary has to be
+ *  a parent. */
+function ImageNodeWithBoundary(props: NodeProps) {
+  return (
+    <ErrorBoundary label={`image-node:${props.id}`}>
+      <ImageNode {...(props as unknown as Parameters<typeof ImageNode>[0])} />
+    </ErrorBoundary>
+  );
+}
+
+const nodeTypes = { image: ImageNodeWithBoundary, widget: WidgetNode, info: InfoNode };
 const edgeTypes = { tether: TetherEdge };
 
 /**

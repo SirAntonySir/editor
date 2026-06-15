@@ -2,6 +2,7 @@ import { usePreferencesStore } from '@/store/preferences-store';
 import { useEditorStore } from '@/store';
 import { SidebarShell } from './SidebarShell';
 import { InspectorPanel } from '@/components/inspector/InspectorPanel';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
 /** The right sidebar wraps the inspector (adjustments, info tab, crop). Every
  *  panel inside it gates on `activeLayerId` / an open image — without one the
@@ -27,7 +28,9 @@ export function RightSidebar() {
       onWidthChange={setWidth}
     >
       <div className="flex flex-col h-full">
-        <InspectorPanel />
+        <ErrorBoundary label="inspector">
+          <InspectorPanel />
+        </ErrorBoundary>
       </div>
     </SidebarShell>
   );

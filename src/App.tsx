@@ -6,6 +6,7 @@ import { CanvasWorkspace } from '@/components/workspace/CanvasWorkspace';
 
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 import { FloatingDock } from '@/components/ui/FloatingDock';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { CommandPalette } from '@/components/CommandPalette';
 import { MenuBar } from '@/components/toolbar/MenuBar';
 import { RightSidebar } from '@/components/panels/RightSidebar';
@@ -250,10 +251,40 @@ export default function App() {
   }, []);
 
   return (
-    <ReactFlowProvider>
-      <EditorProvider>
-        <EditorContent />
-      </EditorProvider>
-    </ReactFlowProvider>
+    <ErrorBoundary
+      label="app"
+      fallback={(error, retry) => (
+        <div className="fixed inset-0 flex items-center justify-center bg-background">
+          <div className="flex flex-col items-center gap-3 p-6 max-w-md bg-surface border border-separator rounded-[var(--radius-button)] shadow-md">
+            <div className="text-text-primary font-medium">The editor crashed.</div>
+            <pre className="max-w-full overflow-x-auto whitespace-pre-wrap text-[11px] text-text-secondary opacity-80">
+              {error.message}
+            </pre>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={retry}
+                className="px-3 py-1.5 text-[12px] rounded-[3px] bg-surface-secondary hover:bg-surface-secondary/80 border border-separator cursor-pointer"
+              >
+                Try again
+              </button>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="px-3 py-1.5 text-[12px] rounded-[3px] bg-accent text-accent-foreground hover:opacity-90 cursor-pointer"
+              >
+                Reload
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    >
+      <ReactFlowProvider>
+        <EditorProvider>
+          <EditorContent />
+        </EditorProvider>
+      </ReactFlowProvider>
+    </ErrorBoundary>
   );
 }

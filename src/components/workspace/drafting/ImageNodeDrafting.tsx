@@ -126,15 +126,15 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   const imageNodeMode = useEditorStore((s) => s.imageNodeMode[id]);
   const setImageNodeMode = useEditorStore((s) => s.setImageNodeMode);
   const objects = useImageNodeObjects(id);
-  const activeScope = useEditorStore((s) => s.activeScope);
-  // The "selected object" reachable from the image-node menu: the active-
-  // scope mask, but only when that mask belongs to one of THIS node's
-  // objects (so the same context menu opening on a different node doesn't
-  // see another node's selection).
+  const activeObjectId = useEditorStore((s) => s.activeObjectId);
+  // The "selected object" reachable from the image-node menu: the active
+  // object, but only when that object belongs to one of THIS node's objects
+  // (so the same context menu opening on a different node doesn't see
+  // another node's selection).
   const selectedObject = useMemo(() => {
-    if (activeScope.kind !== 'mask') return null;
-    return objects.find((o) => o.id === activeScope.mask_id) ?? null;
-  }, [activeScope, objects]);
+    if (activeObjectId === null) return null;
+    return objects.find((o) => o.id === activeObjectId) ?? null;
+  }, [activeObjectId, objects]);
   // Only set on nodes produced by "Extract to Image Node" — drives the
   // "Rejoin source image" menu item that undoes the extract.
   const sourceImageNodeId = useEditorStore(

@@ -258,12 +258,20 @@ class SessionDocument(BaseModel):
         if widget_id not in self.widgets:
             raise KeyError(widget_id)
         w = self.widgets[widget_id]
+        # Snapshot the pre-dismiss status — accepted widgets have committed
+        # their bindings into canonical (see accept_widget), so closing the
+        # widget afterwards must NOT roll those values back. Only un-accepted
+        # widgets (status == "active") reset canonical on close, matching the
+        # "user cancelled before applying" semantics.
+        was_accepted = w.status == "accepted"
         w.status = "dismissed"
         w.updated_at = datetime.now(timezone.utc)
-        # Close (×) discards the adjustment: reset the canonical params this
-        # widget owns before emitting, so the widget.deleted op_graph payload
-        # already reflects the removed node. (accept_widget keeps canonical.)
-        self._reset_canonical_from_widget(w)
+        if not was_accepted:
+            # Close (×) on an active widget discards the adjustment: reset
+            # the canonical params this widget owns before emitting, so the
+            # widget.deleted op_graph payload already reflects the removed
+            # node.
+            self._reset_canonical_from_widget(w)
         events = [self._emit("widget.deleted", {
             "widgetId": widget_id,
             "operationGraph": self._op_graph_payload(),

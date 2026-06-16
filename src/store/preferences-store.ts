@@ -31,8 +31,8 @@ const RADIUS_VALUES: Record<RadiusScale, { panel: string; button: string; sm: st
 };
 
 export type RightSidebarTab = 'inspector' | 'ai';
-/** Inner tab of the inspector panel (Adjustments vs Info/context vs Crop). */
-export type InspectorTab = 'adjustments' | 'info' | 'crop';
+/** Inner tab of the inspector panel (Adjustments vs Info/context vs Layer vs Crop). */
+export type InspectorTab = 'adjustments' | 'info' | 'layer' | 'crop';
 
 export interface PreferencesState {
   themeMode: ThemeMode;

@@ -3,6 +3,7 @@ import { usePreferencesStore, type InspectorTab } from '@/store/preferences-stor
 import { useEditorStore } from '@/store';
 import { AdjustmentsAccordion } from './adjustments/AdjustmentsAccordion';
 import { InfoTab } from './info/InfoTab';
+import { LayerTab } from './layer/LayerTab';
 import { CropTab } from './crop/CropTab';
 
 // The active inner tab is store-driven (preferences-store.inspectorTab) so other
@@ -24,10 +25,12 @@ export function InspectorPanel() {
       >
         <TabButton value="adjustments" label="Adjustments" active={tab === 'adjustments'} />
         <TabButton value="info" label="Info" active={tab === 'info'} />
+        <TabButton value="layer" label="Layer" active={tab === 'layer'} />
         <TabButton value="crop" label="Crop" active={tab === 'crop'} disabled={cropDisabled} />
       </ToggleGroup.Root>
       {tab === 'adjustments' && <AdjustmentsAccordion />}
       {tab === 'info' && <InfoTab />}
+      {tab === 'layer' && <LayerTab />}
       {tab === 'crop' && <CropTab />}
     </div>
   );

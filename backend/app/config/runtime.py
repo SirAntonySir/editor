@@ -28,12 +28,14 @@ class RuntimeConfig(BaseModel):
     history_max_entries: int = 100
     undo_max_entries: int = 100
     checkpoint_interval_s: int = 5
-    # Background sweep that deletes on-disk session directories whose
-    # `created_at` is older than this. Without it, .sessions/ grows
-    # unbounded (each entry holds the source image bytes). Runs every
-    # `disk_prune_interval_s`. Default: 7 days retention, hourly sweep.
-    disk_session_max_age_s: int = 7 * 24 * 3600
-    disk_prune_interval_s: int = 3600
+    # Background sweep that deletes session state (both in-memory records
+    # and on-disk directories) older than this. Without it, .sessions/
+    # grows unbounded and the in-memory records map holds source image
+    # bytes for sessions that never receive another `get()` to trip the
+    # lazy TTL check. Runs every `disk_prune_interval_s`. Default: 1h
+    # retention, 10-minute sweep.
+    disk_session_max_age_s: int = 3600
+    disk_prune_interval_s: int = 600
     # When a user-action tool is invoked with the same `coalesce_key` as
     # the last entry on the undo stack within this window, the last
     # entry's `after` snapshot is updated in place rather than pushing a

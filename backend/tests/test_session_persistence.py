@@ -128,6 +128,23 @@ def test_prune_disk_skips_entries_without_meta(tmp_path, monkeypatch):
     assert (tmp_path / "stray-file").exists()
 
 
+def test_prune_memory_drops_stale_records():
+    """prune_memory evicts records whose last_seen exceeds max_age and
+    leaves fresh ones alone."""
+    from app.services.session_store import SessionStore
+
+    s = SessionStore(ttl_seconds=999)
+    stale_sid = s.create(b"old", "image/jpeg")
+    # Backdate last_seen so the record looks older than the threshold.
+    s._records[stale_sid].last_seen = time.monotonic() - 10_000
+    fresh_sid = s.create(b"new", "image/jpeg")
+
+    evicted = s.prune_memory(max_age_seconds=3600)
+    assert evicted == 1
+    assert stale_sid not in s._records
+    assert fresh_sid in s._records
+
+
 def test_prune_disk_handles_missing_sessions_dir(tmp_path, monkeypatch):
     """No SESSIONS_DIR → 0 pruned, no error."""
     monkeypatch.setattr("app.services.disk_session_io.SESSIONS_DIR", tmp_path / "nope")

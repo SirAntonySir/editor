@@ -206,6 +206,26 @@ class SessionStore:
         task.cancel()
         return True
 
+    def prune_memory(self, max_age_seconds: float) -> int:
+        """Drop in-memory session records whose `last_seen` is older than
+        `max_age_seconds` (monotonic-clock comparison). Returns the
+        number of records evicted.
+
+        Eviction in `get()` is lazy — a session that's never re-fetched
+        keeps its source image bytes in the records map indefinitely.
+        Call this from a background sweep to bound RAM."""
+        now = time.monotonic()
+        with self._lock:
+            stale = [
+                sid
+                for sid, rec in self._records.items()
+                if (now - rec.last_seen) > max_age_seconds
+            ]
+            for sid in stale:
+                self._records.pop(sid, None)
+                self._active_tasks.pop(sid, None)
+        return len(stale)
+
     def prune_disk(self, max_age_seconds: float) -> int:
         """Delete on-disk session directories whose `created_at` is older than
         `max_age_seconds` (compared against current wall-clock time). Returns

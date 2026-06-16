@@ -13,11 +13,11 @@ from .mcp.server import router as mcp_router
 logger = logging.getLogger(__name__)
 
 
-async def _disk_prune_loop(store) -> None:
-    """Background task: periodically delete on-disk session directories
-    whose `created_at` is older than `disk_session_max_age_s`. Without
-    this, `.sessions/` grows unbounded (each entry holds source image
-    bytes).
+async def _session_prune_loop(store) -> None:
+    """Background task: periodically evict session state older than
+    `disk_session_max_age_s` — both the in-memory records map (which
+    holds source image bytes) and the on-disk `.sessions/` directories.
+    Without this both grow unbounded for sessions the user abandons.
     """
     runtime = get_app_config().runtime
     interval = runtime.disk_prune_interval_s
@@ -25,11 +25,15 @@ async def _disk_prune_loop(store) -> None:
     while True:
         await asyncio.sleep(interval)
         try:
-            n = await asyncio.to_thread(store.prune_disk, max_age)
-            if n:
-                logger.info("disk-prune: removed %d stale sessions", n)
+            mem = await asyncio.to_thread(store.prune_memory, max_age)
+            disk = await asyncio.to_thread(store.prune_disk, max_age)
+            if mem or disk:
+                logger.info(
+                    "session-prune: evicted %d in-memory, removed %d on-disk",
+                    mem, disk,
+                )
         except Exception:
-            logger.exception("disk-prune: sweep failed")
+            logger.exception("session-prune: sweep failed")
 
 
 @asynccontextmanager
@@ -42,7 +46,8 @@ async def lifespan(_app: FastAPI):
       - Start the session checkpointer's background tick so any dirty
         SessionDocument is flushed to disk within the configured interval
         (RUNTIME.checkpoint_interval_s).
-      - Start the disk-pruner so stale .sessions/ entries are evicted.
+      - Start the session-pruner so stale in-memory records and
+        .sessions/ entries are evicted.
 
     On shutdown:
       - Stop the ticks and drain any still-dirty sessions so a graceful
@@ -55,7 +60,9 @@ async def lifespan(_app: FastAPI):
     store = get_session_store()
     revive.revive_all(store)
     await store.checkpointer.start()
-    prune_task = asyncio.create_task(_disk_prune_loop(store), name="disk-pruner")
+    prune_task = asyncio.create_task(
+        _session_prune_loop(store), name="session-pruner",
+    )
     try:
         yield
     finally:

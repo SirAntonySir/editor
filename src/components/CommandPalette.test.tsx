@@ -132,11 +132,10 @@ describe('CommandPalette execution', () => {
     await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
     // proposeFromPalette now accepts an optional third arg for attached
     // context items (from the chip-menu / context-attachment strip). An
-    // empty array is sent when no chips were attached. The scope is now
-    // `image_node` so the backend knows which canvas the prompt targets.
+    // empty array is sent when no chips were attached.
     expect(proposeFromPalette).toHaveBeenCalledWith(
       'make it warmer',
-      { kind: 'image_node', imageNodeId: nodeId, layerIds: ['l1'] },
+      { kind: 'global' },
       [],
     );
     expect(analyseActiveImageLayer).not.toHaveBeenCalled();
@@ -174,7 +173,7 @@ describe('CommandPalette execution', () => {
     await waitFor(() => expect(analyseActiveImageLayer).toHaveBeenCalled());
     await waitFor(() => expect(proposeFromPalette).toHaveBeenCalledWith(
       'make it warmer',
-      { kind: 'image_node', imageNodeId: nodeId, layerIds: ['l1'] },
+      { kind: 'global' },
       [],
     ));
   });

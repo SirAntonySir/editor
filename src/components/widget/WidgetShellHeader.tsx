@@ -11,8 +11,6 @@ import {
 import type { Widget } from '@/types/widget';
 import { loadRegistry } from '@/lib/registry/loader';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { useEditorStore } from '@/store';
-import { imageNodeLabel } from '@/lib/command-palette';
 
 /** Plain "?" glyph sized to match the lucide icon row. Used instead of
  *  `HelpCircle` so the affordance has no outline — fits the flat register. */
@@ -78,24 +76,11 @@ function staticScopeLabel(widget: Widget): string | null {
   if (s.kind === 'named_region') return s.label;
   if (s.kind === 'mask:proposed') return s.label;
   if (s.kind === 'mask') return s.mask_id ? s.mask_id.slice(0, 6) : null;
-  // image_node is handled by `useScopeLabel` so the chip mirrors any rename.
   return null;
 }
 
-/** Resolve the scope chip text. For image_node scopes, prefer the user-set
- *  override on the workspace node, then fall back to the first layer's name
- *  (matches the Cmd+K target chip via `imageNodeLabel`). */
+/** Resolve the scope chip text. */
 function useScopeLabel(widget: Widget): string | null {
-  const imageNode = useEditorStore((s) =>
-    widget.scope.kind === 'image_node'
-      ? s.imageNodes[widget.scope.imageNodeId]
-      : undefined,
-  );
-  const layers = useEditorStore((s) => s.layers);
-  if (widget.scope.kind === 'image_node') {
-    if (!imageNode) return `Image (${widget.scope.layerIds.length})`;
-    return imageNodeLabel(imageNode, layers);
-  }
   return staticScopeLabel(widget);
 }
 

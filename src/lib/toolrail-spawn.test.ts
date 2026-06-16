@@ -43,7 +43,7 @@ describe('spawnToolWidget', () => {
     expect(backendTools.proposeStack).not.toHaveBeenCalled();
   });
 
-  it('active node → proposeStack with forced_ops and an image_node scope keyed on the active node', async () => {
+  it('active node → proposeStack with forced_ops and global scope', async () => {
     const { backendTools } = await import('@/lib/backend-tools');
     useBackendState.setState({ sessionId: 's1' });
 
@@ -53,14 +53,14 @@ describe('spawnToolWidget', () => {
     expect(spawnToolWidget('light')).toBe(true);
     expect(backendTools.proposeStack).toHaveBeenCalledWith('s1', {
       intent: 'Light',
-      scope: { kind: 'image_node', imageNodeId: nodeId, layerIds: ['layer-a', 'layer-b'] },
+      scope: { kind: 'global' },
       forced_ops: ['light'],
       layerId: 'layer-a',
       origin: 'tool_invoked',
     });
   });
 
-  it('active mask scope wins over image_node — user-selected scope is preserved', async () => {
+  it('active mask scope wins — user-selected scope is preserved', async () => {
     const { backendTools } = await import('@/lib/backend-tools');
     useBackendState.setState({ sessionId: 's1' });
 

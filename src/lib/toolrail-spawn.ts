@@ -13,20 +13,16 @@ import { toast } from '@/components/ui/Toast';
 import { GLOBAL_SCOPE, type Scope } from '@/types/scope';
 import type { ImageNodeState } from '@/types/workspace';
 
-/** Build the default propose-widget scope for a spawn against `node`.
+/** Build the default propose-widget scope for a spawn.
  *  An explicit mask / named_region scope on `activeScope` always wins —
- *  the user picked it for a reason. Otherwise we lift the bare GLOBAL_SCOPE
- *  default to an `image_node` scope so the backend can tie the new widget
- *  to the currently selected ImageNode's layer set. When no node is active
- *  (legacy / pre-spawn flow) we fall back to GLOBAL_SCOPE. */
+ *  the user picked it for a reason. Otherwise fall back to GLOBAL_SCOPE —
+ *  image-node selection is carried separately via activeImageNodeId. */
 function _scopeForSpawn(
-  node: ImageNodeState | null,
+  _node: ImageNodeState | null,
   activeScope: Scope | undefined,
 ): Scope {
   if (activeScope && activeScope.kind !== 'global') return activeScope;
-  return node
-    ? { kind: 'image_node', imageNodeId: node.id, layerIds: [...node.layerIds] }
-    : GLOBAL_SCOPE;
+  return GLOBAL_SCOPE;
 }
 
 /**

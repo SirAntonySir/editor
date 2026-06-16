@@ -229,18 +229,13 @@ export function CommandPalette() {
       }
       if (cmd.kind === 'ai') {
         if (pending) return; // already in flight — ignore double-submit
-        // Forward an explicit mask scope when one is set; otherwise lift the
-        // bare global default to an `image_node` scope keyed on the active
-        // ImageNode so the backend knows which canvas the prompt targets.
-        // Falls back to plain global when no node is active.
+        // Forward an explicit mask scope when one is set; otherwise fall back
+        // to plain global — image-node selection lives in activeImageNodeId.
         const state = useEditorStore.getState();
         const oid = state.activeObjectId;
-        const node = state.activeImageNodeId ? state.imageNodes[state.activeImageNodeId] : null;
         const scope: Scope = oid !== null
           ? { kind: 'mask', mask_id: oid }
-          : node
-            ? { kind: 'image_node', imageNodeId: node.id, layerIds: [...node.layerIds] }
-            : { kind: 'global' };
+          : { kind: 'global' };
         const submitted = query.trim();
         setPending(submitted);
         setErrorState(null);

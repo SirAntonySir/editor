@@ -256,13 +256,7 @@ export function CanvasWorkspace() {
       if (!rfWidget) continue;
 
       let targetId: string | null = null;
-      let scopeKind: 'layer' | 'node' = 'layer';
-      if (w.scope.kind === 'image_node') {
-        if (imageNodes[w.scope.imageNodeId]) {
-          targetId = w.scope.imageNodeId;
-          scopeKind = 'node';
-        }
-      }
+      const scopeKind: 'layer' | 'node' = 'layer';
       if (!targetId) {
         const layerId = w.nodes[0]?.layerId;
         if (layerId) {

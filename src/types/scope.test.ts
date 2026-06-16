@@ -36,21 +36,4 @@ describe('scopeEquals', () => {
     expect(scopeEquals(a, b)).toBe(false);
   });
 
-  it('image_node equals same id and layer_ids order', () => {
-    const a: Scope = { kind: 'image_node', imageNodeId: 'in-1', layerIds: ['l-1', 'l-2'] };
-    const b: Scope = { kind: 'image_node', imageNodeId: 'in-1', layerIds: ['l-1', 'l-2'] };
-    expect(scopeEquals(a, b)).toBe(true);
-  });
-
-  it('image_node different image_node_id is not equal', () => {
-    const a: Scope = { kind: 'image_node', imageNodeId: 'in-1', layerIds: [] };
-    const b: Scope = { kind: 'image_node', imageNodeId: 'in-2', layerIds: [] };
-    expect(scopeEquals(a, b)).toBe(false);
-  });
-
-  it('image_node different layer_ids order is not equal', () => {
-    const a: Scope = { kind: 'image_node', imageNodeId: 'in-1', layerIds: ['l-1', 'l-2'] };
-    const b: Scope = { kind: 'image_node', imageNodeId: 'in-1', layerIds: ['l-2', 'l-1'] };
-    expect(scopeEquals(a, b)).toBe(false);
-  });
 });

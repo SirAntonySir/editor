@@ -80,13 +80,10 @@ export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}
     // it out as a single-op forced spawn (see _handle_filter_spawn).
     const state = useEditorStore.getState();
     const oid = state.activeObjectId;
-    const node = state.activeImageNodeId ? state.imageNodes[state.activeImageNodeId] : null;
     const scope =
       oid !== null
         ? { kind: 'mask' as const, mask_id: oid }
-        : node
-          ? { kind: 'image_node' as const, imageNodeId: node.id, layerIds: [...node.layerIds] }
-          : { kind: 'global' as const };
+        : { kind: 'global' as const };
     void backendTools.proposeStack(sid, {
       intent: `Apply ${lut.title} filter`,
       scope,

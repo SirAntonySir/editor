@@ -17,7 +17,6 @@ import {
 } from '@/lib/segmentation/object-actions';
 import { computeEffectiveSize, type Crop } from '@/lib/image-node-geometry';
 import { ImageNodeBody } from '../ImageNodeBody';
-import { ImageNodeResizeHandle } from '../ImageNodeResizeHandle';
 import { SegmentHitLayer } from '../SegmentHitLayer';
 import { ImageNodeObjectsLayer } from '../ImageNodeObjectsLayer';
 import { CornerTicks } from './CornerTicks';
@@ -377,7 +376,16 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
             marginWidth={RIGHT_MARGIN}
           />
 
-          {!selected && <CornerTicks />}
+          {/* Corner ticks double as the resize handles when the node is
+              selected — they animate from small inset ticks to slightly
+              larger handles sitting on the image-body corners. Replaces the
+              old standalone bottom-right `ImageNodeResizeHandle`. */}
+          <CornerTicks
+            imageNodeId={id}
+            displayWidth={displayW}
+            displayHeight={displayH}
+            selected={selected}
+          />
 
           {/* Selection frame fades in on `selected`. Width transitions only
               opacity so the body box stays steady. */}
@@ -387,7 +395,6 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
             style={{ opacity: selected ? 1 : 0 }}
           />
 
-          {selected && <ImageNodeResizeHandle imageNodeId={id} displayWidth={displayW} />}
 
           {/* React Flow connection points — anchored to the image body so
               tether edges land on the image rectangle's edges, not the

@@ -51,6 +51,7 @@ export function SegmentHitLayer({
   imageNodeId, widthPx, heightPx, objectsMode,
 }: SegmentHitLayerProps) {
   const layerRef = useRef<HTMLDivElement>(null);
+  const [hoveringObject, setHoveringObject] = useState(false);
   // Read from useBackendState — this is the authoritative tool-session
   // store and stays populated across reloads (reattached from localStorage
   // via useBackendSession). useAiSession.sessionId mirrors the same id
@@ -205,6 +206,28 @@ export function SegmentHitLayer({
     [candidate, existingObjects, objectsMode],
   );
 
+  // Track whether the cursor is currently over an object's mask pixels.
+  // Drives a `cursor: pointer` swap so the user can tell when a click will
+  // select an object vs drag the node (layers mode) / draw a SAM point
+  // (objects mode). Throttling is unnecessary — React batches per frame and
+  // the hit-test is O(#objects); even with 10 objects it's a handful of
+  // pixel reads per pointermove.
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const el = layerRef.current;
+      if (!el) return;
+      const [nx, ny] = clientToNormalised(e, el);
+      const overObject = existingObjects.some((obj) => {
+        const x = Math.min(obj.mask.width - 1, Math.max(0, Math.floor(nx * obj.mask.width)));
+        const y = Math.min(obj.mask.height - 1, Math.max(0, Math.floor(ny * obj.mask.height)));
+        return obj.mask.data[y * obj.mask.width + x] === 255;
+      });
+      setHoveringObject((prev) => (prev === overObject ? prev : overObject));
+    },
+    [existingObjects],
+  );
+  const handlePointerLeave = useCallback(() => setHoveringObject(false), []);
+
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       const el = layerRef.current;
@@ -259,21 +282,27 @@ export function SegmentHitLayer({
       ref={layerRef}
       data-testid="segment-hit-layer"
       data-image-node-id={imageNodeId}
-      // `nodrag` / `nopan` opt-out so React Flow doesn't swallow pointer
-      // events — only applied in objects mode where the body is a SAM
-      // segmenting surface. In layers mode, drop the opt-out so a press-
-      // drag on the image body moves the ImageNode (React Flow uses the
-      // node element as the drag handle when no `nodrag` descendant
-      // claims the pointer-down). A simple click without movement still
-      // fires our onClick / onContextMenu first.
+      // Classes:
+      //  - objects mode: `nodrag nopan` opts out of React Flow's pointer
+      //    handling so SAM clicks aren't swallowed; cursor is a crosshair
+      //    for aim.
+      //  - layers mode: `workspace-drag-handle` opts INTO React Flow's
+      //    body-as-drag-handle path (the node otherwise gates drag on this
+      //    class — see CanvasWorkspace's `dragHandle` config). Cursor is
+      //    `pointer` over an object's mask pixels (about to select), `grab`
+      //    elsewhere (about to move the node).
       className={
         objectsMode
           ? 'nodrag nopan absolute inset-0 cursor-crosshair'
-          : 'absolute inset-0'
+          : `workspace-drag-handle absolute inset-0 ${
+              hoveringObject ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
+            }`
       }
       style={{ pointerEvents: 'auto', zIndex: 5 }}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
+      onPointerMove={handlePointerMove}
+      onPointerLeave={handlePointerLeave}
     >
       <SegmentMaskPreview
         mask={candidate?.mask ?? null}

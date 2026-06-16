@@ -186,11 +186,22 @@ export function useBackendSession(): void {
           // on reload until we repopulate it from IDB.
           const persistedState = await getEditorState<PersistedEditorState>(persisted);
           if (persistedState) {
+            // Restore layers + workspace graph in ONE setState so the
+            // auto-create effect in CanvasWorkspace sees the rehydrated
+            // imageNodes alongside the layers. Without the workspace
+            // fields, that effect would collapse all layers into a single
+            // new node.
             useEditorStore.setState({
               layers: persistedState.layers,
               activeLayerId: persistedState.activeLayerId,
               pixelVersion: persistedState.pixelVersion,
               documentMeta: persistedState.documentMeta,
+              imageNodes: persistedState.imageNodes ?? {},
+              widgetNodes: persistedState.widgetNodes ?? {},
+              tetherEdges: persistedState.tetherEdges ?? {},
+              infoNodes: persistedState.infoNodes ?? {},
+              activeImageNodeId: persistedState.activeImageNodeId ?? null,
+              imageNodeMode: persistedState.imageNodeMode ?? {},
             });
           }
           void restorePixelSources(persisted);

@@ -108,7 +108,9 @@ export const createSelectionSlice: StateCreator<
     set((s) => {
       s.cycleStack = { originX: imageX, originY: imageY, candidates: sorted, cursor: 0 };
       s.activeScope = { kind: 'mask', mask_id: id };
+      s.activeObjectId = id;
       s.hoveredScope = { kind: 'mask', mask_id: id };
+      s.hoveredObjectId = id;
     });
     return id;
   },
@@ -118,7 +120,9 @@ export const createSelectionSlice: StateCreator<
       set((s) => {
         s.cycleStack = null;
         s.activeScope = GLOBAL_SCOPE;
+        s.activeObjectId = null;
         s.hoveredScope = null;
+        s.hoveredObjectId = null;
       });
       return;
     }
@@ -134,7 +138,9 @@ export const createSelectionSlice: StateCreator<
       set((s) => {
         s.cycleStack = next;
         s.activeScope = selMask ? { kind: 'mask', mask_id: selMask } : GLOBAL_SCOPE;
+        s.activeObjectId = selMask ?? null;
         s.hoveredScope = selMask ? { kind: 'mask', mask_id: selMask } : null;
+        s.hoveredObjectId = selMask ?? null;
       });
       return;
     }
@@ -142,7 +148,9 @@ export const createSelectionSlice: StateCreator<
     set((s) => {
       s.cycleStack = { originX: imageX, originY: imageY, candidates: sorted, cursor: 0 };
       s.activeScope = { kind: 'mask', mask_id: sorted[0] };
+      s.activeObjectId = sorted[0];
       s.hoveredScope = { kind: 'mask', mask_id: sorted[0] };
+      s.hoveredObjectId = sorted[0];
     });
   },
 });

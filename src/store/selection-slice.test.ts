@@ -90,6 +90,21 @@ describe('selection-slice — bridge', () => {
     useEditorStore.getState().setActiveObjectId('m-2');
     const s = useEditorStore.getState().activeScope;
     expect(s.kind).toBe('mask');
-    expect(s.kind === 'mask' && s.mask_id).toBe('m-2');
+    if (s.kind === 'mask') expect(s.mask_id).toBe('m-2');
+  });
+});
+
+describe('selection-slice — bridge through clickAt', () => {
+  beforeEach(() => useEditorStore.getState().clearSelection());
+
+  it('clickAt with a single candidate mirrors activeScope to activeObjectId', () => {
+    useEditorStore.getState().clickAt(0, 0, ['m-9']);
+    expect(useEditorStore.getState().activeObjectId).toBe('m-9');
+  });
+
+  it('clickAt with empty candidates clears activeObjectId', () => {
+    useEditorStore.getState().setActiveObjectId('m-1');
+    useEditorStore.getState().clickAt(0, 0, []);
+    expect(useEditorStore.getState().activeObjectId).toBeNull();
   });
 });

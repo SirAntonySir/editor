@@ -218,8 +218,7 @@ export function CanvasWorkspace() {
   }, []);
 
   // Edges are auto-derived from active widgets. Each widget gets one edge to
-  // the image node it belongs to: image_node-scoped widgets target their
-  // `scope.imageNodeId`; otherwise we resolve via `nodes[0].layerId` and
+  // the image node it belongs to: resolve via the first node's layerId and
   // fall back to the active image node.
   const edges = useMemo<TetherEdgeType[]>(() => {
     const out: TetherEdgeType[] = [];
@@ -256,13 +255,10 @@ export function CanvasWorkspace() {
       if (!rfWidget) continue;
 
       let targetId: string | null = null;
-      const scopeKind: 'layer' | 'node' = 'layer';
-      if (!targetId) {
-        const layerId = w.nodes[0]?.layerId;
-        if (layerId) {
-          for (const n of Object.values(imageNodes)) {
-            if (n.layerIds.includes(layerId)) { targetId = n.id; break; }
-          }
+      const layerId = w.nodes[0]?.layerId;
+      if (layerId) {
+        for (const n of Object.values(imageNodes)) {
+          if (n.layerIds.includes(layerId)) { targetId = n.id; break; }
         }
       }
       if (!targetId && activeImageNodeId && imageNodes[activeImageNodeId]) {
@@ -298,7 +294,7 @@ export function CanvasWorkspace() {
         sourceHandle,
         targetHandle,
         type: 'tether',
-        data: { scopeKind },
+        data: { scopeKind: 'layer' as const },
         selectable: false,
       });
     }

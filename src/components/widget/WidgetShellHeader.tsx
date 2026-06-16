@@ -79,8 +79,8 @@ function staticScopeLabel(widget: Widget): string | null {
   return null;
 }
 
-/** Resolve the scope chip text. */
-function useScopeLabel(widget: Widget): string | null {
+/** Resolve the scope chip text. Pure delegation — no store subscription. */
+function scopeLabelFor(widget: Widget): string | null {
   return staticScopeLabel(widget);
 }
 
@@ -124,7 +124,7 @@ export function WidgetShellHeader({
   // provenance colour.
   void dirty;
   const ai = isAiVariant(widget);
-  const scope = useScopeLabel(widget);
+  const scope = scopeLabelFor(widget);
 
   return (
     <div

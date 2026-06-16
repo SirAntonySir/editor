@@ -11,16 +11,12 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { toast } from '@/components/ui/Toast';
 import { GLOBAL_SCOPE, type Scope } from '@/types/scope';
-import type { ImageNodeState } from '@/types/workspace';
 
 /** Build the default propose-widget scope for a spawn.
  *  An explicit mask / named_region scope on `activeScope` always wins —
  *  the user picked it for a reason. Otherwise fall back to GLOBAL_SCOPE —
  *  image-node selection is carried separately via activeImageNodeId. */
-function _scopeForSpawn(
-  _node: ImageNodeState | null,
-  activeScope: Scope | undefined,
-): Scope {
+function _scopeForSpawn(activeScope: Scope | undefined): Scope {
   if (activeScope && activeScope.kind !== 'global') return activeScope;
   return GLOBAL_SCOPE;
 }
@@ -73,7 +69,7 @@ function _resolveSpawnContext(): {
       ? editor.activeLayerId
       : node.layerIds[0];
   if (!layerId) return null;
-  return { sid, layerId, scope: _scopeForSpawn(node, editor.activeScope) };
+  return { sid, layerId, scope: _scopeForSpawn(editor.activeScope) };
 }
 
 /** Spawn a single-op widget by registry op id. Used by Cmd+K when the user

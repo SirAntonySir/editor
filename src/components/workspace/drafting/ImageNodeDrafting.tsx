@@ -9,6 +9,12 @@ import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
 import { backendTools } from '@/lib/backend-tools';
 import { editorDocument } from '@/core/document';
 import { toast } from '@/components/ui/Toast';
+import {
+  convertObjectToLayerMask,
+  extractObjectToImageNode,
+  deleteObject,
+  startObjectRename,
+} from '@/lib/segmentation/object-actions';
 import { computeEffectiveSize, type Crop } from '@/lib/image-node-geometry';
 import { ImageNodeBody } from '../ImageNodeBody';
 import { ImageNodeResizeHandle } from '../ImageNodeResizeHandle';
@@ -18,6 +24,7 @@ import { CornerTicks } from './CornerTicks';
 import { TopMarginalia } from './TopMarginalia';
 import { BottomMarginalia } from './BottomMarginalia';
 import { LayerStrip } from './LayerStrip';
+import { ObjectMarkers } from './ObjectMarkers';
 
 interface ImageNodeDraftingProps {
   id: string;
@@ -119,6 +126,15 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   const imageNodeMode = useEditorStore((s) => s.imageNodeMode[id]);
   const setImageNodeMode = useEditorStore((s) => s.setImageNodeMode);
   const objects = useImageNodeObjects(id);
+  const activeScope = useEditorStore((s) => s.activeScope);
+  // The "selected object" reachable from the image-node menu: the active-
+  // scope mask, but only when that mask belongs to one of THIS node's
+  // objects (so the same context menu opening on a different node doesn't
+  // see another node's selection).
+  const selectedObject = useMemo(() => {
+    if (activeScope.kind !== 'mask') return null;
+    return objects.find((o) => o.id === activeScope.mask_id) ?? null;
+  }, [activeScope, objects]);
 
   // Default is 'layers' — no auto-flip to objects when a segmented mask
   // exists. The user opts in explicitly via the menu.
@@ -182,6 +198,38 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   const itemClassDim = 'px-2 py-1 text-[10px] rounded-sm cursor-not-allowed outline-none text-text-secondary opacity-60';
   const renderMenuItems = (Item: typeof DropdownMenu.Item | typeof ContextMenu.Item) => (
     <>
+      {selectedObject && (
+        <>
+          <div className="px-2 pt-1 pb-0.5 text-[9px] uppercase tracking-wide text-text-secondary">
+            {selectedObject.label}
+          </div>
+          <Item
+            className={itemClass}
+            onSelect={() => startObjectRename(selectedObject.id, id)}
+          >
+            Rename
+          </Item>
+          <Item
+            className={itemClass}
+            onSelect={() => convertObjectToLayerMask(selectedObject.id)}
+          >
+            Convert to Layer Mask
+          </Item>
+          <Item
+            className={itemClass}
+            onSelect={() => extractObjectToImageNode(selectedObject.id, id)}
+          >
+            Extract to Image Node
+          </Item>
+          <Item
+            className={itemClass}
+            onSelect={() => void deleteObject(selectedObject.id)}
+          >
+            Delete object
+          </Item>
+          <div className="my-1 h-px bg-separator" />
+        </>
+      )}
       <Item
         className={itemClass}
         onSelect={() => setImageNodeMode(id, objectsActive ? 'layers' : 'objects')}
@@ -282,11 +330,28 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
             </ContextMenu.Portal>
           </ContextMenu.Root>
 
+          {/* Outlines render for every committed object, independent of the
+              objects-mode toggle: objects are a permanent feature, not a
+              mode-gated overlay. Labels are suppressed because the markers
+              in the right marginalia carry the names instead. */}
+          <ImageNodeObjectsLayer
+            imageNodeId={id}
+            widthPx={displayW}
+            heightPx={displayH}
+            hideLabels
+          />
+          {/* Numbered markers + leader lines into the right gutter. */}
+          <ObjectMarkers
+            imageNodeId={id}
+            widthPx={displayW}
+            heightPx={displayH}
+            marginWidth={RIGHT_MARGIN}
+          />
+          {/* SegmentHitLayer is the click-to-segment surface — only mount
+              it when the user has explicitly entered objects mode via the
+              ⋯ menu / right-click. */}
           {objectsActive && (
-            <>
-              <ImageNodeObjectsLayer imageNodeId={id} widthPx={displayW} heightPx={displayH} />
-              <SegmentHitLayer imageNodeId={id} widthPx={displayW} heightPx={displayH} />
-            </>
+            <SegmentHitLayer imageNodeId={id} widthPx={displayW} heightPx={displayH} />
           )}
 
           {!selected && <CornerTicks />}

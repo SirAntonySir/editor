@@ -1,20 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useImageNodeObjects, type ImageObject } from '@/hooks/useImageNodeObjects';
-import { toast } from '@/components/ui/Toast';
 import { useEditorStore } from '@/store';
-import { useBackendState } from '@/store/backend-state-slice';
-import { useAiSession } from '@/hooks/useImageContext';
-import { backendTools } from '@/lib/backend-tools';
 import { maskStore } from '@/core/mask-store';
-import { pixelStore } from '@/core/pixel-store';
-import { extractLayerFromMask } from '@/store/segment-actions';
-import { UI } from '@/config';
+import {
+  renameObject,
+  convertObjectToLayerMask,
+  extractObjectToImageNode,
+  deleteObject,
+} from '@/lib/segmentation/object-actions';
 
 interface ImageNodeObjectsLayerProps {
   imageNodeId: string;
   widthPx: number;
   heightPx: number;
+  /** Suppress the floating HTML label bubbles. Drafting mode renders the
+   *  labels as numbered markers in the right marginalia (see
+   *  drafting/ObjectMarkers) and only wants the outline canvas here.
+   *  Defaults to false so classic stays unchanged. */
+  hideLabels?: boolean;
 }
 
 /** Trace the binary mask boundary into a single Path2D via marching squares.
@@ -109,66 +113,6 @@ function paintAllOutlines(
   ctx.stroke(path);
 }
 
-async function commitRename(maskId: string, label: string): Promise<void> {
-  const trimmed = label.trim();
-  if (!trimmed) return;
-  // Optimistic — local snapshot patch + maskStore label, before the SSE echo.
-  useBackendState.getState().pushMaskRename(maskId, trimmed);
-  const sessionId = useAiSession.getState().sessionId;
-  if (!sessionId) return;
-  const env = await backendTools.rename_mask(sessionId, { maskId, label: trimmed });
-  if (!env.ok) toast.info(`Rename failed: ${env.error?.message ?? 'unknown error'}`);
-}
-
-function convertToLayerMask(obj: ImageObject): void {
-  // The mask's layerId points at the layer it was created on (set by
-  // registerMaskFromPng resolving via image_node_id). That's the natural
-  // owner of the mask — set it as that layer's layerMask. Compositor reads
-  // `layer.layerMask` and multiplies alpha at render time.
-  const editor = useEditorStore.getState();
-  const layerId = obj.mask.layerId;
-  if (!editor.layers.find((l) => l.id === layerId)) {
-    toast.info('Convert to Layer Mask: owning layer no longer exists.');
-    return;
-  }
-  editor.updateLayer(layerId, { layerMask: obj.id });
-  toast.info(`Applied "${obj.label}" as layer mask.`);
-}
-
-function extractToImageNode(obj: ImageObject, sourceImageNodeId: string): void {
-  const editor = useEditorStore.getState();
-  const srcNode = editor.imageNodes[sourceImageNodeId];
-  if (!srcNode) return;
-  try {
-    const newLayerId = extractLayerFromMask({
-      sourceLayerId: obj.mask.layerId,
-      maskRef: obj.id,
-    });
-    const baked = pixelStore.getSource(newLayerId);
-    const sourceSize = baked
-      ? { w: baked.width, h: baked.height }
-      : srcNode.sourceSize;
-    const position = {
-      x: srcNode.position.x + srcNode.size.w + UI.splitGapPx,
-      y: srcNode.position.y,
-    };
-    const newNodeId = editor.addImageNode([newLayerId], position, sourceSize);
-    editor.setActiveImageNode(newNodeId);
-  } catch (err) {
-    toast.info(`Extract failed: ${err instanceof Error ? err.message : String(err)}`);
-  }
-}
-
-async function deleteObject(maskId: string): Promise<void> {
-  // Optimistic — strip locally so the menu closes onto an already-gone
-  // object. The SSE echo is idempotent (handler filters by id).
-  useBackendState.getState().pushMaskDeleted(maskId);
-  const sessionId = useAiSession.getState().sessionId;
-  if (!sessionId) return;
-  const env = await backendTools.delete_mask(sessionId, { maskId });
-  if (!env.ok) toast.info(`Delete failed: ${env.error?.message ?? 'unknown error'}`);
-}
-
 function ObjectLabel({
   obj,
   imageNodeId,
@@ -187,6 +131,8 @@ function ObjectLabel({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(obj.label);
   const inputRef = useRef<HTMLInputElement>(null);
+  const pendingRenameId = useEditorStore((s) => s.pendingObjectRenameId);
+  const clearRenameRequest = useEditorStore((s) => s.clearObjectRenameRequest);
 
   useEffect(() => {
     if (!editing) return;
@@ -201,6 +147,18 @@ function ObjectLabel({
     setEditing(true);
   }
 
+  // Image-node menu → "Rename" stamps `pendingObjectRenameId` and flips the
+  // node into objects mode. When this label mounts (or the pending id
+  // changes to ours), enter edit and consume the request.
+  useEffect(() => {
+    if (pendingRenameId !== obj.id) return;
+    startEdit();
+    clearRenameRequest(obj.id);
+    // startEdit is stable (closure on setEditing/setDraft) — exhaustive-deps
+    // wants it listed but that would re-fire every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingRenameId, obj.id, clearRenameRequest]);
+
   function finishEdit(): void {
     if (!editing) return;
     setEditing(false);
@@ -208,7 +166,7 @@ function ObjectLabel({
       // Update maskStore eagerly so the chip text doesn't flicker back to
       // the old label while the optimistic snapshot patch settles.
       maskStore.setLabel(obj.id, draft.trim());
-      void commitRename(obj.id, draft);
+      void renameObject(obj.id, draft);
     }
   }
 
@@ -262,13 +220,13 @@ function ObjectLabel({
           </ContextMenu.Item>
           <ContextMenu.Item
             className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"
-            onSelect={() => convertToLayerMask(obj)}
+            onSelect={() => convertObjectToLayerMask(obj.id)}
           >
             Convert to Layer Mask
           </ContextMenu.Item>
           <ContextMenu.Item
             className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"
-            onSelect={() => extractToImageNode(obj, imageNodeId)}
+            onSelect={() => extractObjectToImageNode(obj.id, imageNodeId)}
           >
             Extract to Image Node
           </ContextMenu.Item>
@@ -289,6 +247,7 @@ export function ImageNodeObjectsLayer({
   imageNodeId,
   widthPx,
   heightPx,
+  hideLabels = false,
 }: ImageNodeObjectsLayerProps) {
   const objects = useImageNodeObjects(imageNodeId);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -322,7 +281,7 @@ export function ImageNodeObjectsLayer({
         style={{ width: `${widthPx}px`, height: `${heightPx}px` }}
         aria-hidden
       />
-      {objects.map((obj) => (
+      {!hideLabels && objects.map((obj) => (
         <ObjectLabel
           key={obj.id}
           obj={obj}

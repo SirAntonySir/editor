@@ -16,8 +16,7 @@ interface ImageNodeObjectsLayerProps {
   heightPx: number;
   /** Suppress the floating HTML label bubbles. Drafting mode renders the
    *  labels as numbered markers in the right marginalia (see
-   *  drafting/ObjectMarkers) and only wants the outline canvas here.
-   *  Defaults to false so classic stays unchanged. */
+   *  drafting/ObjectMarkers) and only wants the outline canvas here. */
   hideLabels?: boolean;
 }
 

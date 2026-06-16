@@ -106,7 +106,7 @@ src/
     layer-slice.ts      #   Layer metadata (id/name/order/visibility/blend/opacity/parentLayerId/layerMask)
     tool-slice.ts       #   Active tool, editor mode, expandedWidgetIds, hoveredWidgetId
     viewport-slice.ts   #   Zoom, pan, canvas dimensions
-    selection-slice.ts  #   Unified selection state (activeScope, hoveredScope, focusedWidgetId, cycleStack)
+    selection-slice.ts  #   Unified selection state (activeObjectId, hoveredObjectId, focusedWidgetId, cycleStack)
     workspace-slice.ts  #   Workspace state (imageNodes, widgetNodes, tetherEdges, activeImageNodeId)
   core/                 # Core logic
     document.ts         #   Document facade (init, image open, linear undo/redo, workspace ops via editorDocument.workspace.*)
@@ -151,7 +151,7 @@ The frontend reads it, displays it, and calls backend tools to mutate it.
 | Owner | Responsibility |
 |---|---|
 | Backend `SessionStateSnapshot` | widgets, operation_graph, masks_index, image_context, adjustment data per layer |
-| Frontend `useEditorStore` | layer metadata (id/name/order/visibility/blend/opacity/parentLayerId/layerMask), viewport, document meta, simple linear undo, selection state (activeScope, hoveredScope, focusedWidgetId, pendingBind, cycleStack), UI-only state |
+| Frontend `useEditorStore` | layer metadata (id/name/order/visibility/blend/opacity/parentLayerId/layerMask), viewport, document meta, simple linear undo, selection state (activeObjectId, hoveredObjectId, focusedWidgetId, cycleStack), UI-only state |
 | Frontend `pixelStore` / `CanvasRegistry` | Raw source bitmaps per layer |
 
 Three spawn paths → one backend call (`backendTools.propose_widget`):

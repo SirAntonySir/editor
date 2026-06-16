@@ -98,10 +98,9 @@ const GHOST_BTN =
  * eye · close (×, only when expanded).
  *
  * The original WidgetShellFooter has been folded into this header so the
- * widget shell renders without a footer — leaving only the ImageNode's
- * ObjectModeFooter as the canvas's bottom-of-card chrome. Action buttons
- * appear only when expanded (same as the X close button) since they have no
- * meaning on a collapsed pill.
+ * widget shell renders without a footer — the ImageNode's bottom chrome is
+ * handled by BottomMarginalia. Action buttons appear only when expanded
+ * (same as the X close button) since they have no meaning on a collapsed pill.
  */
 export function WidgetShellHeader({
   widget,

@@ -234,10 +234,10 @@ export function CommandPalette() {
         // ImageNode so the backend knows which canvas the prompt targets.
         // Falls back to plain global when no node is active.
         const state = useEditorStore.getState();
-        const active = state.activeScope ?? { kind: 'global' as const };
+        const oid = state.activeObjectId;
         const node = state.activeImageNodeId ? state.imageNodes[state.activeImageNodeId] : null;
-        const scope: Scope = active.kind === 'mask'
-          ? { kind: 'mask', mask_id: active.mask_id }
+        const scope: Scope = oid !== null
+          ? { kind: 'mask', mask_id: oid }
           : node
             ? { kind: 'image_node', imageNodeId: node.id, layerIds: [...node.layerIds] }
             : { kind: 'global' };

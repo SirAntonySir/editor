@@ -79,11 +79,11 @@ export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}
     // LUT presets live client-side in LutRegistry. proposeStack carves
     // it out as a single-op forced spawn (see _handle_filter_spawn).
     const state = useEditorStore.getState();
-    const active = state.activeScope ?? { kind: 'global' as const };
+    const oid = state.activeObjectId;
     const node = state.activeImageNodeId ? state.imageNodes[state.activeImageNodeId] : null;
     const scope =
-      active.kind !== 'global'
-        ? active
+      oid !== null
+        ? { kind: 'mask' as const, mask_id: oid }
         : node
           ? { kind: 'image_node' as const, imageNodeId: node.id, layerIds: [...node.layerIds] }
           : { kind: 'global' as const };

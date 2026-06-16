@@ -159,7 +159,7 @@ export function LayersPanelBody() {
               isActive={layer.id === activeLayerId}
               onSelect={() => {
                 setActiveLayer(layer.id);
-                useEditorStore.getState().setActiveScope({ kind: 'global' });
+                useEditorStore.getState().setActiveObjectId(null);
               }}
               onToggleVisibility={() =>
                 updateLayer(layer.id, { visible: !layer.visible })

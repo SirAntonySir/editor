@@ -154,14 +154,14 @@ function ImageNodeClassic({ id, data, selected }: ImageNodeProps) {
   const imageNodeMode = useEditorStore((s) => s.imageNodeMode[id]);
   const objects = useImageNodeObjects(id);
   const objectCount = objects.length;
-  const activeScope = useEditorStore((s) => s.activeScope);
+  const activeObjectId = useEditorStore((s) => s.activeObjectId);
   // Mask currently selected via canvas hit-test — only when it belongs to
   // THIS node's objects. Drives the per-object section that appears at
   // the top of this image-node's ContextMenu (Rename / Convert / Extract /
   // Delete). The same shared `object-actions` helpers as the drafting
   // variant so the two surfaces stay in lock-step.
   const selectedObject = objects.find(
-    (o) => activeScope.kind === 'mask' && activeScope.mask_id === o.id,
+    (o) => activeObjectId === o.id,
   ) ?? null;
   // Only extracted nodes carry sourceImageNodeId — drives the conditional
   // "Rejoin source image" menu item that undoes the extract.

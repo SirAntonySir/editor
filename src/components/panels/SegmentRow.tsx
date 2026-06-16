@@ -14,8 +14,8 @@ interface Props {
  * canvas-clicking the segment).
  */
 export function SegmentRow({ layerId, mask }: Props) {
-  const activeScope = useEditorStore((s) => s.activeScope);
-  const isSelected = activeScope?.kind === 'mask' && activeScope.mask_id === mask.id;
+  const activeObjectId = useEditorStore((s) => s.activeObjectId);
+  const isSelected = activeObjectId === mask.id;
   const [thumb, setThumb] = useState<string>('');
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export function SegmentRow({ layerId, mask }: Props) {
   }, [mask.id]);
 
   function onSelect() {
-    useEditorStore.getState().setActiveScope({ kind: 'mask', mask_id: mask.id });
+    useEditorStore.getState().setActiveObjectId(mask.id);
     useEditorStore.getState().setActiveLayer(layerId);
   }
 

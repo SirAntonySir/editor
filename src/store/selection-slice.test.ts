@@ -44,3 +44,30 @@ describe('selection-slice', () => {
     expect(useEditorStore.getState().hoveredScope).toBeNull();
   });
 });
+
+describe('selection-slice — activeObjectId', () => {
+  beforeEach(() => {
+    useEditorStore.getState().clearSelection();
+  });
+
+  it('starts null (whole image)', () => {
+    expect(useEditorStore.getState().activeObjectId).toBeNull();
+  });
+
+  it('setActiveObjectId stores the maskRef', () => {
+    useEditorStore.getState().setActiveObjectId('mask-42');
+    expect(useEditorStore.getState().activeObjectId).toBe('mask-42');
+  });
+
+  it('setActiveObjectId(null) clears', () => {
+    useEditorStore.getState().setActiveObjectId('mask-42');
+    useEditorStore.getState().setActiveObjectId(null);
+    expect(useEditorStore.getState().activeObjectId).toBeNull();
+  });
+
+  it('hoveredObjectId tracks separately from active', () => {
+    useEditorStore.getState().setHoveredObjectId('mask-7');
+    expect(useEditorStore.getState().hoveredObjectId).toBe('mask-7');
+    expect(useEditorStore.getState().activeObjectId).toBeNull();
+  });
+});

@@ -19,9 +19,14 @@ export interface SelectionSlice {
   activeMaskRef: MaskRef | null;
   /** Mask that has been committed — persists until the user discards or creates a new layer. */
   committedMaskRef: MaskRef | null;
+  /** New — Phase 1: null = whole image, non-null = maskRef of selected Object. Old fields removed at end of Phase 1. */
+  activeObjectId: string | null;
+  hoveredObjectId: string | null;
 
   setActiveScope: (scope: Scope) => void;
   setHoveredScope: (scope: Scope | null) => void;
+  setActiveObjectId: (id: string | null) => void;
+  setHoveredObjectId: (id: string | null) => void;
   clickAt: (imageX: number, imageY: number, candidates: string[]) => void;
   /** Select smallest mask at a point without starting a cycle (shift-click). Returns the mask id or null. */
   shiftClickAt: (imageX: number, imageY: number, candidates: string[]) => string | null;
@@ -61,15 +66,21 @@ export const createSelectionSlice: StateCreator<
   focusedWidgetId: null,
   activeMaskRef: null,
   committedMaskRef: null,
+  activeObjectId: null,
+  hoveredObjectId: null,
 
   setActiveScope: (scope) => set((s) => { s.activeScope = scope; }),
   setHoveredScope: (scope) => set((s) => { s.hoveredScope = scope; }),
+  setActiveObjectId: (id) => set((s) => { s.activeObjectId = id; }),
+  setHoveredObjectId: (id) => set((s) => { s.hoveredObjectId = id; }),
   focusWidget: (id) => set((s) => { s.focusedWidgetId = id; }),
   clearSelection: () => set((s) => {
     s.activeScope = GLOBAL_SCOPE;
     s.hoveredScope = null;
     s.cycleStack = null;
     s.focusedWidgetId = null;
+    s.activeObjectId = null;
+    s.hoveredObjectId = null;
   }),
   setActiveMask: (ref) => set((s) => { s.activeMaskRef = ref; }),
   commitMask: () => set((s) => {

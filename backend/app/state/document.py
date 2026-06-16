@@ -322,6 +322,29 @@ class SessionDocument(BaseModel):
         w = self.widgets[widget_id]
         w.status = "accepted"
         w.updated_at = datetime.now(timezone.utc)
+        # Reconcile binding → canonical. add_widget already seeded canonical
+        # from node.params at create time, but the autonomous mint path
+        # resolves binding values via the LLM after the node skeleton is
+        # built and doesn't guarantee the chosen value lands on the matching
+        # node.params entry. When binding.value drifts from node.params,
+        # canonical carries the stale node.params and the per-tool slider
+        # in the adjustments sidebar sits at the template default instead
+        # of the AI-chosen value. Walking bindings here closes that gap so
+        # accepting a suggestion = the adjustment panel reflecting it.
+        for binding in w.bindings:
+            node = next((n for n in w.nodes if n.id == binding.target.node_id), None)
+            if node is None or node.layer_id is None:
+                continue
+            # Mirror set_widget_param: keep node.params in sync so a later
+            # tool reading the widget node sees the same value canonical does.
+            node.params[binding.target.param_key] = binding.value
+            set_param_value(
+                self.canonical,
+                node.layer_id,
+                node.type,
+                binding.target.param_key,
+                binding.value,
+            )
         return [self._emit("widget.accepted", {
             "widgetId": widget_id,
             "operationGraph": self._op_graph_payload(),

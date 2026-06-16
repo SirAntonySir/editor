@@ -385,7 +385,15 @@ export const useBackendState = create<BackendState>()(
             // hit-test works. Fire-and-forget; maskStore is independent of
             // zustand immer state.
             if (p.png_b64) {
-              void registerMaskFromPng(p.mask_id, p.png_b64, p.width, p.height, p.label ?? undefined, p.source);
+              void registerMaskFromPng(
+                p.mask_id,
+                p.png_b64,
+                p.width,
+                p.height,
+                p.label ?? undefined,
+                p.source,
+                p.image_node_id ?? null,
+              );
             }
             break;
           }
@@ -476,15 +484,29 @@ async function registerMaskFromPng(
   _height: number,
   label: string | undefined,
   source: string,
+  imageNodeId: string | null,
 ): Promise<void> {
   try {
     const { data, width, height } = await maskPngBase64ToBytes(pngB64);
+    // Resolve the owning image node's first image layer so the renderer's
+    // per-layer gating (layerSet.has(mask.layerId)) accepts this mask. Falls
+    // back to the synthetic 'ai-proposed' marker for untargeted / global
+    // precomputed masks that aren't tied to a specific user layer.
+    let layerId = 'ai-proposed';
+    if (imageNodeId) {
+      const editor = useEditorStore.getState();
+      const node = editor.imageNodes[imageNodeId];
+      const ownLayer = node?.layerIds.find(
+        (lid) => editor.layers.find((l) => l.id === lid)?.type === 'image',
+      );
+      if (ownLayer) layerId = ownLayer;
+    }
     // maskStore.register auto-generates a UUID id, but we want to use the
     // backend's mask_id so the frontend lookup matches the SSE event id.
     // Inject directly via injectWithId().
     const mask: Mask = {
       id: maskId,
-      layerId: 'ai-proposed', // synthetic; precomputed masks aren't tied to a user layer
+      layerId,
       label,
       width,
       height,

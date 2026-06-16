@@ -102,6 +102,108 @@ def test_accept_widget_keeps_widget_in_doc(client) -> None:
     assert wid in doc.widget_order, "accept_widget must NOT remove widget from doc.widget_order"
 
 
+def _push_widget_with_binding(sid: str) -> tuple[str, str, float]:
+    """Like `_push_widget` but the widget carries a ControlBinding so we can
+    assert that accept_widget pushes the binding's value into canonical state."""
+    from app.schemas.widget import (
+        ControlBinding,
+        ControlSchema,
+        GlobalScope,
+        NodeParamTarget,
+        Scope,
+        SliderSchema,
+        Widget,
+        WidgetNode,
+        WidgetOrigin,
+        WidgetPreview,
+    )
+    node_id = "node_w_binding"
+    widget_id = "w_with_binding"
+    layer_id = "layer_01"
+    bound_value = 5800.0
+    wn = WidgetNode(
+        id=node_id,
+        type="kelvin",
+        scope=Scope(root=GlobalScope(kind="global")),
+        params={"temperature": bound_value},
+        widget_id=widget_id,
+        layer_id=layer_id,
+    )
+    w = Widget(
+        id=widget_id,
+        intent="warm it up",
+        scope=Scope(root=GlobalScope(kind="global")),
+        origin=WidgetOrigin(kind="mcp_autonomous"),
+        preview=WidgetPreview(kind="none"),
+        nodes=[wn],
+        bindings=[
+            ControlBinding(
+                param_key="temperature",
+                label="Temperature",
+                control_type="slider",
+                target=NodeParamTarget(node_id=node_id, param_key="temperature"),
+                control_schema=ControlSchema(
+                    root=SliderSchema(control_type="slider", min=2000, max=10000, step=50)
+                ),
+                value=bound_value,
+                default=5500.0,
+            )
+        ],
+    )
+    doc = deps.get_session_store().get_document(sid)
+    doc.add_widget(w)
+    return widget_id, layer_id, bound_value
+
+
+def test_accept_widget_writes_bindings_to_canonical(client) -> None:
+    """The user expectation: accepting an AI widget should make its values
+    show up on the per-tool adjustment sliders. The sliders read from
+    canonical via the projected op_graph.
+
+    add_widget already seeds canonical from `node.params` at create time,
+    so a widget where bindings == node.params already projects correctly.
+    But the autonomous mint path runs each binding through the LLM
+    resolver after the node skeleton is built, and there is no guarantee
+    the resolver writes the chosen value back to the matching node.params
+    entry. When `binding.value` and `node.params[param_key]` disagree,
+    canonical carries node.params (= template default) and the
+    adjustment slider sits at the default instead of the AI value.
+
+    accept_widget MUST close that gap: every binding's value lands on
+    canonical, overwriting any stale node.params seed."""
+    from app.state.operations import project_to_graph
+
+    sid = _create_session(client)
+    wid, layer_id, _ = _push_widget_with_binding(sid)
+
+    # Force the divergence the resolver-path can produce in production:
+    # rewrite the binding value to one that node.params does NOT carry, so
+    # the only way it reaches canonical is via accept_widget reading bindings.
+    doc = deps.get_session_store().get_document(sid)
+    binding_value_after_drift = 4200.0
+    doc.widgets[wid].bindings[0].value = binding_value_after_drift
+
+    body = client.post(
+        "/api/tools/accept_widget",
+        json={"session_id": sid, "input": {"widget_id": wid}},
+    ).json()
+    assert body["ok"] is True
+
+    post_graph = project_to_graph(doc)
+    post_node = next(
+        (n for n in post_graph.nodes if n.id == f"canon:{layer_id}:kelvin"),
+        None,
+    )
+    assert post_node is not None, (
+        "accept_widget must seed a canonical node for the bound (layer, op)"
+    )
+    assert post_node.params.get("temperature") == binding_value_after_drift, (
+        f"accept_widget must write the binding value (not the stale node.params) "
+        f"to canonical (got {post_node.params.get('temperature')!r}, "
+        f"expected {binding_value_after_drift!r})"
+    )
+
+
 def test_accept_widget_keeps_nodes_in_operation_graph(client) -> None:
     """accept_widget MUST keep the canonical nodes in the projected operation_graph.
     Nodes come from canonical, not from the widget — seed canonical before testing."""

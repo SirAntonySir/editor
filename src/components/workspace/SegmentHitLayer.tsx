@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAiSession } from '@/hooks/useImageContext';
 import { useMobileSam } from '@/hooks/useMobileSam';
+import { useEditorStore } from '@/store';
 import { backendTools } from '@/lib/backend-tools';
+import { maskStore } from '@/core/mask-store';
 import { maskToPngBase64 } from '@/lib/segmentation/mask-png';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
 import { Kbd } from '@/components/ui/kbd';
@@ -68,7 +70,33 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
       // SSE event doesn't carry it, so without this the objects layer
       // can't filter masksIndex per image-node.
       const maskId = env.output?.maskId;
-      if (maskId) objectOwnership.set(maskId, imageNodeId);
+      if (maskId) {
+        objectOwnership.set(maskId, imageNodeId);
+        // Inject locally with the bytes we already have, instead of waiting
+        // for the SSE round-trip. layerId resolves to the image node's
+        // first image layer so the renderer's selected-mask overlay paints
+        // (it gates on layerSet.has(mask.layerId)).
+        const editor = useEditorStore.getState();
+        const node = editor.imageNodes[imageNodeId];
+        const layerId = node?.layerIds.find(
+          (lid) => editor.layers.find((l) => l.id === lid)?.type === 'image',
+        );
+        if (layerId) {
+          maskStore.injectWithId({
+            id: maskId,
+            layerId,
+            label: autoName,
+            width: c.mask.width,
+            height: c.mask.height,
+            data: c.mask.data,
+            source: hasNegativePoint ? 'sam-points' : 'sam-point',
+            createdAt: Date.now(),
+          });
+        }
+        // Promote the new object to the active scope so subsequent
+        // toolrail / Cmd+K adjustments target it instead of the layer.
+        editor.setActiveScope({ kind: 'mask', mask_id: maskId });
+      }
       toast.info(`Saved as "${autoName}"`);
       setCandidate(null);
     } else {

@@ -24,6 +24,7 @@ import {
   deleteObject,
   startObjectRename,
 } from '@/lib/segmentation/object-actions';
+import { exportImageNode, rejoinSourceImage } from '@/lib/image-node-actions';
 
 export interface ImageNodeData extends Record<string, unknown> {
   name?: string;
@@ -162,6 +163,11 @@ function ImageNodeClassic({ id, data, selected }: ImageNodeProps) {
   const selectedObject = objects.find(
     (o) => activeScope.kind === 'mask' && activeScope.mask_id === o.id,
   ) ?? null;
+  // Only extracted nodes carry sourceImageNodeId — drives the conditional
+  // "Rejoin source image" menu item that undoes the extract.
+  const sourceImageNodeId = useEditorStore(
+    (s) => s.imageNodes[id]?.sourceImageNodeId,
+  );
   const currentMode: 'layers' | 'objects' =
     imageNodeMode ?? (objectCount > 0 ? 'objects' : 'layers');
 const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
@@ -276,7 +282,7 @@ const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
             </MenuItem>
             <MenuItem
               className={objectItemCls}
-              onSelect={() => convertObjectToLayerMask(selectedObject.id)}
+              onSelect={() => convertObjectToLayerMask(selectedObject.id, id)}
             >
               Convert to Layer Mask
             </MenuItem>
@@ -341,6 +347,38 @@ const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
         >
           Split last layer
         </MenuItem>
+        <div className="my-1 h-px bg-separator" />
+        <MenuItem
+          className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none
+            text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary"
+          onSelect={() => void exportImageNode(id, 'png')}
+        >
+          Export as PNG
+        </MenuItem>
+        <MenuItem
+          className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none
+            text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary"
+          onSelect={() => void exportImageNode(id, 'jpeg')}
+        >
+          Export as JPEG
+        </MenuItem>
+        <MenuItem
+          className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none
+            text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary"
+          onSelect={() => void exportImageNode(id, 'webp')}
+        >
+          Export as WebP
+        </MenuItem>
+        {sourceImageNodeId && (
+          <MenuItem
+            className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none
+              text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary"
+            onSelect={() => { rejoinSourceImage(id); }}
+          >
+            Rejoin source image
+          </MenuItem>
+        )}
+        <div className="my-1 h-px bg-separator" />
         <MenuItem
           className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none
             text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary"

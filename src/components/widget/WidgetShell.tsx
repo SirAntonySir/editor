@@ -75,10 +75,19 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
   // debounced so a drag (60–120 ticks/s) doesn't flood
   // /api/tools/set_widget_param and trip the 30/min rate limiter.
   const setParamTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  useEffect(() => () => {
-    mountedRef.current = false;
-    for (const timer of setParamTimersRef.current.values()) clearTimeout(timer);
-    setParamTimersRef.current.clear();
+  // Re-arm `mountedRef` on every mount. Without this, React 19 StrictMode's
+  // simulated unmount/remount in dev sets the ref to false during the
+  // synthetic cleanup, and the `useRef(true)` seed only runs on first render —
+  // so for the rest of the component's life every debounced set_widget_param
+  // fires `SKIPPED — unmounted` and the slider's live value never reaches the
+  // backend, leaving canonical at the binding default.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      for (const timer of setParamTimersRef.current.values()) clearTimeout(timer);
+      setParamTimersRef.current.clear();
+    };
   }, []);
 
   const hovered = hoveredWidgetId === widget.id;
@@ -136,8 +145,36 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
     setParamTimersRef.current.set(paramKey, timer);
   }
 
-  function handleApply() {
+  async function handleApply() {
     if (!sessionId || offline) return;
+    // Flush any pending debounced set_widget_param timers BEFORE accept so
+    // the backend's binding.value reflects the just-dragged slider position.
+    // accept_widget walks bindings to write canonical — if a timer is still
+    // queued, accept reads the stale binding.value and rolls the live edit
+    // back the moment the optimistic patch clears.
+    const pendingKeys = Array.from(setParamTimersRef.current.keys());
+    if (pendingKeys.length > 0) {
+      const optMap = useBackendState.getState().optimistic;
+      await Promise.all(
+        pendingKeys.map((paramKey) => {
+          const timer = setParamTimersRef.current.get(paramKey);
+          if (timer) clearTimeout(timer);
+          setParamTimersRef.current.delete(paramKey);
+          const binding = widget.bindings.find((b) => b.paramKey === paramKey);
+          if (!binding) return Promise.resolve();
+          // Read the latest optimistic value (if any) — that's the live slider
+          // position. Falls back to binding.value otherwise.
+          const node = widget.nodes.find((n) => n.id === binding.target.nodeId);
+          const canonId = node ? `canon:${node.layerId}:${node.type}` : binding.target.nodeId;
+          const patch = optMap.get(canonId);
+          const live = patch?.bindings.find((p) => p.paramKey === binding.target.paramKey)?.value;
+          const value = live !== undefined ? live : binding.value;
+          return backendTools.set_widget_param(sessionId, {
+            widgetId: widget.id, paramKey, value,
+          });
+        }),
+      );
+    }
     void backendTools.accept_widget(sessionId, { widgetId: widget.id });
   }
 

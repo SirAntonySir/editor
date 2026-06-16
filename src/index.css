@@ -284,36 +284,6 @@ html, body, #root {
   .tether-march { animation: none; }
 }
 
-/* React Flow paints its own selection chrome:
- *   - A blue box-shadow on `.react-flow__node.selected` and a browser focus
- *     outline on `:focus`.
- *   - A separate `.react-flow__nodesselection-rect` element drawn around
- *     selected nodes with a default dotted/solid blue border (the lib's
- *     "nodes selection rectangle", visible even with a single node selected
- *     and re-rendered on every viewport pan/zoom — which is why removing the
- *     non-!important override let it resurface on scroll).
- * Both read as stray rings on top of our own accent border drawn inside the
- * image-node, so force-suppress every variant. !important is necessary
- * because @xyflow/react/dist/style.css is imported from CanvasWorkspace.tsx
- * AFTER this stylesheet, so equal-specificity overrides lose source order. */
-.react-flow__node,
-.react-flow__node.selected,
-.react-flow__node:focus,
-.react-flow__node:focus-visible,
-.react-flow__node.selectable:focus,
-.react-flow__node.selectable:focus-visible {
-  box-shadow: none !important;
-  outline: none !important;
-}
-.react-flow__nodesselection,
-.react-flow__nodesselection-rect,
-.react-flow__selection {
-  background: transparent !important;
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
-}
-
 /* React Flow controls — ported into the flat register so the zoom/fit
  * buttons follow the theme tokens (and read well in dark mode).
  * Prefixed with `.react-flow` to outrank the library's same-specificity

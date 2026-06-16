@@ -79,9 +79,11 @@ describe('mergeOptimistic', () => {
     expect(out).toEqual(baseGraph.nodes);
   });
 
-  it('applies optimistic patches to the matching node params', () => {
+  it('applies optimistic patches keyed by canonical node id', () => {
     const optimistic = new Map();
-    optimistic.set('w_1', { baseRevision: 1, bindings: [{ paramKey: 'temperature', value: 7800 }] });
+    // WidgetShell.canonIdFor returns the canonical node id (matches n.id in the
+    // op_graph). Patches arrive here keyed by that, NOT by widget id.
+    optimistic.set('n1', { baseRevision: 1, bindings: [{ paramKey: 'temperature', value: 7800 }] });
     const out = mergeOptimistic(baseGraph.nodes, optimistic);
     const updated = out.find((n) => n.id === 'n1');
     expect(updated?.params.temperature).toBe(7800);
@@ -89,14 +91,13 @@ describe('mergeOptimistic', () => {
 
   it('does not mutate unrelated nodes', () => {
     const optimistic = new Map();
-    optimistic.set('w_1', { baseRevision: 1, bindings: [{ paramKey: 'temperature', value: 7800 }] });
+    optimistic.set('n1', { baseRevision: 1, bindings: [{ paramKey: 'temperature', value: 7800 }] });
     const out = mergeOptimistic(baseGraph.nodes, optimistic);
     const n2 = out.find((n) => n.id === 'n2');
     expect(n2?.params).toEqual({ exposure: 0.5, contrast: 10 });
   });
 
-  it('returns nodes unchanged when no snapshot is present', () => {
-    useBackendState.setState({ snapshot: null });
+  it('ignores patches whose key does not match any node id', () => {
     const optimistic = new Map();
     optimistic.set('w_1', { baseRevision: 1, bindings: [{ paramKey: 'temperature', value: 7800 }] });
     const out = mergeOptimistic(baseGraph.nodes, optimistic);
@@ -189,7 +190,9 @@ describe('selectPipelineNodes (compound optimistic patches)', () => {
         revision: 1,
       },
       optimistic: new Map([[
-        'w_tod',
+        // Compound patches are now keyed by the compound node id (same as the
+        // canonical op-graph node), matching what WidgetShell.canonIdFor emits.
+        'c1',
         {
           baseRevision: 1,
           bindings: [

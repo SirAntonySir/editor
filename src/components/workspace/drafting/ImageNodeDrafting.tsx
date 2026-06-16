@@ -15,6 +15,7 @@ import {
   deleteObject,
   startObjectRename,
 } from '@/lib/segmentation/object-actions';
+import { exportImageNode, rejoinSourceImage } from '@/lib/image-node-actions';
 import { computeEffectiveSize, type Crop } from '@/lib/image-node-geometry';
 import { ImageNodeBody } from '../ImageNodeBody';
 import { SegmentHitLayer } from '../SegmentHitLayer';
@@ -121,8 +122,6 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   const displayW = data.size.w;
   const displayH = displayW / aspect;
 
-  const layers = useEditorStore((s) => s.layers);
-  const activeLayerId = useEditorStore((s) => s.activeLayerId);
   const documentMeta = useEditorStore((s) => s.documentMeta);
   const imageNodeMode = useEditorStore((s) => s.imageNodeMode[id]);
   const setImageNodeMode = useEditorStore((s) => s.setImageNodeMode);
@@ -136,16 +135,16 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
     if (activeScope.kind !== 'mask') return null;
     return objects.find((o) => o.id === activeScope.mask_id) ?? null;
   }, [activeScope, objects]);
+  // Only set on nodes produced by "Extract to Image Node" — drives the
+  // "Rejoin source image" menu item that undoes the extract.
+  const sourceImageNodeId = useEditorStore(
+    (s) => s.imageNodes[id]?.sourceImageNodeId,
+  );
 
   // Default is 'layers' — no auto-flip to objects when a segmented mask
   // exists. The user opts in explicitly via the menu.
   const currentMode: 'layers' | 'objects' = imageNodeMode ?? 'layers';
   const objectsActive = currentMode === 'objects';
-
-  const activeLayerName = useMemo(() => {
-    const active = layers.find((l) => l.id === activeLayerId);
-    return active?.name ?? 'Source';
-  }, [layers, activeLayerId]);
 
   const mime = documentMeta?.mimeType ?? '';
   const formatLabel = mime.startsWith('image/')
@@ -212,7 +211,7 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
           </Item>
           <Item
             className={itemClass}
-            onSelect={() => convertObjectToLayerMask(selectedObject.id)}
+            onSelect={() => convertObjectToLayerMask(selectedObject.id, id)}
           >
             Convert to Layer Mask
           </Item>
@@ -271,6 +270,22 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
       >
         Duplicate
       </Item>
+      <div className="my-1 h-px bg-separator" />
+      <Item className={itemClass} onSelect={() => void exportImageNode(id, 'png')}>
+        Export as PNG
+      </Item>
+      <Item className={itemClass} onSelect={() => void exportImageNode(id, 'jpeg')}>
+        Export as JPEG
+      </Item>
+      <Item className={itemClass} onSelect={() => void exportImageNode(id, 'webp')}>
+        Export as WebP
+      </Item>
+      {sourceImageNodeId && (
+        <Item className={itemClass} onSelect={() => { rejoinSourceImage(id); }}>
+          Rejoin source image
+        </Item>
+      )}
+      <div className="my-1 h-px bg-separator" />
       <Item className={itemClass} onSelect={handleDelete}>
         Delete
       </Item>
@@ -291,9 +306,6 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
       <div className="workspace-drag-handle cursor-grab active:cursor-grabbing">
         <TopMarginalia
           title={data.name ?? 'Image'}
-          activeLayerName={activeLayerName}
-          formatLabel={formatLabel}
-          rhsLines={fileSize ? [fileSize] : []}
           onCompareDown={() => setCompareHeld(true)}
           onCompareUp={() => setCompareHeld(false)}
           renderMenuItems={renderMenuItems as (Item: typeof DropdownMenu.Item) => React.ReactNode}

@@ -25,7 +25,6 @@ import { nodeToAdjustment } from './node-to-adjustment';
 import { expandCompoundNodes } from './perceptual-dial/expand-compound';
 import {
   MASK_STYLES,
-  paintFullImageOutline,
   paintMaskFill,
   paintMaskOutline,
   paintSegmentationOverlay,
@@ -316,11 +315,11 @@ function paintOverlays({ ctx, canvas, imageNodeId, layerIds }: PaintOverlaysArgs
   const isActiveNode = state.activeImageNodeId === imageNodeId;
   const painterCtx = { ctx, canvasWidth: canvas.width, canvasHeight: canvas.height };
 
-  // Full-image outline: only on the active image node when the active scope
-  // is global.
-  if (isActiveNode && state.activeScope.kind === 'global') {
-    paintFullImageOutline(ctx, canvas.width, canvas.height);
-  }
+  // (Previously: a hardcoded blue rectangle was painted around the active
+  // image node when the scope was global. Removed — the drafting variant
+  // already draws its own accent-coloured selection frame in CSS, and the
+  // painted version baked an off-theme `#0071e3` into the canvas that
+  // re-appeared on every pan/zoom redraw.)
 
   // Active draft mask (SAM preview / highlight_region) — only when its
   // owning layer belongs to this image node. Drawn before the committed

@@ -22,6 +22,13 @@ export interface ImageNodeState {
    * coordinates; never changed by user resize.
    */
   sourceSize: Size;
+  /**
+   * ImageNode this one was extracted from (via the object-action "Extract
+   * to Image Node"). Set at extract time; absent for the original/source
+   * image-node and for anything added via the file picker. Drives the
+   * "Rejoin source image" menu item which undoes the extract.
+   */
+  sourceImageNodeId?: string;
 }
 
 export interface WidgetNodeState {

@@ -1,5 +1,4 @@
 import type { Node } from '@/types/operation-graph';
-import type { CurvesValue } from '@/types/curve';
 import type { OptimisticPatch } from '@/store/backend-state-slice';
 import { useBackendState } from '@/store/backend-state-slice';
 import { expandCompoundNodes } from '@/lib/perceptual-dial/expand-compound';
@@ -19,55 +18,28 @@ export function toPipelineNode(node: Node): PipelineNode {
  * WebGL pipeline sees the correct param values during a slider drag — before
  * the server round-trip completes (typically 200-500 ms).
  *
- * For each (widgetId, patch) entry in `optimistic`:
- *   1. Locate the widget in the current snapshot.
- *   2. For each binding patch, find the matching binding by param_key.
- *   3. Use binding.target to identify the node + param to override.
- *   4. Return a shallow-cloned node array with those params overwritten.
+ * Optimistic patches are keyed by CANONICAL op-graph node id
+ * (`canon:<layer>:<op>` — see `WidgetShell.canonIdFor`). Each patch carries a
+ * list of `{ paramKey, value }` entries that map directly onto that node's
+ * `params`. We apply each matching patch in place; non-matching keys are
+ * harmless leftovers that the renderer / export both ignore.
+ *
+ * Critical: the previous implementation looked up patches by widget id
+ * (`snap.widgets.find(w => w.id === widgetId)`), which never matched the
+ * canon-id key the writer actually uses. The export path silently produced
+ * the pre-edit pixels because no patches ever merged.
  */
 export function mergeOptimistic(
   nodes: Node[],
   optimistic: Map<string, OptimisticPatch>,
 ): Node[] {
   if (optimistic.size === 0) return nodes;
-  const snap = useBackendState.getState().snapshot;
-  if (!snap) return nodes;
-
-  // Build a lookup: node_id -> { param_key -> value }
-  const overrides = new Map<string, Record<string, number | string | boolean | CurvesValue>>();
-  for (const [widgetId, patch] of optimistic) {
-    const widget = snap.widgets.find((w) => w.id === widgetId);
-    if (!widget) continue;
-    for (const bp of patch.bindings) {
-      const binding = widget.bindings.find((b) => b.paramKey === bp.paramKey);
-      if (!binding) {
-        // Compound-widget fallback: a compound node's optimistic patches use
-        // `${op}.${param}` keys that won't match the (typically minimal) widget
-        // bindings list. Route them directly into the compound node's params
-        // bag so `expandCompoundNodes` (run downstream) picks them up.
-        const compoundNode = widget.nodes.find((n) => n.type === 'compound');
-        if (!compoundNode) continue;
-        let entry = overrides.get(compoundNode.id);
-        if (!entry) { entry = {}; overrides.set(compoundNode.id, entry); }
-        entry[bp.paramKey] = bp.value;
-        continue;
-      }
-      const nodeId = binding.target.nodeId;
-      const paramKey = binding.target.paramKey;
-      let entry = overrides.get(nodeId);
-      if (!entry) {
-        entry = {};
-        overrides.set(nodeId, entry);
-      }
-      entry[paramKey] = bp.value;
-    }
-  }
-
-  if (overrides.size === 0) return nodes;
   return nodes.map((n) => {
-    const o = overrides.get(n.id);
-    if (!o) return n;
-    return { ...n, params: { ...n.params, ...o } };
+    const patch = optimistic.get(n.id);
+    if (!patch) return n;
+    const params = { ...n.params };
+    for (const b of patch.bindings) params[b.paramKey] = b.value;
+    return { ...n, params };
   });
 }
 

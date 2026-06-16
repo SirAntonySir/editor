@@ -6,14 +6,6 @@ import type { ReactNode } from 'react';
 interface TopMarginaliaProps {
   /** Image-node display name (file basename without extension). */
   title: string;
-  /** Active layer's display name for the overline. */
-  activeLayerName: string;
-  /** Uppercase short tag — usually JPEG / PNG / RAW. Sits as a `<sup>`
-   *  next to the italic title. */
-  formatLabel: string;
-  /** Optional meta line(s) for the right-aligned column. Each entry is a
-   *  full line; rendered as Mono caps with `·` separators inside. */
-  rhsLines?: string[];
 
   /** Compare button — Eye icon. Per the spec the hold-to-show interaction
    *  doesn't fit a menu well, so it stays as a top-of-node affordance. */
@@ -39,18 +31,14 @@ interface TopMarginaliaProps {
 }
 
 /**
- * Drafting-mode replacement for the classic header strip. Carries a
- * Geist-Mono overline with the active-layer label, an italic Fraunces
- * display title with a small superscript format tag, and an optional
- * monospaced meta column on the right. Compare + ⋯ menu are absolute-
- * positioned in the top-right slot so they don't disrupt the editorial
- * typography flow.
+ * Drafting-mode replacement for the classic header strip. Carries the italic
+ * Fraunces display title plus the Compare + ⋯ affordances. The active-layer
+ * overline, format tag, and right-hand file-size column have been dropped —
+ * the same data is already on display in BottomMarginalia, and duplicating it
+ * in the header was reading as noise.
  */
 export function TopMarginalia({
   title,
-  activeLayerName,
-  formatLabel,
-  rhsLines,
   onCompareDown,
   onCompareUp,
   renderMenuItems,
@@ -64,7 +52,6 @@ export function TopMarginalia({
   const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(title);
   const rowGap = tight ? 'mb-2' : 'mb-7';
-  const overlineGap = tight ? 'mb-0.5' : 'mb-1';
   const titleSize = tight ? 'text-[24px]' : 'text-[34px]';
   // Cap the title column so long basenames don't push the meta column
   // off-screen or wrap; truncation kicks in past this.
@@ -91,15 +78,8 @@ export function TopMarginalia({
 
   return (
     <div className={`relative ${rowGap} flex items-end justify-between gap-6`}>
-      {/* Left column: overline + display title */}
+      {/* Left column: display title */}
       <div className={`min-w-0 ${titleMaxW} flex flex-col`}>
-        <div className={`font-[var(--font-mono)] text-[9px] tracking-[0.20em] uppercase text-text-secondary ${overlineGap} flex items-center`}>
-          <span
-            aria-hidden
-            className="inline-block w-[5px] h-[5px] rounded-full bg-[var(--color-accent)] mr-1.5 -translate-y-px"
-          />
-          Active layer · {activeLayerName}
-        </div>
         {isRenaming ? (
           <input
             ref={inputRef}
@@ -128,22 +108,12 @@ export function TopMarginalia({
             }}
           >
             {title}
-            <sup className="font-[var(--font-mono)] text-[9px] not-italic tracking-[0.10em] uppercase text-text-secondary ml-2 align-super">
-              {formatLabel}
-            </sup>
           </div>
         )}
       </div>
 
-      {/* Right column: optional meta lines + control affordances */}
+      {/* Right column: control affordances */}
       <div className="shrink-0 flex flex-col items-end gap-1.5">
-        {rhsLines && rhsLines.length > 0 && (
-          <div className="font-[var(--font-mono)] text-[10px] tracking-[0.16em] uppercase text-text-secondary text-right leading-[1.5]">
-            {rhsLines.map((line, i) => (
-              <div key={i}>{line}</div>
-            ))}
-          </div>
-        )}
         <div className="flex items-center gap-1">
           <button
             ref={compareBtnRef}

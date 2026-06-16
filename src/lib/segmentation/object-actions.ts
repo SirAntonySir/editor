@@ -30,19 +30,36 @@ export async function renameObject(maskId: string, label: string): Promise<void>
   if (!env.ok) toast.info(`Rename failed: ${env.error?.message ?? 'unknown error'}`);
 }
 
-/** Apply the mask as the active layer's `layerMask`. The mask's `layerId`
- *  points at the owning layer; LayerCompositor reads `layer.layerMask` and
- *  multiplies alpha at render time. */
-export function convertObjectToLayerMask(maskId: string): void {
+/** Apply the mask as a layer's `layerMask`. The mask's `layerId` points at
+ *  the owning layer; LayerCompositor reads `layer.layerMask` and multiplies
+ *  alpha at render time. AI-proposed masks carry a synthetic 'ai-proposed'
+ *  sentinel instead of a real id — when that's the case, fall back to the
+ *  active layer (when it lives on the image node) or the node's first layer. */
+export function convertObjectToLayerMask(
+  maskId: string,
+  sourceImageNodeId?: string,
+): void {
   const mask = maskStore.get(maskId);
   if (!mask) {
     toast.info('Convert to Layer Mask: mask no longer exists.');
     return;
   }
   const editor = useEditorStore.getState();
-  const layerId = mask.layerId;
-  if (!editor.layers.find((l) => l.id === layerId)) {
-    toast.info('Convert to Layer Mask: owning layer no longer exists.');
+  const isRealLayer = editor.layers.some((l) => l.id === mask.layerId);
+  let layerId: string | undefined;
+  if (isRealLayer) {
+    layerId = mask.layerId;
+  } else if (sourceImageNodeId) {
+    const node = editor.imageNodes[sourceImageNodeId];
+    if (node) {
+      layerId =
+        editor.activeLayerId && node.layerIds.includes(editor.activeLayerId)
+          ? editor.activeLayerId
+          : node.layerIds[0];
+    }
+  }
+  if (!layerId) {
+    toast.info('Convert to Layer Mask: no target layer available.');
     return;
   }
   editor.updateLayer(layerId, { layerMask: maskId });
@@ -60,9 +77,24 @@ export function extractObjectToImageNode(maskId: string, sourceImageNodeId: stri
   const editor = useEditorStore.getState();
   const srcNode = editor.imageNodes[sourceImageNodeId];
   if (!srcNode) return;
+  // AI-proposed masks carry a synthetic `layerId: 'ai-proposed'` sentinel
+  // (set in useBackendSession.rehydrateMaskBytes) rather than a real layer
+  // id. Resolve the real source layer from the image node when the mask's
+  // layerId doesn't match anything — prefer the active layer if it lives on
+  // this node, otherwise the first layer.
+  const isRealLayer = editor.layers.some((l) => l.id === mask.layerId);
+  const sourceLayerId = isRealLayer
+    ? mask.layerId
+    : (editor.activeLayerId && srcNode.layerIds.includes(editor.activeLayerId)
+        ? editor.activeLayerId
+        : srcNode.layerIds[0]);
+  if (!sourceLayerId) {
+    toast.info('Extract: no source layer available on this image node.');
+    return;
+  }
   try {
     const newLayerId = extractLayerFromMask({
-      sourceLayerId: mask.layerId,
+      sourceLayerId,
       maskRef: maskId,
       cropToMaskBbox: true,
     });
@@ -77,7 +109,9 @@ export function extractObjectToImageNode(maskId: string, sourceImageNodeId: stri
       x: srcNode.position.x + srcNode.size.w + UI.splitGapPx,
       y: srcNode.position.y,
     };
-    const newNodeId = editor.addImageNode([newLayerId], position, sourceSize);
+    const newNodeId = editor.addImageNode(
+      [newLayerId], position, sourceSize, sourceImageNodeId,
+    );
     // Match the cutout's on-screen size to how the object appeared inside the
     // source node. addImageNode enters every node at the default full width,
     // so without this a small cutout balloons to the size of a whole new photo.

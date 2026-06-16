@@ -105,7 +105,14 @@ export interface WorkspaceSlice {
    *                    pipeline and to derive the initial display height.
    *                    Defaults to a placeholder if omitted (test fixtures).
    */
-  addImageNode: (layerIds: string[], position?: Point, sourceSize?: Size) => string;
+  addImageNode: (
+    layerIds: string[],
+    position?: Point,
+    sourceSize?: Size,
+    /** Optional provenance — set by the extract-to-image-node flow so the
+     *  resulting node can offer "Rejoin source image" to undo the extract. */
+    sourceImageNodeId?: string,
+  ) => string;
   /**
    * Resize an image node's canvas-space box. Aspect-locked to its source dims:
    * caller specifies the new width; height is recomputed. Clamped to
@@ -193,7 +200,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
   _nextNodeSeq: 1,
   _nextEdgeSeq: 1,
 
-  addImageNode: (layerIds, position = { x: 0, y: 0 }, sourceSize) => {
+  addImageNode: (layerIds, position = { x: 0, y: 0 }, sourceSize, sourceImageNodeId) => {
     let id = '';
     set((state) => {
       id = `in-${state._nextNodeSeq++}`;
@@ -204,6 +211,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
         position,
         sourceSize: src,
         size: deriveDisplaySize(src, DEFAULT_IMAGE_NODE_DISPLAY_WIDTH),
+        ...(sourceImageNodeId ? { sourceImageNodeId } : {}),
       };
     });
     return id;

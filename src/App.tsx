@@ -209,7 +209,8 @@ if (typeof window !== 'undefined') {
     if (
       next.themeMode !== prev.themeMode ||
       next.accentColor !== prev.accentColor ||
-      next.radiusScale !== prev.radiusScale
+      next.radiusScale !== prev.radiusScale ||
+      next.visualStyle !== prev.visualStyle
     ) {
       applyPreferences(next);
     }

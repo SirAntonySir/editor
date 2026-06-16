@@ -447,7 +447,8 @@ class DismissalRule(BaseModel):
 StateEventKind = Literal[
     "widget.created", "widget.updated", "widget.deleted",
     "widget.accepted", "widget.restored",
-    "mask.created", "selection.changed",
+    "mask.created", "mask.deleted", "mask.renamed",
+    "selection.changed",
     "context.updated", "dismissal.added",
     "note.created",
     "phase.started", "phase.progress", "phase.completed", "phase.cancelled",

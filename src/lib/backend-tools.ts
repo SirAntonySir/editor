@@ -29,6 +29,24 @@ export interface ProposeMaskOutput {
   maskId: string;
 }
 
+export interface DeleteMaskInput {
+  maskId: string;
+}
+
+export interface DeleteMaskOutput {
+  maskId: string;
+}
+
+export interface RenameMaskInput {
+  maskId: string;
+  label: string;
+}
+
+export interface RenameMaskOutput {
+  maskId: string;
+  label: string;
+}
+
 const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
 export interface ToolEnvelope<T> {
@@ -163,6 +181,12 @@ export const backendTools = {
   },
   propose_mask(sessionId: string, input: ProposeMaskInput) {
     return invokeTool<ProposeMaskOutput>('propose_mask', sessionId, input as unknown as Record<string, unknown>);
+  },
+  delete_mask(sessionId: string, input: DeleteMaskInput) {
+    return invokeTool<DeleteMaskOutput>('delete_mask', sessionId, input as unknown as Record<string, unknown>);
+  },
+  rename_mask(sessionId: string, input: RenameMaskInput) {
+    return invokeTool<RenameMaskOutput>('rename_mask', sessionId, input as unknown as Record<string, unknown>);
   },
   /** Cancel the in-flight mutate/emit tool task for this session, if any.
    *  Hits the dedicated /session/{sid}/cancel endpoint (not /tools/) since

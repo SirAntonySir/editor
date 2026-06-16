@@ -41,7 +41,16 @@ function stopPointerDownNative(e: PointerEvent) {
   e.stopPropagation();
 }
 
-export function ImageNode({ id, data, selected }: ImageNodeProps) {
+/**
+ * The original Vercel/Radix flat image-node body. Renamed from `ImageNode`
+ * for the Direction A drafting restyle so a thin wrapper at module scope
+ * can branch on `usePreferencesStore.visualStyle`. Phase 1 stub: the
+ * drafting branch returns ImageNodeClassic so the colour ramp / font load
+ * is visible without the layout refactor committing. Phases 2 + 3 land
+ * the marginalia + layer-strip + object-markers in
+ * `./drafting/ImageNodeDrafting.tsx`.
+ */
+function ImageNodeClassic({ id, data, selected }: ImageNodeProps) {
   const stacked = data.layerIds.length > 1;
   const showStrip = stacked && selected;
   const canSplit = data.layerIds.length >= 2;
@@ -451,4 +460,20 @@ const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
       )}
     </div>
   );
+}
+
+/**
+ * Module-scope wrapper that picks the visual style. Stays as `ImageNode`
+ * so React Flow's nodeTypes registration is stable. Phase 1: drafting
+ * just renders the classic body (the cream-paper + ochre palette comes
+ * through CSS tokens via `[data-visual-style="drafting"]`). Phases 2 + 3
+ * point this at `ImageNodeDrafting` instead.
+ */
+export function ImageNode(props: ImageNodeProps) {
+  const visualStyle = usePreferencesStore((s) => s.visualStyle);
+  // Both branches return ImageNodeClassic in Phase 1 — keeping the
+  // branch shape now means Phases 2 + 3 swap one component reference and
+  // the call-sites (React Flow nodeTypes, ErrorBoundary wrap) don't move.
+  if (visualStyle === 'drafting') return <ImageNodeClassic {...props} />;
+  return <ImageNodeClassic {...props} />;
 }

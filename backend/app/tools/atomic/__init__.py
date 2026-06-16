@@ -21,7 +21,9 @@ from .prepare_image import PrepareImageTool
 from .precompute_regions import PrecomputeRegionsTool
 from .select_named_region import SelectNamedRegionTool
 from .suggest_widgets import SuggestWidgetsTool
+from .delete_mask import DeleteMaskTool
 from .propose_mask import ProposeMaskTool
+from .rename_mask import RenameMaskTool
 from .set_image_node_transform import SetImageNodeTransformTool
 
 
@@ -49,3 +51,5 @@ def register_all_atomic_tools(registry: BackendToolRegistry) -> None:
     registry.register(PreviewWidgetTool())
     registry.register(SetImageNodeTransformTool())
     registry.register(ProposeMaskTool())
+    registry.register(DeleteMaskTool())
+    registry.register(RenameMaskTool())

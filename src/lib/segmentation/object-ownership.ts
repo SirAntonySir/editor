@@ -31,6 +31,11 @@ export const objectOwnership = {
   get(maskId: string): string | undefined {
     return owners.get(maskId);
   },
+  clear(maskId: string): void {
+    if (!owners.delete(maskId)) return;
+    version += 1;
+    subscribers.forEach((fn) => fn());
+  },
   subscribe(fn: () => void): () => void {
     subscribers.add(fn);
     return () => subscribers.delete(fn);

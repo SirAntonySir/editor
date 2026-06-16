@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useAiSession } from '@/hooks/useImageContext';
 import { useMobileSam } from '@/hooks/useMobileSam';
 import { useEditorStore } from '@/store';
@@ -123,6 +124,50 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
     setCandidate({ points, mask });
   }, [samCapability]);
 
+  // Right-click hit-test. Two layers:
+  //   1) An uncommitted candidate (live SAM preview) takes precedence —
+  //      right-click inside it offers Commit / Cancel via the hidden
+  //      candidate Trigger below.
+  //   2) Otherwise hit-test committed object masks; the label chip is too
+  //      small to right-click directly, so we re-dispatch contextmenu to
+  //      the matching label's Radix Trigger.
+  // Misses fall through silently (no menu — there's no Trigger to open).
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const el = layerRef.current;
+      if (!el) return;
+      const [nx, ny] = clientToNormalised(e, el);
+
+      if (candidate?.mask && isInsideMask(nx, ny, candidate.mask)) {
+        e.preventDefault();
+        e.stopPropagation();
+        const target = el.querySelector('[data-candidate-trigger]') as HTMLElement | null;
+        if (!target) return;
+        target.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true, cancelable: true, view: window,
+          clientX: e.clientX, clientY: e.clientY, button: 2,
+        }));
+        return;
+      }
+
+      const hit = existingObjects.find((obj) => {
+        const x = Math.min(obj.mask.width - 1, Math.max(0, Math.floor(nx * obj.mask.width)));
+        const y = Math.min(obj.mask.height - 1, Math.max(0, Math.floor(ny * obj.mask.height)));
+        return obj.mask.data[y * obj.mask.width + x] === 255;
+      });
+      if (!hit) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const target = document.querySelector(`[data-object-id="${hit.id}"]`) as HTMLElement | null;
+      if (!target) return;
+      target.dispatchEvent(new MouseEvent('contextmenu', {
+        bubbles: true, cancelable: true, view: window,
+        clientX: e.clientX, clientY: e.clientY, button: 2,
+      }));
+    },
+    [candidate, existingObjects],
+  );
+
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       const el = layerRef.current;
@@ -154,6 +199,7 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
       className="nodrag nopan absolute inset-0 cursor-crosshair"
       style={{ pointerEvents: 'auto', zIndex: 5 }}
       onClick={handleClick}
+      onContextMenu={handleContextMenu}
     >
       <SegmentMaskPreview
         mask={candidate?.mask ?? null}
@@ -181,6 +227,34 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
             <span>Segmenting…</span>
           )}
         </div>
+      )}
+      {/* Hidden Trigger that handleContextMenu re-dispatches into when the
+       *  cursor is over a live candidate. Mounted only while the candidate
+       *  exists so misses (no candidate) fall through silently. */}
+      {candidate?.mask && (
+        <ContextMenu.Root>
+          <ContextMenu.Trigger asChild>
+            <span data-candidate-trigger style={{ position: 'absolute', width: 0, height: 0 }} />
+          </ContextMenu.Trigger>
+          <ContextMenu.Portal>
+            <ContextMenu.Content className="overlay p-1 min-w-[160px] z-50">
+              <ContextMenu.Item
+                className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none flex items-center justify-between gap-3"
+                onSelect={() => void commitCandidate()}
+              >
+                <span>Commit</span>
+                <Kbd keys="enter" className="ml-0" />
+              </ContextMenu.Item>
+              <ContextMenu.Item
+                className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none flex items-center justify-between gap-3 text-text-secondary"
+                onSelect={cancelCandidate}
+              >
+                <span>Cancel</span>
+                <Kbd keys="esc" className="ml-0" />
+              </ContextMenu.Item>
+            </ContextMenu.Content>
+          </ContextMenu.Portal>
+        </ContextMenu.Root>
       )}
     </div>
   );

@@ -17,6 +17,23 @@ it('setInspectorTab updates the inspector tab', () => {
   expect(usePreferencesStore.getState().inspectorTab).toBe('info');
 });
 
+describe('visualStyle', () => {
+  beforeEach(() => {
+    usePreferencesStore.setState({ visualStyle: 'classic' });
+  });
+
+  it('defaults to classic', () => {
+    expect(usePreferencesStore.getState().visualStyle).toBe('classic');
+  });
+
+  it('setVisualStyle switches the value', () => {
+    usePreferencesStore.getState().setVisualStyle('drafting');
+    expect(usePreferencesStore.getState().visualStyle).toBe('drafting');
+    usePreferencesStore.getState().setVisualStyle('classic');
+    expect(usePreferencesStore.getState().visualStyle).toBe('classic');
+  });
+});
+
 describe('showCrop', () => {
   beforeEach(() => {
     usePreferencesStore.setState({ rightSidebarCollapsed: true, inspectorTab: 'adjustments' });

@@ -33,11 +33,16 @@ const RADIUS_VALUES: Record<RadiusScale, { panel: string; button: string; sm: st
 export type RightSidebarTab = 'inspector' | 'ai';
 /** Inner tab of the inspector panel (Adjustments vs Info/context vs Crop). */
 export type InspectorTab = 'adjustments' | 'info' | 'crop';
+/** Visual register of the workspace. `classic` is the shipped Vercel/Radix
+ *  flat look. `drafting` opts into the architectural-drafting redesign
+ *  (see docs/superpowers/specs/2026-06-16-image-node-drafting.md). */
+export type VisualStyle = 'classic' | 'drafting';
 
 export interface PreferencesState {
   themeMode: ThemeMode;
   accentColor: string;
   radiusScale: RadiusScale;
+  visualStyle: VisualStyle;
   rightSidebarCollapsed: boolean;
   rightSidebarWidth: number;
   rightSidebarTab: RightSidebarTab;
@@ -46,6 +51,7 @@ export interface PreferencesState {
   setThemeMode: (mode: ThemeMode) => void;
   setAccentColor: (color: string) => void;
   setRadiusScale: (scale: RadiusScale) => void;
+  setVisualStyle: (style: VisualStyle) => void;
   toggleRightSidebar: () => void;
   setRightSidebarWidth: (w: number) => void;
   setRightSidebarTab: (tab: RightSidebarTab) => void;
@@ -69,6 +75,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       themeMode: 'system',
       accentColor: '#0071e3',
       radiusScale: 'medium',
+      visualStyle: 'classic',
       rightSidebarCollapsed: false,
       rightSidebarWidth: 264,
       rightSidebarTab: 'inspector',
@@ -77,6 +84,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       setThemeMode: (mode) => set({ themeMode: mode }),
       setAccentColor: (color) => set({ accentColor: color }),
       setRadiusScale: (scale) => set({ radiusScale: scale }),
+      setVisualStyle: (style) => set({ visualStyle: style }),
       toggleRightSidebar: () =>
         set((s) => ({ rightSidebarCollapsed: !s.rightSidebarCollapsed })),
       setRightSidebarWidth: (w) =>
@@ -93,6 +101,7 @@ export const usePreferencesStore = create<PreferencesState>()(
         themeMode: state.themeMode,
         accentColor: state.accentColor,
         radiusScale: state.radiusScale,
+        visualStyle: state.visualStyle,
         rightSidebarCollapsed: state.rightSidebarCollapsed,
         rightSidebarWidth: state.rightSidebarWidth,
         rightSidebarTab: state.rightSidebarTab,
@@ -105,12 +114,18 @@ function getSystemDark(): boolean {
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
-export function applyPreferences(state: Pick<PreferencesState, 'themeMode' | 'accentColor' | 'radiusScale'>) {
+export function applyPreferences(
+  state: Pick<PreferencesState, 'themeMode' | 'accentColor' | 'radiusScale' | 'visualStyle'>,
+) {
   const root = document.documentElement;
 
   // Theme
   const isDark = state.themeMode === 'dark' || (state.themeMode === 'system' && getSystemDark());
   root.setAttribute('data-theme', isDark ? 'dark' : 'light');
+
+  // Visual style — `data-visual-style="drafting"` opts into the drafting
+  // token block in index.css. Independent of light/dark.
+  root.setAttribute('data-visual-style', state.visualStyle);
 
   // Accent color
   const accent = ACCENT_COLORS.find((c) => c.value === state.accentColor);

@@ -52,14 +52,18 @@ export function useImageNodeObjects(imageNodeId: string): ImageObject[] {
     for (const entry of masksIndex) {
       const id = (entry as { id?: string }).id;
       if (!id) continue;
-      // Two acceptance paths:
-      //  - explicit imageNodeId on the MaskSummary matches this node (multi-
-      //    image path; populated once backend tools start setting it), or
-      //  - the legacy objectOwnership map (set on local commit) matches.
-      // Untargeted / global masks (imageNodeId == null) fall back to ownership.
+      // objectOwnership wins when set — it's the client's authoritative
+      // mapping for masks it proposed (the backend's `image_node_id` can
+      // drift, e.g. legacy `in-default`). For backend-only masks with no
+      // client ownership entry, fall back to the MaskSummary's imageNodeId.
+      const owner = objectOwnership.get(id);
       const targeted = (entry as { imageNodeId?: string | null }).imageNodeId;
-      if (targeted && targeted !== imageNodeId) continue;
-      if (!targeted && objectOwnership.get(id) !== imageNodeId) continue;
+      if (owner) {
+        if (owner !== imageNodeId) continue;
+      } else {
+        if (targeted && targeted !== imageNodeId) continue;
+        if (!targeted) continue;
+      }
       const mask = maskStore.get(id);
       if (!mask) continue;
       const bbox = maskBbox(mask);

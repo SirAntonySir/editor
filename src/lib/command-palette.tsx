@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { Sun, Moon, Monitor, Square } from 'lucide-react';
+import { Sun, Moon, Monitor, Square, PenLine, Layers } from 'lucide-react';
 import type { ToolDefinition } from '@/types/tool';
 import type { ImageNodeState } from '@/types/workspace';
 import type { Layer } from '@/store/layer-slice';
@@ -10,6 +10,7 @@ import {
   ACCENT_COLORS,
   type ThemeMode,
   type RadiusScale,
+  type VisualStyle,
 } from '@/store/preferences-store';
 
 export type PaletteCommandKind = 'op' | 'preset' | 'tool' | 'menu' | 'ai';
@@ -343,6 +344,11 @@ const RADIUS_OPTIONS: { scale: RadiusScale; label: string }[] = [
   { scale: 'full',   label: 'Full' },
 ];
 
+const VISUAL_STYLE_OPTIONS: { style: VisualStyle; label: string; description: string; icon: ComponentType<{ size?: number; className?: string }> }[] = [
+  { style: 'classic',  label: 'Classic',  description: 'Vercel / Radix flat register (default).', icon: Layers },
+  { style: 'drafting', label: 'Drafting', description: 'Architectural drafting — marginalia, ochre ink, Fraunces display.', icon: PenLine },
+];
+
 export function buildPreferencesSections(): PaletteSection[] {
   const sections: PaletteSection[] = [];
 
@@ -385,6 +391,20 @@ export function buildPreferencesSections(): PaletteSection[] {
       icon: Square,
       aliases: ['radius', 'corners', 'rounded', label.toLowerCase()],
       run: () => usePreferencesStore.getState().setRadiusScale(scale),
+    })),
+  });
+
+  sections.push({
+    id: 'prefs:visual-style',
+    title: 'Visual style',
+    commands: VISUAL_STYLE_OPTIONS.map(({ style, label, description, icon }) => ({
+      id: `prefs:visual-style:${style}`,
+      kind: 'menu' as const,
+      label: `Style: ${label}`,
+      description,
+      icon,
+      aliases: ['style', 'visual', 'register', 'restyle', 'theme', label.toLowerCase()],
+      run: () => usePreferencesStore.getState().setVisualStyle(style),
     })),
   });
 

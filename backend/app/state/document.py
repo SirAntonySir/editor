@@ -501,6 +501,19 @@ class SessionDocument(BaseModel):
             "image_node_id": mask.image_node_id,
         })]
 
+    def remove_mask(self, mask_id: str) -> list[StateEvent]:
+        """Drop a mask and emit mask.deleted so the frontend can filter masks_index."""
+        self.masks.pop(mask_id, None)
+        return [self._emit("mask.deleted", {"mask_id": mask_id})]
+
+    def rename_mask(self, mask_id: str, label: str) -> list[StateEvent]:
+        """Update a mask's label in-place and emit mask.renamed."""
+        mask = self.masks.get(mask_id)
+        if mask is None:
+            return []
+        mask.label = label
+        return [self._emit("mask.renamed", {"mask_id": mask_id, "label": label})]
+
     def emit_selection_changed(self, mask_id: str | None, state: str, label: str | None) -> list[StateEvent]:
         return [self._emit("selection.changed", {"mask_id": mask_id, "state": state, "label": label})]
 

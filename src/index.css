@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Fraunces — variable italic serif, used as the display family in the
+ * drafting visual style only. Imported unconditionally because Phase 1
+ * keeps the bundle hit deliberate and visible. */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400;1,9..144,500&display=swap');
+
 /* Design tokens */
 @theme {
   /* 8pt spacing grid */
@@ -52,6 +57,52 @@
   --color-canvas-bg: #000000;
   --shadow-overlay-color: rgba(0, 0, 0, 0.50);
   --shadow-overlay: 0 4px 14px var(--shadow-overlay-color);
+}
+
+/* ---------------------------------------------------------------------
+ * Drafting visual style — Direction A from the 2026-06-16 restyle.
+ *
+ * Targets `[data-visual-style="drafting"]` set by `applyPreferences`.
+ * Overrides the chrome palette to cream paper + ink + a single ochre
+ * accent that stands in for "marginalia ink". The image-node layout
+ * proper lands in Phase 2 (TopMarginalia / LayerStrip / BottomMarginalia);
+ * Phase 1 just repaints the existing surface so the colour ramp can be
+ * validated against real images before the layout refactor commits.
+ *
+ * Light + dark variants both branch from here. Dark drafting uses an
+ * inverted ink ramp on the same warm hue family so the ochre still
+ * registers as "ink" rather than a hot accent.
+ * ------------------------------------------------------------------- */
+[data-visual-style="drafting"] {
+  --color-surface: oklch(0.97 0.012 90);
+  --color-surface-secondary: oklch(0.94 0.014 90);
+  --color-text-primary: oklch(0.22 0.012 280);
+  --color-text-secondary: oklch(0.50 0.010 280);
+  --color-separator: oklch(0.84 0.014 280 / 0.6);
+  --color-border-strong: oklch(0.78 0.014 280);
+  --color-canvas-bg: oklch(0.97 0.012 90);
+  /* Sole accent — used for active states, leader lines, object outlines. */
+  --color-accent: oklch(0.55 0.20 30);
+  --color-accent-hover: oklch(0.60 0.20 30);
+  /* AI provenance stays separate so AI-touched values still read as AI,
+   * not as marginalia ink. */
+  --color-ai: oklch(0.55 0.18 295);
+
+  /* Display family bookmark — only used by drafting-mode components.
+   * The default --font-sans (Geist) keeps body UI. */
+  --font-display: 'Fraunces', ui-serif, Georgia, serif;
+}
+
+[data-theme="dark"][data-visual-style="drafting"] {
+  --color-surface: oklch(0.20 0.010 80);
+  --color-surface-secondary: oklch(0.25 0.012 80);
+  --color-text-primary: oklch(0.93 0.008 90);
+  --color-text-secondary: oklch(0.65 0.010 90);
+  --color-separator: oklch(0.40 0.014 280 / 0.6);
+  --color-border-strong: oklch(0.50 0.014 280);
+  --color-canvas-bg: oklch(0.20 0.010 80);
+  --color-accent: oklch(0.68 0.20 40);
+  --color-accent-hover: oklch(0.73 0.20 40);
 }
 
 /* Base styles */

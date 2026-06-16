@@ -13,6 +13,8 @@ import { deletePrefix } from '@/core/pixel-source-store';
 import { tetherWorkspaceWidget } from '@/lib/workspace-tether';
 import { useEditorStore } from '@/store';
 import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
+import { objectOwnership } from '@/lib/segmentation/object-ownership';
+import { GLOBAL_SCOPE } from '@/types/scope';
 
 // Required so immer can produce drafts of Map<WidgetId, OptimisticPatch>.
 enableMapSet();
@@ -124,6 +126,14 @@ interface BackendState {
   setSseStatus: (status: SseStatus) => void;
   setSnapshot: (snapshot: SessionStateSnapshot) => void;
   setSessionId: (sessionId: string | null) => void;
+  /** Optimistically drop a mask from snapshot.masksIndex + maskStore +
+   *  objectOwnership ahead of the backend's `mask.deleted` SSE echo (the
+   *  handler is idempotent). Also resets activeScope when it pointed at
+   *  the removed mask. */
+  pushMaskDeleted: (maskId: string) => void;
+  /** Optimistically patch a mask's label in snapshot.masksIndex + maskStore
+   *  ahead of the `mask.renamed` SSE echo. */
+  pushMaskRename: (maskId: string, label: string) => void;
   /** Mark a cancel-in-flight before the SSE event lands. */
   setCancelling: (cancelling: boolean) => void;
   reset: () => void;
@@ -397,6 +407,30 @@ export const useBackendState = create<BackendState>()(
             }
             break;
           }
+          case 'mask.deleted': {
+            const { mask_id } = payload as { mask_id: string };
+            if (s.snapshot) {
+              s.snapshot.masksIndex = s.snapshot.masksIndex.filter((m) => m.id !== mask_id);
+            }
+            sideEffects.push(() => {
+              maskStore.remove(mask_id);
+              objectOwnership.clear(mask_id);
+              const editor = useEditorStore.getState();
+              if (editor.activeScope.kind === 'mask' && editor.activeScope.mask_id === mask_id) {
+                editor.setActiveScope(GLOBAL_SCOPE);
+              }
+            });
+            break;
+          }
+          case 'mask.renamed': {
+            const { mask_id, label } = payload as { mask_id: string; label: string };
+            if (s.snapshot) {
+              const entry = s.snapshot.masksIndex.find((m) => m.id === mask_id);
+              if (entry) entry.label = label;
+            }
+            sideEffects.push(() => maskStore.setLabel(mask_id, label));
+            break;
+          }
           case 'selection.changed':
           case 'dismissal.added':
             // No snapshot change; subscribers (e.g. maskStore) handle these.
@@ -439,6 +473,26 @@ export const useBackendState = create<BackendState>()(
 
     setSseStatus: (status) => set((s) => { s.sseStatus = status; }),
     setSnapshot: (snapshot) => set((s) => { s.snapshot = snapshot; }),
+    pushMaskDeleted: (maskId) => {
+      set((s) => {
+        if (s.snapshot) {
+          s.snapshot.masksIndex = s.snapshot.masksIndex.filter((m) => m.id !== maskId);
+        }
+      });
+      maskStore.remove(maskId);
+      objectOwnership.clear(maskId);
+      const editor = useEditorStore.getState();
+      if (editor.activeScope.kind === 'mask' && editor.activeScope.mask_id === maskId) {
+        editor.setActiveScope(GLOBAL_SCOPE);
+      }
+    },
+    pushMaskRename: (maskId, label) => {
+      set((s) => {
+        const entry = s.snapshot?.masksIndex.find((m) => m.id === maskId);
+        if (entry) entry.label = label;
+      });
+      maskStore.setLabel(maskId, label);
+    },
     setCancelling: (cancelling) => set((s) => { s.cancelling = cancelling; }),
     setSessionId: (sessionId) =>
       set((s) => {

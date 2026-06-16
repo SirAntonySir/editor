@@ -787,6 +787,8 @@ export interface StateEvent {
     | "widget.accepted"
     | "widget.restored"
     | "mask.created"
+    | "mask.deleted"
+    | "mask.renamed"
     | "selection.changed"
     | "context.updated"
     | "dismissal.added"

@@ -10,16 +10,8 @@ import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { toast } from '@/components/ui/Toast';
-import { GLOBAL_SCOPE, type Scope } from '@/types/scope';
-
-/** Build the default propose-widget scope for a spawn.
- *  An active object (mask) always wins — the user picked it for a reason.
- *  Otherwise fall back to GLOBAL_SCOPE — image-node selection is carried
- *  separately via activeImageNodeId. */
-function _scopeForSpawn(activeObjectId: string | null | undefined): Scope {
-  if (activeObjectId) return { kind: 'mask', mask_id: activeObjectId };
-  return GLOBAL_SCOPE;
-}
+import { scopeFromSelection } from '@/lib/scope-from-selection';
+import type { Scope } from '@/types/scope';
 
 /**
  * Handle a toolrail click for a tool with a `processingId`.
@@ -52,7 +44,7 @@ export function spawnToolWidget(toolName: string): boolean {
 function _resolveSpawnContext(): {
   sid: string;
   layerId: string;
-  scope: import('@/types/widget').Scope;
+  scope: Scope;
 } | null {
   const editor = useEditorStore.getState();
   const activeImageNodeId = editor.activeImageNodeId;
@@ -69,7 +61,7 @@ function _resolveSpawnContext(): {
       ? editor.activeLayerId
       : node.layerIds[0];
   if (!layerId) return null;
-  return { sid, layerId, scope: _scopeForSpawn(editor.activeObjectId) };
+  return { sid, layerId, scope: scopeFromSelection(editor.activeObjectId) };
 }
 
 /** Spawn a single-op widget by registry op id. Used by Cmd+K when the user

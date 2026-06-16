@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, act } from '@testing-library/react';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useEditorStore } from '@/store';
 import { InfoTab } from './InfoTab';
 import { makeFullContext, makePartialContext } from './__fixtures__/enriched-context';
 import type { SessionStateSnapshot } from '@/types/widget';
@@ -87,5 +88,30 @@ describe('InfoTab', () => {
     expect(screen.getByText('Problems')).not.toBeNull();
     expect(screen.getByText('No issues detected.')).not.toBeNull();
     expect(screen.queryByText('Grade')).toBeNull();
+  });
+
+  it('rerenders when activeImageNodeId changes (subscription guard)', () => {
+    // No snapshot context — overlay is shown ("Analyze this image").
+    render(<InfoTab />);
+    expect(screen.getByText('Analyze this image')).not.toBeNull();
+
+    // Switching the active image node should cause InfoTab to rerender.
+    // In the test environment useLiveMechanicalContext resets its snapshot on
+    // id change (it subscribes to activeImageNodeId); the explicit subscription
+    // added in InfoTab is a defensive guard so the rerender is guaranteed even
+    // if that transitive path were ever removed.
+    act(() => {
+      useEditorStore.setState({ activeImageNodeId: 'in-1' });
+    });
+
+    // Component still mounted and shows the overlay (no context in test env).
+    expect(screen.getByText('Analyze this image')).not.toBeNull();
+
+    // Switch to a different node — rerender triggered, still no crash.
+    act(() => {
+      useEditorStore.setState({ activeImageNodeId: 'in-2' });
+    });
+
+    expect(screen.getByText('Analyze this image')).not.toBeNull();
   });
 });

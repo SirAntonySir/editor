@@ -24,7 +24,6 @@ import { CurvesTool } from '@/tools/curves-tool';
 import { LevelsTool } from '@/tools/levels-tool';
 import { HslTool } from '@/tools/hsl-tool';
 import { TimeOfDayTool } from '@/tools/time-of-day-tool';
-import { useBackendState } from '@/store/backend-state-slice';
 import { Upload } from 'lucide-react';
 
 import {
@@ -147,8 +146,10 @@ function EditorContent() {
           window.dispatchEvent(new CustomEvent('palette:close-request'));
           return;
         }
-        const { sseStatus } = useBackendState.getState();
-        if (sseStatus !== 'open') return;
+        // Cmd+K opens the palette regardless of session state. File actions
+        // (Open…, Add image…) are useful in the empty-canvas state; the AI
+        // path stays gated inside the palette by sessionId / hasLayers so a
+        // pre-session palette is harmless.
         window.dispatchEvent(new CustomEvent('spawn-palette:open'));
       }
     }

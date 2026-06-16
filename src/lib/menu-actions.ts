@@ -15,6 +15,7 @@
 
 import { useMemo } from 'react';
 import { useEditorStore } from '@/store';
+import { useBackendState } from '@/store/backend-state-slice';
 import { useAiSession, analyseActiveImageLayer } from '@/hooks/useImageContext';
 import { useFileIO } from '@/hooks/useFileIO';
 import { useCanvasZoom } from '@/hooks/useCanvasZoom';
@@ -73,7 +74,8 @@ function _autoAction(
 }
 
 export function useMenuActions(): MenuAction[] {
-  const { handleOpen, handleClose, handleExport } = useFileIO();
+  const { handleOpen, handleAddImage, handleClose, handleExport } = useFileIO();
+  const sseOpen = useBackendState((s) => s.sseStatus === 'open');
   const { applyZoom, fitOnScreen, zoomIn, zoomOut } = useCanvasZoom();
   const { transformImage } = useImageTransform();
   const canUndo = useHistoryFlag((s) => s.canUndo);
@@ -89,7 +91,14 @@ export function useMenuActions(): MenuAction[] {
   return useMemo<MenuAction[]>(() => [
     // ── File ────────────────────────────────────────────────────────
     { id: 'file:open',     group: 'File', label: 'Open…',
+      aliases: ['open an image', 'open image', 'load image'],
       shortcut: ['mod', 'O'], run: handleOpen },
+    { id: 'file:add-image', group: 'File', label: 'Add image…',
+      aliases: ['add an image', 'add image', 'second image', 'import image'],
+      shortcut: ['mod', 'shift', 'O'],
+      // Adding only makes sense once a document/session exists.
+      disabled: !hasLayers || !sseOpen,
+      run: handleAddImage },
     { id: 'file:export:png',  group: 'File', label: 'Export as PNG',
       shortcut: ['mod', 'shift', 'E'], disabled: !hasLayers,
       run: () => handleExport('png') },
@@ -152,7 +161,8 @@ export function useMenuActions(): MenuAction[] {
       disabled: !hasLayers || analysing,
       run: () => { void analyseActiveImageLayer(); } },
   ], [
-    handleOpen, handleClose, handleExport, applyZoom, fitOnScreen, zoomIn, zoomOut,
-    transformImage, hasLayers, canUndo, canRedo, hasContext, analysing, mech,
+    handleOpen, handleAddImage, handleClose, handleExport,
+    applyZoom, fitOnScreen, zoomIn, zoomOut,
+    transformImage, hasLayers, canUndo, canRedo, hasContext, analysing, mech, sseOpen,
   ]);
 }

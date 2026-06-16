@@ -39,7 +39,11 @@ export function ImageNodeBody({
       // No border + no focus ring: the chrome strips already separate the
       // canvas from the header/footer, and browser-default focus outlines
       // on canvas elements read as a stray hardcoded blue rectangle.
-      className="bg-surface-secondary outline-none focus:outline-none"
+      // No background fill: extracted-object layers have transparent regions
+      // outside the mask, and a solid bg here would read as a baked grey
+      // rectangle around the cutout. Source-pixel layers paint the full canvas
+      // so removing the fallback fill has no effect on regular image nodes.
+      className="outline-none focus:outline-none"
       style={{ display: 'block' }}
     />
   );

@@ -18,6 +18,11 @@ export interface Layer {
   parentLayerId?: string;
   /** Alpha mask applied at composite time. */
   layerMask?: MaskRef;
+  /** For layers extracted from a parent's masked region: pixel-space origin
+   *  in the source layer where the cutout came from. Lets us re-insert the
+   *  cutout back into the original at the right offset. Absent for normal
+   *  (non-extracted) layers. */
+  sourceOrigin?: { x: number; y: number };
 }
 
 export interface LayerSlice {

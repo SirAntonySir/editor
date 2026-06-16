@@ -185,6 +185,13 @@ export function useBackendSession(): void {
           // bitmap helper iterates `useEditorStore.layers`, which is empty
           // on reload until we repopulate it from IDB.
           const persistedState = await getEditorState<PersistedEditorState>(persisted);
+          console.log('[reload] persisted editor state read', {
+            sessionId: persisted,
+            found: !!persistedState,
+            layers: persistedState?.layers?.length ?? 0,
+            imageNodes: Object.keys(persistedState?.imageNodes ?? {}).length,
+            widgetNodes: Object.keys(persistedState?.widgetNodes ?? {}).length,
+          });
           if (persistedState) {
             // Restore layers + workspace graph in ONE setState so the
             // auto-create effect in CanvasWorkspace sees the rehydrated
@@ -204,6 +211,7 @@ export function useBackendSession(): void {
               imageNodeMode: persistedState.imageNodeMode ?? {},
             });
           }
+          console.log('[reload] kicking off restorePixelSources');
           void restorePixelSources(persisted);
         }
       } catch (err) {

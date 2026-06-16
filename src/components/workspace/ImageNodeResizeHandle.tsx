@@ -42,6 +42,11 @@ export function ImageNodeResizeHandle({ imageNodeId, displayWidth }: Props) {
     <div
       role="slider"
       aria-label="Resize image node"
+      // `nodrag nopan` opts this handle out of React Flow's pointer handling.
+      // A React synthetic stopPropagation can't stop d3-zoom's native listener
+      // on the viewport, so without `nopan` a left press-drag passes the pan
+      // filter and the canvas pans the instant you grab the handle.
+      className="nodrag nopan"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

@@ -62,6 +62,8 @@ const RIGHT_MARGIN = 120;
  */
 export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps) {
   const [compareHeld, setCompareHeld] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const setImageNodeName = useEditorStore((s) => s.setImageNodeName);
 
   // --- Effective rotate / crop (mirrors ImageNodeClassic) -----------------
   // The image-node display box needs to follow the WebGL pipeline's effective
@@ -186,7 +188,7 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
     editorDocument.workspace.splitImageNode(id, lastLayerId);
   }
   function handleDelete() {
-    editorDocument.closeDocument();
+    editorDocument.workspace.deleteImageNode(id);
   }
 
   /**
@@ -230,6 +232,12 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
           <div className="my-1 h-px bg-separator" />
         </>
       )}
+      <Item
+        className={itemClass}
+        onSelect={() => setIsRenaming(true)}
+      >
+        Rename
+      </Item>
       <Item
         className={itemClass}
         onSelect={() => setImageNodeMode(id, objectsActive ? 'layers' : 'objects')}
@@ -291,6 +299,13 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
           onCompareUp={() => setCompareHeld(false)}
           renderMenuItems={renderMenuItems as (Item: typeof DropdownMenu.Item) => React.ReactNode}
           tight
+          isRenaming={isRenaming}
+          onRenameStart={() => setIsRenaming(true)}
+          onRenameCommit={(next) => {
+            setImageNodeName(id, next);
+            setIsRenaming(false);
+          }}
+          onRenameCancel={() => setIsRenaming(false)}
         />
       </div>
 
@@ -321,6 +336,20 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
                   displayHeight={displayH}
                   bypassAdjustments={compareHeld}
                 />
+                {/* SegmentHitLayer lives INSIDE the image-node Trigger so an
+                    empty-area right-click in layers mode bubbles naturally
+                    to the image-node ContextMenu (no extra dispatch). The
+                    layer hit-tests objects in both modes — click selects
+                    the mask scope; right-click opens the object's menu via
+                    re-dispatch to the `[data-object-id]` headless triggers
+                    in ImageNodeObjectsLayer. SAM segment-on-click only runs
+                    when `objectsMode` is true. */}
+                <SegmentHitLayer
+                  imageNodeId={id}
+                  widthPx={displayW}
+                  heightPx={displayH}
+                  objectsMode={objectsActive}
+                />
               </div>
             </ContextMenu.Trigger>
             <ContextMenu.Portal>
@@ -330,10 +359,10 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
             </ContextMenu.Portal>
           </ContextMenu.Root>
 
-          {/* Outlines render for every committed object, independent of the
-              objects-mode toggle: objects are a permanent feature, not a
-              mode-gated overlay. Labels are suppressed because the markers
-              in the right marginalia carry the names instead. */}
+          {/* Outlines + headless ContextMenu triggers per object. Labels are
+              hidden — drafting renders the visible names in the right
+              marginalia (ObjectMarkers below). The Triggers remain in the
+              DOM so the SegmentHitLayer can dispatch contextmenu into them. */}
           <ImageNodeObjectsLayer
             imageNodeId={id}
             widthPx={displayW}
@@ -347,12 +376,6 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
             heightPx={displayH}
             marginWidth={RIGHT_MARGIN}
           />
-          {/* SegmentHitLayer is the click-to-segment surface — only mount
-              it when the user has explicitly entered objects mode via the
-              ⋯ menu / right-click. */}
-          {objectsActive && (
-            <SegmentHitLayer imageNodeId={id} widthPx={displayW} heightPx={displayH} />
-          )}
 
           {!selected && <CornerTicks />}
 

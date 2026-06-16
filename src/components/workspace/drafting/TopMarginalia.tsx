@@ -1,5 +1,5 @@
 import { Eye, MoreHorizontal } from 'lucide-react';
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { ReactNode } from 'react';
 
@@ -26,6 +26,16 @@ interface TopMarginaliaProps {
   /** Compact spacing — the row sits closer to the image. Without this, the
    *  marginalia float visibly above the canvas. */
   tight?: boolean;
+
+  /**
+   * Controlled rename: parent owns `isRenaming`, flipping it true (double-click
+   * or menu) mounts an inline input seeded with the current title. Commit fires
+   * `onRenameCommit(next)`; cancel fires `onRenameCancel()`.
+   */
+  isRenaming?: boolean;
+  onRenameStart?: () => void;
+  onRenameCommit?: (next: string) => void;
+  onRenameCancel?: () => void;
 }
 
 /**
@@ -45,16 +55,44 @@ export function TopMarginalia({
   onCompareUp,
   renderMenuItems,
   tight = false,
+  isRenaming = false,
+  onRenameStart,
+  onRenameCommit,
+  onRenameCancel,
 }: TopMarginaliaProps) {
   const compareBtnRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState(title);
   const rowGap = tight ? 'mb-2' : 'mb-7';
   const overlineGap = tight ? 'mb-0.5' : 'mb-1';
   const titleSize = tight ? 'text-[24px]' : 'text-[34px]';
+  // Cap the title column so long basenames don't push the meta column
+  // off-screen or wrap; truncation kicks in past this.
+  const titleMaxW = tight ? 'max-w-[280px]' : 'max-w-[420px]';
+
+  // Seed the draft each time we enter rename mode and focus + select-all so
+  // typing immediately replaces the existing name.
+  useEffect(() => {
+    if (!isRenaming) return;
+    setDraft(title);
+    const el = inputRef.current;
+    if (el) {
+      el.focus();
+      el.select();
+    }
+  }, [isRenaming, title]);
+
+  function commit() {
+    onRenameCommit?.(draft);
+  }
+  function cancel() {
+    onRenameCancel?.();
+  }
 
   return (
     <div className={`relative ${rowGap} flex items-end justify-between gap-6`}>
       {/* Left column: overline + display title */}
-      <div className="min-w-0 flex flex-col">
+      <div className={`min-w-0 ${titleMaxW} flex flex-col`}>
         <div className={`font-[var(--font-mono)] text-[9px] tracking-[0.20em] uppercase text-text-secondary ${overlineGap} flex items-center`}>
           <span
             aria-hidden
@@ -62,12 +100,39 @@ export function TopMarginalia({
           />
           Active layer · {activeLayerName}
         </div>
-        <div className={`font-[var(--font-display,Fraunces)] italic font-normal ${titleSize} leading-none -tracking-[0.015em] text-text-primary truncate`}>
-          {title}
-          <sup className="font-[var(--font-mono)] text-[9px] not-italic tracking-[0.10em] uppercase text-text-secondary ml-2 align-super">
-            {formatLabel}
-          </sup>
-        </div>
+        {isRenaming ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Enter') { e.preventDefault(); commit(); }
+              else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+            }}
+            onPointerDownCapture={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            className={`font-[var(--font-display,Fraunces)] italic font-normal ${titleSize} leading-none -tracking-[0.015em] text-text-primary bg-transparent outline-none border-b border-[var(--color-accent)] w-full`}
+            aria-label="Rename image node"
+          />
+        ) : (
+          <div
+            className={`font-[var(--font-display,Fraunces)] italic font-normal ${titleSize} leading-none -tracking-[0.015em] text-text-primary truncate cursor-text`}
+            title={title}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              onRenameStart?.();
+            }}
+          >
+            {title}
+            <sup className="font-[var(--font-mono)] text-[9px] not-italic tracking-[0.10em] uppercase text-text-secondary ml-2 align-super">
+              {formatLabel}
+            </sup>
+          </div>
+        )}
       </div>
 
       {/* Right column: optional meta lines + control affordances */}

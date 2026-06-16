@@ -58,6 +58,15 @@ describe('ImageNode', () => {
     expect(handle).not.toBeNull();
   });
 
+  it('resize handle opts out of React Flow pan/drag (nodrag nopan) so dragging resizes instead of panning the canvas', () => {
+    renderInFlow(<ImageNode id="in-1" data={{ ...baseData, name: 'Sky' }} selected />);
+    const handle = screen.getByRole('slider', { name: /resize image node/i });
+    // Without these, a left press-drag passes React Flow's d3-zoom pan filter
+    // and the viewport pans the instant you grab the handle.
+    expect(handle).toHaveClass('nodrag');
+    expect(handle).toHaveClass('nopan');
+  });
+
   describe('dropdown menu', () => {
     beforeEach(() => {
       useEditorStore.getState().resetWorkspace();

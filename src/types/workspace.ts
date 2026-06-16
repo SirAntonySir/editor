@@ -4,6 +4,11 @@ export type Size = { w: number; h: number };
 export interface ImageNodeState {
   id: string;
   layerIds: string[];
+  /**
+   * User-editable display name shown in the image-node header. When unset,
+   * the workspace mapper falls back to the first layer's name (file basename).
+   */
+  name?: string;
   position: Point;
   /**
    * Canvas-space layout box. Independent of the source bitmap dims so a 24MP

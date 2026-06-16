@@ -191,10 +191,6 @@ async function openImage(file: File): Promise<void> {
   const layerId = crypto.randomUUID();
   pixelStore.register(layerId, offscreen);
 
-  // Best-effort: persist the source blob so Cmd+R can rehydrate this layer.
-  const sid = useBackendState.getState().sessionId;
-  if (sid) void putSource(sid, layerId, file);
-
   const meta: DocumentMeta = {
     id: crypto.randomUUID(),
     name: file.name.replace(/\.[^.]+$/, ''),
@@ -250,7 +246,17 @@ async function openImage(file: File): Promise<void> {
   // generation counter on useAiSession.openSession — out of scope for this
   // cluster, tracked as a follow-up under audit C8.
   useAiSession.getState().reset();
-  void useAiSession.getState().openSession(offscreen);
+  void useAiSession
+    .getState()
+    .openSession(offscreen)
+    .then(() => {
+      // openSession sets useAiSession.sessionId before resolving. Persist
+      // the source blob here (not synchronously above) because the session
+      // didn't exist yet at openImage entry — without this, Cmd+R reload
+      // finds no IDB entry and the canvas paints gray.
+      const sid = useAiSession.getState().sessionId;
+      if (sid) void putSource(sid, layerId, file);
+    });
 
   bitmap.close();
 }
@@ -517,6 +523,36 @@ const workspace = {
     recordSnapshot('Remove image node', () =>
       useEditorStore.getState().removeImageNode(id),
     );
+  },
+
+  /**
+   * User-facing "Delete" on an image node. Behaves as:
+   *  - last image node in the document → `closeDocument()` (legacy behaviour,
+   *    the document is meaningless without an image).
+   *  - any secondary node (e.g. one produced by "Extract to Image Node") →
+   *    drop the node + the layers it exclusively owned. Layers shared with
+   *    other nodes are left alone. Pixel data is cleaned up by the layer-
+   *    lifecycle hook when the orphaned layers are removed.
+   */
+  deleteImageNode(id: string): void {
+    const state = useEditorStore.getState();
+    const node = state.imageNodes[id];
+    if (!node) return;
+    const allNodes = Object.values(state.imageNodes);
+    if (allNodes.length <= 1) {
+      closeDocument();
+      return;
+    }
+    const exclusiveLayers = node.layerIds.filter((lid) =>
+      !allNodes.some((n) => n.id !== id && n.layerIds.includes(lid)),
+    );
+    recordSnapshot('Delete image node', () => {
+      const s = useEditorStore.getState();
+      s.removeImageNode(id);
+      for (const lid of exclusiveLayers) {
+        try { s.removeLayer(lid); } catch { /* layer with children: skip */ }
+      }
+    });
   },
 
   setEdge(edge: TetherEdgeState): void {

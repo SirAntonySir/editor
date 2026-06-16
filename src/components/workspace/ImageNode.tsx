@@ -18,6 +18,12 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { computeEffectiveSize, type Crop } from '@/lib/image-node-geometry';
+import {
+  convertObjectToLayerMask,
+  extractObjectToImageNode,
+  deleteObject,
+  startObjectRename,
+} from '@/lib/segmentation/object-actions';
 
 export interface ImageNodeData extends Record<string, unknown> {
   name?: string;
@@ -147,6 +153,15 @@ function ImageNodeClassic({ id, data, selected }: ImageNodeProps) {
   const imageNodeMode = useEditorStore((s) => s.imageNodeMode[id]);
   const objects = useImageNodeObjects(id);
   const objectCount = objects.length;
+  const activeScope = useEditorStore((s) => s.activeScope);
+  // Mask currently selected via canvas hit-test — only when it belongs to
+  // THIS node's objects. Drives the per-object section that appears at
+  // the top of this image-node's ContextMenu (Rename / Convert / Extract /
+  // Delete). The same shared `object-actions` helpers as the drafting
+  // variant so the two surfaces stay in lock-step.
+  const selectedObject = objects.find(
+    (o) => activeScope.kind === 'mask' && activeScope.mask_id === o.id,
+  ) ?? null;
   const currentMode: 'layers' | 'objects' =
     imageNodeMode ?? (objectCount > 0 ? 'objects' : 'layers');
 const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
@@ -228,11 +243,11 @@ const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
   }
 
   function handleDelete() {
-    // Image node delete = close the document: clear layers, pixel data,
-    // backend session (incl. localStorage), and the workspace. Without this,
-    // removing just the workspace node leaves layers populated → the
-    // auto-recreate effect in CanvasWorkspace immediately re-creates the node.
-    editorDocument.closeDocument();
+    // Deletes this image node only. Falls back to closing the document
+    // when it's the last node (clears layers, pixel data, backend session)
+    // because the auto-recreate effect in CanvasWorkspace would otherwise
+    // immediately re-create the node from the surviving layers.
+    editorDocument.workspace.deleteImageNode(id);
   }
 
   // Shared menu items for both DropdownMenu and ContextMenu.
@@ -243,8 +258,43 @@ const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
     onSelect?: () => void;
     children?: React.ReactNode;
   }>) {
+    const objectItemCls =
+      'px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none ' +
+      'text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary';
     return (
       <>
+        {selectedObject && (
+          <>
+            <div className="px-2 pt-1 pb-0.5 text-[9px] uppercase tracking-wide text-text-secondary">
+              {selectedObject.label}
+            </div>
+            <MenuItem
+              className={objectItemCls}
+              onSelect={() => startObjectRename(selectedObject.id, id)}
+            >
+              Rename
+            </MenuItem>
+            <MenuItem
+              className={objectItemCls}
+              onSelect={() => convertObjectToLayerMask(selectedObject.id)}
+            >
+              Convert to Layer Mask
+            </MenuItem>
+            <MenuItem
+              className={objectItemCls}
+              onSelect={() => extractObjectToImageNode(selectedObject.id, id)}
+            >
+              Extract to Image Node
+            </MenuItem>
+            <MenuItem
+              className={objectItemCls}
+              onSelect={() => void deleteObject(selectedObject.id)}
+            >
+              Delete object
+            </MenuItem>
+            <div className="my-1 h-px bg-separator" />
+          </>
+        )}
         <MenuItem
           className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none
             text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary"
@@ -387,8 +437,9 @@ const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
         )}
         <div className="relative">
           <ContextMenu.Root>
-            <ContextMenu.Trigger>
-              <ImageNodeBody
+            <ContextMenu.Trigger asChild>
+              <div className="relative">
+                <ImageNodeBody
                   imageNodeId={id}
                   layerIds={data.layerIds}
                   sourceWidth={data.sourceSize.w}
@@ -397,6 +448,17 @@ const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
                   displayHeight={displayH}
                   bypassAdjustments={compareHeld}
                 />
+                {/* See ImageNodeDrafting for the rationale: SegmentHitLayer
+                    lives inside the Trigger so empty-area right-clicks in
+                    layers mode bubble naturally to the image-node menu.
+                    SAM segment-on-click runs only when objectsMode=true. */}
+                <SegmentHitLayer
+                  imageNodeId={id}
+                  widthPx={displayW}
+                  heightPx={displayH}
+                  objectsMode={currentMode === 'objects'}
+                />
+              </div>
             </ContextMenu.Trigger>
             <ContextMenu.Portal>
               <ContextMenu.Content className="overlay p-1 min-w-[140px] z-50">
@@ -404,20 +466,11 @@ const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
               </ContextMenu.Content>
             </ContextMenu.Portal>
           </ContextMenu.Root>
-          {currentMode === 'objects' && (
-            <>
-              <ImageNodeObjectsLayer
-                imageNodeId={id}
-                widthPx={displayW}
-                heightPx={displayH}
-              />
-              <SegmentHitLayer
-                imageNodeId={id}
-                widthPx={displayW}
-                heightPx={displayH}
-              />
-            </>
-          )}
+          <ImageNodeObjectsLayer
+            imageNodeId={id}
+            widthPx={displayW}
+            heightPx={displayH}
+          />
         </div>
         {chromeVisible && (
           <div

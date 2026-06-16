@@ -15,36 +15,67 @@ import { pixelStore } from './pixel-store';
 import { getSource } from './pixel-source-store';
 
 export async function restorePixelSources(sessionId: string): Promise<void> {
+  const t0 = performance.now();
   // Snapshot taken once; mutations during restore are ignored.
   const layers = useEditorStore.getState().layers;
+  const imageLayers = layers.filter((l) => l.type === 'image');
+  console.log('[reload] restorePixelSources start', {
+    sessionId,
+    totalLayers: layers.length,
+    imageLayers: imageLayers.length,
+    layerIds: imageLayers.map((l) => l.id),
+  });
   let restored = 0;
+  let missingBlob = 0;
+  let decodeFailed = 0;
   for (const layer of layers) {
     if (layer.type !== 'image') continue;
     let bitmap: ImageBitmap | null = null;
+    const tLayer = performance.now();
     try {
       const blob = await getSource(sessionId, layer.id);
-      if (!blob) continue;
+      if (!blob) {
+        missingBlob += 1;
+        console.warn('[reload] no blob for layer', layer.id, '— putSource at openImage/addImage may not have run, or IDB was cleared');
+        continue;
+      }
+      console.log('[reload] got blob for layer', layer.id, { bytes: blob.size, type: blob.type });
       bitmap = await createImageBitmap(blob);
       const source = new OffscreenCanvas(bitmap.width, bitmap.height);
       const ctx = source.getContext('2d');
       if (!ctx) {
-        console.warn('[restore-pixel-sources] no 2d context for layer', layer.id);
+        decodeFailed += 1;
+        console.warn('[reload] no 2d context for layer', layer.id);
         continue;
       }
       ctx.drawImage(bitmap, 0, 0);
       pixelStore.register(layer.id, source);
       restored += 1;
-      // Bump per-layer so each layer's image-node repaints as soon as its
-      // source lands, instead of all waiting for the slowest layer's
-      // decode. Cheap (single number write).
+      const versionBefore = useEditorStore.getState().pixelVersion;
       useEditorStore.getState().bumpPixelVersion();
+      const versionAfter = useEditorStore.getState().pixelVersion;
+      console.log('[reload] registered + bumped', layer.id, {
+        w: bitmap.width,
+        h: bitmap.height,
+        pixelVersion: `${versionBefore} → ${versionAfter}`,
+        ms: Math.round(performance.now() - tLayer),
+      });
     } catch (err) {
-      console.warn('[restore-pixel-sources] failed for layer', layer.id, err);
+      decodeFailed += 1;
+      console.warn('[reload] failed for layer', layer.id, err);
     } finally {
       bitmap?.close();
     }
   }
-  if (restored === 0) {
-    console.warn('[restore-pixel-sources] no layers restored for session', sessionId);
+  console.log('[reload] restorePixelSources done', {
+    sessionId,
+    restored,
+    missingBlob,
+    decodeFailed,
+    pixelStoreSize: pixelStore.size,
+    totalMs: Math.round(performance.now() - t0),
+  });
+  if (restored === 0 && imageLayers.length > 0) {
+    console.warn('[reload] WARNING: image layers exist but none restored — check IDB pixel-source-store entries for this session');
   }
 }

@@ -458,10 +458,12 @@ export function filterCommands(commands: PaletteCommand[], query: string): Palet
 // ─── Image-node label + cycling ───────────────────────────────────────
 
 export function imageNodeLabel(node: ImageNodeState, layers: Layer[]): string {
+  // Prefer the user-set override (set via image-node rename), then the first
+  // layer's name. Fall back to a friendly label rather than a raw uuid —
+  // UUIDs make the target chip in the Cmd+K palette look broken.
+  if (node.name) return node.name;
   const firstLayerId = node.layerIds[0];
   const layer = layers.find((l) => l.id === firstLayerId);
-  // Prefer the layer name; fall back to a friendly label rather than a
-  // raw uuid — UUIDs make the target chip in the Cmd+K palette look broken.
   return layer?.name ?? 'Untitled image';
 }
 

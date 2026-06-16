@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
-import { useAiSession } from '@/hooks/useImageContext';
+import { useBackendState } from '@/store/backend-state-slice';
 import { useMobileSam } from '@/hooks/useMobileSam';
 import { useEditorStore } from '@/store';
+import { GLOBAL_SCOPE } from '@/types/scope';
 import { backendTools } from '@/lib/backend-tools';
 import { maskStore } from '@/core/mask-store';
 import { maskToPngBase64 } from '@/lib/segmentation/mask-png';
@@ -17,6 +18,13 @@ interface SegmentHitLayerProps {
   imageNodeId: string;
   widthPx: number;
   heightPx: number;
+  /** True when the image-node is in objects mode. Drives left-click
+   *  behaviour: in objects mode an empty-area click runs SAM; in layers
+   *  mode it just clears the active mask scope so the image-node selects.
+   *  Right-click hit-test against existing objects runs in BOTH modes so
+   *  the user can rename/delete/etc. objects without entering objects
+   *  mode first. */
+  objectsMode: boolean;
 }
 
 interface CandidateState {
@@ -39,9 +47,16 @@ function isInsideMask(nx: number, ny: number, mask: DecodedMask | null): boolean
   return mask.data[y * mask.width + x] === 255;
 }
 
-export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLayerProps) {
+export function SegmentHitLayer({
+  imageNodeId, widthPx, heightPx, objectsMode,
+}: SegmentHitLayerProps) {
   const layerRef = useRef<HTMLDivElement>(null);
-  const sessionId = useAiSession((s) => s.sessionId);
+  // Read from useBackendState — this is the authoritative tool-session
+  // store and stays populated across reloads (reattached from localStorage
+  // via useBackendSession). useAiSession.sessionId mirrors the same id
+  // only after the user runs analyze, so reading it here would silently
+  // bail commitCandidate post-reload.
+  const sessionId = useBackendState((s) => s.sessionId);
   const samCapability = useMobileSam(imageNodeId);
   const existingObjects = useImageNodeObjects(imageNodeId);
 
@@ -97,6 +112,10 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
         // Promote the new object to the active scope so subsequent
         // toolrail / Cmd+K adjustments target it instead of the layer.
         editor.setActiveScope({ kind: 'mask', mask_id: maskId });
+        // Drop back to layers mode — the user is done segmenting, and the
+        // committed object's actions are still reachable from the image-
+        // node's ContextMenu when the active scope points at this mask.
+        editor.setImageNodeMode(imageNodeId, 'layers');
       }
       toast.info(`Saved as "${autoName}"`);
       setCandidate(null);
@@ -136,14 +155,22 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
     (e: React.MouseEvent<HTMLDivElement>) => {
       const el = layerRef.current;
       if (!el) return;
+      // Re-entry guard: our re-dispatched contextmenu events land on a
+      // Radix trigger element (the hidden candidate span, or an object
+      // label in a sibling layer). When the candidate trigger lives inside
+      // SegmentHitLayer, the synthesized event bubbles right back up into
+      // this handler and would recurse infinitely. Bail when the event
+      // target is already a trigger we'd want to redispatch to.
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('[data-candidate-trigger], [data-object-id]')) return;
       const [nx, ny] = clientToNormalised(e, el);
 
       if (candidate?.mask && isInsideMask(nx, ny, candidate.mask)) {
         e.preventDefault();
         e.stopPropagation();
-        const target = el.querySelector('[data-candidate-trigger]') as HTMLElement | null;
-        if (!target) return;
-        target.dispatchEvent(new MouseEvent('contextmenu', {
+        const trig = el.querySelector('[data-candidate-trigger]') as HTMLElement | null;
+        if (!trig) return;
+        trig.dispatchEvent(new MouseEvent('contextmenu', {
           bubbles: true, cancelable: true, view: window,
           clientX: e.clientX, clientY: e.clientY, button: 2,
         }));
@@ -155,17 +182,27 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
         const y = Math.min(obj.mask.height - 1, Math.max(0, Math.floor(ny * obj.mask.height)));
         return obj.mask.data[y * obj.mask.width + x] === 255;
       });
-      if (!hit) return;
+      if (!hit) {
+        // Objects mode: empty-area right-click stays silent (matches the
+        // previous behaviour where the hit-layer absorbed contextmenu
+        // entirely). Layers mode: let the event bubble up to the
+        // image-node's ContextMenu.Trigger that wraps this layer.
+        if (objectsMode) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
-      const target = document.querySelector(`[data-object-id="${hit.id}"]`) as HTMLElement | null;
-      if (!target) return;
-      target.dispatchEvent(new MouseEvent('contextmenu', {
+      const trig = document.querySelector(`[data-object-id="${hit.id}"]`) as HTMLElement | null;
+      if (!trig) return;
+      trig.dispatchEvent(new MouseEvent('contextmenu', {
         bubbles: true, cancelable: true, view: window,
         clientX: e.clientX, clientY: e.clientY, button: 2,
       }));
     },
-    [candidate, existingObjects],
+    [candidate, existingObjects, objectsMode],
   );
 
   const handleClick = useCallback(
@@ -174,9 +211,36 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
       if (!el) return;
       const [nx, ny] = clientToNormalised(e, el);
 
-      // Shift-click while a candidate is live: append a refinement point.
-      // Positive (label 1) if outside the current mask, negative (label 0)
-      // if inside — mirrors the SAM convention for click-driven refinement.
+      // Object-pixel hit-test runs in both modes: clicking on a committed
+      // object selects it (sets the active mask scope) so subsequent
+      // adjustments target that object. Image-node selection still happens
+      // via the normal React Flow click handling — we don't preventDefault.
+      const editor = useEditorStore.getState();
+      const objectHit = existingObjects.find((obj) => {
+        const x = Math.min(obj.mask.width - 1, Math.max(0, Math.floor(nx * obj.mask.width)));
+        const y = Math.min(obj.mask.height - 1, Math.max(0, Math.floor(ny * obj.mask.height)));
+        return obj.mask.data[y * obj.mask.width + x] === 255;
+      });
+      if (objectHit) {
+        editor.setActiveScope({ kind: 'mask', mask_id: objectHit.id });
+        editor.setActiveImageNode(imageNodeId);
+        return;
+      }
+
+      if (!objectsMode) {
+        // Layers mode: empty-area click clears the mask scope so the image
+        // body acts as a global target again. React Flow's own node-click
+        // handling still selects the ImageNode (we don't stop the event).
+        if (editor.activeScope.kind === 'mask') {
+          editor.setActiveScope(GLOBAL_SCOPE);
+        }
+        return;
+      }
+
+      // Objects mode — fall through to SAM. Shift-click while a candidate
+      // is live: append a refinement point. Positive (label 1) if outside
+      // the current mask, negative (label 0) if inside — mirrors the SAM
+      // convention for click-driven refinement.
       if (e.shiftKey && candidate) {
         const insideMask = isInsideMask(nx, ny, candidate.mask);
         const point: SamPoint = { x: nx, y: ny, label: insideMask ? 0 : 1 };
@@ -187,7 +251,7 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
       // Plain click (or shift without a candidate): start a fresh candidate.
       void runDecode([{ x: nx, y: ny, label: 1 }]);
     },
-    [candidate, runDecode],
+    [candidate, runDecode, existingObjects, imageNodeId, objectsMode],
   );
 
   return (
@@ -195,8 +259,18 @@ export function SegmentHitLayer({ imageNodeId, widthPx, heightPx }: SegmentHitLa
       ref={layerRef}
       data-testid="segment-hit-layer"
       data-image-node-id={imageNodeId}
-      // `nodrag` / `nopan` opt-out so React Flow doesn't swallow pointer events.
-      className="nodrag nopan absolute inset-0 cursor-crosshair"
+      // `nodrag` / `nopan` opt-out so React Flow doesn't swallow pointer
+      // events — only applied in objects mode where the body is a SAM
+      // segmenting surface. In layers mode, drop the opt-out so a press-
+      // drag on the image body moves the ImageNode (React Flow uses the
+      // node element as the drag handle when no `nodrag` descendant
+      // claims the pointer-down). A simple click without movement still
+      // fires our onClick / onContextMenu first.
+      className={
+        objectsMode
+          ? 'nodrag nopan absolute inset-0 cursor-crosshair'
+          : 'absolute inset-0'
+      }
       style={{ pointerEvents: 'auto', zIndex: 5 }}
       onClick={handleClick}
       onContextMenu={handleContextMenu}

@@ -3,6 +3,7 @@ import { render, fireEvent, waitFor } from '@testing-library/react';
 import { SegmentHitLayer } from './SegmentHitLayer';
 import { useEditorStore } from '@/store';
 import { useAiSession } from '@/hooks/useImageContext';
+import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
 import type { DecodedMask, SamPoint } from '@/lib/segmentation/mobile-sam-types';
@@ -47,11 +48,15 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
     objectOwnership._resetForTests();
     useEditorStore.getState().clearSelection();
     useAiSession.setState({ sessionId: 'sess-1', context: null, status: 'idle', error: null });
+    // commitCandidate now reads sessionId from useBackendState (the
+    // tool-session store, reliable across reloads). Mirror it here so the
+    // existing assertions on propose_mask's session arg still hold.
+    useBackendState.setState({ sessionId: 'sess-1' });
   });
 
   it('plain click calls decode with one positive point', async () => {
     const { findByTestId } = render(
-      <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} />,
+      <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,
     );
     const layer = await findByTestId('segment-hit-layer');
     stubRect(layer);
@@ -67,7 +72,7 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
 
   it('Enter after a successful decode commits via propose_mask with origin client_new', async () => {
     const { findByTestId, getByTestId } = render(
-      <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} />,
+      <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,
     );
     const layer = await findByTestId('segment-hit-layer');
     stubRect(layer);
@@ -88,7 +93,7 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
 
   it('shift-click after a candidate appends a refinement point (label 0 if inside mask)', async () => {
     const { findByTestId } = render(
-      <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} />,
+      <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,
     );
     const layer = await findByTestId('segment-hit-layer');
     stubRect(layer);
@@ -108,7 +113,7 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
 
   it('Enter after a refinement commits with origin client_refinement', async () => {
     const { findByTestId, getByTestId } = render(
-      <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} />,
+      <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,
     );
     const layer = await findByTestId('segment-hit-layer');
     stubRect(layer);
@@ -126,7 +131,7 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
 
   it('Esc discards the candidate (Enter after Esc does not commit)', async () => {
     const { findByTestId, getByTestId, queryByTestId } = render(
-      <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} />,
+      <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,
     );
     const layer = await findByTestId('segment-hit-layer');
     stubRect(layer);
@@ -141,7 +146,7 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
 
   it('new plain click while a candidate exists starts a fresh decode (one more call)', async () => {
     const { findByTestId } = render(
-      <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} />,
+      <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,
     );
     const layer = await findByTestId('segment-hit-layer');
     stubRect(layer);

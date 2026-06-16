@@ -113,6 +113,11 @@ export interface WorkspaceSlice {
    */
   setImageNodeDisplayWidth: (id: string, width: number) => void;
   /**
+   * Set or clear an image node's user-editable display name. Empty/whitespace
+   * strings clear the override and fall back to the first layer's name.
+   */
+  setImageNodeName: (id: string, name: string) => void;
+  /**
    * Peel a single layer off `sourceId`, place it on a new image node, and return the new node's id.
    * Source node survives (minus the migrated layer). Tether edges whose
    * `targetImageNodeId === sourceId` AND whose scope is `{ kind: 'layer', layerId: layerIdToSplit }`
@@ -213,6 +218,15 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
         Math.max(IMAGE_NODE_MIN_DISPLAY_WIDTH, width),
       );
       n.size = deriveDisplaySize(n.sourceSize, clamped);
+    }),
+
+  setImageNodeName: (id, name) =>
+    set((state) => {
+      const n = state.imageNodes[id];
+      if (!n) return;
+      const trimmed = name.trim();
+      if (trimmed) n.name = trimmed;
+      else delete n.name;
     }),
 
   splitImageNode: (sourceId, layerIdToSplit) => {

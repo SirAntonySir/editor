@@ -1,8 +1,50 @@
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { pixelStore } from '@/core/pixel-store';
+import { putSource } from '@/core/pixel-source-store';
+import { useAiSession } from '@/hooks/useImageContext';
+import { useBackendState } from '@/store/backend-state-slice';
 import { LayerCompositor } from '@/lib/layer-compositor';
 import type { MaskRef } from '@/types/scope';
+
+/**
+ * Persist an OffscreenCanvas as a Blob in IDB so Cmd+R reload can rehydrate
+ * the layer. Mirrors the openImage path where the source File is persisted
+ * directly. Best-effort and fire-and-forget — failures are non-fatal.
+ */
+function persistCanvasSource(layerId: string, canvas: OffscreenCanvas): void {
+  const sid =
+    useAiSession.getState().sessionId ?? useBackendState.getState().sessionId;
+  if (!sid) return;
+  void canvas
+    .convertToBlob({ type: 'image/png' })
+    .then((blob) => putSource(sid, layerId, blob))
+    .catch((err) => console.warn('[segment-actions] persist source failed:', err));
+}
+
+/**
+ * Compute the inclusive pixel bbox of the white (255) region in a mask.
+ * Returns null when the mask is empty.
+ */
+function computeMaskBbox(
+  data: Uint8Array, width: number, height: number,
+): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (data[y * width + x] !== 255) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  if (maxX < 0) return null;
+  return { minX, minY, maxX, maxY };
+}
 
 /**
  * Extract the masked region of a layer into a fresh, fully independent layer.
@@ -10,11 +52,18 @@ import type { MaskRef } from '@/types/scope';
  * source canvas registered in the pixel store. The resulting layer has its
  * own pixels — no parentLayerId / layerMask linkage — so it composites,
  * exports and thumbnails like any other image layer.
+ *
+ * `cropToMaskBbox` (opt-in): bake only the mask's bounding box into the new
+ * layer, sized to the bbox (not the full source). The bbox origin is stored
+ * on the new layer's `sourceOrigin` so the cutout can later be re-inserted
+ * into the original at the right offset. Callers that need source-aligned
+ * pixels (e.g. duplicating into the same image-node) should leave it off.
  */
 export function extractLayerFromMask(args: {
   sourceLayerId: string;
   maskRef: MaskRef;
   name?: string;
+  cropToMaskBbox?: boolean;
 }): string {
   const editor = useEditorStore.getState();
   const source = editor.layers.find((l) => l.id === args.sourceLayerId);
@@ -58,8 +107,35 @@ export function extractLayerFromMask(args: {
   ctx.drawImage(maskCanvas, 0, 0, baked.width, baked.height);
   ctx.restore();
 
+  // Optional bbox crop: scale the mask-space bbox up to render-space, then
+  // copy that subregion into a fresh canvas sized to the bbox. The cutout
+  // ends up with its own aspect ratio (no transparent padding) and records
+  // its source-space origin so it can be re-inserted later.
+  let finalCanvas: OffscreenCanvas = baked;
+  let sourceOrigin: { x: number; y: number } | undefined;
+  if (args.cropToMaskBbox) {
+    const bbox = computeMaskBbox(mask.data, mask.width, mask.height);
+    if (bbox) {
+      const sx = baked.width / mask.width;
+      const sy = baked.height / mask.height;
+      const x = Math.max(0, Math.floor(bbox.minX * sx));
+      const y = Math.max(0, Math.floor(bbox.minY * sy));
+      const w = Math.min(baked.width - x, Math.ceil((bbox.maxX - bbox.minX + 1) * sx));
+      const h = Math.min(baked.height - y, Math.ceil((bbox.maxY - bbox.minY + 1) * sy));
+      if (w > 0 && h > 0) {
+        const cropped = new OffscreenCanvas(w, h);
+        const cctx = cropped.getContext('2d');
+        if (!cctx) throw new Error('extractLayerFromMask: unable to acquire crop 2D context');
+        cctx.drawImage(baked, x, y, w, h, 0, 0, w, h);
+        finalCanvas = cropped;
+        sourceOrigin = { x, y };
+      }
+    }
+  }
+
   const newId = crypto.randomUUID();
-  pixelStore.register(newId, baked);
+  pixelStore.register(newId, finalCanvas);
+  persistCanvasSource(newId, finalCanvas);
 
   const name = args.name ?? (mask.label ? `${source.name} · ${mask.label}` : `${source.name} · cut`);
   editor.addLayer({
@@ -70,6 +146,7 @@ export function extractLayerFromMask(args: {
     opacity: 1,
     blendMode: 'normal',
     locked: false,
+    ...(sourceOrigin ? { sourceOrigin } : {}),
   });
   editor.setActiveLayer(newId);
   return newId;
@@ -97,7 +174,10 @@ export function duplicateLayer(layerId: string): string | null {
   }
 
   const newId = crypto.randomUUID();
-  if (newSource) pixelStore.register(newId, newSource);
+  if (newSource) {
+    pixelStore.register(newId, newSource);
+    persistCanvasSource(newId, newSource);
+  }
 
   editor.addLayer({
     id: newId,

@@ -118,11 +118,18 @@ function ObjectLabel({
   imageNodeId,
   widthPx,
   heightPx,
+  headless = false,
 }: {
   obj: ImageObject;
   imageNodeId: string;
   widthPx: number;
   heightPx: number;
+  /** Render only the hidden Radix Trigger (no visible chip / no pointer
+   *  capture). Drafting mode renders names in the right marginalia and
+   *  doesn't want chips on the canvas — but the SegmentHitLayer still
+   *  needs a `[data-object-id]` element to dispatch contextmenu into for
+   *  the object's menu to open. */
+  headless?: boolean;
 }) {
   const mask = obj.mask;
   const left = (obj.bbox.minX / mask.width) * widthPx;
@@ -175,6 +182,12 @@ function ObjectLabel({
     setDraft(obj.label);
   }
 
+  const visibleChipClass =
+    'pointer-events-auto absolute px-1.5 py-0.5 rounded-[3px] bg-surface/95 ' +
+    'text-text-primary text-[10px] leading-none border border-separator ' +
+    'shadow-sm cursor-default select-none';
+  const headlessClass = 'pointer-events-none absolute w-0 h-0 overflow-hidden';
+
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>
@@ -187,7 +200,12 @@ function ObjectLabel({
           // kill Radix's own bubble-phase handler on this element and the
           // object's menu would never open (including re-dispatches from
           // SegmentHitLayer's contextmenu hit-test path).
-          className="pointer-events-auto absolute px-1.5 py-0.5 rounded-[3px] bg-surface/95 text-text-primary text-[10px] leading-none border border-separator shadow-sm cursor-default select-none"
+          //
+          // headless mode keeps the element in the DOM so SegmentHitLayer's
+          // contextmenu dispatch can target it via `data-object-id`, but
+          // hides it visually and stops it from capturing pointer events —
+          // drafting-mode renders the visible name in the marginalia.
+          className={headless ? headlessClass : visibleChipClass}
           style={{ left: `${left}px`, top: `${Math.max(0, top - 18)}px` }}
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => { e.stopPropagation(); startEdit(); }}
@@ -281,13 +299,14 @@ export function ImageNodeObjectsLayer({
         style={{ width: `${widthPx}px`, height: `${heightPx}px` }}
         aria-hidden
       />
-      {!hideLabels && objects.map((obj) => (
+      {objects.map((obj) => (
         <ObjectLabel
           key={obj.id}
           obj={obj}
           imageNodeId={imageNodeId}
           widthPx={widthPx}
           heightPx={heightPx}
+          headless={hideLabels}
         />
       ))}
     </div>

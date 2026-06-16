@@ -174,7 +174,7 @@ export function CanvasWorkspace() {
           layerIds: n.layerIds,
           size: n.size,
           sourceSize: n.sourceSize,
-          name: firstLayer?.name ?? n.layerIds[0] ?? 'Image',
+          name: n.name ?? firstLayer?.name ?? n.layerIds[0] ?? 'Image',
         },
       };
     });

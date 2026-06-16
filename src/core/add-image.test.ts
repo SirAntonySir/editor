@@ -40,6 +40,9 @@ describe('editorDocument.addImage', () => {
     // Stub fetch so the best-effort backend POST doesn't hit the network.
     vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));
 
+    // Reset workspace so each test starts with a clean slate.
+    useEditorStore.getState().resetWorkspace();
+
     // Seed: one existing layer + one existing image node, as if a user
     // had opened the first image and a session is alive.
     useEditorStore.setState({
@@ -48,6 +51,7 @@ describe('editorDocument.addImage', () => {
         opacity: 1, blendMode: 'normal', locked: false, order: 0,
       }],
       activeLayerId: 'L1',
+      activeImageNodeId: null,
       documentMeta: {
         id: 'doc', name: 'first', createdAt: 0, modifiedAt: 0,
         width: 800, height: 600,
@@ -128,5 +132,37 @@ describe('editorDocument.addImage', () => {
       (c) => typeof c[0] === 'string' && (c[0] as string).includes('/images'),
     );
     expect(uploadCall).toBeUndefined();
+  });
+
+  // ─── Selection-preservation tests (Task 2.1) ────────────────────────
+
+  it('activates the new node when nothing was active', async () => {
+    // beforeEach leaves activeImageNodeId as null.
+    expect(useEditorStore.getState().activeImageNodeId).toBeNull();
+    await editorDocument.addImage(jpegFile('a.png'));
+    expect(useEditorStore.getState().activeImageNodeId).not.toBeNull();
+  });
+
+  it('keeps existing image-node selection when a node is already active', async () => {
+    // Activate the existing node that beforeEach planted.
+    const existingNodeId = Object.keys(useEditorStore.getState().imageNodes)[0];
+    useEditorStore.getState().setActiveImageNode(existingNodeId);
+    expect(useEditorStore.getState().activeImageNodeId).toBe(existingNodeId);
+
+    // Add a second image — must NOT steal selection.
+    await editorDocument.addImage(jpegFile('b.png'));
+    expect(useEditorStore.getState().activeImageNodeId).toBe(existingNodeId);
+  });
+
+  it('keeps existing layer selection when a node is already active', async () => {
+    // Activate the existing node.
+    const existingNodeId = Object.keys(useEditorStore.getState().imageNodes)[0];
+    useEditorStore.getState().setActiveImageNode(existingNodeId);
+
+    // Add a second image.
+    await editorDocument.addImage(jpegFile('c.png'));
+
+    // activeLayerId should remain 'L1' (the layer belonging to the active node).
+    expect(useEditorStore.getState().activeLayerId).toBe('L1');
   });
 });

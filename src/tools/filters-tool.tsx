@@ -8,6 +8,7 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { LutRegistry } from '@/lib/lut-registry';
+import { scopeFromSelection } from '@/lib/scope-from-selection';
 import {
   PRESET_LUTS,
   type LUTData,
@@ -78,12 +79,7 @@ export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}
     // The 'filter' op_id is intentionally outside the SSoT registry —
     // LUT presets live client-side in LutRegistry. proposeStack carves
     // it out as a single-op forced spawn (see _handle_filter_spawn).
-    const state = useEditorStore.getState();
-    const oid = state.activeObjectId;
-    const scope =
-      oid !== null
-        ? { kind: 'mask' as const, mask_id: oid }
-        : { kind: 'global' as const };
+    const scope = scopeFromSelection(useEditorStore.getState().activeObjectId);
     void backendTools.proposeStack(sid, {
       intent: `Apply ${lut.title} filter`,
       scope,

@@ -65,7 +65,7 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   const [isRenaming, setIsRenaming] = useState(false);
   const setImageNodeName = useEditorStore((s) => s.setImageNodeName);
 
-  // --- Effective rotate / crop (mirrors ImageNodeClassic) -----------------
+  // --- Effective rotate / crop -----------------
   // The image-node display box needs to follow the WebGL pipeline's effective
   // source dimensions, not the raw uploaded ones. Rotate 90°/270° swaps W/H;
   // crop replaces them outright. Both surface as op_graph nodes

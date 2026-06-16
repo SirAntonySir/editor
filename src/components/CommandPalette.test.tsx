@@ -144,7 +144,7 @@ describe('CommandPalette execution', () => {
   it('Cmd+Enter forwards a mask scope when one is active (user-selected scope wins)', async () => {
     const nodeId = useEditorStore.getState().addImageNode(['l1']);
     useEditorStore.getState().setActiveImageNode(nodeId);
-    useEditorStore.getState().setActiveScope({ kind: 'mask', mask_id: 'm1' });
+    useEditorStore.getState().setActiveObjectId('m1');
     useAiSession.setState({ context: { subjects: [], lighting: 'flat', dominantTones: [], mood: '', candidateRegions: [], modelName: '', modelVersion: '', generatedAt: '' } as unknown as never });
     render(<CommandPalette />);
     open();

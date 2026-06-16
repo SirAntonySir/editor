@@ -127,7 +127,7 @@ interface BackendState {
   setSessionId: (sessionId: string | null) => void;
   /** Optimistically drop a mask from snapshot.masksIndex + maskStore +
    *  objectOwnership ahead of the backend's `mask.deleted` SSE echo (the
-   *  handler is idempotent). Also resets activeScope when it pointed at
+   *  handler is idempotent). Also resets activeObjectId when it pointed at
    *  the removed mask. */
   pushMaskDeleted: (maskId: string) => void;
   /** Optimistically patch a mask's label in snapshot.masksIndex + maskStore

@@ -10,6 +10,6 @@ export const LevelsTool: ToolDefinition = {
   category: 'adjust',
   processingId: 'levels',
   onActivate: () => {
-    // activeScope is already set by the canvas click/cycle; nothing extra needed.
+    // activeObjectId is already set by the canvas click/cycle; nothing extra needed.
   },
 };

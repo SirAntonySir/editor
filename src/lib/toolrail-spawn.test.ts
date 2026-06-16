@@ -66,7 +66,7 @@ describe('spawnToolWidget', () => {
 
     const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 0, y: 0 });
     useEditorStore.getState().setActiveImageNode(nodeId);
-    useEditorStore.getState().setActiveScope({ kind: 'mask', mask_id: 'm1' });
+    useEditorStore.getState().setActiveObjectId('m1');
 
     expect(spawnToolWidget('light')).toBe(true);
     expect(backendTools.proposeStack).toHaveBeenCalledWith('s1', {

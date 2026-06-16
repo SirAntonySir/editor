@@ -126,6 +126,6 @@ export const FiltersTool: ToolDefinition = {
   category: 'filter',
   processingId: 'filter',
   onActivate: () => {
-    // activeScope is already set by the canvas click/cycle; nothing extra needed.
+    // activeObjectId is already set by the canvas click/cycle; nothing extra needed.
   },
 };

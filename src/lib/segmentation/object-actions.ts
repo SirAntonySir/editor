@@ -125,7 +125,7 @@ export function extractObjectToImageNode(maskId: string, sourceImageNodeId: stri
 }
 
 /** Optimistic delete: filter the snapshot's masksIndex + clear ownership +
- *  reset activeScope locally, then ask the backend to drop the mask. */
+ *  reset activeObjectId locally, then ask the backend to drop the mask. */
 export async function deleteObject(maskId: string): Promise<void> {
   useBackendState.getState().pushMaskDeleted(maskId);
   const sessionId = useAiSession.getState().sessionId;

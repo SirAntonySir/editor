@@ -52,15 +52,11 @@ export function LayerStrip({ layerIds }: LayerStripProps) {
             data-active={isActive ? '' : undefined}
             aria-pressed={isActive}
             aria-label={`Layer ${ordinal} · ${layer.name ?? 'Layer'}`}
+            // Layer name surfaces only via native tooltip on hover. The
+            // earlier inline label competed with the marginalia typography
+            // even on the active row.
             title={layer.name ?? `Layer ${ordinal}`}
           >
-            <span
-              className={`font-[var(--font-display,Fraunces)] italic text-[13px] w-[22px] text-right transition-opacity ${
-                isActive ? 'opacity-100 text-[var(--color-accent)]' : 'opacity-0 group-hover:opacity-100 text-text-secondary'
-              }`}
-            >
-              {layer.name ?? 'Layer'}
-            </span>
             <span
               className={`font-[var(--font-display,Fraunces)] italic text-[14px] w-[18px] text-right tabular-nums ${
                 isActive ? 'text-[var(--color-accent)] font-medium' : 'text-text-secondary'

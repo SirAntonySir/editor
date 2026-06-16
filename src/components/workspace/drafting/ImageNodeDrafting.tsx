@@ -3,7 +3,12 @@ import * as ContextMenu from '@radix-ui/react-context-menu';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Handle, Position } from '@xyflow/react';
 import { useEditorStore } from '@/store';
+import { useBackendState } from '@/store/backend-state-slice';
+import { usePreferencesStore } from '@/store/preferences-store';
 import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
+import { backendTools } from '@/lib/backend-tools';
+import { editorDocument } from '@/core/document';
+import { toast } from '@/components/ui/Toast';
 import { ImageNodeBody } from '../ImageNodeBody';
 import { ImageNodeResizeHandle } from '../ImageNodeResizeHandle';
 import { SegmentHitLayer } from '../SegmentHitLayer';
@@ -78,30 +83,87 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
 
   const fileSize = documentMeta?.fileSize ? formatBytes(documentMeta.fileSize) : null;
 
+  // Handlers — kept inline so the closure picks up `id` + `data.layerIds`.
+  // Lifted out of the classic node verbatim. When the surface stabilises a
+  // shared hook (e.g. useImageNodeActions) folds these and the classic
+  // copy into one source. For now duplicating keeps the diff small and
+  // doesn't risk classic regressions.
+  function handleTransformDelta(delta: { angle?: number; flip_h?: boolean; flip_v?: boolean }) {
+    const sessionId = useBackendState.getState().sessionId;
+    if (!sessionId) return;
+    const nodes = useBackendState.getState().snapshot?.operationGraph.nodes ?? [];
+    const prevRotate = nodes.find((n) => n.id === `transform:${id}:rotate`)?.params as
+      | { angle: number; flip_h: boolean; flip_v: boolean } | undefined;
+    const prevCrop = nodes.find((n) => n.id === `transform:${id}:crop`)?.params as
+      | { x: number; y: number; w: number; h: number } | undefined;
+    const base = prevRotate ?? { angle: 0, flip_h: false, flip_v: false };
+    const next = {
+      angle: ((base.angle + (delta.angle ?? 0)) % 360 + 360) % 360,
+      flip_h: delta.flip_h ? !base.flip_h : base.flip_h,
+      flip_v: delta.flip_v ? !base.flip_v : base.flip_v,
+    };
+    void backendTools.set_image_node_transform(sessionId, {
+      imageNodeId: id,
+      layerIds: data.layerIds,
+      crop: prevCrop ?? null,
+      rotate: next,
+    });
+  }
+  const canSplit = data.layerIds.length >= 2;
+  function handleSplit() {
+    if (!canSplit) return;
+    const lastLayerId = data.layerIds[data.layerIds.length - 1];
+    editorDocument.workspace.splitImageNode(id, lastLayerId);
+  }
+  function handleDelete() {
+    editorDocument.closeDocument();
+  }
+
   /**
    * Items rendered by both the ⋯ dropdown and the right-click ContextMenu.
-   * Kept inline (closure over `id`, mode toggles) — when Phase 3 ships the
-   * full classic menu set, this lifts into a shared module.
+   * Same set as classic ImageNode plus an Object-mode toggle (drafting-
+   * specific) and a placeholder Duplicate (TODO: real clone).
    */
+  const itemClass = 'px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary';
+  const itemClassDim = 'px-2 py-1 text-[10px] rounded-sm cursor-not-allowed outline-none text-text-secondary opacity-60';
   const renderMenuItems = (Item: typeof DropdownMenu.Item | typeof ContextMenu.Item) => (
     <>
       <Item
-        className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary"
+        className={itemClass}
         onSelect={() => setImageNodeMode(id, objectsActive ? 'layers' : 'objects')}
       >
         {objectsActive ? 'Exit objects mode' : 'Enter objects mode'}
       </Item>
-      <Item
-        className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary"
-        onSelect={() => { /* TODO: rotate CW */ }}
-      >
+      <Item className={itemClass} onSelect={() => usePreferencesStore.getState().showCrop()}>
+        Crop…
+      </Item>
+      <Item className={itemClass} onSelect={() => handleTransformDelta({ angle: +90 })}>
         Rotate 90° CW
       </Item>
-      <Item
-        className="px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary"
-        onSelect={() => { /* TODO: rotate CCW */ }}
-      >
+      <Item className={itemClass} onSelect={() => handleTransformDelta({ angle: -90 })}>
         Rotate 90° CCW
+      </Item>
+      <Item className={itemClass} onSelect={() => handleTransformDelta({ flip_h: true })}>
+        Flip Horizontal
+      </Item>
+      <Item className={itemClass} onSelect={() => handleTransformDelta({ flip_v: true })}>
+        Flip Vertical
+      </Item>
+      <Item
+        className={canSplit ? itemClass : itemClassDim}
+        disabled={!canSplit}
+        onSelect={canSplit ? handleSplit : undefined}
+      >
+        Split last layer
+      </Item>
+      <Item
+        className={itemClass}
+        onSelect={() => toast.info('Duplicate — not yet wired (workspace clone op pending).')}
+      >
+        Duplicate
+      </Item>
+      <Item className={itemClass} onSelect={handleDelete}>
+        Delete
       </Item>
     </>
   );

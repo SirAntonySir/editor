@@ -69,10 +69,22 @@ export const createSelectionSlice: StateCreator<
   activeObjectId: null,
   hoveredObjectId: null,
 
-  setActiveScope: (scope) => set((s) => { s.activeScope = scope; }),
-  setHoveredScope: (scope) => set((s) => { s.hoveredScope = scope; }),
-  setActiveObjectId: (id) => set((s) => { s.activeObjectId = id; }),
-  setHoveredObjectId: (id) => set((s) => { s.hoveredObjectId = id; }),
+  setActiveScope: (scope) => set((s) => {
+    s.activeScope = scope;
+    s.activeObjectId = scope.kind === 'mask' ? scope.mask_id : null;
+  }),
+  setHoveredScope: (scope) => set((s) => {
+    s.hoveredScope = scope;
+    s.hoveredObjectId = scope && scope.kind === 'mask' ? scope.mask_id : null;
+  }),
+  setActiveObjectId: (id) => set((s) => {
+    s.activeObjectId = id;
+    s.activeScope = id === null ? GLOBAL_SCOPE : { kind: 'mask', mask_id: id };
+  }),
+  setHoveredObjectId: (id) => set((s) => {
+    s.hoveredObjectId = id;
+    s.hoveredScope = id === null ? null : { kind: 'mask', mask_id: id };
+  }),
   focusWidget: (id) => set((s) => { s.focusedWidgetId = id; }),
   clearSelection: () => set((s) => {
     s.activeScope = GLOBAL_SCOPE;

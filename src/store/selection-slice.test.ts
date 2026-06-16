@@ -71,3 +71,25 @@ describe('selection-slice — activeObjectId', () => {
     expect(useEditorStore.getState().activeObjectId).toBeNull();
   });
 });
+
+describe('selection-slice — bridge', () => {
+  beforeEach(() => useEditorStore.getState().clearSelection());
+
+  it('setActiveScope({ kind: "mask", mask_id: X }) also sets activeObjectId = X', () => {
+    useEditorStore.getState().setActiveScope({ kind: 'mask', mask_id: 'm-1' });
+    expect(useEditorStore.getState().activeObjectId).toBe('m-1');
+  });
+
+  it('setActiveScope({ kind: "global" }) clears activeObjectId', () => {
+    useEditorStore.getState().setActiveObjectId('m-1');
+    useEditorStore.getState().setActiveScope({ kind: 'global' });
+    expect(useEditorStore.getState().activeObjectId).toBeNull();
+  });
+
+  it('setActiveObjectId(X) also sets activeScope to mask kind', () => {
+    useEditorStore.getState().setActiveObjectId('m-2');
+    const s = useEditorStore.getState().activeScope;
+    expect(s.kind).toBe('mask');
+    expect(s.kind === 'mask' && s.mask_id).toBe('m-2');
+  });
+});

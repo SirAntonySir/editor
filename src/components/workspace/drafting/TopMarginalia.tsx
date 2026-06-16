@@ -23,6 +23,9 @@ interface TopMarginaliaProps {
    *  shared menu items the classic header uses, so Eye / Split / Merge /
    *  Delete all reach the user from one place. */
   renderMenuItems: (Item: typeof DropdownMenu.Item) => ReactNode;
+  /** Compact spacing — the row sits closer to the image. Without this, the
+   *  marginalia float visibly above the canvas. */
+  tight?: boolean;
 }
 
 /**
@@ -41,23 +44,27 @@ export function TopMarginalia({
   onCompareDown,
   onCompareUp,
   renderMenuItems,
+  tight = false,
 }: TopMarginaliaProps) {
   const compareBtnRef = useRef<HTMLButtonElement>(null);
+  const rowGap = tight ? 'mb-2' : 'mb-7';
+  const overlineGap = tight ? 'mb-0.5' : 'mb-1';
+  const titleSize = tight ? 'text-[24px]' : 'text-[34px]';
 
   return (
-    <div className="relative mb-7 flex items-end justify-between gap-6">
+    <div className={`relative ${rowGap} flex items-end justify-between gap-6`}>
       {/* Left column: overline + display title */}
       <div className="min-w-0 flex flex-col">
-        <div className="font-[var(--font-mono)] text-[9px] tracking-[0.20em] uppercase text-text-secondary mb-1 flex items-center">
+        <div className={`font-[var(--font-mono)] text-[9px] tracking-[0.20em] uppercase text-text-secondary ${overlineGap} flex items-center`}>
           <span
             aria-hidden
             className="inline-block w-[5px] h-[5px] rounded-full bg-[var(--color-accent)] mr-1.5 -translate-y-px"
           />
           Active layer · {activeLayerName}
         </div>
-        <div className="font-[var(--font-display,Fraunces)] italic font-normal text-[34px] leading-none -tracking-[0.015em] text-text-primary truncate">
+        <div className={`font-[var(--font-display,Fraunces)] italic font-normal ${titleSize} leading-none -tracking-[0.015em] text-text-primary truncate`}>
           {title}
-          <sup className="font-[var(--font-mono)] text-[10px] not-italic tracking-[0.10em] uppercase text-text-secondary ml-2 align-super">
+          <sup className="font-[var(--font-mono)] text-[9px] not-italic tracking-[0.10em] uppercase text-text-secondary ml-2 align-super">
             {formatLabel}
           </sup>
         </div>

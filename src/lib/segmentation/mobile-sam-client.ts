@@ -89,18 +89,14 @@ export async function decode(
   //   - point_labels: float32 [1, N]
   //   - mask_input + has_mask_input: zeros + 0 for a fresh decode
   //   - orig_im_size: float32 [2]
-  // Cap orig_im_size at 2048 max edge. The decoder upsamples its internal
-  // 256×256 mask to orig_im_size, so the cap controls the boundary resolution
-  // the user sees as staircase aliasing on the marching-ants outline.
-  // 1024 (previous) gave very visible stair-stepping on full-res photos;
-  // 2048 quadruples the boundary detail (peak float32 mask ~16MB, binary
-  // ~4MB) and stays well below the OOM territory that motivated the cap on
-  // 3867×5152 sources (~80MB at the source's native resolution). The
-  // model's coord transform uses scale = 1024 / max(origH, origW), so
-  // point_coords are computed in capped pixel space — aspect preserved.
-  const MASK_MAX_EDGE = 2048;
+  // Cap orig_im_size at 1024 max edge. The decoder upsamples its internal
+  // mask to orig_im_size exactly — for a 3867x5152 source we'd get a 3867x5152
+  // float32 mask (~80MB), then allocate a 3867x5152 canvas downstream, which
+  // OOMs the second click. The model's coord transform uses
+  // scale = 1024 / max(origH, origW), so a 1024-max orig_im_size means
+  // scale = 1 and point_coords are already in model-space. Aspect preserved.
   const sourceMax = Math.max(embedding.imageWidth, embedding.imageHeight);
-  const capScale = sourceMax > MASK_MAX_EDGE ? MASK_MAX_EDGE / sourceMax : 1;
+  const capScale = sourceMax > 1024 ? 1024 / sourceMax : 1;
   const capW = Math.round(embedding.imageWidth * capScale);
   const capH = Math.round(embedding.imageHeight * capScale);
   const N = points.length;

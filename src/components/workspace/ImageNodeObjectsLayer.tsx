@@ -17,10 +17,70 @@ interface ImageNodeObjectsLayerProps {
   heightPx: number;
 }
 
-/** Sum the outline of every object into a single canvas — one paint pass
- *  for the whole image-node instead of one canvas per mask. Cell size is
- *  the canvas/mask ratio, so the stroke aligns with the underlying mask
- *  grid even when CSS scales the canvas to display size. */
+/** Trace the binary mask boundary into a single Path2D via marching squares.
+ *  Each non-uniform 2×2 cell contributes 1–2 segments between edge midpoints,
+ *  giving a half-pixel-offset boundary that reads as a smooth curve even at
+ *  modest mask resolutions — far less staircase-y than walking per-cell
+ *  rectangle edges (which clung to the integer grid).
+ *
+ *  Saddles (cases 5, 10) are split into the two non-crossing segments — the
+ *  alternative ambiguity resolution would require sampling the cell centre,
+ *  which a binary mask can't provide. Either choice is correct for closed
+ *  regions; non-crossing keeps the outline planar.
+ */
+function appendContour(
+  path: Path2D,
+  mask: { data: Uint8Array; width: number; height: number },
+  canvasW: number,
+  canvasH: number,
+): void {
+  const { data, width, height } = mask;
+  const cellW = canvasW / width;
+  const cellH = canvasH / height;
+  // Edge midpoint offsets in canvas space, relative to cell (x, y) origin.
+  const dxHalf = cellW * 0.5;
+  const dyHalf = cellH * 0.5;
+  const seg = (x: number, y: number, e1: 0 | 1 | 2 | 3, e2: 0 | 1 | 2 | 3): void => {
+    // 0=top, 1=right, 2=bottom, 3=left.
+    const ox = x * cellW;
+    const oy = y * cellH;
+    const pt = (e: 0 | 1 | 2 | 3): [number, number] => {
+      switch (e) {
+        case 0: return [ox + dxHalf, oy];
+        case 1: return [ox + cellW, oy + dyHalf];
+        case 2: return [ox + dxHalf, oy + cellH];
+        case 3: return [ox, oy + dyHalf];
+      }
+    };
+    const [x1, y1] = pt(e1);
+    const [x2, y2] = pt(e2);
+    path.moveTo(x1, y1);
+    path.lineTo(x2, y2);
+  };
+  for (let y = 0; y < height - 1; y++) {
+    const row = y * width;
+    const next = row + width;
+    for (let x = 0; x < width - 1; x++) {
+      const tl = data[row + x] === 255 ? 1 : 0;
+      const tr = data[row + x + 1] === 255 ? 2 : 0;
+      const br = data[next + x + 1] === 255 ? 4 : 0;
+      const bl = data[next + x] === 255 ? 8 : 0;
+      const idx = tl | tr | br | bl;
+      switch (idx) {
+        case 0: case 15: break;
+        case 1:  case 14: seg(x, y, 3, 0); break;
+        case 2:  case 13: seg(x, y, 0, 1); break;
+        case 3:  case 12: seg(x, y, 3, 1); break;
+        case 4:  case 11: seg(x, y, 1, 2); break;
+        case 6:  case 9:  seg(x, y, 0, 2); break;
+        case 7:  case 8:  seg(x, y, 3, 2); break;
+        case 5:  seg(x, y, 3, 0); seg(x, y, 1, 2); break;
+        case 10: seg(x, y, 0, 1); seg(x, y, 3, 2); break;
+      }
+    }
+  }
+}
+
 function paintAllOutlines(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
@@ -28,41 +88,25 @@ function paintAllOutlines(
   objects: ImageObject[],
 ): void {
   ctx.clearRect(0, 0, canvasW, canvasH);
-  ctx.beginPath();
+  const path = new Path2D();
   for (const obj of objects) {
-    const { mask } = obj;
-    const cellW = canvasW / mask.width;
-    const cellH = canvasH / mask.height;
-    for (let y = 0; y < mask.height; y++) {
-      for (let x = 0; x < mask.width; x++) {
-        const i = y * mask.width + x;
-        if (mask.data[i] !== 255) continue;
-        const up = y > 0 && mask.data[i - mask.width] === 255;
-        const dn = y < mask.height - 1 && mask.data[i + mask.width] === 255;
-        const lt = x > 0 && mask.data[i - 1] === 255;
-        const rt = x < mask.width - 1 && mask.data[i + 1] === 255;
-        const px = x * cellW;
-        const py = y * cellH;
-        if (!up) { ctx.moveTo(px, py); ctx.lineTo(px + cellW, py); }
-        if (!dn) { ctx.moveTo(px, py + cellH); ctx.lineTo(px + cellW, py + cellH); }
-        if (!lt) { ctx.moveTo(px, py); ctx.lineTo(px, py + cellH); }
-        if (!rt) { ctx.moveTo(px + cellW, py); ctx.lineTo(px + cellW, py + cellH); }
-      }
-    }
+    appendContour(path, obj.mask, canvasW, canvasH);
   }
   // Marching-ants outline over arbitrary image content: deliberately
   // *not* themed. The black-then-white stroke pair guarantees contrast
   // against both bright and dark areas of the underlying photo. Theme
   // tokens (which target chrome, not image overlays) would lose
   // visibility on light-on-light or dark-on-dark images.
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
   ctx.lineWidth = 2;
   ctx.setLineDash([]);
   ctx.strokeStyle = 'rgba(0,0,0,0.40)';
-  ctx.stroke();
+  ctx.stroke(path);
   ctx.lineWidth = 1.25;
   ctx.setLineDash([4, 3]);
   ctx.strokeStyle = '#ffffff';
-  ctx.stroke();
+  ctx.stroke(path);
 }
 
 async function commitRename(maskId: string, label: string): Promise<void> {

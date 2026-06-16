@@ -12,6 +12,7 @@ import { editorDocument } from '@/core/document';
 import { useChromeVisible } from '@/hooks/useChromeVisible';
 import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
 import { ImageNodeObjectsLayer } from './ImageNodeObjectsLayer';
+import { ImageNodeDrafting } from './drafting/ImageNodeDrafting';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
@@ -471,9 +472,6 @@ const previewActive = inspectorTab === 'crop' && activeImageNodeId === id;
  */
 export function ImageNode(props: ImageNodeProps) {
   const visualStyle = usePreferencesStore((s) => s.visualStyle);
-  // Both branches return ImageNodeClassic in Phase 1 — keeping the
-  // branch shape now means Phases 2 + 3 swap one component reference and
-  // the call-sites (React Flow nodeTypes, ErrorBoundary wrap) don't move.
-  if (visualStyle === 'drafting') return <ImageNodeClassic {...props} />;
+  if (visualStyle === 'drafting') return <ImageNodeDrafting {...props} />;
   return <ImageNodeClassic {...props} />;
 }

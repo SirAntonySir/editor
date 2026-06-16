@@ -120,7 +120,7 @@ describe('CommandPalette execution', () => {
     expect(spawnRegistryPreset).toHaveBeenCalledWith('golden_hour', expect.any(String));
   });
 
-  it('Cmd+Enter sends the query to the AI with an image_node scope keyed on the active node', async () => {
+  it('Cmd+Enter sends the query to the AI with global scope when an image node is active but no object', async () => {
     const nodeId = useEditorStore.getState().addImageNode(['l1']);
     useEditorStore.getState().setActiveImageNode(nodeId);
     // Pre-populate AI context so the auto-analyze branch is skipped.

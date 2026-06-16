@@ -20,10 +20,37 @@ import { useAiSession } from '@/hooks/useImageContext';
 import { clearInternalCanvasCache } from '@/lib/image-node-geometry';
 import { parseImageMetadata } from '@/lib/image-metadata';
 import { backendTools } from '@/lib/backend-tools';
+import { toast } from '@/components/ui/Toast';
 
 const BACKEND_BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
 const DEBOUNCE_MS = 2000;
+
+// ─── Burst-coalesce toast for non-stealing image adds ───────────────
+const BURST_WINDOW_MS = 250;
+let pendingImageAdds = 0;
+let imageAddFlush: ReturnType<typeof setTimeout> | null = null;
+
+function notifyImageAdded(): void {
+  pendingImageAdds += 1;
+  if (imageAddFlush !== null) return;
+  imageAddFlush = setTimeout(() => {
+    const n = pendingImageAdds;
+    pendingImageAdds = 0;
+    imageAddFlush = null;
+    toast.info(n === 1 ? 'Image added — click to edit.' : `${n} images added — click to edit.`);
+  }, BURST_WINDOW_MS);
+}
+
+/** Reset burst-coalesce state. Exported for test isolation only. */
+export function _resetImageAddBurst(): void {
+  if (imageAddFlush !== null) {
+    clearTimeout(imageAddFlush);
+    imageAddFlush = null;
+  }
+  pendingImageAdds = 0;
+}
+// ────────────────────────────────────────────────────────────────────
 
 let store: StoreApi<EditorState> | null = null;
 let interaction: InteractionSession | null = null;
@@ -337,6 +364,8 @@ async function addImage(file: File): Promise<void> {
     // Promote the new node to active ONLY when there's nothing to preserve.
     if (wasNothingActive) {
       useEditorStore.getState().setActiveImageNode(newNodeId);
+    } else {
+      notifyImageAdded();
     }
   }
 

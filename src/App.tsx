@@ -24,16 +24,7 @@ import { CurvesTool } from '@/tools/curves-tool';
 import { LevelsTool } from '@/tools/levels-tool';
 import { HslTool } from '@/tools/hsl-tool';
 import { TimeOfDayTool } from '@/tools/time-of-day-tool';
-import { Upload } from 'lucide-react';
-
-import {
-  Empty,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-  EmptyDescription,
-  EmptyContent,
-} from '@/components/ui/empty';
+import { Kbd } from '@/components/ui/kbd';
 
 // Register processing definitions (must happen before tool registration and nodeTypes init)
 registerAllProcessing();
@@ -89,29 +80,34 @@ function MainLayout({
         {/* Tool canvas overlay */}
         {toolDef?.CanvasOverlay && <toolDef.CanvasOverlay ctx={toolContext} />}
 
-        {/* Empty state */}
+        {/* Empty state. Flat composition over the dotted canvas — no
+            card surface, no shadow. The framed icon + Kbd-augmented CTA
+            match the editor's Vercel/Radix register (see design.md).
+            Drag-drop affordance is in the copy; the actual handler is a
+            follow-up (file drop is not yet wired onto the canvas). */}
         <AnimatePresence>
           {layers.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-              <Empty className="pointer-events-auto">
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <Upload />
-                  </EmptyMedia>
-                  <EmptyTitle>No image loaded</EmptyTitle>
-                  <EmptyDescription>
-                    Open an image to start editing, or drag & drop a file onto the canvas.
-                  </EmptyDescription>
-                </EmptyHeader>
-                <EmptyContent>
+              <div className="pointer-events-auto flex flex-col items-center gap-5 p-8 max-w-[340px] text-center">
+                <div className="flex flex-col items-center gap-1">
+                  <div className="text-[15px] font-medium tracking-tight text-text-primary">
+                    Open an image to start
+                  </div>
+                  <div className="text-[12px] text-text-secondary leading-snug">
+                    Drag a photo onto the canvas, or pick one from your files.
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5">
                   <button
+                    type="button"
                     onClick={handleFileOpen}
-                    className="bg-surface border border-separator rounded-[var(--radius-button)] px-4 py-2 text-sm text-text-primary hover:bg-surface-secondary transition-colors cursor-pointer"
+                    className="inline-flex items-center bg-text-primary text-surface px-3.5 py-1.5 rounded-[var(--radius-button)] text-[12px] font-medium hover:opacity-90 transition-opacity cursor-pointer"
                   >
-                    Open Image
+                    Open image
                   </button>
-                </EmptyContent>
-              </Empty>
+                  <Kbd keys="mod+O" className="ml-0" />
+                </div>
+              </div>
             </div>
           )}
         </AnimatePresence>

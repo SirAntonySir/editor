@@ -59,12 +59,12 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('CommandPalette open + gating', () => {
-  it('toasts and stays closed when there is no image node', () => {
+  it('opens even when there is no image node (file actions are usable from empty canvas)', () => {
     const spy = vi.spyOn(toast, 'info');
     render(<CommandPalette />);
     open();
-    expect(spy).toHaveBeenCalled();
-    expect(screen.queryByPlaceholderText(/search tools/i)).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+    expect(screen.getByPlaceholderText(/search tools/i)).toBeDefined();
   });
 
   it('opens and lists adjustment tools when an image node exists', () => {

@@ -4,8 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Loader2, AlertCircle, Sparkles, ArrowRight, Image as ImageIcon, Command as CommandIcon, X as XIcon } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { useEditorStore } from '@/store';
-import { useBackendState } from '@/store/backend-state-slice';
-import { toast } from '@/components/ui/Toast';
 import { spawnRegistryOp, spawnRegistryPreset } from '@/lib/toolrail-spawn';
 import { proposeFromPalette } from '@/lib/palette-actions';
 import { useMenuActions } from '@/lib/menu-actions';
@@ -119,20 +117,24 @@ export function CommandPalette() {
   const targetNode = activeImageNodeId ? imageNodes[activeImageNodeId] : undefined;
   const targetLabel = targetNode ? imageNodeLabel(targetNode, layers) : '';
 
-  // Open handler — gates on SSE + at least one image node. When triggered
-  // by the per-chip "Ask AI about this" affordance, the dispatching code
-  // attaches `detail.attachContext` items which get merged into the
-  // attached-context state and shown above the input.
+  // Open handler — no session/image gate so the palette is usable from
+  // the empty-canvas state (the user opens images and runs preferences
+  // from here). Image-targeted commands (adjustments, presets, AI) stay
+  // disabled via their own `disabled` flag inside the palette when
+  // there are no layers / sessionId. When triggered by the per-chip
+  // "Ask AI about this" affordance, the dispatching code attaches
+  // `detail.attachContext` items which get merged into the attached-
+  // context state and shown above the input.
   useEffect(() => {
     function onOpen(e: Event) {
       const ids = Object.keys(useEditorStore.getState().imageNodes);
-      if (useBackendState.getState().sseStatus !== 'open') return;
-      if (ids.length === 0) {
-        toast.info('Open an image first.');
-        return;
+      // Only auto-promote an active image node when at least one exists.
+      // `resolveInitialTargetId` handles empty input, so this guard is
+      // strictly defensive against future implementations.
+      if (ids.length > 0) {
+        const initial = resolveInitialTargetId(ids, useEditorStore.getState().activeImageNodeId);
+        if (initial) setActiveImageNode(initial);
       }
-      const initial = resolveInitialTargetId(ids, useEditorStore.getState().activeImageNodeId);
-      if (initial) setActiveImageNode(initial);
 
       // Pull any context items the dispatcher attached. When the palette
       // is already open and the user fires another "Ask AI" from a chip

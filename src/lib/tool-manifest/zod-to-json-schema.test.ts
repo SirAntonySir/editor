@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { zodToJsonSchema } from './zod-to-json-schema';
@@ -54,7 +55,7 @@ describe('serializeAllManifests', () => {
     LlmToolRegistry.clear();
     registerAllToolManifests();
     const tools = serializeAllManifests();
-    expect(tools.length).toBe(10);
+    expect(tools.length).toBe(14);
     for (const t of tools) {
       expect(typeof t.name).toBe('string');
       expect(typeof t.description).toBe('string');

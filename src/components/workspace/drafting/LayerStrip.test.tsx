@@ -47,3 +47,35 @@ describe('LayerStrip — click toggles visibility', () => {
     expect(useEditorStore.getState().activeLayerId).toBeNull();
   });
 });
+
+describe('LayerStrip — right-click context menu', () => {
+  beforeEach(() => {
+    useEditorStore.setState({
+      layers: SEED_LAYERS,
+    });
+  });
+
+  it('right-click opens a menu with Rename / Blend / Lock / Delete', async () => {
+    const { getAllByRole, findByText } = render(<LayerStrip layerIds={['L1', 'L2']} />);
+    fireEvent.contextMenu(getAllByRole('button')[0]);
+    expect(await findByText(/rename/i)).toBeInTheDocument();
+    expect(await findByText(/blend/i)).toBeInTheDocument();
+    expect(await findByText(/lock/i)).toBeInTheDocument();
+    expect(await findByText(/delete/i)).toBeInTheDocument();
+  });
+
+  it('Lock toggles layer.locked', async () => {
+    const { getAllByRole, findByText } = render(<LayerStrip layerIds={['L1', 'L2']} />);
+    fireEvent.contextMenu(getAllByRole('button')[0]);
+    fireEvent.click(await findByText(/^lock$/i));
+    const after = useEditorStore.getState().layers.find((l) => l.id === 'L1');
+    expect(after?.locked).toBe(true);
+  });
+
+  it('Delete removes the layer', async () => {
+    const { getAllByRole, findByText } = render(<LayerStrip layerIds={['L1', 'L2']} />);
+    fireEvent.contextMenu(getAllByRole('button')[0]);
+    fireEvent.click(await findByText(/delete/i));
+    expect(useEditorStore.getState().layers.find((l) => l.id === 'L1')).toBeUndefined();
+  });
+});

@@ -80,6 +80,17 @@ export function useImageNodeRender({
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   const hiddenWidgetIds = useEditorStore((s) => s.hiddenWidgetIds);
   const hiddenCanonNodeIds = useEditorStore((s) => s.hiddenCanonNodeIds);
+  // Re-render when composite-relevant layer fields change: visibility, opacity,
+  // blend mode, layer mask, or ordering. The joined string changes whenever any
+  // of these fields flip on any layer that belongs to this image-node, or when
+  // layers are added / removed.
+  const layersSignature = useEditorStore((s) => {
+    const ids = new Set(layerIds);
+    return s.layers
+      .filter((l) => ids.has(l.id))
+      .map((l) => `${l.id}:${l.visible ? 1 : 0}:${l.opacity}:${l.blendMode}:${l.layerMask ?? ''}:${l.order}`)
+      .join('|');
+  });
   // Pending suggestion widgets are hidden from the render so their adjustments
   // don't live-apply before the user clicks Allow on the chip — unless the
   // user is previewing one via the chip's eye icon, in which case its id sits
@@ -266,6 +277,7 @@ export function useImageNodeRender({
     bypassAdjustments,
     previewActive,
     cropPreview,
+    layersSignature,
   ]);
 
   return { canvasRef };

@@ -11,6 +11,27 @@ import { useEditorStore } from '@/store';
 import { editorDocument } from '@/core/document';
 import { exportImage, saveAs, type ExportFormat } from '@/lib/export';
 import { toast } from '@/components/ui/Toast';
+import { pixelStore } from '@/core/pixel-store';
+import { putSource } from '@/core/pixel-source-store';
+import { useAiSession } from '@/hooks/useImageContext';
+import { useBackendState } from '@/store/backend-state-slice';
+
+/**
+ * Persist an OffscreenCanvas as a Blob in IDB so Cmd+R reload can rehydrate
+ * the layer. Best-effort and fire-and-forget — failures are non-fatal.
+ * Mirrors the helper of the same name in `segment-actions.ts`.
+ */
+function persistCanvasSource(layerId: string, canvas: OffscreenCanvas): void {
+  const sid =
+    useAiSession.getState().sessionId ?? useBackendState.getState().sessionId;
+  if (!sid) return;
+  void canvas
+    .convertToBlob({ type: 'image/png' })
+    .then((blob) => putSource(sid, layerId, blob))
+    .catch((err) =>
+      console.warn('[image-node-actions] persist source failed:', err),
+    );
+}
 
 /** Export the image-node's pixels in the requested format. Saves via the
  *  shared File-System-Access / download-link fallback in `lib/export`.
@@ -82,6 +103,39 @@ export function rejoinSourceImage(imageNodeId: string): boolean {
     useEditorStore.setState((s) => {
       const ext = s.imageNodes[imageNodeId];
       if (ext) s.imageNodes[imageNodeId] = { ...ext, layerIds: uniqueExtLayerIds };
+    });
+  }
+
+  // ── Un-crop: restore each cutout layer to the full source-image coordinate space ──
+  // Layers extracted with cropToMaskBbox:true carry a `sourceOrigin` recording
+  // where their (smaller) bbox sat in source pixels. The compositor draws every
+  // layer at (0,0), so without this step the cutout would appear in the
+  // top-left corner of the source image instead of its original position.
+  const sourceNode = editor.imageNodes[sourceId];
+  const { w: srcW, h: srcH } = sourceNode.sourceSize;
+  const currentLayerIds = useEditorStore.getState().imageNodes[imageNodeId]?.layerIds ?? [];
+  for (const lid of currentLayerIds) {
+    const layer = useEditorStore.getState().layers.find((l) => l.id === lid);
+    if (!layer?.sourceOrigin) continue; // regular layer — no offset to restore
+
+    const { x: ox, y: oy } = layer.sourceOrigin;
+    const cutoutCanvas = pixelStore.get(lid);
+    if (!cutoutCanvas) continue; // no pixel data registered — skip silently
+
+    // 1. Draw the cutout into a full-size canvas at (sourceOrigin.x, sourceOrigin.y).
+    const full = new OffscreenCanvas(srcW, srcH);
+    const ctx = full.getContext('2d');
+    if (!ctx) continue;
+    ctx.drawImage(cutoutCanvas, ox, oy);
+
+    // 2. Replace the pixel-store entry with the expanded canvas.
+    pixelStore.replaceSource(lid, full);
+    persistCanvasSource(lid, full);
+
+    // 3. Clear sourceOrigin — the layer now lives at (0,0) of its own canvas.
+    useEditorStore.setState((s) => {
+      const l = s.layers.find((sl) => sl.id === lid);
+      if (l) delete l.sourceOrigin;
     });
   }
 

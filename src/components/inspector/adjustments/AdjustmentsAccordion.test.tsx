@@ -43,7 +43,7 @@ describe('binding header', () => {
     expect(screen.getByText('Whole image')).toBeTruthy();
   });
 
-  it('shows the layer name when a layer is active but no object selected', () => {
+  it('shows just "Whole image" when no object is selected, no layer suffix', () => {
     useEditorStore.setState({
       activeObjectId: null,
       activeImageNodeId: null,
@@ -52,6 +52,6 @@ describe('binding header', () => {
     } as never);
     render(<AdjustmentsAccordion />);
     expect(screen.getByText('Whole image')).toBeTruthy();
-    expect(screen.getByText('Background')).toBeTruthy();
+    expect(screen.queryByText(/ on /i)).toBeNull();
   });
 });

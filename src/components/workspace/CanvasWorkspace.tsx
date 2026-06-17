@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback, useState } from 'react';
+import { useEffect, useMemo, useCallback, useState, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -145,15 +145,19 @@ export function CanvasWorkspace() {
   }, [imageNodes, layers, documentMeta, addImageNode]);
 
   // Whenever there's at least one image node but none is active, promote the
-  // first to active. This fires for ALL paths an image can arrive through —
-  // freshly auto-created, restored from a saved session, opened via Cmd+O —
-  // not just the auto-create case. The Info tab's live mechanical hook, the
-  // sidebar's Auto buttons, and Cmd+K all gate on `activeImageNodeId`, so a
-  // missing active id is what was leaving the Auto pill perma-disabled.
+  // first to active. This fires ONCE on the first arrival of image-nodes —
+  // freshly auto-created, restored from a saved session, opened via Cmd+O.
+  // It does NOT re-promote on subsequent renders, so an explicit deselect
+  // (clicking blank canvas) sticks and the right sidebar can unmount.
+  const hasAutoPromoted = useRef(false);
   useEffect(() => {
-    if (activeImageNodeId) return;
+    if (hasAutoPromoted.current) return;
+    if (activeImageNodeId) { hasAutoPromoted.current = true; return; }
     const ids = Object.keys(imageNodes);
-    if (ids.length > 0) setActiveImageNode(ids[0]);
+    if (ids.length > 0) {
+      setActiveImageNode(ids[0]);
+      hasAutoPromoted.current = true;
+    }
   }, [imageNodes, activeImageNodeId, setActiveImageNode]);
 
   const storeNodes = useMemo<WorkspaceNode[]>(() => {

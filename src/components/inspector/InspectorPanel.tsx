@@ -53,7 +53,7 @@ function TabButton({
         }`}
       >
         {label}
-        {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-accent" />}
+        {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-[var(--color-accent)]" />}
       </button>
     </ToggleGroup.Item>
   );

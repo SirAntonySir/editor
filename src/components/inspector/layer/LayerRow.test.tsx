@@ -104,3 +104,22 @@ describe('LayerRow — blend mode select', () => {
     expect(getLayer().blendMode).toBe('multiply');
   });
 });
+
+describe('LayerRow — active left bar class', () => {
+  it('active row has ochre left border class, inactive row has transparent left border class', () => {
+    seedLayer();
+    const layer = getLayer();
+
+    const { container: activeContainer } = render(<LayerRow layer={layer} isActive={true} />);
+    const activeRow = activeContainer.firstElementChild as HTMLElement;
+    expect(activeRow.className).toContain('border-l-[var(--color-accent)]');
+    expect(activeRow.className).not.toContain('border-l-transparent');
+
+    cleanup();
+
+    const { container: inactiveContainer } = render(<LayerRow layer={layer} isActive={false} />);
+    const inactiveRow = inactiveContainer.firstElementChild as HTMLElement;
+    expect(inactiveRow.className).toContain('border-l-transparent');
+    expect(inactiveRow.className).not.toContain('border-l-[var(--color-accent)]');
+  });
+});

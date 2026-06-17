@@ -30,13 +30,12 @@ export async function renameObject(maskId: string, label: string): Promise<void>
   if (!env.ok) toast.info(`Rename failed: ${env.error?.message ?? 'unknown error'}`);
 }
 
-/** Create a new mask whose alpha is the per-pixel inverse of `maskId`, register
- *  it client-side, and select it. Same layer ownership as the source mask so
- *  the renderer's per-layer mask path treats it identically. Backend doesn't
- *  know about this mask; widgets bound to it work for frontend preview but
- *  will round-trip a maskId the backend can't resolve — that's a follow-up
- *  if/when the user pins an adjustment to the inverted selection. */
-export function selectInvertedObject(maskId: string): void {
+/** Build the inverse of the given mask's alpha channel and inject it as a
+ *  preview candidate for the source image-node's SegmentHitLayer. The user
+ *  then sees the same Save / Cancel UI a fresh SAM pick offers, and a saved
+ *  inversion becomes a real Object marker with the full per-object menu.
+ *  No mask is registered client-side here — that happens only after Save. */
+export function selectInvertedObject(maskId: string, imageNodeId: string): void {
   const mask = maskStore.get(maskId);
   if (!mask) {
     toast.info('Select Inverted: mask no longer exists.');
@@ -44,17 +43,17 @@ export function selectInvertedObject(maskId: string): void {
   }
   const inverted = new Uint8Array(mask.data.length);
   for (let i = 0; i < mask.data.length; i++) inverted[i] = 255 - mask.data[i];
-  const newRef = maskStore.register({
-    layerId: mask.layerId,
-    label: mask.label ? `${mask.label} (inverted)` : 'Inverted selection',
-    width: mask.width,
-    height: mask.height,
-    data: inverted,
-    source: mask.source,
-    createdAt: Date.now(),
-  });
-  useEditorStore.getState().setActiveObjectId(newRef);
-  toast.info('Selected inverted area.');
+  const label = mask.label ? `Inverted of ${mask.label}` : 'Inverted selection';
+  window.dispatchEvent(
+    new CustomEvent('segment-hit:external-candidate', {
+      detail: {
+        imageNodeId,
+        mask: { width: mask.width, height: mask.height, data: inverted },
+        label,
+        origin: 'client_new' as const,
+      },
+    }),
+  );
 }
 
 /** Apply the mask as a layer's `layerMask`. The mask's `layerId` points at

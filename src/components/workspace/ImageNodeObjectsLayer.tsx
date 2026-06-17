@@ -238,7 +238,7 @@ function ObjectLabel({
           </ContextMenu.Item>
           <ContextMenu.Item
             className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"
-            onSelect={() => selectInvertedObject(obj.id)}
+            onSelect={() => selectInvertedObject(obj.id, imageNodeId)}
           >
             Select Inverted
           </ContextMenu.Item>

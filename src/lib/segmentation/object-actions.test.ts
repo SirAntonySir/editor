@@ -70,9 +70,10 @@ describe('extractObjectToImageNode', () => {
 // ─── selectInvertedObject ────────────────────────────────────────────────────
 
 describe('selectInvertedObject', () => {
-  it('registers a new mask with per-pixel inverse alpha and selects it', () => {
+  it('dispatches an external candidate event with inverted mask data', () => {
     const ref = maskStore.register({
       layerId: 'L1',
+      label: 'Sky',
       width: 2,
       height: 2,
       data: new Uint8Array([0, 64, 128, 255]),
@@ -80,39 +81,45 @@ describe('selectInvertedObject', () => {
       createdAt: 0,
     });
 
-    selectInvertedObject(ref);
+    let captured: CustomEvent<unknown> | null = null;
+    const handler = (e: Event) => { captured = e as CustomEvent<unknown>; };
+    window.addEventListener('segment-hit:external-candidate', handler);
 
-    const newId = useEditorStore.getState().activeObjectId;
-    expect(newId).toBeTruthy();
-    expect(newId).not.toBe(ref);
-    const inverted = maskStore.get(newId!);
-    expect(inverted).toBeTruthy();
-    expect(Array.from(inverted!.data)).toEqual([255, 191, 127, 0]);
-    expect(inverted!.layerId).toBe('L1');
-    expect(inverted!.label).toMatch(/inverted/i);
+    selectInvertedObject(ref, 'in-1');
+
+    window.removeEventListener('segment-hit:external-candidate', handler);
+
+    expect(captured).not.toBeNull();
+    const detail = (captured as unknown as {
+      detail: {
+        imageNodeId: string;
+        mask: { data: Uint8Array; width: number; height: number };
+        label: string;
+        origin: string;
+      };
+    }).detail;
+    expect(detail.imageNodeId).toBe('in-1');
+    expect(detail.mask.width).toBe(2);
+    expect(detail.mask.height).toBe(2);
+    expect(Array.from(detail.mask.data)).toEqual([255, 191, 127, 0]);
+    expect(detail.label).toMatch(/inverted of sky/i);
+    expect(detail.origin).toBe('client_new');
+    // No mask was registered client-side — only the original exists.
+    expect(maskStore.allForLayer('L1').length).toBe(1);
+    // activeObjectId must remain untouched.
+    expect(useEditorStore.getState().activeObjectId).toBeNull();
   });
 
-  it('preserves label when mask has one', () => {
-    const ref = maskStore.register({
-      layerId: 'L1',
-      label: 'sky',
-      width: 1,
-      height: 1,
-      data: new Uint8Array([100]),
-      source: 'sam-point',
-      createdAt: 0,
-    });
+  it('toasts and dispatches no event if mask is gone', () => {
+    let captured: CustomEvent<unknown> | null = null;
+    const handler = (e: Event) => { captured = e as CustomEvent<unknown>; };
+    window.addEventListener('segment-hit:external-candidate', handler);
 
-    selectInvertedObject(ref);
+    selectInvertedObject('does-not-exist', 'in-1');
 
-    const newId = useEditorStore.getState().activeObjectId;
-    const inverted = maskStore.get(newId!);
-    expect(inverted!.label).toBe('sky (inverted)');
-  });
+    window.removeEventListener('segment-hit:external-candidate', handler);
 
-  it('toasts and no-ops if mask is gone', () => {
-    // activeObjectId starts null (beforeEach resets workspace).
-    selectInvertedObject('does-not-exist');
+    expect(captured).toBeNull();
     expect(useEditorStore.getState().activeObjectId).toBeNull();
   });
 });

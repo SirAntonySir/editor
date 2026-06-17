@@ -29,6 +29,8 @@ interface SegmentHitLayerProps {
 interface CandidateState {
   points: SamPoint[];
   mask: DecodedMask | null;
+  label?: string;
+  origin?: 'client_refinement' | 'client_new' | 'client_extracted';
 }
 
 function clientToNormalised(
@@ -73,13 +75,14 @@ export function SegmentHitLayer({
     if (!c?.mask || !sessionId) return;
     const pngBase64 = await maskToPngBase64(c.mask);
     const hasNegativePoint = c.points.some((p) => p.label === 0);
-    const autoName = `Object ${existingObjects.length + 1}`;
+    const autoName = c.label ?? `Object ${existingObjects.length + 1}`;
+    const origin = c.origin ?? (hasNegativePoint ? 'client_refinement' : 'client_new');
     const env = await backendTools.propose_mask(sessionId, {
       imageNodeId,
       pngBase64,
       paths: [],
       label: autoName,
-      origin: hasNegativePoint ? 'client_refinement' : 'client_new',
+      origin,
     });
     if (env.ok) {
       // Record the imageNodeId-for-this-mask mapping on the client. The
@@ -134,6 +137,31 @@ export function SegmentHitLayer({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [candidate, commitCandidate, cancelCandidate]);
+
+  // Allow other actions (e.g. "Select Inverted" on an object) to inject a
+  // candidate so the user gets the same Save/Cancel UI they'd get from a SAM
+  // click. The event fires per image-node id so multiple SegmentHitLayers
+  // can coexist without cross-talk.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{
+        imageNodeId: string;
+        mask: { width: number; height: number; data: Uint8Array };
+        label?: string;
+        origin?: 'client_refinement' | 'client_new' | 'client_extracted';
+      }>).detail;
+      if (!detail || detail.imageNodeId !== imageNodeId) return;
+      decodeSeqRef.current += 1; // invalidate any in-flight SAM decode
+      setCandidate({
+        points: [],
+        mask: detail.mask,
+        label: detail.label,
+        origin: detail.origin,
+      });
+    };
+    window.addEventListener('segment-hit:external-candidate', handler);
+    return () => window.removeEventListener('segment-hit:external-candidate', handler);
+  }, [imageNodeId]);
 
   const runDecode = useCallback(async (points: SamPoint[]) => {
     const seq = ++decodeSeqRef.current;
@@ -317,7 +345,7 @@ export function SegmentHitLayer({
           {candidate.mask ? (
             <>
               <Kbd keys="enter" className="ml-0" />
-              <span>commit</span>
+              <span>save</span>
               <span className="opacity-40">·</span>
               <Kbd keys="esc" className="ml-0" />
               <span>cancel</span>
@@ -344,7 +372,7 @@ export function SegmentHitLayer({
                 className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none flex items-center justify-between gap-3"
                 onSelect={() => void commitCandidate()}
               >
-                <span>Commit</span>
+                <span>Save</span>
                 <Kbd keys="enter" className="ml-0" />
               </ContextMenu.Item>
               <ContextMenu.Item

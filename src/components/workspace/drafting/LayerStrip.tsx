@@ -1,5 +1,6 @@
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useEditorStore } from '@/store';
+import { usePreferencesStore } from '@/store/preferences-store';
 import type { Layer } from '@/store/layer-slice';
 import type { BlendMode } from '@/store/layer-slice';
 
@@ -86,7 +87,12 @@ export function LayerStrip({ layerIds }: LayerStripProps) {
               <ContextMenu.Content className="overlay p-1 min-w-[180px] z-50">
                 <ContextMenu.Item
                   className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"
-                  onSelect={() => useEditorStore.getState().setActiveLayer(layer.id)}
+                  onSelect={() => {
+                    const editor = useEditorStore.getState();
+                    editor.setActiveLayer(layer.id);
+                    editor.requestRenameLayer(layer.id);
+                    usePreferencesStore.getState().setInspectorTab('layer');
+                  }}
                 >
                   Rename
                 </ContextMenu.Item>

@@ -42,4 +42,31 @@ describe('LayerTab', () => {
     const { getByText } = render(<LayerTab />);
     expect(getByText(/select an image/i)).toBeInTheDocument();
   });
+
+  it('LayerRow enters rename mode when renamingLayerId matches', () => {
+    useEditorStore.setState({
+      imageNodes: {
+        'in-1': {
+          id: 'in-1',
+          layerIds: ['L1'],
+          position: { x: 0, y: 0 },
+          size: { w: 600, h: 400 },
+          sourceSize: { w: 600, h: 400 },
+        },
+      },
+      activeImageNodeId: 'in-1',
+      layers: [
+        { id: 'L1', type: 'image', name: 'photo.jpg', visible: true, opacity: 1, blendMode: 'normal', locked: false, order: 0 },
+      ],
+      activeLayerId: 'L1',
+      renamingLayerId: 'L1',
+    });
+    const { getByRole } = render(<LayerTab />);
+    // The inline rename input should be present and focused.
+    const input = getByRole('textbox', { name: /rename photo\.jpg/i });
+    expect(input).toBeInTheDocument();
+    expect((input as HTMLInputElement).value).toBe('photo.jpg');
+    // The one-shot flag is cleared after the effect fires.
+    expect(useEditorStore.getState().renamingLayerId).toBeNull();
+  });
 });

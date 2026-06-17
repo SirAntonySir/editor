@@ -1,6 +1,7 @@
 import { render, fireEvent } from '@testing-library/react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useEditorStore } from '@/store';
+import { usePreferencesStore } from '@/store/preferences-store';
 import { LayerStrip } from './LayerStrip';
 
 // The component takes `layerIds: string[]` directly (not imageNodeId).
@@ -77,5 +78,14 @@ describe('LayerStrip — right-click context menu', () => {
     fireEvent.contextMenu(getAllByRole('button')[0]);
     fireEvent.click(await findByText(/delete/i));
     expect(useEditorStore.getState().layers.find((l) => l.id === 'L1')).toBeUndefined();
+  });
+
+  it('Rename triggers requestRenameLayer, sets activeLayerId, and switches Inspector to Layer tab', async () => {
+    const { getAllByRole, findByText } = render(<LayerStrip layerIds={['L1', 'L2']} />);
+    fireEvent.contextMenu(getAllByRole('button')[0]);
+    fireEvent.click(await findByText(/rename/i));
+    expect(useEditorStore.getState().renamingLayerId).toBe('L1');
+    expect(useEditorStore.getState().activeLayerId).toBe('L1');
+    expect(usePreferencesStore.getState().inspectorTab).toBe('layer');
   });
 });

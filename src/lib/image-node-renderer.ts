@@ -23,6 +23,7 @@ import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { nodeToAdjustment } from './node-to-adjustment';
 import { expandCompoundNodes } from './perceptual-dial/expand-compound';
+import { matchesLayer } from './select-pipeline-nodes';
 import {
   MASK_STYLES,
   paintMaskFill,
@@ -214,7 +215,8 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
 
     const layerNodes = nodes.filter(
       (n) =>
-        n.layerId === layerId
+        matchesLayer(n, layerId)
+        && !Array.isArray(n.layerIds)
         && !hiddenNodeIds.has(n.id)
         && n.type !== 'crop'
         && n.type !== 'rotate',

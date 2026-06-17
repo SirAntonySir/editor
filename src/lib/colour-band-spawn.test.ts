@@ -43,3 +43,25 @@ it('uses mask scope when an object is active', () => {
     scope: { kind: 'mask', mask_id: 'm-12' },
   }));
 });
+
+it('ships layerIds derived from the active image-node', () => {
+  useEditorStore.setState({
+    imageNodes: {
+      'in-1': { id: 'in-1', layerIds: ['L1', 'L2'], position: { x: 0, y: 0 }, size: { w: 100, h: 100 }, sourceSize: { w: 100, h: 100 } },
+    },
+    activeImageNodeId: 'in-1',
+  });
+  promoteSingleBand('S1', 'red', 'L1');
+  expect(backendTools.proposeStack).toHaveBeenCalledWith('S1', expect.objectContaining({
+    layerId: 'L1',
+    layerIds: ['L1', 'L2'],
+  }));
+});
+
+it('omits layerIds when no active image-node', () => {
+  useEditorStore.setState({ activeImageNodeId: null });
+  promoteSingleBand('S1', 'red', 'L1');
+  const call = vi.mocked(backendTools.proposeStack).mock.calls.at(-1)?.[1];
+  expect(call?.layerId).toBe('L1');
+  expect(call?.layerIds).toBeUndefined();
+});

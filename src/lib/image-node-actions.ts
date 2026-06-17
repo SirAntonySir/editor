@@ -49,22 +49,53 @@ export async function exportImageNode(
   await saveAs(blob, `${baseName}.${ext}`);
 }
 
-/** Undo an "Extract to Image Node" — delete the extracted node + its
- *  exclusive layer(s), and refocus the source it came from. The new node
- *  carries the source's id via `sourceImageNodeId` (set in the extract
- *  action), so we know which node to focus. Returns true when a rejoin
- *  actually happened — false when this node has no source provenance. */
+/** Undo an "Extract to Image Node" — move the extracted node's image layers
+ *  onto the source node, then remove the (now empty) extracted node. Returns
+ *  true when a rejoin happened — false when this node has no source provenance.
+ *
+ *  Non-destructive: the extracted layers (including any edits made to them
+ *  since extract) are appended to the source's layer stack rather than being
+ *  silently dropped. Pixel data stays alive because the source node holds a
+ *  reference to the layer ids before the extracted node is deleted.
+ *
+ *  Fallback: when the source node has itself been deleted, the extracted node
+ *  is removed via the regular deleteImageNode path (legacy behaviour). */
 export function rejoinSourceImage(imageNodeId: string): boolean {
   const editor = useEditorStore.getState();
   const node = editor.imageNodes[imageNodeId];
   if (!node?.sourceImageNodeId) return false;
   const sourceId = node.sourceImageNodeId;
-  // Defer to the shared delete-image-node helper so the rejoin shares its
-  // layer-cleanup pass (drop exclusive layers, pixel-data lifecycle hook).
-  editorDocument.workspace.deleteImageNode(imageNodeId);
-  // Refocus the source so the user lands back where they came from.
-  if (editor.imageNodes[sourceId]) {
-    editor.setActiveImageNode(sourceId);
+
+  if (!editor.imageNodes[sourceId]) {
+    // Source has been deleted — fall back to the legacy delete path so the
+    // extracted node and its layers don't become orphans.
+    editorDocument.workspace.deleteImageNode(imageNodeId);
+    return true;
+  }
+
+  // Strip any layer ids from the extracted node that the source already owns.
+  // mergeImageNodes uses a simple push, so we dedup here to prevent the same
+  // layer appearing twice on the source after the merge.
+  const sourceLayerIds = new Set(editor.imageNodes[sourceId].layerIds);
+  const uniqueExtLayerIds = node.layerIds.filter((lid) => !sourceLayerIds.has(lid));
+  if (uniqueExtLayerIds.length < node.layerIds.length) {
+    useEditorStore.setState((s) => {
+      const ext = s.imageNodes[imageNodeId];
+      if (ext) s.imageNodes[imageNodeId] = { ...ext, layerIds: uniqueExtLayerIds };
+    });
+  }
+
+  // Merge the extracted node INTO the source: appends its layerIds to the
+  // source's list, redirects any tether edges, and removes the extracted node
+  // — all in one history snapshot. Critically, the layer records themselves
+  // are NOT removed (only the node reference is), so pixel-data lifecycle
+  // cleanup does not fire for the moved layers.
+  editorDocument.workspace.mergeImageNodes(imageNodeId, sourceId);
+
+  // Ensure focus lands on the source so the user sees where the cutout landed.
+  const afterMerge = useEditorStore.getState();
+  if (afterMerge.imageNodes[sourceId] && afterMerge.activeImageNodeId !== sourceId) {
+    afterMerge.setActiveImageNode(sourceId);
   }
   return true;
 }

@@ -6,7 +6,6 @@ import {
   useReactFlow,
   applyNodeChanges,
   type Node,
-  type Edge,
   type NodeChange,
   type Connection,
 } from '@xyflow/react';
@@ -350,13 +349,21 @@ export function CanvasWorkspace() {
     [],
   );
 
-  // Workspace tracks "the currently active image node" derived from React Flow's
-  // selection event. If exactly one image node is selected, mirror it; otherwise clear.
-  const onSelectionChange = useCallback(
-    ({ nodes }: { nodes: Node[]; edges: Edge[] }) => {
-      const imageSel = nodes.filter((n) => n.type === 'image');
-      setActiveImageNode(imageSel.length === 1 ? imageSel[0].id : null);
+  // Active image-node is set by EXPLICIT clicks only: click an image to focus,
+  // click the pane (empty canvas) to clear. Drag-to-move does not change focus
+  // (React Flow's selection state used to drive this and would activate on
+  // drag-start, fighting the user). Clicks outside the React Flow surface
+  // — e.g. inside the right sidebar — don't fire either handler and so leave
+  // the focus untouched, which is what keeps the sidebar mounted while the
+  // user is editing layer properties.
+  const onNodeClick = useCallback(
+    (_: unknown, node: Node) => {
+      if (node.type === 'image') setActiveImageNode(node.id);
     },
+    [setActiveImageNode],
+  );
+  const onPaneClick = useCallback(
+    () => setActiveImageNode(null),
     [setActiveImageNode],
   );
 
@@ -373,7 +380,8 @@ export function CanvasWorkspace() {
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onNodeDragStop={onNodeDragStop}
-        onSelectionChange={onSelectionChange}
+        onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick}
         onConnect={onConnect}
         proOptions={{ hideAttribution: true }}
         minZoom={0.05}

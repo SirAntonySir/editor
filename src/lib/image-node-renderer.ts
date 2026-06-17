@@ -341,19 +341,18 @@ function paintOverlays({ ctx, canvas, imageNodeId, layerIds }: PaintOverlaysArgs
     }
   }
 
-  // Segmentation hover / selected outlines — `activeScope.kind === 'mask'`
-  // indicates a segment chosen by the user; `hoveredScope` mirrors the
-  // hover preview. Both stay gated to layers in this node.
+  // Segmentation hover / selected outlines — `activeObjectId` indicates a
+  // segment chosen by the user; `hoveredObjectId` mirrors the hover preview.
+  // Both stay gated to layers in this node.
   if (isActiveNode) {
-    if (state.hoveredScope?.kind === 'mask') {
-      const m = maskStore.get(state.hoveredScope.mask_id);
-      const selectedId = state.activeScope.kind === 'mask' ? state.activeScope.mask_id : null;
-      if (m && layerSet.has(m.layerId) && m.id !== selectedId) {
+    if (state.hoveredObjectId !== null) {
+      const m = maskStore.get(state.hoveredObjectId);
+      if (m && layerSet.has(m.layerId) && m.id !== state.activeObjectId) {
         paintSegmentationOverlay(painterCtx, m, 'hover');
       }
     }
-    if (state.activeScope.kind === 'mask') {
-      const m = maskStore.get(state.activeScope.mask_id);
+    if (state.activeObjectId !== null) {
+      const m = maskStore.get(state.activeObjectId);
       if (m && layerSet.has(m.layerId)) {
         paintSegmentationOverlay(painterCtx, m, 'selected');
       }

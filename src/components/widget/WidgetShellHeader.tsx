@@ -11,8 +11,6 @@ import {
 import type { Widget } from '@/types/widget';
 import { loadRegistry } from '@/lib/registry/loader';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { useEditorStore } from '@/store';
-import { imageNodeLabel } from '@/lib/command-palette';
 
 /** Plain "?" glyph sized to match the lucide icon row. Used instead of
  *  `HelpCircle` so the affordance has no outline — fits the flat register. */
@@ -78,24 +76,11 @@ function staticScopeLabel(widget: Widget): string | null {
   if (s.kind === 'named_region') return s.label;
   if (s.kind === 'mask:proposed') return s.label;
   if (s.kind === 'mask') return s.mask_id ? s.mask_id.slice(0, 6) : null;
-  // image_node is handled by `useScopeLabel` so the chip mirrors any rename.
   return null;
 }
 
-/** Resolve the scope chip text. For image_node scopes, prefer the user-set
- *  override on the workspace node, then fall back to the first layer's name
- *  (matches the Cmd+K target chip via `imageNodeLabel`). */
-function useScopeLabel(widget: Widget): string | null {
-  const imageNode = useEditorStore((s) =>
-    widget.scope.kind === 'image_node'
-      ? s.imageNodes[widget.scope.imageNodeId]
-      : undefined,
-  );
-  const layers = useEditorStore((s) => s.layers);
-  if (widget.scope.kind === 'image_node') {
-    if (!imageNode) return `Image (${widget.scope.layerIds.length})`;
-    return imageNodeLabel(imageNode, layers);
-  }
+/** Resolve the scope chip text. Pure delegation — no store subscription. */
+function scopeLabelFor(widget: Widget): string | null {
   return staticScopeLabel(widget);
 }
 
@@ -113,10 +98,9 @@ const GHOST_BTN =
  * eye · close (×, only when expanded).
  *
  * The original WidgetShellFooter has been folded into this header so the
- * widget shell renders without a footer — leaving only the ImageNode's
- * ObjectModeFooter as the canvas's bottom-of-card chrome. Action buttons
- * appear only when expanded (same as the X close button) since they have no
- * meaning on a collapsed pill.
+ * widget shell renders without a footer — the ImageNode's bottom chrome is
+ * handled by BottomMarginalia. Action buttons appear only when expanded
+ * (same as the X close button) since they have no meaning on a collapsed pill.
  */
 export function WidgetShellHeader({
   widget,
@@ -139,7 +123,7 @@ export function WidgetShellHeader({
   // provenance colour.
   void dirty;
   const ai = isAiVariant(widget);
-  const scope = useScopeLabel(widget);
+  const scope = scopeLabelFor(widget);
 
   return (
     <div

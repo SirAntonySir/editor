@@ -8,6 +8,7 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { LutRegistry } from '@/lib/lut-registry';
+import { scopeFromSelection } from '@/lib/scope-from-selection';
 import {
   PRESET_LUTS,
   type LUTData,
@@ -78,15 +79,7 @@ export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}
     // The 'filter' op_id is intentionally outside the SSoT registry —
     // LUT presets live client-side in LutRegistry. proposeStack carves
     // it out as a single-op forced spawn (see _handle_filter_spawn).
-    const state = useEditorStore.getState();
-    const active = state.activeScope ?? { kind: 'global' as const };
-    const node = state.activeImageNodeId ? state.imageNodes[state.activeImageNodeId] : null;
-    const scope =
-      active.kind !== 'global'
-        ? active
-        : node
-          ? { kind: 'image_node' as const, imageNodeId: node.id, layerIds: [...node.layerIds] }
-          : { kind: 'global' as const };
+    const scope = scopeFromSelection(useEditorStore.getState().activeObjectId);
     void backendTools.proposeStack(sid, {
       intent: `Apply ${lut.title} filter`,
       scope,
@@ -129,6 +122,6 @@ export const FiltersTool: ToolDefinition = {
   category: 'filter',
   processingId: 'filter',
   onActivate: () => {
-    // activeScope is already set by the canvas click/cycle; nothing extra needed.
+    // activeObjectId is already set by the canvas click/cycle; nothing extra needed.
   },
 };

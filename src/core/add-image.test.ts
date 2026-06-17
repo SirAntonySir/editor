@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, beforeEach, vi, afterEach } from 'vitest';
 import 'fake-indexeddb/auto';
-import { editorDocument } from './document';
+import { editorDocument, _resetImageAddBurst } from './document';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { pixelStore } from './pixel-store';
@@ -40,6 +40,9 @@ describe('editorDocument.addImage', () => {
     // Stub fetch so the best-effort backend POST doesn't hit the network.
     vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));
 
+    // Reset workspace so each test starts with a clean slate.
+    useEditorStore.getState().resetWorkspace();
+
     // Seed: one existing layer + one existing image node, as if a user
     // had opened the first image and a session is alive.
     useEditorStore.setState({
@@ -48,6 +51,7 @@ describe('editorDocument.addImage', () => {
         opacity: 1, blendMode: 'normal', locked: false, order: 0,
       }],
       activeLayerId: 'L1',
+      activeImageNodeId: null,
       documentMeta: {
         id: 'doc', name: 'first', createdAt: 0, modifiedAt: 0,
         width: 800, height: 600,
@@ -128,5 +132,141 @@ describe('editorDocument.addImage', () => {
       (c) => typeof c[0] === 'string' && (c[0] as string).includes('/images'),
     );
     expect(uploadCall).toBeUndefined();
+  });
+
+  // ─── Selection-preservation tests (Task 2.1) ────────────────────────
+
+  it('activates the new node when nothing was active', async () => {
+    // beforeEach leaves activeImageNodeId as null.
+    expect(useEditorStore.getState().activeImageNodeId).toBeNull();
+    await editorDocument.addImage(jpegFile('a.png'));
+    expect(useEditorStore.getState().activeImageNodeId).not.toBeNull();
+  });
+
+  it('keeps existing image-node selection when a node is already active', async () => {
+    // Activate the existing node that beforeEach planted.
+    const existingNodeId = Object.keys(useEditorStore.getState().imageNodes)[0];
+    useEditorStore.getState().setActiveImageNode(existingNodeId);
+    expect(useEditorStore.getState().activeImageNodeId).toBe(existingNodeId);
+
+    // Add a second image — must NOT steal selection.
+    await editorDocument.addImage(jpegFile('b.png'));
+    expect(useEditorStore.getState().activeImageNodeId).toBe(existingNodeId);
+  });
+
+  it('keeps existing layer selection when a node is already active', async () => {
+    // Activate the existing node.
+    const existingNodeId = Object.keys(useEditorStore.getState().imageNodes)[0];
+    useEditorStore.getState().setActiveImageNode(existingNodeId);
+
+    // Add a second image.
+    await editorDocument.addImage(jpegFile('c.png'));
+
+    // activeLayerId should remain 'L1' (the layer belonging to the active node).
+    expect(useEditorStore.getState().activeLayerId).toBe('L1');
+  });
+});
+
+// ─── Burst-coalesce toast tests (Task 2.2) ─────────────────────────────────
+
+import { toast } from '@/components/ui/Toast';
+
+function pixelFile(name: string): File {
+  return new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], name, {
+    type: 'image/png',
+  });
+}
+
+describe('addImage — burst toast', () => {
+  let toastInfoSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    // Reset burst-coalesce state BEFORE switching to fake timers, so any
+    // pending real timer from earlier tests (e.g. 'keeps existing selection')
+    // is cancelled and imageAddFlush is null when fake timers take over.
+    _resetImageAddBurst();
+    vi.useFakeTimers();
+
+    // Spy on the shared toast singleton — this intercepts calls from document.ts
+    // without needing a module-level vi.mock.
+    toastInfoSpy = vi.spyOn(toast, 'info').mockImplementation(() => {});
+
+    editorDocument.init(useEditorStore);
+    pixelStore.clear();
+    history.clear();
+
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => ({
+        width: 800,
+        height: 600,
+        close: () => {},
+      } as unknown as ImageBitmap)),
+    );
+    vi.stubGlobal(
+      'OffscreenCanvas',
+      class {
+        width: number; height: number;
+        constructor(w: number, h: number) { this.width = w; this.height = h; }
+        getContext() { return { drawImage: () => {} }; }
+      },
+    );
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));
+
+    useEditorStore.getState().resetWorkspace();
+
+    // Seed: one existing layer + one existing image node so the second add
+    // doesn't steal selection.
+    useEditorStore.setState({
+      layers: [{
+        id: 'L1', type: 'image', name: 'first.jpg', visible: true,
+        opacity: 1, blendMode: 'normal', locked: false, order: 0,
+      }],
+      activeLayerId: 'L1',
+      activeImageNodeId: null,
+      documentMeta: {
+        id: 'doc', name: 'first', createdAt: 0, modifiedAt: 0,
+        width: 800, height: 600,
+      },
+      isDirty: false,
+    } as never);
+    useEditorStore.getState().addImageNode(['L1'], { x: 0, y: 0 }, { w: 800, h: 600 });
+    useBackendState.getState().setSessionId('sid-123');
+
+    // Activate the existing node so subsequent adds don't steal selection.
+    const existingNodeId = Object.keys(useEditorStore.getState().imageNodes)[0];
+    useEditorStore.getState().setActiveImageNode(existingNodeId);
+  });
+
+  afterEach(() => {
+    toastInfoSpy.mockRestore();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    useBackendState.getState().reset();
+  });
+
+  it('emits a toast on non-stealing add', async () => {
+    await editorDocument.addImage(pixelFile('b.png'));
+    // Allow the burst window to flush.
+    vi.advanceTimersByTime(300);
+    expect(toastInfoSpy).toHaveBeenCalledWith(expect.stringMatching(/Image added/i));
+  });
+
+  it('coalesces a burst into one toast message', async () => {
+    await Promise.all([
+      editorDocument.addImage(pixelFile('b.png')),
+      editorDocument.addImage(pixelFile('c.png')),
+    ]);
+    vi.advanceTimersByTime(300);
+    expect(toastInfoSpy).toHaveBeenCalledTimes(1);
+    expect(toastInfoSpy).toHaveBeenCalledWith(expect.stringMatching(/2 images added/i));
+  });
+
+  it('does NOT emit a toast when the new image steals selection', async () => {
+    // Nothing is active — the first add should activate (not toast).
+    useEditorStore.getState().setActiveImageNode(null as unknown as string);
+    await editorDocument.addImage(pixelFile('a.png'));
+    vi.advanceTimersByTime(300);
+    expect(toastInfoSpy).not.toHaveBeenCalled();
   });
 });

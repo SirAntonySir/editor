@@ -14,8 +14,8 @@ interface LayerStripProps {
  * layer's name in italic Fraunces alongside the sheet — keeping the
  * column visually quiet at rest.
  *
- * The strip handles the "I want a quick layer pick" use case. The sidebar
- * LayersPanel stays as the detail view for opacity / blend mode / rename.
+ * The strip handles the "I want a quick layer pick" use case. The Inspector
+ * Layer tab is the detail view for opacity / blend mode / rename.
  */
 export function LayerStrip({ layerIds }: LayerStripProps) {
   const allLayers = useEditorStore((s) => s.layers);

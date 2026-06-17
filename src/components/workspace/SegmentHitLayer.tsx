@@ -3,7 +3,6 @@ import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useMobileSam } from '@/hooks/useMobileSam';
 import { useEditorStore } from '@/store';
-import { GLOBAL_SCOPE } from '@/types/scope';
 import { backendTools } from '@/lib/backend-tools';
 import { maskStore } from '@/core/mask-store';
 import { maskToPngBase64 } from '@/lib/segmentation/mask-png';
@@ -112,7 +111,7 @@ export function SegmentHitLayer({
         }
         // Promote the new object to the active scope so subsequent
         // toolrail / Cmd+K adjustments target it instead of the layer.
-        editor.setActiveScope({ kind: 'mask', mask_id: maskId });
+        editor.setActiveObjectId(maskId);
         // Drop back to layers mode — the user is done segmenting, and the
         // committed object's actions are still reachable from the image-
         // node's ContextMenu when the active scope points at this mask.
@@ -245,7 +244,7 @@ export function SegmentHitLayer({
         return obj.mask.data[y * obj.mask.width + x] === 255;
       });
       if (objectHit) {
-        editor.setActiveScope({ kind: 'mask', mask_id: objectHit.id });
+        editor.setActiveObjectId(objectHit.id);
         editor.setActiveImageNode(imageNodeId);
         return;
       }
@@ -254,8 +253,8 @@ export function SegmentHitLayer({
         // Layers mode: empty-area click clears the mask scope so the image
         // body acts as a global target again. React Flow's own node-click
         // handling still selects the ImageNode (we don't stop the event).
-        if (editor.activeScope.kind === 'mask') {
-          editor.setActiveScope(GLOBAL_SCOPE);
+        if (editor.activeObjectId !== null) {
+          editor.setActiveObjectId(null);
         }
         return;
       }

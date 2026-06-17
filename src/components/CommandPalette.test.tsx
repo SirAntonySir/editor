@@ -120,7 +120,7 @@ describe('CommandPalette execution', () => {
     expect(spawnRegistryPreset).toHaveBeenCalledWith('golden_hour', expect.any(String));
   });
 
-  it('Cmd+Enter sends the query to the AI with an image_node scope keyed on the active node', async () => {
+  it('Cmd+Enter sends the query to the AI with global scope when an image node is active but no object', async () => {
     const nodeId = useEditorStore.getState().addImageNode(['l1']);
     useEditorStore.getState().setActiveImageNode(nodeId);
     // Pre-populate AI context so the auto-analyze branch is skipped.
@@ -132,11 +132,10 @@ describe('CommandPalette execution', () => {
     await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
     // proposeFromPalette now accepts an optional third arg for attached
     // context items (from the chip-menu / context-attachment strip). An
-    // empty array is sent when no chips were attached. The scope is now
-    // `image_node` so the backend knows which canvas the prompt targets.
+    // empty array is sent when no chips were attached.
     expect(proposeFromPalette).toHaveBeenCalledWith(
       'make it warmer',
-      { kind: 'image_node', imageNodeId: nodeId, layerIds: ['l1'] },
+      { kind: 'global' },
       [],
     );
     expect(analyseActiveImageLayer).not.toHaveBeenCalled();
@@ -145,7 +144,7 @@ describe('CommandPalette execution', () => {
   it('Cmd+Enter forwards a mask scope when one is active (user-selected scope wins)', async () => {
     const nodeId = useEditorStore.getState().addImageNode(['l1']);
     useEditorStore.getState().setActiveImageNode(nodeId);
-    useEditorStore.getState().setActiveScope({ kind: 'mask', mask_id: 'm1' });
+    useEditorStore.getState().setActiveObjectId('m1');
     useAiSession.setState({ context: { subjects: [], lighting: 'flat', dominantTones: [], mood: '', candidateRegions: [], modelName: '', modelVersion: '', generatedAt: '' } as unknown as never });
     render(<CommandPalette />);
     open();
@@ -174,7 +173,7 @@ describe('CommandPalette execution', () => {
     await waitFor(() => expect(analyseActiveImageLayer).toHaveBeenCalled());
     await waitFor(() => expect(proposeFromPalette).toHaveBeenCalledWith(
       'make it warmer',
-      { kind: 'image_node', imageNodeId: nodeId, layerIds: ['l1'] },
+      { kind: 'global' },
       [],
     ));
   });

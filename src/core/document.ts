@@ -20,10 +20,37 @@ import { useAiSession } from '@/hooks/useImageContext';
 import { clearInternalCanvasCache } from '@/lib/image-node-geometry';
 import { parseImageMetadata } from '@/lib/image-metadata';
 import { backendTools } from '@/lib/backend-tools';
+import { toast } from '@/components/ui/Toast';
 
 const BACKEND_BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
 const DEBOUNCE_MS = 2000;
+
+// ─── Burst-coalesce toast for non-stealing image adds ───────────────
+const BURST_WINDOW_MS = 250;
+let pendingImageAdds = 0;
+let imageAddFlush: ReturnType<typeof setTimeout> | null = null;
+
+function notifyImageAdded(): void {
+  pendingImageAdds += 1;
+  if (imageAddFlush !== null) return;
+  imageAddFlush = setTimeout(() => {
+    const n = pendingImageAdds;
+    pendingImageAdds = 0;
+    imageAddFlush = null;
+    toast.info(n === 1 ? 'Image added — click to edit.' : `${n} images added — click to edit.`);
+  }, BURST_WINDOW_MS);
+}
+
+/** Reset burst-coalesce state. Exported for test isolation only. */
+export function _resetImageAddBurst(): void {
+  if (imageAddFlush !== null) {
+    clearTimeout(imageAddFlush);
+    imageAddFlush = null;
+  }
+  pendingImageAdds = 0;
+}
+// ────────────────────────────────────────────────────────────────────
 
 let store: StoreApi<EditorState> | null = null;
 let interaction: InteractionSession | null = null;
@@ -307,6 +334,8 @@ async function addImage(file: File): Promise<void> {
     );
     const position = { x: existing.length > 0 ? maxRight + 80 : 0, y: 0 };
 
+    const wasNothingActive = useEditorStore.getState().activeImageNodeId === null;
+
     const newNodeId = useEditorStore.getState().addImageNode(
       [layerId],
       position,
@@ -327,17 +356,17 @@ async function addImage(file: File): Promise<void> {
           order: s.layers.length,
         },
       ],
-      activeLayerId: layerId,
+      // Only adopt the new layer as active when nothing was active —
+      // preserves the user's selection when they add a second image.
+      ...(wasNothingActive ? { activeLayerId: layerId } : {}),
     }));
 
-    // Promote the new node to active so subsequent toolrail / Cmd+K
-    // spawns target it, and the inspector + layers panel scope to its
-    // layers. Without this, the second image is invisible to widget
-    // spawning until the user manually clicks it in the canvas, and
-    // every inspector edit would still write to the previous active
-    // node's layer — keeping activeLayerId (set above) and
-    // activeImageNodeId in sync.
-    useEditorStore.getState().setActiveImageNode(newNodeId);
+    // Promote the new node to active ONLY when there's nothing to preserve.
+    if (wasNothingActive) {
+      useEditorStore.getState().setActiveImageNode(newNodeId);
+    } else {
+      notifyImageAdded();
+    }
   }
 
   const post = captureState();

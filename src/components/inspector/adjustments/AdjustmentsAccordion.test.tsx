@@ -1,5 +1,5 @@
 import { render, screen, cleanup } from '@testing-library/react';
-import { it, expect, beforeEach, afterEach } from 'vitest';
+import { it, describe, expect, beforeEach, afterEach } from 'vitest';
 import { AdjustmentsAccordion } from './AdjustmentsAccordion';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
@@ -34,4 +34,24 @@ it('renders all tool-group sections (9 tools across 4 groups) and the Presets se
 it('does not render the standalone Colour Band row (moved into HSL popover)', () => {
   render(<AdjustmentsAccordion />);
   expect(screen.queryByText('Colour band')).toBeNull();
+});
+
+describe('binding header', () => {
+  it('shows "Whole image" target when no object is selected', () => {
+    useEditorStore.setState({ activeObjectId: null, activeLayerId: null, activeImageNodeId: null } as never);
+    render(<AdjustmentsAccordion />);
+    expect(screen.getByText('Whole image')).toBeTruthy();
+  });
+
+  it('shows the layer name when a layer is active but no object selected', () => {
+    useEditorStore.setState({
+      activeObjectId: null,
+      activeImageNodeId: null,
+      activeLayerId: 'L1',
+      layers: [{ id: 'L1', name: 'Background' }],
+    } as never);
+    render(<AdjustmentsAccordion />);
+    expect(screen.getByText('Whole image')).toBeTruthy();
+    expect(screen.getByText('Background')).toBeTruthy();
+  });
 });

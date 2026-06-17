@@ -73,8 +73,8 @@ export function useImageNodeRender({
   // Re-render when selection / mask overlays change. `maskStore` is not
   // reactive — these store fields are the SSoT the painters branch on, so
   // changes here are what trigger overlay repaint.
-  const activeScope = useEditorStore((s) => s.activeScope);
-  const hoveredScope = useEditorStore((s) => s.hoveredScope);
+  const activeObjectId = useEditorStore((s) => s.activeObjectId);
+  const hoveredObjectId = useEditorStore((s) => s.hoveredObjectId);
   const activeMaskRef = useEditorStore((s) => s.activeMaskRef);
   const committedMaskRef = useEditorStore((s) => s.committedMaskRef);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
@@ -254,8 +254,8 @@ export function useImageNodeRender({
     widgets,
     optimistic,
     pixelVersion,
-    activeScope,
-    hoveredScope,
+    activeObjectId,
+    hoveredObjectId,
     activeMaskRef,
     committedMaskRef,
     activeImageNodeId,

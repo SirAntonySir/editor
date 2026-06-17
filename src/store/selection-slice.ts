@@ -1,6 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type { Scope, MaskRef } from '@/types/scope';
-import { GLOBAL_SCOPE } from '@/types/scope';
+import type { MaskRef } from '@/types/scope';
 import { maskStore } from '@/core/mask-store';
 
 export interface CycleStack {
@@ -11,17 +10,18 @@ export interface CycleStack {
 }
 
 export interface SelectionSlice {
-  activeScope: Scope;
-  hoveredScope: Scope | null;
   cycleStack: CycleStack | null;
   focusedWidgetId: string | null;
   /** Draft mask being previewed before the user commits (SAM preview, highlight_region). */
   activeMaskRef: MaskRef | null;
   /** Mask that has been committed — persists until the user discards or creates a new layer. */
   committedMaskRef: MaskRef | null;
+  /** null = whole image, non-null = maskRef of selected Object. */
+  activeObjectId: string | null;
+  hoveredObjectId: string | null;
 
-  setActiveScope: (scope: Scope) => void;
-  setHoveredScope: (scope: Scope | null) => void;
+  setActiveObjectId: (id: string | null) => void;
+  setHoveredObjectId: (id: string | null) => void;
   clickAt: (imageX: number, imageY: number, candidates: string[]) => void;
   /** Select smallest mask at a point without starting a cycle (shift-click). Returns the mask id or null. */
   shiftClickAt: (imageX: number, imageY: number, candidates: string[]) => string | null;
@@ -55,19 +55,19 @@ export const createSelectionSlice: StateCreator<
   [['zustand/immer', never]],
   []
 > = (set, get) => ({
-  activeScope: GLOBAL_SCOPE,
-  hoveredScope: null,
   cycleStack: null,
   focusedWidgetId: null,
   activeMaskRef: null,
   committedMaskRef: null,
+  activeObjectId: null,
+  hoveredObjectId: null,
 
-  setActiveScope: (scope) => set((s) => { s.activeScope = scope; }),
-  setHoveredScope: (scope) => set((s) => { s.hoveredScope = scope; }),
+  setActiveObjectId: (id) => set((s) => { s.activeObjectId = id; }),
+  setHoveredObjectId: (id) => set((s) => { s.hoveredObjectId = id; }),
   focusWidget: (id) => set((s) => { s.focusedWidgetId = id; }),
   clearSelection: () => set((s) => {
-    s.activeScope = GLOBAL_SCOPE;
-    s.hoveredScope = null;
+    s.activeObjectId = null;
+    s.hoveredObjectId = null;
     s.cycleStack = null;
     s.focusedWidgetId = null;
   }),
@@ -84,8 +84,8 @@ export const createSelectionSlice: StateCreator<
     const id = sorted[0];
     set((s) => {
       s.cycleStack = { originX: imageX, originY: imageY, candidates: sorted, cursor: 0 };
-      s.activeScope = { kind: 'mask', mask_id: id };
-      s.hoveredScope = { kind: 'mask', mask_id: id };
+      s.activeObjectId = id;
+      s.hoveredObjectId = id;
     });
     return id;
   },
@@ -94,8 +94,8 @@ export const createSelectionSlice: StateCreator<
     if (candidates.length === 0) {
       set((s) => {
         s.cycleStack = null;
-        s.activeScope = GLOBAL_SCOPE;
-        s.hoveredScope = null;
+        s.activeObjectId = null;
+        s.hoveredObjectId = null;
       });
       return;
     }
@@ -110,16 +110,16 @@ export const createSelectionSlice: StateCreator<
       const selMask = nextCursor < prev.candidates.length ? prev.candidates[nextCursor] : null;
       set((s) => {
         s.cycleStack = next;
-        s.activeScope = selMask ? { kind: 'mask', mask_id: selMask } : GLOBAL_SCOPE;
-        s.hoveredScope = selMask ? { kind: 'mask', mask_id: selMask } : null;
+        s.activeObjectId = selMask ?? null;
+        s.hoveredObjectId = selMask ?? null;
       });
       return;
     }
     const sorted = sortByPixelCount(candidates);
     set((s) => {
       s.cycleStack = { originX: imageX, originY: imageY, candidates: sorted, cursor: 0 };
-      s.activeScope = { kind: 'mask', mask_id: sorted[0] };
-      s.hoveredScope = { kind: 'mask', mask_id: sorted[0] };
+      s.activeObjectId = sorted[0];
+      s.hoveredObjectId = sorted[0];
     });
   },
 });

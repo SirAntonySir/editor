@@ -14,7 +14,6 @@ import { tetherWorkspaceWidget } from '@/lib/workspace-tether';
 import { useEditorStore } from '@/store';
 import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
-import { GLOBAL_SCOPE } from '@/types/scope';
 
 // Required so immer can produce drafts of Map<WidgetId, OptimisticPatch>.
 enableMapSet();
@@ -128,7 +127,7 @@ interface BackendState {
   setSessionId: (sessionId: string | null) => void;
   /** Optimistically drop a mask from snapshot.masksIndex + maskStore +
    *  objectOwnership ahead of the backend's `mask.deleted` SSE echo (the
-   *  handler is idempotent). Also resets activeScope when it pointed at
+   *  handler is idempotent). Also resets activeObjectId when it pointed at
    *  the removed mask. */
   pushMaskDeleted: (maskId: string) => void;
   /** Optimistically patch a mask's label in snapshot.masksIndex + maskStore
@@ -416,8 +415,8 @@ export const useBackendState = create<BackendState>()(
               maskStore.remove(mask_id);
               objectOwnership.clear(mask_id);
               const editor = useEditorStore.getState();
-              if (editor.activeScope.kind === 'mask' && editor.activeScope.mask_id === mask_id) {
-                editor.setActiveScope(GLOBAL_SCOPE);
+              if (editor.activeObjectId === mask_id) {
+                editor.setActiveObjectId(null);
               }
             });
             break;
@@ -482,8 +481,8 @@ export const useBackendState = create<BackendState>()(
       maskStore.remove(maskId);
       objectOwnership.clear(maskId);
       const editor = useEditorStore.getState();
-      if (editor.activeScope.kind === 'mask' && editor.activeScope.mask_id === maskId) {
-        editor.setActiveScope(GLOBAL_SCOPE);
+      if (editor.activeObjectId === maskId) {
+        editor.setActiveObjectId(null);
       }
     },
     pushMaskRename: (maskId, label) => {

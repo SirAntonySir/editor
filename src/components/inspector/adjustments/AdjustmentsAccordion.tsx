@@ -2,6 +2,7 @@ import { useEditorStore } from '@/store';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import type { ProcessingDefinition } from '@/types/processing';
+import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
 import { ToolSection } from './ToolSection';
 import { PresetsSection } from './PresetsSection';
 
@@ -32,6 +33,11 @@ function sectionDef(def: ProcessingDefinition): ProcessingDefinition {
 
 export function AdjustmentsAccordion() {
   const layerId = useEditorStore((s) => s.activeLayerId);
+  const activeLayer = useEditorStore((s) => s.layers.find((l) => l.id === s.activeLayerId));
+  const activeObjectId = useEditorStore((s) => s.activeObjectId);
+  const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
+  const objects = useImageNodeObjects(activeImageNodeId ?? '');
+  const objectName = objects.find((o) => o.id === activeObjectId)?.label ?? 'Whole image';
 
   // Build the ordered list of (def, isLastInGroup) tuples so the renderer can
   // decide where to drop separators. Defs not in TOOL_GROUPS are ignored —
@@ -44,7 +50,15 @@ export function AdjustmentsAccordion() {
   ).filter((g) => g.length > 0);
 
   return (
-    <ScrollArea className="flex-1 min-h-0">
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-text-secondary border-b border-separator shrink-0">
+        Targets:{' '}
+        <span className="text-text-primary">{objectName}</span>
+        {activeLayer && (
+          <> on <span className="text-text-primary">{activeLayer.name}</span></>
+        )}
+      </div>
+      <ScrollArea className="flex-1 min-h-0">
       <div className="text-[9px] uppercase tracking-wide text-text-secondary px-2.5 pt-2 pb-1">
         Tools
       </div>
@@ -65,5 +79,6 @@ export function AdjustmentsAccordion() {
         <PresetsSection />
       </div>
     </ScrollArea>
+    </div>
   );
 }

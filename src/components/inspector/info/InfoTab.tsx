@@ -3,6 +3,7 @@ import { useImageContextSnapshot } from '@/hooks/useImageContext';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useAiSession } from '@/hooks/useImageContext';
 import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';
+import { useEditorStore } from '@/store';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { SemanticSection } from './SemanticSection';
 import { HistogramsSection } from './HistogramsSection';
@@ -46,6 +47,11 @@ function withLiveMechanical(
 }
 
 export function InfoTab() {
+  // Explicit subscription so InfoTab always rerenders when the user selects a
+  // different image node — even if the transitive path through
+  // useLiveMechanicalContext were ever refactored away.
+  useEditorStore((s) => s.activeImageNodeId);
+
   const ctx = useImageContextSnapshot();
   const live = useLiveMechanicalContext();
   const phases = useBackendState((s) => s.phases);

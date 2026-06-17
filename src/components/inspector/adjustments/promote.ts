@@ -1,5 +1,6 @@
 import { backendTools } from '@/lib/backend-tools';
 import { useEditorStore } from '@/store';
+import { scopeFromSelection } from '@/lib/scope-from-selection';
 
 /** Spawn a canvas widget for a tool (the per-section Pin / ↗ open on canvas).
  * Editing a section writes canonical directly; this is the optional promote
@@ -9,9 +10,10 @@ import { useEditorStore } from '@/store';
  * Migrated from propose_widget to proposeStack using forced_ops. */
 export function promoteToCanvas(sessionId: string | null, toolId: string, layerId: string | null): void {
   if (!sessionId || !layerId) return;
+  const scope = scopeFromSelection(useEditorStore.getState().activeObjectId);
   void backendTools.proposeStack(sessionId, {
     intent: toolId,
-    scope: { kind: 'global' },
+    scope,
     forced_ops: [toolId],
     layerId,
     origin: 'tool_invoked',
@@ -33,9 +35,10 @@ export function promoteSingleParamToCanvas(
 ): void {
   if (!sessionId || !layerId) return;
   useEditorStore.getState().queuePinRequest(layerId, opAdjustmentType, [paramKey]);
+  const scope = scopeFromSelection(useEditorStore.getState().activeObjectId);
   void backendTools.proposeStack(sessionId, {
     intent: `${toolId}:${paramKey}`,
-    scope: { kind: 'global' },
+    scope,
     forced_ops: [toolId],
     layerId,
     origin: 'tool_invoked',

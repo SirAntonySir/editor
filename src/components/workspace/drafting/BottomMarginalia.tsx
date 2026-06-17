@@ -10,8 +10,8 @@ interface BottomMarginaliaProps {
 }
 
 /**
- * Drafting-mode replacement for the classic `ObjectModeFooter`. Renders a
- * single Geist-Mono caps row beneath the image:
+ * Bottom chrome rendered beneath the image node. Renders a single
+ * Geist-Mono caps row:
  *
  *     1013 × 1350 PX  ·  JPEG  ·  4.2 MB  ·  04 LAYERS  ·  03 OBJECTS
  *

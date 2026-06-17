@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Eye, EyeOff, Lock, LockOpen, Pencil, ChevronDown } from 'lucide-react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useEditorStore } from '@/store';
+import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
 import type { Layer, BlendMode } from '@/store/layer-slice';
 
 const BLEND_MODES: BlendMode[] = [
@@ -79,38 +81,57 @@ export function LayerRow({ layer, isActive }: { layer: Layer; isActive: boolean 
           {layer.locked ? <Lock size={12} /> : <LockOpen size={12} />}
         </button>
       </div>
-      <div className="flex items-center gap-2">
-        <label className="text-[9px] uppercase tracking-[0.18em] text-text-secondary font-mono min-w-[64px]">Opacity</label>
-        <input
-          type="range"
+
+      {/* Opacity — AdjustmentSlider primitive handles label, readout, and Radix track */}
+      <div onClick={(e) => e.stopPropagation()}>
+        <AdjustmentSlider
+          label="Opacity"
+          value={Math.round(layer.opacity * 100)}
           min={0}
           max={100}
-          value={Math.round(layer.opacity * 100)}
-          onChange={(e) => updateLayer(layer.id, { opacity: Number(e.target.value) / 100 })}
-          onClick={(e) => e.stopPropagation()}
-          aria-label={`Opacity for ${layer.name}`}
-          className="flex-1 appearance-none h-1 rounded-none bg-separator accent-[var(--color-accent)] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-[10px] [&::-webkit-slider-thumb]:w-[10px] [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--color-accent)] [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-separator [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:h-[10px] [&::-moz-range-thumb]:w-[10px] [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--color-accent)] [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-separator"
+          onChange={(v) => updateLayer(layer.id, { opacity: v / 100 })}
+          formatValue={(v) => `${v}%`}
         />
-        <span className="text-[10px] tabular-nums w-8 text-right font-mono">{Math.round(layer.opacity * 100)}%</span>
       </div>
-      <div className="flex items-center gap-2">
-        <label className="text-[9px] uppercase tracking-[0.18em] text-text-secondary font-mono min-w-[64px]">Blend</label>
-        <div className="relative flex-1">
-          <select
-            value={layer.blendMode}
-            onChange={(e) => updateLayer(layer.id, { blendMode: e.target.value as BlendMode })}
-            onClick={(e) => e.stopPropagation()}
-            className="appearance-none w-full bg-transparent text-[13px] border-b border-separator outline-none capitalize cursor-pointer hover:border-text-secondary py-0.5 pr-5"
-            aria-label={`Blend mode for ${layer.name}`}
-          >
-            {BLEND_MODES.map((m) => (
-              <option key={m} value={m} className="capitalize">
-                {m.replace('-', ' ')}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={12} className="absolute right-0 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
-        </div>
+
+      {/* Blend mode — Radix DropdownMenu mirroring LayerProperties.tsx */}
+      <div className="flex flex-col gap-1">
+        <span className="text-[9px] uppercase tracking-[0.18em] text-text-secondary font-mono">Blend</span>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild>
+            <button
+              type="button"
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center justify-between w-full px-2 py-1 text-xs
+                bg-surface-secondary rounded-sm border border-separator
+                hover:bg-separator transition-colors text-text-primary capitalize"
+              aria-label={`Blend mode for ${layer.name}`}
+            >
+              {layer.blendMode.replace('-', ' ')}
+              <ChevronDown size={12} />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content
+              className="overlay p-1 min-w-[140px] z-50"
+              sideOffset={4}
+            >
+              {BLEND_MODES.map((mode) => (
+                <DropdownMenu.Item
+                  key={mode}
+                  className={`px-2 py-1 text-xs rounded-sm cursor-pointer outline-none capitalize
+                    ${layer.blendMode === mode
+                      ? 'bg-accent text-white'
+                      : 'text-text-primary hover:bg-surface-secondary'
+                    }`}
+                  onSelect={() => updateLayer(layer.id, { blendMode: mode })}
+                >
+                  {mode.replace('-', ' ')}
+                </DropdownMenu.Item>
+              ))}
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
       </div>
     </div>
   );

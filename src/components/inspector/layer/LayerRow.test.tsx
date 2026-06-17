@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { useEditorStore } from '@/store';
 import { LayerRow } from './LayerRow';
 import type { Layer } from '@/store/layer-slice';
@@ -80,26 +81,41 @@ describe('LayerRow — lock toggle', () => {
 });
 
 describe('LayerRow — opacity slider', () => {
-  it('sets opacity to 0.5 when slider changes to 50', () => {
+  it('sets opacity to 0.5 when Radix slider changes to 50', () => {
     seedLayer({ opacity: 1 });
     render(<LayerRow layer={getLayer()} isActive />);
 
-    fireEvent.change(screen.getByRole('slider', { name: /opacity for photo\.jpg/i }), {
-      target: { value: '50' },
-    });
-
-    expect(getLayer().opacity).toBeCloseTo(0.5);
+    // AdjustmentSlider renders a Radix Slider.Thumb with aria-label matching the
+    // label prop ("Opacity"). The native range input is no longer present.
+    const thumb = screen.getByRole('slider', { name: /opacity/i });
+    fireEvent.keyDown(thumb, { key: 'Home' }); // snap to min (0)
+    // Verify the store changed — Radix maps Home → min in jsdom
+    // (opacity should now be 0 / 100 = 0).
+    expect(getLayer().opacity).toBeCloseTo(0);
   });
 });
 
-describe('LayerRow — blend mode select', () => {
-  it('sets blendMode to multiply when selected', () => {
+describe('LayerRow — blend mode dropdown', () => {
+  it('renders a button showing the current blend mode', () => {
     seedLayer({ blendMode: 'normal' });
     render(<LayerRow layer={getLayer()} isActive />);
 
-    fireEvent.change(screen.getByRole('combobox', { name: /blend mode for photo\.jpg/i }), {
-      target: { value: 'multiply' },
-    });
+    // The Radix DropdownMenu.Trigger button shows the current blend mode.
+    const trigger = screen.getByRole('button', { name: /blend mode for photo\.jpg/i });
+    expect(trigger).toBeTruthy();
+    expect(trigger.textContent?.toLowerCase()).toContain('normal');
+  });
+
+  it('opens the dropdown and selects multiply', async () => {
+    seedLayer({ blendMode: 'normal' });
+    render(<LayerRow layer={getLayer()} isActive />);
+
+    const trigger = screen.getByRole('button', { name: /blend mode for photo\.jpg/i });
+    await userEvent.click(trigger);
+
+    // DropdownMenu.Item elements are rendered in a portal; look for 'multiply'.
+    const multiplyItem = await screen.findByRole('menuitem', { name: /multiply/i });
+    await userEvent.click(multiplyItem);
 
     expect(getLayer().blendMode).toBe('multiply');
   });

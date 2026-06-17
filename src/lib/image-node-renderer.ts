@@ -213,6 +213,13 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
 
     if (!source) continue;
 
+    // Broadcast widgets (`n.layerIds` is an array) are routed to the
+    // composite-then-apply pass below. The per-layer pass handles only
+    // single-layer pinned ops (`n.layerId`). For linear scalar adjustments
+    // the two are visually equivalent; non-linear ops (curves, levels) on
+    // multi-layer compositions with non-`source-over` blends will diverge —
+    // revisit if/when multi-photo-layer compositions become a primary use
+    // case. See docs/superpowers/specs/2026-06-17-visibility-driven-adjustments-design.md.
     const layerNodes = nodes.filter(
       (n) =>
         matchesLayer(n, layerId)

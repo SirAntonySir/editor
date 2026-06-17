@@ -5,6 +5,7 @@ import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import {
   renameObject,
+  selectInvertedObject,
   convertObjectToLayerMask,
   extractObjectToImageNode,
   deleteObject,
@@ -234,6 +235,12 @@ function ObjectLabel({
             onSelect={startEdit}
           >
             Rename
+          </ContextMenu.Item>
+          <ContextMenu.Item
+            className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"
+            onSelect={() => selectInvertedObject(obj.id)}
+          >
+            Select Inverted
           </ContextMenu.Item>
           <ContextMenu.Item
             className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"

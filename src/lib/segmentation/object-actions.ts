@@ -14,7 +14,7 @@ import { useAiSession } from '@/hooks/useImageContext';
 import { backendTools } from '@/lib/backend-tools';
 import { maskStore } from '@/core/mask-store';
 import { pixelStore } from '@/core/pixel-store';
-import { extractLayerFromMask } from '@/store/segment-actions';
+import { extractLayerFromMask, duplicateLayer } from '@/store/segment-actions';
 import { toast } from '@/components/ui/Toast';
 import { UI } from '@/config';
 
@@ -28,6 +28,33 @@ export async function renameObject(maskId: string, label: string): Promise<void>
   if (!sessionId) return;
   const env = await backendTools.rename_mask(sessionId, { maskId, label: trimmed });
   if (!env.ok) toast.info(`Rename failed: ${env.error?.message ?? 'unknown error'}`);
+}
+
+/** Create a new mask whose alpha is the per-pixel inverse of `maskId`, register
+ *  it client-side, and select it. Same layer ownership as the source mask so
+ *  the renderer's per-layer mask path treats it identically. Backend doesn't
+ *  know about this mask; widgets bound to it work for frontend preview but
+ *  will round-trip a maskId the backend can't resolve — that's a follow-up
+ *  if/when the user pins an adjustment to the inverted selection. */
+export function selectInvertedObject(maskId: string): void {
+  const mask = maskStore.get(maskId);
+  if (!mask) {
+    toast.info('Select Inverted: mask no longer exists.');
+    return;
+  }
+  const inverted = new Uint8Array(mask.data.length);
+  for (let i = 0; i < mask.data.length; i++) inverted[i] = 255 - mask.data[i];
+  const newRef = maskStore.register({
+    layerId: mask.layerId,
+    label: mask.label ? `${mask.label} (inverted)` : 'Inverted selection',
+    width: mask.width,
+    height: mask.height,
+    data: inverted,
+    source: mask.source,
+    createdAt: Date.now(),
+  });
+  useEditorStore.getState().setActiveObjectId(newRef);
+  toast.info('Selected inverted area.');
 }
 
 /** Apply the mask as a layer's `layerMask`. The mask's `layerId` points at
@@ -46,24 +73,37 @@ export function convertObjectToLayerMask(
   }
   const editor = useEditorStore.getState();
   const isRealLayer = editor.layers.some((l) => l.id === mask.layerId);
-  let layerId: string | undefined;
+  let sourceLayerId: string | undefined;
   if (isRealLayer) {
-    layerId = mask.layerId;
+    sourceLayerId = mask.layerId;
   } else if (sourceImageNodeId) {
     const node = editor.imageNodes[sourceImageNodeId];
     if (node) {
-      layerId =
+      sourceLayerId =
         editor.activeLayerId && node.layerIds.includes(editor.activeLayerId)
           ? editor.activeLayerId
           : node.layerIds[0];
     }
   }
-  if (!layerId) {
+  if (!sourceLayerId) {
     toast.info('Convert to Layer Mask: no target layer available.');
     return;
   }
-  editor.updateLayer(layerId, { layerMask: maskId });
-  toast.info(`Applied "${mask.label ?? 'object'}" as layer mask.`);
+  const newLayerId = duplicateLayer(sourceLayerId);
+  if (!newLayerId) {
+    toast.info('Convert to Layer Mask: could not duplicate the source layer.');
+    return;
+  }
+  editor.updateLayer(newLayerId, { layerMask: maskId });
+  if (sourceImageNodeId) {
+    useEditorStore.setState((s) => {
+      const node = s.imageNodes[sourceImageNodeId];
+      if (node && !node.layerIds.includes(newLayerId)) {
+        node.layerIds.push(newLayerId);
+      }
+    });
+  }
+  toast.info(`Applied "${mask.label ?? 'object'}" as layer mask on a new layer.`);
 }
 
 /** Bake the masked pixels into a new layer and place it on a new ImageNode

@@ -29,12 +29,16 @@ export interface LayerSlice {
   layers: Layer[];
   activeLayerId: string | null;
   pixelVersion: number;
+  /** One-shot flag: non-null while an inline-rename is pending for this layer id. */
+  renamingLayerId: string | null;
 
   addLayer: (layer: Omit<Layer, 'order'>) => void;
   removeLayer: (id: string) => void;
   setActiveLayer: (id: string | null) => void;
   updateLayer: (id: string, updates: Partial<Omit<Layer, 'id'>>) => void;
   reorderLayers: (fromIndex: number, toIndex: number) => void;
+  requestRenameLayer: (id: string) => void;
+  clearRenameRequest: () => void;
 
   revertAll: () => void;
   bumpPixelVersion: () => void;
@@ -44,6 +48,7 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
   layers: [],
   activeLayerId: null,
   pixelVersion: 0,
+  renamingLayerId: null,
 
   addLayer: (layer) =>
     set((state) => {
@@ -100,6 +105,16 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
       state.layers.forEach((l, i) => {
         l.order = i;
       });
+    }),
+
+  requestRenameLayer: (id) =>
+    set((state) => {
+      state.renamingLayerId = id;
+    }),
+
+  clearRenameRequest: () =>
+    set((state) => {
+      state.renamingLayerId = null;
     }),
 
   revertAll: () =>

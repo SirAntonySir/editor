@@ -134,6 +134,7 @@ export const backendTools = {
     preset_id?: string;
     prompt?: string;
     layerId?: string;
+    layerIds?: string[];
   }) {
     return invokeTool<{ widgets: Widget[] }>('propose_stack', sessionId, args);
   },

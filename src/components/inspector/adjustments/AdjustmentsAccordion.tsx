@@ -33,7 +33,6 @@ function sectionDef(def: ProcessingDefinition): ProcessingDefinition {
 
 export function AdjustmentsAccordion() {
   const layerId = useEditorStore((s) => s.activeLayerId);
-  const activeLayer = useEditorStore((s) => s.layers.find((l) => l.id === s.activeLayerId));
   const activeObjectId = useEditorStore((s) => s.activeObjectId);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   const objects = useImageNodeObjects(activeImageNodeId ?? '');
@@ -54,9 +53,6 @@ export function AdjustmentsAccordion() {
       <div className="px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-text-secondary border-b border-separator shrink-0">
         Targets:{' '}
         <span className="text-text-primary">{objectName}</span>
-        {activeLayer && (
-          <> on <span className="text-text-primary">{activeLayer.name}</span></>
-        )}
       </div>
       <ScrollArea className="flex-1 min-h-0">
       <div className="text-[9px] uppercase tracking-wide text-text-secondary px-2.5 pt-2 pb-1">

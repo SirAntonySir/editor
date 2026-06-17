@@ -2,6 +2,13 @@ import { backendTools } from '@/lib/backend-tools';
 import { useEditorStore } from '@/store';
 import { scopeFromSelection } from '@/lib/scope-from-selection';
 
+function activeNodeLayerIds(): string[] | undefined {
+  const editor = useEditorStore.getState();
+  const id = editor.activeImageNodeId;
+  if (!id) return undefined;
+  return editor.imageNodes[id]?.layerIds;
+}
+
 /** Spawn a canvas widget for a tool (the per-section Pin / ↗ open on canvas).
  * Editing a section writes canonical directly; this is the optional promote
  * that materializes a draggable canvas shell bound to the same op. No-op when
@@ -11,11 +18,13 @@ import { scopeFromSelection } from '@/lib/scope-from-selection';
 export function promoteToCanvas(sessionId: string | null, toolId: string, layerId: string | null): void {
   if (!sessionId || !layerId) return;
   const scope = scopeFromSelection(useEditorStore.getState().activeObjectId);
+  const layerIds = activeNodeLayerIds();
   void backendTools.proposeStack(sessionId, {
     intent: toolId,
     scope,
     forced_ops: [toolId],
     layerId,
+    ...(layerIds ? { layerIds } : {}),
     origin: 'tool_invoked',
   });
 }
@@ -36,11 +45,13 @@ export function promoteSingleParamToCanvas(
   if (!sessionId || !layerId) return;
   useEditorStore.getState().queuePinRequest(layerId, opAdjustmentType, [paramKey]);
   const scope = scopeFromSelection(useEditorStore.getState().activeObjectId);
+  const layerIds = activeNodeLayerIds();
   void backendTools.proposeStack(sessionId, {
     intent: `${toolId}:${paramKey}`,
     scope,
     forced_ops: [toolId],
     layerId,
+    ...(layerIds ? { layerIds } : {}),
     origin: 'tool_invoked',
   });
 }

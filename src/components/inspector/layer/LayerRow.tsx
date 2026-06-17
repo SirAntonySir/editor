@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Eye, EyeOff, Lock, LockOpen, Pencil } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import type { Layer, BlendMode } from '@/store/layer-slice';
@@ -10,8 +10,18 @@ const BLEND_MODES: BlendMode[] = [
 export function LayerRow({ layer, isActive }: { layer: Layer; isActive: boolean }) {
   const updateLayer = useEditorStore((s) => s.updateLayer);
   const setActiveLayer = useEditorStore((s) => s.setActiveLayer);
+  const renamingLayerId = useEditorStore((s) => s.renamingLayerId);
+  const clearRenameRequest = useEditorStore((s) => s.clearRenameRequest);
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState(layer.name);
+
+  useEffect(() => {
+    if (renamingLayerId === layer.id) {
+      setRenaming(true);
+      setDraftName(layer.name);
+      clearRenameRequest();
+    }
+  }, [renamingLayerId, layer.id, layer.name, clearRenameRequest]);
 
   return (
     <div

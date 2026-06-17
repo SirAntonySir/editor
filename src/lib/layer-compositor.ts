@@ -4,7 +4,7 @@ import { useEditorStore } from '@/store';
 import type { BlendMode } from '@/types/adjustment';
 import type { Layer } from '@/store/layer-slice';
 import { maskStore } from '@/core/mask-store';
-import { selectPipelineNodes } from './select-pipeline-nodes';
+import { selectPipelineNodes, matchesLayer } from './select-pipeline-nodes';
 import { nodeToAdjustment } from './node-to-adjustment';
 
 const BLEND_MODE_MAP: Record<BlendMode, GlobalCompositeOperation> = {
@@ -90,7 +90,7 @@ class LayerCompositorImpl {
     }
 
     // 2. Apply the layer's adjustment pipeline from the backend snapshot.
-    const pipelineNodes = selectPipelineNodes().filter((n) => n.layerId === layer.id);
+    const pipelineNodes = selectPipelineNodes().filter((n) => matchesLayer(n, layer.id));
     const adjustments = pipelineNodes.map(nodeToAdjustment).filter((a) => a.enabled);
     let result: HTMLCanvasElement;
     if (adjustments.length === 0) {
@@ -177,7 +177,7 @@ class LayerCompositorImpl {
       } else {
         // Pixel-less adjustment-only layer: apply backend pipeline nodes over
         // the accumulated composite below it.
-        const pipelineNodes = selectPipelineNodes().filter((n) => n.layerId === layer.id);
+        const pipelineNodes = selectPipelineNodes().filter((n) => matchesLayer(n, layer.id));
         const enabledAdjs = pipelineNodes.map(nodeToAdjustment).filter((a) => a.enabled);
         if (enabledAdjs.length > 0 && outputWidth > 0 && outputHeight > 0) {
           PipelineManager.setSourceCanvas(this.outputCanvas);

@@ -23,6 +23,7 @@ import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { nodeToAdjustment } from './node-to-adjustment';
 import { expandCompoundNodes } from './perceptual-dial/expand-compound';
+import { matchesLayer } from './select-pipeline-nodes';
 import {
   MASK_STYLES,
   paintMaskFill,
@@ -212,9 +213,17 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
 
     if (!source) continue;
 
+    // Broadcast widgets (`n.layerIds` is an array) are routed to the
+    // composite-then-apply pass below. The per-layer pass handles only
+    // single-layer pinned ops (`n.layerId`). For linear scalar adjustments
+    // the two are visually equivalent; non-linear ops (curves, levels) on
+    // multi-layer compositions with non-`source-over` blends will diverge —
+    // revisit if/when multi-photo-layer compositions become a primary use
+    // case. See docs/superpowers/specs/2026-06-17-visibility-driven-adjustments-design.md.
     const layerNodes = nodes.filter(
       (n) =>
-        n.layerId === layerId
+        matchesLayer(n, layerId)
+        && !Array.isArray(n.layerIds)
         && !hiddenNodeIds.has(n.id)
         && n.type !== 'crop'
         && n.type !== 'rotate',

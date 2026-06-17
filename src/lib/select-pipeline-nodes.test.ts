@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { mergeOptimistic, selectPipelineNodes, toPipelineNode } from './select-pipeline-nodes';
+import { mergeOptimistic, selectPipelineNodes, toPipelineNode, matchesLayer } from './select-pipeline-nodes';
 import { useBackendState } from '@/store/backend-state-slice';
 import type { OperationGraph } from '@/types/operation-graph';
 import { ProcessingRegistry } from '@/lib/processing-registry';
@@ -102,6 +102,65 @@ describe('mergeOptimistic', () => {
     optimistic.set('w_1', { baseRevision: 1, bindings: [{ paramKey: 'temperature', value: 7800 }] });
     const out = mergeOptimistic(baseGraph.nodes, optimistic);
     expect(out).toEqual(baseGraph.nodes);
+  });
+});
+
+describe('matchesLayer', () => {
+  const makeNode = (id: string, layerId?: string, layerIds?: string[]) => ({
+    id,
+    type: 'basic',
+    scope: { kind: 'global' as const },
+    params: {},
+    inputs: [],
+    ...(layerId !== undefined ? { layerId } : {}),
+    ...(layerIds !== undefined ? { layerIds } : {}),
+  });
+
+  it('matches a node when n.layerId equals the target layer (single-layer pinned)', () => {
+    const n = makeNode('n1', 'L1');
+    expect(matchesLayer(n, 'L1')).toBe(true);
+    expect(matchesLayer(n, 'L2')).toBe(false);
+  });
+
+  it('matches a node when n.layerIds includes the target layer (broadcast)', () => {
+    // n1: layerId = 'L1' (single-layer pinned)
+    const n1 = makeNode('n1', 'L1');
+    // n2: layerId = 'anchor', layerIds = ['L1', 'L2'] (broadcast to L1 and L2)
+    const n2 = makeNode('n2', 'anchor', ['L1', 'L2']);
+    // n3: layerId = 'L3' (single-layer pinned, different layer)
+    const n3 = makeNode('n3', 'L3');
+
+    const allNodes = [n1, n2, n3];
+
+    // selectPipelineNodes for L1 should return n1 and n2
+    const forL1 = allNodes.filter((n) => matchesLayer(n, 'L1'));
+    expect(forL1.map((n) => n.id)).toEqual(['n1', 'n2']);
+
+    // selectPipelineNodes for L2 should return n2 (broadcast only)
+    const forL2 = allNodes.filter((n) => matchesLayer(n, 'L2'));
+    expect(forL2.map((n) => n.id)).toEqual(['n2']);
+
+    // selectPipelineNodes for L3 should return n3
+    const forL3 = allNodes.filter((n) => matchesLayer(n, 'L3'));
+    expect(forL3.map((n) => n.id)).toEqual(['n3']);
+  });
+
+  it('matches the anchor layerId independently of layerIds', () => {
+    const n = makeNode('n1', 'anchor', ['L1', 'L2']);
+    expect(matchesLayer(n, 'anchor')).toBe(true);
+    expect(matchesLayer(n, 'L1')).toBe(true);
+    expect(matchesLayer(n, 'L2')).toBe(true);
+    expect(matchesLayer(n, 'L3')).toBe(false);
+  });
+
+  it('does not match a node with no layerId and no layerIds', () => {
+    const n = makeNode('n1');
+    expect(matchesLayer(n, 'L1')).toBe(false);
+  });
+
+  it('does not match a node whose layerIds is defined but does not include the target', () => {
+    const n = makeNode('n1', 'anchor', ['L2', 'L3']);
+    expect(matchesLayer(n, 'L1')).toBe(false);
   });
 });
 

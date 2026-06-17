@@ -9,6 +9,22 @@ import { expandCompoundNodes } from '@/lib/perceptual-dial/expand-compound';
  */
 export type PipelineNode = Node;
 
+/**
+ * Returns true when a pipeline node applies to the given layer.
+ *
+ * A node applies to a layer if:
+ *  - Its `layerId` equals the target layer id (single-layer pinned node), OR
+ *  - Its `layerIds` array includes the target layer id (broadcast node).
+ *
+ * Both conditions are checked independently so a node with both fields set is
+ * matched for the `layerId` anchor AND for every id in `layerIds`.
+ */
+export function matchesLayer(node: Node, layerId: string): boolean {
+  if (node.layerId === layerId) return true;
+  if (Array.isArray(node.layerIds) && node.layerIds.includes(layerId)) return true;
+  return false;
+}
+
 export function toPipelineNode(node: Node): PipelineNode {
   return { ...node };
 }

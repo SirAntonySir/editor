@@ -1,6 +1,7 @@
 import { Palette, Pin } from 'lucide-react';
 import type { ImageContext } from '@/types/image-context';
 import { Swatch } from '@/components/ui/Swatch';
+import { ColorCastPlot } from '@/components/ui/ColorCastPlot';
 import { SectionHeader } from './SectionHeader';
 import { useEditorStore } from '@/store';
 import { editorDocument } from '@/core/document';
@@ -9,14 +10,6 @@ import { toast } from '@/components/ui/Toast';
 interface Props {
   ctx: ImageContext;
 }
-
-// Lab a*/b* are theoretically unbounded but typical natural images stay
-// within ±50. Beyond that we clamp.
-const AB_RANGE = 50;
-// Bumped from the original 56 — at that size the chart was visually a
-// thumbnail, hard to read a position from. 96 fits the inspector column
-// width and gives the gradient enough room to read as colour space.
-const CAST_BOX_SIZE = 96;
 
 export function ColorSection({ ctx }: Props) {
   // Streaming-aware: palette + cast arrive on the mechanical delta; white
@@ -121,7 +114,12 @@ export function ColorSection({ ctx }: Props) {
       </dl>
       {(ctx.castStrength ?? 0) > 0 && ctx.castDirection && (
         <div className="relative group">
-          <CastDot direction={ctx.castDirection} strength={ctx.castStrength!} />
+          <div className="text-[10px] text-text-secondary mb-1">Color cast (a*/b*)</div>
+          <ColorCastPlot
+            a={ctx.castDirection[0]}
+            b={ctx.castDirection[1]}
+            strength={ctx.castStrength!}
+          />
           <button
             type="button"
             onClick={pinCast}
@@ -139,74 +137,6 @@ export function ColorSection({ ctx }: Props) {
       )}
     </section>
   );
-}
-
-function CastDot({ direction, strength }: { direction: [number, number]; strength: number }) {
-  const ax = clamp(direction[0], -AB_RANGE, AB_RANGE);
-  const ay = clamp(direction[1], -AB_RANGE, AB_RANGE);
-  const x = ((ax + AB_RANGE) / (2 * AB_RANGE)) * CAST_BOX_SIZE;
-  const y = ((ay + AB_RANGE) / (2 * AB_RANGE)) * CAST_BOX_SIZE;
-  return (
-    <div>
-      <div className="text-[10px] text-text-secondary mb-1">Color cast (a*/b*)</div>
-      <div className="flex items-stretch gap-3">
-        {/* 2D Lab a-star / b-star plot. a: green (left, negative) to red
-            (right, positive). b: blue (top, negative) to yellow (bottom,
-            positive). Two crossed linear gradients with `multiply` blending
-            approximate the in-plane colour at each coordinate — close enough
-            for a "where is the cast pointing" read without a per-pixel
-            canvas shader. Axis labels sit just outside the plot so the
-            colour space is self-explanatory on a quick glance. */}
-        <div className="relative flex-none">
-          <div
-            className="relative rounded-[3px] border border-separator overflow-hidden"
-            style={{
-              width: CAST_BOX_SIZE,
-              height: CAST_BOX_SIZE,
-              background:
-                'linear-gradient(to right, hsl(140 45% 60%) 0%, hsl(0 0% 92%) 50%, hsl(0 65% 60%) 100%),' +
-                'linear-gradient(to bottom, hsl(220 60% 65%) 0%, hsl(0 0% 92%) 50%, hsl(48 75% 60%) 100%)',
-              backgroundBlendMode: 'multiply',
-            }}
-          >
-            {/* Crosshair axes through the neutral midpoint. */}
-            <div className="absolute top-1/2 left-0 right-0 h-px bg-text-primary/20" />
-            <div className="absolute top-0 bottom-0 left-1/2 w-px bg-text-primary/20" />
-            <div
-              className="absolute size-2.5 -ml-[5px] -mt-[5px] rounded-full
-                bg-text-primary border-2 border-surface shadow-sm"
-              style={{ left: x, top: y, opacity: Math.min(1, 0.5 + strength * 0.5) }}
-            />
-          </div>
-          {/* Axis labels — placed just outside the plot, dimmed so they
-              don't fight with the gradient. */}
-          <span className="absolute -top-0.5 left-1/2 -translate-x-1/2 -translate-y-full
-            text-[9px] text-text-secondary leading-none">b−</span>
-          <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 translate-y-full
-            text-[9px] text-text-secondary leading-none">b+</span>
-          <span className="absolute top-1/2 -left-0.5 -translate-y-1/2 -translate-x-full
-            text-[9px] text-text-secondary leading-none">a−</span>
-          <span className="absolute top-1/2 -right-0.5 -translate-y-1/2 translate-x-full
-            text-[9px] text-text-secondary leading-none">a+</span>
-        </div>
-        {/* Values column — grid pulls labels left, values right; flex-1 +
-            min-w-0 lets it claim every pixel the chart doesn't use. */}
-        <dl className="flex-1 min-w-0 grid grid-cols-[auto_1fr] auto-rows-min content-center
-          gap-x-3 gap-y-0.5 text-[10px] tabular-nums">
-          <dt className="text-text-secondary">a*</dt>
-          <dd className="text-text-primary text-right">{ax.toFixed(1)}</dd>
-          <dt className="text-text-secondary">b*</dt>
-          <dd className="text-text-primary text-right">{ay.toFixed(1)}</dd>
-          <dt className="text-text-secondary">strength</dt>
-          <dd className="text-text-primary text-right">{(strength * 100).toFixed(0)}%</dd>
-        </dl>
-      </div>
-    </div>
-  );
-}
-
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
 }
 
 function hex(n: number): string {

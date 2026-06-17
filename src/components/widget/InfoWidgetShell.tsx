@@ -3,6 +3,7 @@ import { useEditorStore } from '@/store';
 import type { InfoNodeState, InfoHistogramPayload, InfoNodeContent } from '@/types/workspace';
 import { MetricChip, MetricChipGrid } from '@/components/ui/MetricChip';
 import { HistogramPlot } from '@/components/ui/HistogramPlot';
+import { ColorCastPlot } from '@/components/ui/ColorCastPlot';
 import type { HistogramBins } from '@/lib/histogram-compute';
 import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';
 import { resolveSourceValue, type LiveSources } from '@/lib/info-source-resolver';
@@ -224,44 +225,15 @@ function Body({ content }: { content: InfoNodeState['content'] }) {
         </div>
       );
     case 'cast':
-      return <CastPlot a={content.cast.a} b={content.cast.b} strength={content.cast.strength} />;
-  }
-}
-
-// ─── Cast 2D plot — same visualisation the Info tab uses, slimmed ────
-
-const CAST_AB_RANGE = 50;
-const CAST_BOX_PX = 88;
-
-function CastPlot({ a, b, strength }: { a: number; b: number; strength: number }) {
-  const ca = Math.max(-CAST_AB_RANGE, Math.min(CAST_AB_RANGE, a));
-  const cb = Math.max(-CAST_AB_RANGE, Math.min(CAST_AB_RANGE, b));
-  const x = ((ca + CAST_AB_RANGE) / (2 * CAST_AB_RANGE)) * CAST_BOX_PX;
-  const y = ((cb + CAST_AB_RANGE) / (2 * CAST_AB_RANGE)) * CAST_BOX_PX;
-  return (
-    <div className="flex items-stretch gap-3">
-      <div
-        className="relative flex-none bg-surface-secondary rounded-[3px] border border-separator"
-        style={{ width: CAST_BOX_PX, height: CAST_BOX_PX }}
-      >
-        <div className="absolute top-1/2 left-0 right-0 h-px bg-separator" />
-        <div className="absolute top-0 bottom-0 left-1/2 w-px bg-separator" />
-        <div
-          className="absolute w-2 h-2 -ml-1 -mt-1 rounded-full bg-accent shadow-sm"
-          style={{ left: x, top: y, opacity: Math.min(1, 0.4 + strength * 0.6) }}
+      return (
+        <ColorCastPlot
+          a={content.cast.a}
+          b={content.cast.b}
+          strength={content.cast.strength}
+          size={88}
         />
-      </div>
-      <dl className="flex-1 min-w-0 grid grid-cols-[auto_1fr] auto-rows-min content-center
-        gap-x-3 gap-y-0.5 text-[10px] tabular-nums">
-        <dt className="text-text-secondary">a*</dt>
-        <dd className="text-text-primary text-right">{ca.toFixed(1)}</dd>
-        <dt className="text-text-secondary">b*</dt>
-        <dd className="text-text-primary text-right">{cb.toFixed(1)}</dd>
-        <dt className="text-text-secondary">strength</dt>
-        <dd className="text-text-primary text-right">{(strength * 100).toFixed(0)}%</dd>
-      </dl>
-    </div>
-  );
+      );
+  }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────

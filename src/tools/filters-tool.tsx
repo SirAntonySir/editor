@@ -14,6 +14,13 @@ import {
   type LUTData,
 } from '@/lib/lut-parser';
 
+function activeNodeLayerIds(): string[] | undefined {
+  const editor = useEditorStore.getState();
+  const id = editor.activeImageNodeId;
+  if (!id) return undefined;
+  return editor.imageNodes[id]?.layerIds;
+}
+
 export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}) {
   const storeLayerId = useEditorStore((s) => s.activeLayerId);
   const activeLayerId = layerIdProp ?? storeLayerId;
@@ -80,11 +87,13 @@ export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}
     // LUT presets live client-side in LutRegistry. proposeStack carves
     // it out as a single-op forced spawn (see _handle_filter_spawn).
     const scope = scopeFromSelection(useEditorStore.getState().activeObjectId);
+    const layerIds = activeNodeLayerIds();
     void backendTools.proposeStack(sid, {
       intent: `Apply ${lut.title} filter`,
       scope,
       forced_ops: ['filter'],
       layerId: activeLayerId,
+      ...(layerIds ? { layerIds } : {}),
       origin: 'tool_invoked',
     });
   }, [activeLayerId]);

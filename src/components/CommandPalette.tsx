@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Loader2, AlertCircle, Sparkles, ArrowRight, Image as ImageIcon, Command as CommandIcon, X as XIcon } from 'lucide-react';
@@ -9,12 +9,14 @@ import { proposeFromPalette } from '@/lib/palette-actions';
 import { useMenuActions } from '@/lib/menu-actions';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { analyseActiveImageLayer, useAiSession } from '@/hooks/useImageContext';
+import { objectOwnership } from '@/lib/segmentation/object-ownership';
 import type { Scope } from '@/types/widget';
 import {
   buildAdjustmentSections,
   buildPresetSections,
   buildMenuActionSections,
   buildPreferencesSections,
+  buildRegionsSections,
   filterSections,
   flattenSections,
   imageNodeLabel,
@@ -56,6 +58,14 @@ export function CommandPalette() {
   const setActiveImageNode = useEditorStore((s) => s.setActiveImageNode);
   const menuActions = useMenuActions();
 
+  // Subscribe to AI context + object ownership so the Regions section stays
+  // fresh while the palette is open.
+  const aiContext = useAiSession((s) => s.context);
+  // objectOwnership is a custom external store — snapshot() returns a version
+  // int that increments on every mutation, giving useSyncExternalStore a
+  // stable snapshot to compare via Object.is.
+  useSyncExternalStore(objectOwnership.subscribe, objectOwnership.snapshot);
+
   // Right-sidebar geometry — used to keep the palette centered over the
   // canvas column rather than the full viewport. RightSidebar unmounts when
   // there are no layers, and goes to width 0 when collapsed (SidebarShell),
@@ -65,16 +75,20 @@ export function CommandPalette() {
   const sidebarOffset =
     layers.length > 0 && !rightSidebarCollapsed ? rightSidebarWidth : 0;
 
-  // Section order: Adjustments → Presets → Commands → AI. Commands sit
-  // below domain operations so a bare "light" query still surfaces the
-  // Light adjustment first; users searching for "open" / "undo" / "zoom"
-  // still find them by name and the Kbd chip reminds them of the shortcut.
+  // Section order: Regions → Adjustments → Presets → Commands → AI. Regions
+  // sit first so a quick label search surfaces the named area immediately.
+  // Commands sit below domain operations so a bare "light" query still
+  // surfaces the Light adjustment first; users searching for "open" /
+  // "undo" / "zoom" still find them by name and the Kbd chip reminds them
+  // of the shortcut.
   const allSections = useMemo<PaletteSection[]>(
     () => [
+      ...buildRegionsSections(),
       ...STATIC_REGISTRY_SECTIONS,
       ...buildMenuActionSections(menuActions),
     ],
-    [menuActions],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [menuActions, aiContext],
   );
 
   // Filter sections by query. Result is partitioned: `primary` holds rows

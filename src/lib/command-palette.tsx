@@ -11,6 +11,9 @@ import {
   type ThemeMode,
   type RadiusScale,
 } from '@/store/preferences-store';
+import { maskStore } from '@/core/mask-store';
+import { useAiSession } from '@/hooks/useImageContext';
+import { useEditorStore } from '@/store';
 
 export type PaletteCommandKind = 'op' | 'preset' | 'tool' | 'menu' | 'ai';
 
@@ -389,6 +392,60 @@ export function buildPreferencesSections(): PaletteSection[] {
   });
 
   return sections;
+}
+
+/**
+ * Build a "Regions" section merging committed Objects (with labels) and
+ * AI-proposed candidate regions, de-duped by lowercased label. Objects win on
+ * duplicate. Returns an empty array when there are nothing to show so the
+ * caller can hide the section.
+ */
+export function buildRegionsSections(): PaletteSection[] {
+  // Merge: lowercased label → { label, onSelect }
+  const merged = new Map<string, { label: string; onSelect: () => void }>();
+
+  // 1. Committed Objects (persistent, instant selection).
+  for (const mask of maskStore.all()) {
+    if (!mask.label) continue;
+    const key = mask.label.toLowerCase();
+    const maskId = mask.id;
+    merged.set(key, {
+      label: mask.label,
+      onSelect: () => {
+        useEditorStore.getState().setActiveObjectId(maskId);
+      },
+    });
+  }
+
+  // 2. AI-proposed regions — only when label not already taken by an Object.
+  const ctx = useAiSession.getState().context;
+  for (const r of ctx?.candidateRegions ?? []) {
+    const key = r.label.toLowerCase();
+    if (merged.has(key)) continue;
+    const { maskRef } = r;
+    if (!maskRef) continue; // Region without a mask can't be selected.
+    merged.set(key, {
+      label: r.label,
+      onSelect: () => {
+        useEditorStore.getState().setActiveMask(maskRef);
+        useEditorStore.getState().commitMask();
+      },
+    });
+  }
+
+  if (merged.size === 0) return [];
+
+  const commands = Array.from(merged.values())
+    .sort((a, b) => a.label.localeCompare(b.label))
+    .map(({ label, onSelect }) => ({
+      id: `region:${label.toLowerCase()}`,
+      kind: 'menu' as const,
+      label,
+      description: 'Region',
+      run: onSelect,
+    }));
+
+  return [{ id: 'regions', title: 'Regions', commands }];
 }
 
 /** Flatten sections to a single array for keyboard arrow navigation. */

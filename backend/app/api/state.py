@@ -64,20 +64,20 @@ async def state_snapshot(sid: str) -> SessionStateSnapshot:
     function over the document — narrow lock scope, released before the
     wire serialisation runs in the response renderer."""
     try:
-        with _store().with_document_lock(sid) as doc:
+        async with _store().with_document_lock(sid) as doc:
             return compute_snapshot(doc)
     except SessionNotFound:
         raise HTTPException(status_code=404, detail="unknown or expired session")
 
 
-def _apply_history_snapshot(sid: str, snap, action: str) -> dict:
+async def _apply_history_snapshot(sid: str, snap, action: str) -> dict:
     """Shared body for undo/redo/revert: take the write lock, restore
     state, publish events, dirty the checkpointer. `action` becomes the
     `applied` field in the response so the frontend can log which path
     fired. Returns the new revision + applied marker."""
     store = _store()
     bus = _bus()
-    with store.with_document_lock(sid) as doc:
+    async with store.with_document_lock(sid) as doc:
         ev = doc.apply_snapshot(snap)
         bus.publish(sid, ev)
         doc._published_idx = len(doc.history)
@@ -99,7 +99,7 @@ async def state_undo(sid: str) -> dict:
     snap = history.undo()
     if snap is None:
         raise HTTPException(status_code=409, detail="nothing to undo")
-    return _apply_history_snapshot(sid, snap, action="undo")
+    return await _apply_history_snapshot(sid, snap, action="undo")
 
 
 @router.post("/state/{sid}/redo")
@@ -113,7 +113,7 @@ async def state_redo(sid: str) -> dict:
     snap = history.redo()
     if snap is None:
         raise HTTPException(status_code=409, detail="nothing to redo")
-    return _apply_history_snapshot(sid, snap, action="redo")
+    return await _apply_history_snapshot(sid, snap, action="redo")
 
 
 @router.post("/state/{sid}/revert")
@@ -127,7 +127,41 @@ async def state_revert(sid: str) -> dict:
     snap = history.revert_all()
     if snap is None:
         raise HTTPException(status_code=409, detail="nothing to revert")
-    return _apply_history_snapshot(sid, snap, action="revert")
+    return await _apply_history_snapshot(sid, snap, action="revert")
+
+
+@router.get("/state/{sid}/history")
+async def state_history(sid: str) -> dict:
+    """Return the session's history log (read-only). Snapshots are omitted
+    — the entries carry only id, ts, and label so the client can render a
+    list without paying for snapshot bytes on every fetch."""
+    try:
+        history = _store().get_history(sid)
+    except SessionNotFound:
+        raise HTTPException(status_code=404, detail="unknown or expired session")
+    return {
+        "entries": [
+            {"id": e.id, "ts": e.ts, "label": e.label}
+            for e in history.entries
+        ],
+        "cursor": history.cursor,
+        "can_undo": history.can_undo,
+        "can_redo": history.can_redo,
+    }
+
+
+@router.post("/state/{sid}/jump/{target_cursor}")
+async def state_jump(sid: str, target_cursor: int) -> dict:
+    """Seek the history cursor to `target_cursor`. -1 = pre-history baseline.
+    409 when target is invalid or already current."""
+    try:
+        history = _store().get_history(sid)
+    except SessionNotFound:
+        raise HTTPException(status_code=404, detail="unknown or expired session")
+    snap = history.jump_to(target_cursor)
+    if snap is None:
+        raise HTTPException(status_code=409, detail="invalid or no-op jump target")
+    return await _apply_history_snapshot(sid, snap, action=f"jump:{target_cursor}")
 
 
 @router.get("/state/{sid}/masks/{mask_id}")
@@ -141,7 +175,7 @@ async def get_mask_bytes(sid: str, mask_id: str) -> dict:
     mid-mutation can't leave us observing a torn `doc.masks` dict.
     """
     try:
-        with _store().with_document_lock(sid) as doc:
+        async with _store().with_document_lock(sid) as doc:
             mask = doc.masks.get(mask_id)
             if not mask:
                 raise HTTPException(status_code=404, detail="mask not found")
@@ -192,7 +226,7 @@ async def state_events(
     replay: list[StateEvent] = []
     gap_revision: int | None = None
     try:
-        with _store().with_document_lock(sid) as doc:
+        async with _store().with_document_lock(sid) as doc:
             queue = bus.subscribe(sid)
             if resume_from is not None and doc.history:
                 oldest = doc.history[0].revision

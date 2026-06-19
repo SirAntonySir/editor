@@ -236,3 +236,22 @@ class HistoryEngine:
             return None
         self._cursor = -1
         return self._entries[0].before
+
+    def jump_to(self, target_cursor: int) -> Snapshot | None:
+        """Seek the cursor to `target_cursor` (-1 = pre-history baseline,
+        0..len-1 = the entry at that index applied). Returns the snapshot
+        to apply (the `after` of the new cursor entry, or the `before` of
+        entry 0 when seeking back to baseline). Returns None for invalid
+        targets or no-op moves (current cursor already at target).
+        """
+        if target_cursor == self._cursor:
+            return None
+        if target_cursor < -1 or target_cursor >= len(self._entries):
+            return None
+        self._cursor = target_cursor
+        if target_cursor == -1:
+            # Baseline. Use the before-snapshot of the first entry.
+            if not self._entries:
+                return None
+            return self._entries[0].before
+        return self._entries[target_cursor].after

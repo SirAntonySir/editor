@@ -3,7 +3,7 @@ import json
 import socket
 import threading
 import time
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 
 import httpx
 import pytest
@@ -356,10 +356,10 @@ async def test_state_snapshot_acquires_document_lock(monkeypatch: pytest.MonkeyP
         calls: list[str] = []
         real_lock = store.with_document_lock
 
-        @contextmanager
-        def spy(s: str):
+        @asynccontextmanager
+        async def spy(s: str):
             calls.append(s)
-            with real_lock(s) as doc:
+            async with real_lock(s) as doc:
                 yield doc
 
         monkeypatch.setattr(store, "with_document_lock", spy)
@@ -396,10 +396,10 @@ async def test_state_events_acquires_document_lock(monkeypatch: pytest.MonkeyPat
             calls: list[str] = []
             real_lock = store.with_document_lock
 
-            @contextmanager
-            def spy(s: str):
+            @asynccontextmanager
+            async def spy(s: str):
                 calls.append(s)
-                with real_lock(s) as doc:
+                async with real_lock(s) as doc:
                     yield doc
 
             monkeypatch.setattr(store, "with_document_lock", spy)
@@ -415,6 +415,108 @@ async def test_state_events_acquires_document_lock(monkeypatch: pytest.MonkeyPat
     finally:
         server.should_exit = True
         thread.join(timeout=5.0)
+
+
+# ---------- history list + jump-to-cursor ----------
+
+
+@pytest.mark.asyncio
+async def test_state_history_empty() -> None:
+    """GET /api/state/{sid}/history on a fresh session returns an empty list."""
+    from app.main import app
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+        sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+        r = await ac.get(f"/api/state/{sid}/history")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["entries"] == []
+        assert body["cursor"] == -1
+        assert body["can_undo"] is False
+        assert body["can_redo"] is False
+
+
+@pytest.mark.asyncio
+async def test_state_history_lists_entries() -> None:
+    """After pushing a history entry the list endpoint reflects it."""
+    from app.main import app
+    from app.session.history import Snapshot
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+        sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+        history = deps.get_session_store().get_history(sid)
+        history.push("set exposure", Snapshot(), Snapshot())
+        r = await ac.get(f"/api/state/{sid}/history")
+        assert r.status_code == 200
+        body = r.json()
+        assert len(body["entries"]) == 1
+        assert body["entries"][0]["label"] == "set exposure"
+        assert body["cursor"] == 0
+        assert body["can_undo"] is True
+        assert body["can_redo"] is False
+
+
+@pytest.mark.asyncio
+async def test_state_history_404_unknown_session() -> None:
+    from app.main import app
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.get("/api/state/no_such_sid/history")
+        assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_state_jump_seeks_to_target() -> None:
+    """POST /api/state/{sid}/jump/{target} returns 200 and applies the snapshot."""
+    from app.main import app
+    from app.session.history import Snapshot
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+        sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+        history = deps.get_session_store().get_history(sid)
+        before = Snapshot()
+        after = Snapshot()
+        history.push("step A", before, after)
+        # Jump back to baseline (-1).
+        r = await ac.post(f"/api/state/{sid}/jump/-1")
+        assert r.status_code == 200
+        body = r.json()
+        assert "revision" in body
+        assert body["applied"] == "jump:-1"
+
+
+@pytest.mark.asyncio
+async def test_state_jump_409_no_op() -> None:
+    """409 when jumping to the current cursor (no-op)."""
+    from app.main import app
+    from app.session.history import Snapshot
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+        sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+        history = deps.get_session_store().get_history(sid)
+        history.push("step A", Snapshot(), Snapshot())
+        # Cursor is at 0 — jumping to 0 is a no-op.
+        r = await ac.post(f"/api/state/{sid}/jump/0")
+        assert r.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_state_jump_409_invalid_index() -> None:
+    """409 when jumping to an index beyond the history length."""
+    from app.main import app
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+        sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+        # No entries pushed — jump to index 5 is invalid.
+        r = await ac.post(f"/api/state/{sid}/jump/5")
+        assert r.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_state_jump_404_unknown_session() -> None:
+    from app.main import app
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.post("/api/state/no_such_sid/jump/0")
+        assert r.status_code == 404
 
 
 @pytest.mark.asyncio
@@ -434,10 +536,10 @@ async def test_get_mask_bytes_acquires_document_lock(monkeypatch: pytest.MonkeyP
         calls: list[str] = []
         real_lock = store.with_document_lock
 
-        @contextmanager
-        def spy(s: str):
+        @asynccontextmanager
+        async def spy(s: str):
             calls.append(s)
-            with real_lock(s) as doc:
+            async with real_lock(s) as doc:
                 yield doc
 
         monkeypatch.setattr(store, "with_document_lock", spy)

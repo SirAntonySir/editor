@@ -147,3 +147,76 @@ def test_max_entries_must_be_positive():
         HistoryEngine(max_entries=0)
     with pytest.raises(ValueError):
         HistoryEngine(max_entries=-1)
+
+
+# ---------------- jump_to ----------------
+
+
+def test_jump_to_forward():
+    """Jump forward from cursor 0 to cursor 2."""
+    eng = _eng()
+    eng.push("a", _snap("a0"), _snap("a1"))
+    eng.push("b", _snap("b0"), _snap("b1"))
+    eng.push("c", _snap("c0"), _snap("c1"))
+    # Undo twice so cursor=0.
+    eng.undo()
+    eng.undo()
+    assert eng.cursor == 0
+    result = eng.jump_to(2)
+    assert result is not None
+    assert result.canonical["_label"] == "c1"
+    assert eng.cursor == 2
+
+
+def test_jump_to_backward():
+    """Jump backward from cursor 2 to cursor 0."""
+    eng = _eng()
+    eng.push("a", _snap("a0"), _snap("a1"))
+    eng.push("b", _snap("b0"), _snap("b1"))
+    eng.push("c", _snap("c0"), _snap("c1"))
+    assert eng.cursor == 2
+    result = eng.jump_to(0)
+    assert result is not None
+    assert result.canonical["_label"] == "a1"
+    assert eng.cursor == 0
+
+
+def test_jump_to_baseline():
+    """Jump to -1 returns the before-snapshot of the first entry."""
+    eng = _eng()
+    eng.push("a", _snap("a0"), _snap("a1"))
+    eng.push("b", _snap("b0"), _snap("b1"))
+    result = eng.jump_to(-1)
+    assert result is not None
+    assert result.canonical["_label"] == "a0"
+    assert eng.cursor == -1
+
+
+def test_jump_to_invalid_index_returns_none():
+    """Indexes out of range return None and leave the cursor unchanged."""
+    eng = _eng()
+    eng.push("a", _snap("a0"), _snap("a1"))
+    # Too high.
+    assert eng.jump_to(5) is None
+    assert eng.cursor == 0
+    # Too low (below -1).
+    assert eng.jump_to(-2) is None
+    assert eng.cursor == 0
+
+
+def test_jump_to_current_cursor_returns_none():
+    """No-op jump (target == cursor) returns None."""
+    eng = _eng()
+    eng.push("a", _snap("a0"), _snap("a1"))
+    assert eng.cursor == 0
+    assert eng.jump_to(0) is None
+    assert eng.cursor == 0
+
+
+def test_jump_to_baseline_no_op_when_already_at_baseline():
+    """Cursor at -1, jump to -1 → no-op."""
+    eng = _eng()
+    eng.push("a", _snap("a0"), _snap("a1"))
+    eng.revert_all()
+    assert eng.cursor == -1
+    assert eng.jump_to(-1) is None

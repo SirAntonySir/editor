@@ -338,15 +338,32 @@ export function CanvasWorkspace() {
     return out;
   }, [snapshotWidgets, imageNodes, widgetNodes, infoNodes, activeImageNodeId, nodes]);
 
+  // Persist every node in `draggedNodes` back to the store. React Flow fires
+  // drag-stop with the full array of nodes that moved — for a single drag it's
+  // the one node; for a multi-select drag (click-and-drag a selected node, or
+  // rubber-band selection drag) it's every node in the selection. Without the
+  // loop only the primary node would persist and the others would snap back on
+  // the next store→local-state sync.
+  const persistDraggedPositions = useCallback((draggedNodes: Node[]) => {
+    for (const n of draggedNodes) {
+      if (n.type === 'image') editorDocument.workspace.setNodePosition(n.id, n.position);
+      else if (n.type === 'widget') editorDocument.workspace.setWidgetPosition(n.id, n.position);
+      else if (n.type === 'info')   editorDocument.workspace.setInfoNodePosition(n.id, n.position);
+    }
+  }, []);
+
   const onNodeDragStop = useCallback(
-    (_: unknown, node: Node) => {
-      // Drag-stop fires once per drag (not per frame), so a single history
-      // entry per drag is what we want.
-      if (node.type === 'image') editorDocument.workspace.setNodePosition(node.id, node.position);
-      else if (node.type === 'widget') editorDocument.workspace.setWidgetPosition(node.id, node.position);
-      else if (node.type === 'info')   editorDocument.workspace.setInfoNodePosition(node.id, node.position);
+    (_: unknown, _node: Node, draggedNodes: Node[]) => {
+      persistDraggedPositions(draggedNodes);
     },
-    [],
+    [persistDraggedPositions],
+  );
+
+  const onSelectionDragStop = useCallback(
+    (_: unknown, draggedNodes: Node[]) => {
+      persistDraggedPositions(draggedNodes);
+    },
+    [persistDraggedPositions],
   );
 
   // Active image-node is set by EXPLICIT clicks only: click an image to focus,
@@ -380,6 +397,7 @@ export function CanvasWorkspace() {
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onNodeDragStop={onNodeDragStop}
+        onSelectionDragStop={onSelectionDragStop}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         onConnect={onConnect}

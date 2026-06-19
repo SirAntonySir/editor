@@ -41,6 +41,9 @@ class RepeatWidgetTool(BackendTool[_Input, _Output]):
     permissions = ToolPermissions(requires_image=True, requires_context=True)
     is_user_action = True
 
+    def history_label(self, input: _Input, output: _Output) -> str:  # noqa: A002
+        return "Re-rolled widget"
+
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         w = doc.widgets.get(input.widget_id)
         if w is None:

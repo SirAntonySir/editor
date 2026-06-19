@@ -61,3 +61,16 @@ class BackendTool(Generic[TIn, TOut]):
         merging into one entry).
         """
         return None
+
+    def history_label(self, input: TIn, output: TOut) -> str:  # noqa: A002
+        """Human-readable label for the undo/redo history entry.
+
+        Override in subclasses to produce a descriptive label for user-facing
+        history displays. The default falls back to the raw tool name so every
+        tool gets *some* label without requiring every tool to override.
+
+        Called by the registry after a successful user-action handler with the
+        parsed input and output objects so the label can include meaningful
+        context (param name, widget intent, etc.).
+        """
+        return self.name

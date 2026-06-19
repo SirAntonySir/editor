@@ -52,6 +52,16 @@ class SetImageNodeTransformTool(BackendTool[_Input, _Output]):
     )
     is_user_action = True
 
+    def history_label(self, input: _Input, output: _Output) -> str:  # noqa: A002
+        parts: list[str] = []
+        if input.crop is not None:
+            parts.append("Crop")
+        if input.rotate is not None:
+            parts.append("Rotate")
+        if not parts:
+            return "Cleared transform"
+        return " & ".join(parts)
+
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         doc.set_image_node_transform(
             input.image_node_id,

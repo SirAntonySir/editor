@@ -29,6 +29,9 @@ class AcceptWidgetTool(BackendTool[_Input, _Output]):
     permissions = ToolPermissions(requires_image=False)
     is_user_action = True
 
+    def history_label(self, input: _Input, output: _Output) -> str:  # noqa: A002
+        return "Accepted widget"
+
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         if input.widget_id not in doc.widgets:
             raise _UnknownWidget(input.widget_id)

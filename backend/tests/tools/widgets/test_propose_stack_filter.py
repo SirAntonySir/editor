@@ -88,3 +88,48 @@ async def test_propose_stack_filter_combined_with_registry_op_is_rejected():
                 "layerId": "L1",
             }),
         )
+
+
+# ---------------------------------------------------------------------------
+# history_label tests
+# ---------------------------------------------------------------------------
+
+class _Out:
+    widgets: list = []
+
+
+def _make_input(intent: str) -> ProposeStackTool.input_schema:  # type: ignore[name-defined]
+    return ProposeStackTool.input_schema.model_validate({
+        "intent": intent,
+        "scope": {"kind": "global"},
+        "origin": "tool_invoked",
+        "forcedOps": ["filter"],
+        "layerId": "L1",
+    })
+
+
+def test_propose_stack_history_label_capitalises_intent() -> None:
+    tool = ProposeStackTool()
+    out = _Out()
+    assert tool.history_label(_make_input("brighten highlights"), out) == "Proposed Brighten highlights"
+
+
+def test_propose_stack_history_label_already_capitalised() -> None:
+    tool = ProposeStackTool()
+    out = _Out()
+    assert tool.history_label(_make_input("Warm grade"), out) == "Proposed Warm grade"
+
+
+def test_propose_stack_history_label_empty_intent_fallback() -> None:
+    """An empty intent string falls back to the word 'Adjustment'."""
+    tool = ProposeStackTool()
+    out = _Out()
+    inp = ProposeStackTool.input_schema.model_validate({
+        "intent": " ",
+        "scope": {"kind": "global"},
+        "origin": "tool_invoked",
+        "forcedOps": ["filter"],
+        "layerId": "L1",
+    })
+    # strip() makes this falsy → fallback to "Adjustment"
+    assert tool.history_label(inp, out) == "Proposed Adjustment"

@@ -328,6 +328,12 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
     permissions = ToolPermissions(requires_image=True, requires_context=False)
     is_user_action = True
 
+    def history_label(self, input: _Input, output: _Output) -> str:  # noqa: A002
+        intent = (input.intent or "adjustment").strip()
+        # Capitalise first letter for a friendlier label.
+        intent_cap = intent[:1].upper() + intent[1:] if intent else "Adjustment"
+        return f"Proposed {intent_cap}"
+
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         scope = Scope.model_validate(input.scope)
 
@@ -386,19 +392,35 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             }] if fallback_ops else []
 
         # Phase 2: resolve each (entry_index, op) in parallel.
+        # Per-op timeout — without it, a single hung Anthropic call would
+        # keep the surrounding gather (and the per-session write lock the
+        # tool registry holds around this handler) parked forever, which
+        # is the H19 audit deadlock. The timeout falls back to
+        # `anthropic_timeout_s` so the failure mode matches the SDK's
+        # own timeout: a slow op is dropped, the rest of the stack still
+        # resolves, and the lock is released.
+        from app.config import get_app_config
+        op_timeout_s = get_app_config().runtime.anthropic_timeout_s
+
         async def _resolve_one(entry_index: int, op_entry: dict) -> tuple[int, str, dict] | None:
             op_id = op_entry.get("op_id")
             if op_id not in reg.ops:
                 return None
             op = reg.ops[op_id]
             try:
-                params = await asyncio.to_thread(
-                    anthropic.resolve_widget_params,
-                    op=op, intent=input.intent,
-                    rationale=op_entry.get("rationale", ""),
-                    starting_params=op_entry.get("starting_params") or {},
-                    image_context=image_context, session_id=doc.session_id,
+                params = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        anthropic.resolve_widget_params,
+                        op=op, intent=input.intent,
+                        rationale=op_entry.get("rationale", ""),
+                        starting_params=op_entry.get("starting_params") or {},
+                        image_context=image_context, session_id=doc.session_id,
+                    ),
+                    timeout=op_timeout_s,
                 )
+            except asyncio.TimeoutError:
+                print(f"[propose_stack] resolve timed out for {op_id} after {op_timeout_s}s")
+                return None
             except Exception as exc:    # noqa: BLE001
                 print(f"[propose_stack] resolve failed for {op_id}: {exc}")
                 return None

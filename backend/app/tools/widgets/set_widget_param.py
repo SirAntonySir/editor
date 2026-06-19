@@ -48,6 +48,16 @@ class SetWidgetParamTool(BackendTool[_Input, _Output]):
     )
     is_user_action = True
 
+    def coalesce_key(self, input: _Input) -> str:  # noqa: A002
+        """Merge consecutive set_widget_param calls on the SAME (widget, param)
+        into one undo entry, mirroring set_param's coalescing strategy so that
+        widget slider drags also collapse to a single undoable step."""
+        return f"set_widget_param:{input.widget_id}:{input.param_key}"
+
+    def history_label(self, input: _Input, output: _Output) -> str:  # noqa: A002
+        from app.tools.widgets.set_param import _format_value
+        return f"Setting {input.param_key} = {_format_value(input.value)}"
+
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         # Note on concurrency: this tool is `kind = "mutate"`, so the
         # registry runs it under `with_document_lock(session_id)`

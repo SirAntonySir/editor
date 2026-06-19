@@ -117,7 +117,7 @@ class BackendToolRegistry:
 
         # Acquire write lock for mutate/emit; query tools take no lock.
         if tool.kind in {"mutate", "emit"}:
-            with self._store.with_document_lock(session_id) as doc:
+            async with self._store.with_document_lock(session_id) as doc:
                 # Stream events live as the handler emits them, rather than
                 # flushing in one burst once it returns. Critical for
                 # long-running handlers (analyze_context) whose progress stepper
@@ -168,7 +168,7 @@ class BackendToolRegistry:
                     after = Snapshot.capture(doc)
                     cfg = get_app_config().runtime
                     self._store.get_history(session_id).push(
-                        label=tool.name,
+                        label=tool.history_label(parsed, output),
                         before=history_before,
                         after=after,
                         coalesce_key=tool.coalesce_key(parsed),

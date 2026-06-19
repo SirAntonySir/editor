@@ -7,6 +7,25 @@ from app.state.document import SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 
 
+def _format_value(v: object) -> str:
+    """Format a param value for the history label.
+
+    - bool   → "on" / "off"
+    - float  → rounded to 2 decimal places, then signed if non-negative
+               (e.g. 0.42 → "+0.42", -0.3 → "-0.3", 0.0 → "0.0")
+    - int    → signed if non-negative (e.g. 5 → "+5", -20 → "-20", 0 → "0")
+    - other  → str()
+    """
+    if isinstance(v, bool):
+        return "on" if v else "off"
+    if isinstance(v, float):
+        rounded = round(v, 2)
+        return f"{rounded:+g}" if rounded >= 0 else str(rounded)
+    if isinstance(v, int):
+        return f"{v:+d}" if v >= 0 else str(v)
+    return str(v)
+
+
 class _Input(BaseModel):
     model_config = camel_config(extra="forbid")
     layer_id: str = Field(min_length=1)
@@ -41,6 +60,11 @@ class SetParamTool(BackendTool[_Input, _Output]):
         slider drag (which fires multiple debounced set_params as the
         user pauses) collapse into a single undoable step."""
         return f"set_param:{input.layer_id}:{input.op}:{input.param}"
+
+    def history_label(self, input: _Input, output: _Output) -> str:  # noqa: A002
+        """Readable label: "Setting <param> = <value>" — shows up in the
+        history dropdown instead of the raw tool name."""
+        return f"Setting {input.param} = {_format_value(input.value)}"
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         doc.set_param(input.layer_id, input.op, input.param, input.value)

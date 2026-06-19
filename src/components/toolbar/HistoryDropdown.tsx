@@ -90,12 +90,12 @@ export function HistoryDropdown() {
           align="end"
           sideOffset={6}
           style={{ zIndex: UI.zPopover }}
-          className="overlay w-[280px] p-0"
+          className="overlay w-[280px] p-0 flex flex-col max-h-[320px]"
         >
-          <div className="px-2 py-1.5 text-[9px] uppercase tracking-[0.20em] font-mono text-[var(--color-text-secondary)] border-b border-[var(--color-separator)]">
+          <div className="flex-none px-2 py-1.5 text-[9px] uppercase tracking-[0.20em] font-mono text-[var(--color-text-secondary)] border-b border-[var(--color-separator)]">
             History
           </div>
-          <ScrollArea className="max-h-[280px]">
+          <ScrollArea className="flex-1 min-h-0">
             <div className="p-1">
               {log && log.entries.length > 0 ? (
                 // Newest first.

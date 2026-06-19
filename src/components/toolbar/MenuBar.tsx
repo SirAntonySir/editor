@@ -20,6 +20,7 @@ import { loadRegistry } from '@/lib/registry/loader';
 import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';
 import { autoLight, autoColor, autoTone, autoContrast } from '@/lib/auto-tune';
 import type { HistoryStoreState } from '@/core/history';
+import { HistoryDropdown } from './HistoryDropdown';
 // EditorMode type only used by disabled ModeBtn — kept for future reference.
 // import type { EditorMode } from '@/store/tool-slice';
 
@@ -588,6 +589,7 @@ function UndoRedoButtons() {
             </Tooltip.Content>
           </Tooltip.Portal>
         </Tooltip.Root>
+        <HistoryDropdown />
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button disabled={!hasLayers} onClick={revertToOriginal} className={btnClass}>

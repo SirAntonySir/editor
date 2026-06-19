@@ -215,4 +215,48 @@ export const backendTools = {
   async revertAll(sessionId: string): Promise<{ revision: number; applied: string } | null> {
     return historyAction(sessionId, 'revert');
   },
+
+  /** Return the session's history log (entries omit snapshot bytes). */
+  async listHistory(sessionId: string): Promise<{
+    entries: { id: string; ts: number; label: string }[];
+    cursor: number;
+    can_undo: boolean;
+    can_redo: boolean;
+  } | null> {
+    const response = await fetch(`${BASE_URL}/api/state/${sessionId}/history`);
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      throw new Error(
+        `/api/state/${sessionId}/history → ${response.status} ${await response.text()}`,
+      );
+    }
+    return (await response.json()) as {
+      entries: { id: string; ts: number; label: string }[];
+      cursor: number;
+      can_undo: boolean;
+      can_redo: boolean;
+    };
+  },
+
+  /** Seek the history cursor to `targetCursor`. -1 = pre-history baseline.
+   *  Returns null when the target is invalid or already current (HTTP 409). */
+  async jumpHistory(
+    sessionId: string,
+    targetCursor: number,
+  ): Promise<{ revision: number; applied: string } | null> {
+    const response = await fetch(
+      `${BASE_URL}/api/state/${sessionId}/jump/${targetCursor}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+      },
+    );
+    if (response.status === 409) return null;
+    if (!response.ok) {
+      throw new Error(
+        `/api/state/${sessionId}/jump/${targetCursor} → ${response.status} ${await response.text()}`,
+      );
+    }
+    return (await response.json()) as { revision: number; applied: string };
+  },
 };

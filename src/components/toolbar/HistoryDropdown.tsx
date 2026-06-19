@@ -79,10 +79,10 @@ export function HistoryDropdown() {
         <button
           type="button"
           disabled={disabled}
-          className="inline-flex items-center justify-center w-7 h-7 rounded-[3px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-secondary)] disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center justify-center w-5 h-5 rounded-[3px] transition-colors text-text-secondary hover:text-text-primary disabled:opacity-30 disabled:hover:text-text-secondary cursor-default"
           aria-label="History"
         >
-          <History size={13} />
+          <History size={12} />
         </button>
       </Popover.Trigger>
       <Popover.Portal>
@@ -90,13 +90,14 @@ export function HistoryDropdown() {
           align="end"
           sideOffset={6}
           style={{ zIndex: UI.zPopover }}
-          className="overlay w-[280px] p-0 flex flex-col max-h-[320px]"
+          className="overlay w-[280px] p-0"
         >
-          <div className="flex-none px-2 py-1.5 text-[9px] uppercase tracking-[0.20em] font-mono text-[var(--color-text-secondary)] border-b border-[var(--color-separator)]">
-            History
-          </div>
-          <ScrollArea className="flex-1 min-h-0">
-            <div className="p-1">
+          <div className="flex flex-col max-h-[320px]">
+            <div className="flex-none px-2 py-1.5 text-[9px] uppercase tracking-[0.20em] font-mono text-[var(--color-text-secondary)] border-b border-[var(--color-separator)]">
+              History
+            </div>
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="p-1">
               {log && log.entries.length > 0 ? (
                 // Newest first.
                 [...log.entries]
@@ -117,8 +118,9 @@ export function HistoryDropdown() {
                   No history yet.
                 </div>
               )}
-            </div>
-          </ScrollArea>
+              </div>
+            </ScrollArea>
+          </div>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

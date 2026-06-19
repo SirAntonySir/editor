@@ -4,6 +4,7 @@ import { History } from 'lucide-react';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 import { useHistoryLog, type HistoryEntry } from '@/hooks/useHistoryLog';
+import { ScrollArea } from '@/components/ui/ScrollArea';
 import { UI } from '@/config';
 
 function relativeTime(ts: number, now: number): string {
@@ -89,31 +90,35 @@ export function HistoryDropdown() {
           align="end"
           sideOffset={6}
           style={{ zIndex: UI.zPopover }}
-          className="overlay w-[280px] max-h-[320px] overflow-y-auto p-1"
+          className="overlay w-[280px] p-0"
         >
-          <div className="px-2 py-1.5 text-[9px] uppercase tracking-[0.20em] font-mono text-[var(--color-text-secondary)] border-b border-[var(--color-separator)] mb-1">
+          <div className="px-2 py-1.5 text-[9px] uppercase tracking-[0.20em] font-mono text-[var(--color-text-secondary)] border-b border-[var(--color-separator)]">
             History
           </div>
-          {log && log.entries.length > 0 ? (
-            // Newest first.
-            [...log.entries]
-              .map((entry, i) => ({ entry, index: i }))
-              .reverse()
-              .map(({ entry, index }) => (
-                <HistoryRow
-                  key={entry.id}
-                  entry={entry}
-                  index={index}
-                  cursor={log.cursor}
-                  onJump={onJump}
-                  now={openedAt}
-                />
-              ))
-          ) : (
-            <div className="px-3 py-2 text-[11px] text-[var(--color-text-secondary)]">
-              No history yet.
+          <ScrollArea className="max-h-[280px]">
+            <div className="p-1">
+              {log && log.entries.length > 0 ? (
+                // Newest first.
+                [...log.entries]
+                  .map((entry, i) => ({ entry, index: i }))
+                  .reverse()
+                  .map(({ entry, index }) => (
+                    <HistoryRow
+                      key={entry.id}
+                      entry={entry}
+                      index={index}
+                      cursor={log.cursor}
+                      onJump={onJump}
+                      now={openedAt}
+                    />
+                  ))
+              ) : (
+                <div className="px-3 py-2 text-[11px] text-[var(--color-text-secondary)]">
+                  No history yet.
+                </div>
+              )}
             </div>
-          )}
+          </ScrollArea>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

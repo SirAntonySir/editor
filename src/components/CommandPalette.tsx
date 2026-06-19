@@ -399,25 +399,23 @@ export function CommandPalette() {
                 transition={{ duration: 0.28, ease: [0.2, 0, 0, 1] }}
               >
                 <Dialog.Title className="sr-only">Command palette</Dialog.Title>
-                {/* Context attachment strip — shows above the input when the
-                    user has pinned chips via "Ask AI about this" (or, soon,
-                    via drag). Items are bundled into the AI prompt at submit
-                    time as a structured preamble. Removable individually. */}
-                {attachedContext.length > 0 && (
-                  <ContextAttachmentStrip
-                    items={attachedContext}
-                    onRemove={(id) => setAttachedContext((prev) => prev.filter((c) => c.id !== id))}
-                  />
-                )}
-                {/* Search row + target chip — the row gets the violet shimmer
-                    when an AI request is in flight, so the user sees that the
-                    panel itself is doing work. */}
+                {/* Search row — context chips (if any) sit inline just before
+                    the input, in the same flex row, so they feel attached to
+                    the prompt. The row wraps when many chips are attached.
+                    The row gets the violet shimmer when an AI request is in
+                    flight so the user sees the panel itself is doing work. */}
                 <div
-                  className={`flex items-center gap-2.5 px-3.5 py-3 border-b border-separator${
+                  className={`flex items-center gap-2 px-3.5 py-3 border-b border-separator flex-wrap${
                     pending ? ' ai-shimmer' : ''
                   }`}
                 >
                   {searchIconNode}
+                  {attachedContext.length > 0 && (
+                    <InlineContextChips
+                      items={attachedContext}
+                      onRemove={(id) => setAttachedContext((prev) => prev.filter((c) => c.id !== id))}
+                    />
+                  )}
                   <input
                     autoFocus
                     value={query}
@@ -425,12 +423,12 @@ export function CommandPalette() {
                     placeholder={
                       pending
                         ? pendingPhase === 'analyze'
-                          ? `Analyzing image first — then “${pending}”…`
-                          : `Sending “${pending}”…`
+                          ? `Analyzing image first — then "${pending}"…`
+                          : `Sending "${pending}"…`
                         : 'Search tools or ask AI…'
                     }
                     disabled={!!pending}
-                    className="flex-1 min-w-0 bg-transparent outline-none text-xs text-text-primary placeholder:text-text-secondary disabled:opacity-60"
+                    className="flex-1 min-w-[120px] bg-transparent outline-none text-xs text-text-primary placeholder:text-text-secondary disabled:opacity-60"
                   />
                   {targetLabel && (
                     <TargetChip label={targetLabel} onCycle={cycleTarget} />
@@ -529,11 +527,12 @@ interface AttachedContextItem {
   sourceId?: string;
 }
 
-/** Strip of attached-context chips above the Cmd+K input. Each chip shows
- *  the same label + value identity the Info tab uses, with an × to remove.
- *  Wraps when the row overflows so the strip never pushes the input out
- *  of view. */
-function ContextAttachmentStrip({
+/** Inline context chips rendered inside the input row (just before the
+ *  text input). Each chip shows a label + value identity from the Info tab,
+ *  with an × to remove. Lives in the same flex row as the search icon and
+ *  input; the parent row has flex-wrap so many chips wrap onto a second line
+ *  above the input cursor. */
+function InlineContextChips({
   items,
   onRemove,
 }: {
@@ -541,33 +540,29 @@ function ContextAttachmentStrip({
   onRemove: (id: string) => void;
 }) {
   return (
-    <div className="flex items-start gap-1.5 px-3.5 py-2 border-b border-separator
-      bg-[color-mix(in_srgb,var(--color-ai)_8%,transparent)]">
-      <Sparkles size={11} className="mt-[2px] flex-none text-[var(--color-ai)] ai-glow-pulse" />
-      <div className="flex flex-wrap gap-1 flex-1 min-w-0">
-        {items.map((c) => (
-          <div
-            key={c.id}
-            className="inline-flex items-center gap-1 max-w-full text-[10px]
-              rounded-[3px] px-1.5 py-0.5
-              bg-[color-mix(in_srgb,var(--color-ai)_15%,transparent)]
-              text-[var(--color-ai)] border border-[color-mix(in_srgb,var(--color-ai)_30%,transparent)]"
-            title={`${c.label}: ${c.value}`}
+    <>
+      {items.map((c) => (
+        <div
+          key={c.id}
+          className="inline-flex items-center gap-1 max-w-full text-[10px]
+            rounded-[3px] px-1.5 py-0.5
+            bg-[color-mix(in_srgb,var(--color-ai)_15%,transparent)]
+            text-[var(--color-ai)] border border-[color-mix(in_srgb,var(--color-ai)_30%,transparent)]"
+          title={`${c.label}: ${c.value}`}
+        >
+          <span className="text-[var(--color-ai)]/80 uppercase tracking-wide">{c.label}</span>
+          <span className="text-text-primary tabular-nums truncate max-w-[120px]">{c.value}</span>
+          <button
+            type="button"
+            onClick={() => onRemove(c.id)}
+            className="ml-0.5 text-text-secondary hover:text-text-primary"
+            aria-label={`Detach ${c.label}`}
           >
-            <span className="text-[var(--color-ai)]/80 uppercase tracking-wide">{c.label}</span>
-            <span className="text-text-primary tabular-nums truncate">{c.value}</span>
-            <button
-              type="button"
-              onClick={() => onRemove(c.id)}
-              className="ml-0.5 text-text-secondary hover:text-text-primary"
-              aria-label={`Detach ${c.label}`}
-            >
-              <XIcon size={9} />
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
+            <XIcon size={9} />
+          </button>
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -576,7 +571,7 @@ function TargetChip({ label, onCycle }: { label: string; onCycle: () => void }) 
     <button
       type="button"
       onClick={onCycle}
-      title={`Change target (Tab) — currently “${label}”`}
+      title={`Change target (Tab) — currently "${label}"`}
       className="flex-none flex items-center gap-1 max-w-[160px] text-[10px] text-text-secondary
         bg-surface-secondary px-2 py-1 rounded hover:text-text-primary transition-colors"
     >

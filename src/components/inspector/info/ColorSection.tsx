@@ -65,17 +65,35 @@ export function ColorSection({ ctx }: Props) {
       <SectionHeader icon={Palette} label="Color" />
       {(ctx.colorPalette?.length ?? 0) > 0 && (
         <div className="relative group flex h-5 mb-2.5 rounded-[3px] overflow-hidden border border-separator">
-          {ctx.colorPalette!.map((s, i) => (
-            <div
-              key={i}
-              style={{
-                flexGrow: Math.max(s.weight, 0.02),
-                minWidth: 8,
-                backgroundColor: `rgb(${s.rgb[0]}, ${s.rgb[1]}, ${s.rgb[2]})`,
-              }}
-              title={`#${hex(s.rgb[0])}${hex(s.rgb[1])}${hex(s.rgb[2])} · ${(s.weight * 100).toFixed(0)}%`}
-            />
-          ))}
+          {ctx.colorPalette!.map((s, i) => {
+            const hexStr = `#${hex(s.rgb[0])}${hex(s.rgb[1])}${hex(s.rgb[2])}`;
+            const pctStr = `${(s.weight * 100).toFixed(0)}%`;
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() =>
+                  window.dispatchEvent(new CustomEvent('spawn-palette:open', {
+                    detail: {
+                      attachContext: [{
+                        label: 'Color',
+                        value: `${hexStr} · ${pctStr}`,
+                        sourceId: `color:${hexStr}`,
+                      }],
+                    },
+                  }))
+                }
+                title={`${hexStr} · ${pctStr} — click to attach as context`}
+                style={{
+                  flexGrow: Math.max(s.weight, 0.02),
+                  minWidth: 8,
+                  backgroundColor: `rgb(${s.rgb[0]}, ${s.rgb[1]}, ${s.rgb[2]})`,
+                }}
+                className="block cursor-pointer focus:outline-none hover:opacity-80 transition-opacity"
+                aria-label={`Color ${hexStr}`}
+              />
+            );
+          })}
           <button
             type="button"
             onClick={pinPalette}

@@ -178,3 +178,47 @@ describe('CommandPalette execution', () => {
     ));
   });
 });
+
+describe('CommandPalette — inline context chips', () => {
+  it('renders attached context chips inside the input row (not above it)', async () => {
+    render(<CommandPalette />);
+    // Open via the chip-dispatch path, attaching a Subject context item.
+    act(() => {
+      window.dispatchEvent(new CustomEvent('spawn-palette:open', {
+        detail: { attachContext: [{ label: 'Subject', value: 'black locomotive', sourceId: 'semantic:subject:black locomotive' }] },
+      }));
+    });
+
+    // The chip should appear (label visible).
+    expect(screen.getByText('Subject')).toBeDefined();
+    expect(screen.getByText('black locomotive')).toBeDefined();
+
+    // The chip's remove button should exist in the same row as the input.
+    const detachBtn = screen.getByRole('button', { name: /detach subject/i });
+    expect(detachBtn).toBeDefined();
+
+    // The input field is still present and focusable.
+    expect(screen.getByPlaceholderText(/search tools/i)).toBeDefined();
+
+    // Clicking × removes the chip.
+    await userEvent.click(detachBtn);
+    expect(screen.queryByText('Subject')).toBeNull();
+  });
+
+  it('deduplicates chips when the same source is attached twice', () => {
+    render(<CommandPalette />);
+    act(() => {
+      window.dispatchEvent(new CustomEvent('spawn-palette:open', {
+        detail: { attachContext: [{ label: 'Tone', value: 'shadows', sourceId: 'semantic:tone:shadows' }] },
+      }));
+    });
+    // Fire again with the identical label+value — should stay at one chip.
+    act(() => {
+      window.dispatchEvent(new CustomEvent('spawn-palette:open', {
+        detail: { attachContext: [{ label: 'Tone', value: 'shadows', sourceId: 'semantic:tone:shadows' }] },
+      }));
+    });
+    const chips = screen.getAllByText('shadows');
+    expect(chips.length).toBe(1);
+  });
+});

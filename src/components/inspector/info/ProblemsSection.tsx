@@ -7,6 +7,12 @@ interface Props {
   ctx: ImageContext;
 }
 
+function dispatchChipToPalette(item: { label: string; value: string; sourceId?: string }) {
+  window.dispatchEvent(new CustomEvent('spawn-palette:open', {
+    detail: { attachContext: [item] },
+  }));
+}
+
 /** Standalone Problems section so the Info-tab skeleton can have a matching
  *  placeholder slot. Splits out of the old combined RegionsSection. */
 export function ProblemsSection({ ctx }: Props) {
@@ -28,12 +34,29 @@ export function ProblemsSection({ ctx }: Props) {
 }
 
 function ProblemRow({ problem }: { problem: Problem }) {
+  const kindLabel = problem.kind.replace(/_/g, ' ');
+  const severityPct = (problem.severity * 100).toFixed(1);
+  const contextValue = problem.regionLabel
+    ? `${kindLabel} (${severityPct}%) @ ${problem.regionLabel}`
+    : `${kindLabel} (${severityPct}%)`;
+
   return (
     <div>
       <div className="flex items-center gap-1.5 mb-0.5">
-        <span className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 bg-surface-secondary text-text-primary rounded-sm">
-          {problem.kind.replace(/_/g, ' ')}
-        </span>
+        <button
+          type="button"
+          onClick={() =>
+            dispatchChipToPalette({
+              label: 'Problem',
+              value: contextValue,
+              sourceId: `problem:${problem.kind}`,
+            })
+          }
+          title={`Attach as context: ${contextValue}`}
+          className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 bg-surface-secondary text-text-primary rounded-sm cursor-pointer hover:bg-accent/15 transition-colors"
+        >
+          {kindLabel}
+        </button>
         {problem.regionLabel && (
           <span className="text-[10px] text-text-secondary truncate">@ {problem.regionLabel}</span>
         )}

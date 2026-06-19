@@ -93,6 +93,13 @@ async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "lega
     used_fused_ids: set[str] = set()
     used_targets: set[tuple[str, str]] = set()
 
+    # Per-resolve timeout — without it, one hung Anthropic call would
+    # park the gather (and the surrounding write-lock held by the
+    # suggest_widgets tool) forever, freezing the session. Falls back
+    # to `anthropic_timeout_s` so the bound matches the SDK's own.
+    from app.config import get_app_config
+    resolve_timeout_s = get_app_config().runtime.anthropic_timeout_s
+
     async def _resolve(template, intent: str, scope: Scope):
         # Each fused template's `resolve()` is `async def` but internally
         # makes a SYNC Anthropic SDK call. Awaiting one on the event loop
@@ -100,10 +107,15 @@ async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "lega
         # parallelise. Run each in its own worker thread so the concurrent
         # picks share wall-clock.
         try:
-            return await asyncio.to_thread(
-                _run_fused_tool_sync,
-                run_fused_tool, template, intent, scope, ctx, anthropic, origin,
+            return await asyncio.wait_for(
+                asyncio.to_thread(
+                    _run_fused_tool_sync,
+                    run_fused_tool, template, intent, scope, ctx, anthropic, origin,
+                ),
+                timeout=resolve_timeout_s,
             )
+        except asyncio.TimeoutError:
+            return None
         except Exception:
             return None
 
@@ -171,18 +183,26 @@ async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "lega
     }
     needed = TARGET_AUTONOMOUS_SUGGESTIONS - (initial_count + successful)
     exclude = list(already_used | dismissed_global)
-    candidates = await loop.run_in_executor(
-        None,
-        lambda: anthropic.suggest_fused_tools_for_character(
-            grade_character=ctx.grade_character,
-            lighting=ctx.lighting,
-            dominant_tones=ctx.dominant_tones,
-            subjects=ctx.subjects,
-            exclude=exclude,
-            n=needed,
-            session_id=doc.session_id,
-        ),
-    )
+    try:
+        candidates = await asyncio.wait_for(
+            loop.run_in_executor(
+                None,
+                lambda: anthropic.suggest_fused_tools_for_character(
+                    grade_character=ctx.grade_character,
+                    lighting=ctx.lighting,
+                    dominant_tones=ctx.dominant_tones,
+                    subjects=ctx.subjects,
+                    exclude=exclude,
+                    n=needed,
+                    session_id=doc.session_id,
+                ),
+            ),
+            timeout=resolve_timeout_s,
+        )
+    except asyncio.TimeoutError:
+        # Top-up is best-effort — failing it just leaves fewer
+        # autonomous suggestions, not a broken session.
+        candidates = []
 
     global_scope = Scope.model_validate({"kind": "global"})
     topup_picks: list = []

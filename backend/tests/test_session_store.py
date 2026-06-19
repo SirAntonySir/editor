@@ -77,23 +77,32 @@ def test_get_document_returns_same_instance_within_session() -> None:
 
 
 def test_with_document_lock_serialises_mutations() -> None:
-    import threading
+    """Concurrent coroutines must not interleave inside the document lock.
+    Each (start, end) pair has to be adjacent in `order`.
+
+    Async by design — `with_document_lock` is an asyncio context manager
+    now. The threaded form the lock used to support became a footgun: any
+    sync-lock acquire from inside an async handler would block the event
+    loop on contention. asyncio.Lock queues coroutines cooperatively
+    instead, which is what every real production caller does."""
     store = SessionStore(ttl_seconds=60)
     sid = store.create(image_bytes=b"abc", mime_type="image/jpeg")
     order: list[str] = []
 
-    def worker(tag: str) -> None:
-        with store.with_document_lock(sid):
+    async def worker(tag: str) -> None:
+        async with store.with_document_lock(sid):
             order.append(f"{tag}-start")
+            # Yield so any non-mutex implementation would interleave here.
+            await asyncio.sleep(0)
             order.append(f"{tag}-end")
 
-    threads = [threading.Thread(target=worker, args=(t,)) for t in ("a", "b", "c")]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
+    async def runner() -> None:
+        await asyncio.gather(*(worker(t) for t in ("a", "b", "c")))
+
+    asyncio.run(runner())
 
     # Inside each lock the start/end must be adjacent — i.e. no interleaving.
+    assert len(order) == 6
     for i in range(0, len(order), 2):
         tag = order[i].split("-")[0]
         assert order[i + 1] == f"{tag}-end"
@@ -101,9 +110,13 @@ def test_with_document_lock_serialises_mutations() -> None:
 
 def test_with_document_lock_on_unknown_session_raises() -> None:
     store = SessionStore(ttl_seconds=60)
-    with pytest.raises(SessionNotFound):
-        with store.with_document_lock("nope"):
+
+    async def runner() -> None:
+        async with store.with_document_lock("nope"):
             pass
+
+    with pytest.raises(SessionNotFound):
+        asyncio.run(runner())
 
 
 def test_cancel_task_with_no_registration_returns_false() -> None:

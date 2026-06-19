@@ -18,6 +18,31 @@ from app.schemas.enriched_context import EnrichedImageContext
 from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 
+# Recency dedup window. After a successful suggest_widgets run, further
+# invocations on the same session within this window no-op. Catches the
+# audit-H11 cases — a double-clicked "Analyze with AI" button, rapid
+# SSE-storm retriggers, frontend chained-then race — without spending
+# another full Anthropic round-trip per fused-template resolver. The
+# write_lock already serialises the handler, but it can't tell whether
+# the queued work is redundant; this check can.
+#
+# Module-level dict keyed by session_id. Stale entries are GC'd
+# opportunistically below: on every check we drop any entry older than
+# 10× the cooldown so abandoned sessions don't pile up.
+_SUGGEST_COOLDOWN_S = 5.0
+_last_run_ts: dict[str, float] = {}
+
+
+def _recent_run(sid: str, now: float) -> bool:
+    """True iff a successful suggest_widgets ran for `sid` within
+    `_SUGGEST_COOLDOWN_S`. Also GCs stale entries opportunistically."""
+    stale_cutoff = now - 10 * _SUGGEST_COOLDOWN_S
+    for k in list(_last_run_ts.keys()):
+        if _last_run_ts[k] < stale_cutoff:
+            _last_run_ts.pop(k, None)
+    last = _last_run_ts.get(sid)
+    return last is not None and (now - last) < _SUGGEST_COOLDOWN_S
+
 
 class _Input(BaseModel):
     model_config = camel_config(extra="forbid")
@@ -42,6 +67,15 @@ class SuggestWidgetsTool(BackendTool[_Input, _Output]):
     permissions = ToolPermissions(requires_image=True, requires_context=True)
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
+        # In-flight / recency guard. Drops back-to-back invocations within
+        # the cooldown window so a double-clicked CTA or SSE-storm retrigger
+        # doesn't bill another fan-out of Anthropic resolvers.
+        now = time.monotonic()
+        if _recent_run(doc.session_id, now):
+            doc._emit_phase_started("widget_mint", index=5, total=5)
+            doc._emit_phase_completed("widget_mint", duration_ms=0)
+            return _Output(widget_ids=[])
+
         ctx = doc.get_image_context(DEFAULT_IMAGE_NODE_ID)
         if not isinstance(ctx, EnrichedImageContext):
             # No context → no suggestions. Still emit the widget_mint phase so
@@ -67,5 +101,6 @@ class SuggestWidgetsTool(BackendTool[_Input, _Output]):
         finally:
             duration_ms = (time.monotonic_ns() // 1_000_000) - started_ms
             doc._emit_phase_completed("widget_mint", duration_ms=duration_ms)
+        _last_run_ts[doc.session_id] = time.monotonic()
         after = set(doc.widgets.keys())
         return _Output(widget_ids=sorted(after - before))

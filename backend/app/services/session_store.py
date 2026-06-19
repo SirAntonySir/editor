@@ -21,10 +21,10 @@ import asyncio
 import json
 import time
 import uuid
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from threading import Lock
-from typing import Any, Iterator
+from threading import Lock as ThreadLock
+from typing import Any, AsyncIterator
 
 from app.schemas.enriched_context import EnrichedImageContext
 from app.services import disk_session_io
@@ -80,14 +80,24 @@ class SessionRecord:
     context: dict[str, Any] | None = None
     document: "SessionDocument | None" = None  # lazily created
     history_engine: "Any" = None  # lazily created HistoryEngine
-    write_lock: Lock = field(default_factory=Lock)
+    # Per-session document write lock. asyncio.Lock (not threading.Lock):
+    # all real production callers are FastAPI async handlers, so a sync
+    # lock acquired from the event-loop thread would block the loop on
+    # contention — freezing every other session for the duration of any
+    # slow Anthropic / SAM call held by the lock owner. asyncio.Lock
+    # queues contenders cooperatively.
+    write_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
 class SessionStore:
     def __init__(self, ttl_seconds: int) -> None:
         self._ttl = ttl_seconds
         self._records: dict[str, SessionRecord] = {}
-        self._lock = Lock()
+        # Bookkeeping lock — a tiny critical section guarding the records
+        # map + in-flight task map. Cheap, never held across awaits, so a
+        # threading lock is fine (and lets prune_memory / prune_disk run
+        # from sync executor threads without touching the event loop).
+        self._lock = ThreadLock()
         # In-flight asyncio.Task per session — set by the tool registry while a
         # mutate/emit tool is running so POST /sessions/{sid}/cancel can call
         # task.cancel(). One slot is enough because the registry serialises
@@ -167,13 +177,20 @@ class SessionStore:
             )
         return record.history_engine
 
-    @contextmanager
-    def with_document_lock(self, sid: str) -> Iterator["SessionDocument"]:
+    @asynccontextmanager
+    async def with_document_lock(self, sid: str) -> AsyncIterator["SessionDocument"]:
+        """Hold the per-session write lock around a document mutation.
+
+        Async on purpose — see SessionRecord.write_lock for the
+        rationale. Use as ``async with store.with_document_lock(sid) as
+        doc:``. Contention queues cooperatively on the event loop
+        instead of blocking it.
+        """
         record = self.get(sid)
         if record.document is None:
             record.document = _new_document(sid, record)
             _rehydrate_document_context(record)
-        with record.write_lock:
+        async with record.write_lock:
             yield record.document
 
     # ---------------- cancellable in-flight tasks ----------------

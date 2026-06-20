@@ -18,6 +18,13 @@ interface AiSessionState {
   context: ImageContext | null;
   status: 'idle' | 'uploading' | 'analysing' | 'ready' | 'error';
   error: string | null;
+  /** image-node ids whose analyse has completed at least once this session.
+   *  Updated by analyseImageLayer on success. Pruned when image-nodes are
+   *  removed (worst case: a stale flag pointing at a vanished id, which only
+   *  affects the menu label and harmlessly shows "Re-analyze"). */
+  analysedImageNodeIds: string[];
+  /** Mark an image-node as having been analysed. Idempotent. */
+  markAnalysed: (imageNodeId: string) => void;
   /** Upload source pixels + create a backend session. No analyze — tools
    *  that just need a session for `set_param` writes (the toolrail
    *  adjustments) become usable as soon as this resolves and SSE handshakes.
@@ -194,6 +201,13 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
   context: null,
   status: 'idle',
   error: null,
+  analysedImageNodeIds: [],
+  markAnalysed: (imageNodeId) =>
+    set((s) => ({
+      analysedImageNodeIds: s.analysedImageNodeIds.includes(imageNodeId)
+        ? s.analysedImageNodeIds
+        : [...s.analysedImageNodeIds, imageNodeId],
+    })),
   async openSession(source) {
     // Idempotent: if a session is already alive, do nothing. Reset() must
     // run first when the caller wants a fresh session for a new image.
@@ -347,7 +361,7 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
     }
   },
   reset() {
-    set({ sessionId: null, context: null, status: 'idle', error: null });
+    set({ sessionId: null, context: null, status: 'idle', error: null, analysedImageNodeIds: [] });
   },
 }));
 
@@ -391,6 +405,13 @@ export async function analyseImageLayer(imageNodeId: string): Promise<void> {
     if (!source) return;
     const bitmap = await createImageBitmap(source);
     await ai.uploadAndAnalyse(bitmap);
+  }
+
+  // Mark this node as analysed if the session completed without error.
+  // Check status rather than catching — runAnalyse/uploadAndAnalyse set
+  // status:'ready' on success and status:'error' on failure.
+  if (useAiSession.getState().status === 'ready') {
+    useAiSession.getState().markAnalysed(imageNodeId);
   }
 }
 

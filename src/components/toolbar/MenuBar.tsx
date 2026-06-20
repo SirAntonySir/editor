@@ -10,7 +10,7 @@ import { revertToOriginal } from '@/lib/revert';
 import { editorDocument } from '@/core/document';
 import { useFileIO } from '@/hooks/useFileIO';
 import { BackendStatusBadge } from '@/components/ui/BackendStatusBadge';
-import { useAiSession, analyseActiveImageLayer } from '@/hooks/useImageContext';
+import { useAiSession, analyseImageLayer } from '@/hooks/useImageContext';
 import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { useCanvasZoom } from '@/hooks/useCanvasZoom';
 import { useImageTransform } from '@/hooks/useImageTransform';
@@ -481,26 +481,97 @@ function SuggestionHistorySubmenu() {
 
 function AiMenu() {
   const status = useAiSession((s) => s.status);
-  const hasContext = useAiSession((s) => s.context != null);
-  const hasLayers = useEditorStore((s) => s.layers.length > 0);
+  const analysedIds = useAiSession((s) => s.analysedImageNodeIds);
+  const imageNodes = useEditorStore((s) => s.imageNodes);
+  const layers = useEditorStore((s) => s.layers);
+  const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
+  const hasLayers = layers.length > 0;
   const analysing = status === 'uploading' || status === 'analysing';
 
-  const handleReanalyse = () => {
-    void analyseActiveImageLayer();
+  const nodeIds = Object.keys(imageNodes);
+
+  // Human-readable name for an image-node: node.name → first layer's name → id.
+  const nameFor = (id: string): string => {
+    const node = imageNodes[id];
+    if (!node) return id;
+    if (node.name) return node.name;
+    const firstLayer = node.layerIds[0]
+      ? layers.find((l) => l.id === node.layerIds[0])
+      : undefined;
+    return firstLayer?.name ?? id;
   };
 
+  const labelFor = (id: string): string => {
+    const verb = analysedIds.includes(id) ? 'Re-analyze' : 'Analyze';
+    return `${verb} "${nameFor(id)}"`;
+  };
+
+  const runAnalyse = (id: string) => void analyseImageLayer(id);
+
+  // Single-image (or no image) case: simple one-item shape with the shortcut.
+  if (nodeIds.length <= 1) {
+    const onlyId = nodeIds[0] ?? null;
+    return (
+      <Menubar.Menu>
+        <TriggerButton>AI</TriggerButton>
+        <Menubar.Portal>
+          <Menubar.Content className={menuContentClass} align="start" sideOffset={4}>
+            <Item
+              onSelect={() => onlyId && runAnalyse(onlyId)}
+              disabled={!hasLayers || analysing || !onlyId}
+              keys={['mod', 'alt', 'A']}
+            >
+              {onlyId ? labelFor(onlyId) : 'Analyze image'}
+            </Item>
+            <Sep />
+            <SuggestionHistorySubmenu />
+          </Menubar.Content>
+        </Menubar.Portal>
+      </Menubar.Menu>
+    );
+  }
+
+  // Multi-image case: a top-level shortcut row for the active image (keeps
+  // Cmd+Alt+A discoverable) plus a submenu listing every image-node.
   return (
     <Menubar.Menu>
       <TriggerButton>AI</TriggerButton>
       <Menubar.Portal>
         <Menubar.Content className={menuContentClass} align="start" sideOffset={4}>
-          <Item
-            onSelect={handleReanalyse}
-            disabled={!hasLayers || analysing}
-            keys={['mod', 'alt', 'A']}
-          >
-            {hasContext ? 'Re-analyze image' : 'Analyze image'}
-          </Item>
+          {/* Active-image shortcut row — always visible so Cmd+Alt+A is shown. */}
+          {activeImageNodeId && imageNodes[activeImageNodeId] && (
+            <Item
+              onSelect={() => runAnalyse(activeImageNodeId)}
+              disabled={!hasLayers || analysing}
+              keys={['mod', 'alt', 'A']}
+            >
+              <span
+                className="inline-block w-1.5 h-1.5 mr-2 rounded-full bg-[var(--color-accent)] align-middle"
+                aria-hidden
+              />
+              {labelFor(activeImageNodeId)}
+            </Item>
+          )}
+          {/* Submenu listing all image-nodes so the user can target any one. */}
+          <Sub label="Analyze image…">
+            {nodeIds.map((id) => (
+              <Item
+                key={id}
+                onSelect={() => runAnalyse(id)}
+                disabled={analysing}
+              >
+                {id === activeImageNodeId ? (
+                  <span
+                    className="inline-block w-1.5 h-1.5 mr-2 rounded-full bg-[var(--color-accent)] align-middle"
+                    aria-hidden
+                  />
+                ) : (
+                  <span className="inline-block w-1.5 h-1.5 mr-2" aria-hidden />
+                )}
+                {labelFor(id)}
+              </Item>
+            ))}
+          </Sub>
           <Sep />
           <SuggestionHistorySubmenu />
         </Menubar.Content>

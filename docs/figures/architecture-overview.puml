@@ -1,0 +1,724 @@
+@startuml
+
+top to bottom direction
+
+skinparam nodesep 25
+skinparam ranksep 50
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Tahoma
+skinparam defaultFontSize 12
+skinparam roundCorner 6
+skinparam dpi 150
+skinparam arrowColor black
+skinparam arrowThickness 0.5
+skinparam packageTitleAlignment left
+
+' oval
+skinparam usecase {
+  borderThickness 0.5
+}
+
+' rectangle
+skinparam rectangle {
+  borderThickness 0.5
+}
+
+' component
+skinparam component {
+  borderThickness 1
+}
+
+
+package "UI surfaces" {
+  (AdjustmentsAccordion)
+  (BindingRow)
+  (BottomMarginalia)
+  (<b>CanvasWorkspace</b>)
+  (ColorSection)
+  (<b>CommandPalette</b>)
+  (CompoundWidgetBody)
+  (CornerTicks)
+  (CurvesSectionBody)
+  (CurvesWidgetBody)
+  (HistogramsSection)
+  (HistoryDropdown)
+  (HslOpenOnCanvasButton)
+  (HslParamSlider)
+  (HslSectionBody)
+  (HslWidgetBody)
+  rectangle "ImageNode" as _ImageNode
+  (ImageNodeBody)
+  (ImageNodeDrafting)
+  (ImageNodeObjectsLayer)
+  (<b>ImageNodeResizeHandle</b>)
+  (<b>ImageNodeSelectionPopover</b>)
+  (info-skeletons)
+  rectangle "InfoNode" as _InfoNode
+  (InfoTab)
+  (InfoWidgetShell)
+  rectangle "InspectorPanel" as _InspectorPanel
+  (<b>InspectorWidgetRow</b>)
+  (<b>LayerProperties</b>)
+  (LayerRow)
+  (LayerStrip)
+  (LayerTab)
+  (LevelsSectionBody)
+  (LevelsWidgetBody)
+  (MarkerDot)
+  (<b>MenuBar</b>)
+  (MetadataMap)
+  (MetadataSection)
+  (MetricChipMenu)
+  (NoContextState)
+  (ObjectMarkers)
+  rectangle "PerceptualDialBody" as _PerceptualDialBody
+  (PresetsSection)
+  (ProblemsSection)
+  (PromoteOnlyBody)
+  (RefineInput)
+  (RegionsSection)
+  (RegionThumbnail)
+  rectangle "RegistryDrivenPanel" as _RegistryDrivenPanel
+  (RegistryDrivenSectionBody)
+  (<b>RightSidebar</b>)
+  (ScalarSectionBody)
+  (SectionHeader)
+  (SegmentHitLayer)
+  (SegmentMaskPreview)
+  (<b>SegmentRow</b>)
+  (SemanticSection)
+  (SidebarShell)
+  (SliderPinMenu)
+  rectangle "TetherEdge" as _TetherEdge
+  (ToolSection)
+  (TopMarginalia)
+  (WhyPopover)
+  (WidgetAutoButton)
+  rectangle "WidgetNode" as _WidgetNode
+  rectangle "WidgetShell" as _WidgetShell
+  (WidgetShellHeader)
+}
+
+package "State + lifecycle" {
+  rectangle "backend-state-slice" as _backend_state_slice
+  (document)
+  rectangle "document-slice" as _document_slice
+  rectangle "editor-state-persistence" as _editor_state_persistence
+  rectangle "history" as _history
+  (<b>layer-lifecycle</b>)
+  rectangle "layer-slice" as _layer_slice
+  rectangle "mask-store" as _mask_store
+  (pixel-source-store)
+  (pixel-store)
+  rectangle "preferences-store" as _preferences_store
+  (restore-pixel-sources)
+  (segment-actions)
+  rectangle "segmentation-slice" as _segmentation_slice
+  rectangle "selection-slice" as _selection_slice
+  rectangle "store" as _store
+  rectangle "suggestions-ui-slice" as _suggestions_ui_slice
+  rectangle "tool-slice" as _tool_slice
+  rectangle "types" as _types
+  (<b>useAutoTetherAiSuggestions</b>)
+  (<b>useBackendSession</b>)
+  rectangle "<b>useBackendStatus</b>" as _useBackendStatus
+  (useCanonicalParam)
+  (useCanvasZoom)
+  (<b>useChromeMinFloor</b>)
+  (useChromeVisible)
+  (useFileIO)
+  rectangle "useHistoryLog" as _useHistoryLog
+  (useHoveredWidget)
+  (<b>useIfVisible</b>)
+  (useImageContext)
+  rectangle "useImageNodeObjects" as _useImageNodeObjects
+  rectangle "useImageNodeRender" as _useImageNodeRender
+  rectangle "useImageTransform" as _useImageTransform
+  (<b>useLayerWidgets</b>)
+  (useLiveMechanicalContext)
+  (<b>useMemoObject</b>)
+  rectangle "useMobileSam" as _useMobileSam
+  (<b>useNodePreview</b>)
+  (<b>useOutputPreview</b>)
+  (useParamProvenance)
+  rectangle "useSmartMatch" as _useSmartMatch
+  (useWidgetExpansion)
+  (<b>useWorkspaceSelection</b>)
+  rectangle "viewport-slice" as _viewport_slice
+  rectangle "workspace-slice" as _workspace_slice
+}
+
+package "Library + tools" {
+  (active-canvas-bus)
+  (ai-client)
+  rectangle "auto-tune" as _auto_tune
+  rectangle "backend-tools" as _backend_tools
+  (canvas-registry)
+  rectangle "canvas-tool-registry" as _canvas_tool_registry
+  (colour-band-spawn)
+  rectangle "curve-points-store" as _curve_points_store
+  rectangle "curves" as _curves
+  rectangle "<b>curves-tool</b>" as _curves_tool
+  (downscale-for-upload)
+  rectangle "export" as _export
+  rectangle "<b>filters-tool</b>" as _filters_tool
+  rectangle "histogram-compute" as _histogram_compute
+  rectangle "<b>hsl-tool</b>" as _hsl_tool
+  rectangle "image-metadata" as _image_metadata
+  (image-node-actions)
+  rectangle "image-node-geometry" as _image_node_geometry
+  rectangle "image-node-renderer" as _image_node_renderer
+  rectangle "info-source-resolver" as _info_source_resolver
+  rectangle "kelvin-direction" as _kelvin_direction
+  (<b>keyboard-shortcuts</b>)
+  (<b>largest-inset-rect</b>)
+  rectangle "layer-compositor" as _layer_compositor
+  rectangle "<b>levels-tool</b>" as _levels_tool
+  rectangle "<b>llm-tool-registry</b>" as _llm_tool_registry
+  rectangle "lut-parser" as _lut_parser
+  rectangle "lut-registry" as _lut_registry
+  (<b>mask-centroid</b>)
+  (mask-filters)
+  (<b>mask-outline</b>)
+  rectangle "<b>mask-overlap</b>" as _mask_overlap
+  rectangle "mechanical-context" as _mechanical_context
+  rectangle "menu-actions" as _menu_actions
+  (node-to-adjustment)
+  (open-file)
+  rectangle "overlay-painters" as _overlay_painters
+  rectangle "palette-actions" as _palette_actions
+  rectangle "<b>param-ranges</b>" as _param_ranges
+  rectangle "pipeline-manager" as _pipeline_manager
+  rectangle "processing-registry" as _processing_registry
+  (revert)
+  (scope-from-selection)
+  rectangle "select-pipeline-nodes" as _select_pipeline_nodes
+  rectangle "sse-subscriber" as _sse_subscriber
+  (telemetry)
+  rectangle "<b>time-of-day-tool</b>" as _time_of_day_tool
+  (toolrail-spawn)
+  rectangle "use-param" as _use_param
+  (use-processing-param)
+  (<b>widget-anchor</b>)
+  (workspace-tether)
+}
+
+package "Types" {
+  rectangle "adjustment" as _adjustment
+  rectangle "curve" as _curve
+  rectangle "<b>graph</b>" as _graph
+  rectangle "image-context" as _image_context
+  rectangle "operation-graph" as _operation_graph
+  rectangle "processing" as _processing
+  rectangle "scope" as _scope
+  rectangle "tool" as _tool
+  rectangle "widget" as _widget
+  rectangle "workspace" as _workspace
+}
+
+_adjustment ..> _scope
+(AdjustmentsAccordion) ..> (PresetsSection)
+(AdjustmentsAccordion) ----> _processing
+(AdjustmentsAccordion) ----> _processing_registry
+(AdjustmentsAccordion) ----> _store
+(AdjustmentsAccordion) ..> (ToolSection)
+(AdjustmentsAccordion) ----> _useImageNodeObjects
+(ai-client) --> _image_context
+_auto_tune ..> _mechanical_context
+_backend_state_slice ..> _mask_store
+_backend_state_slice ..> (pixel-source-store)
+_backend_state_slice ..> _store
+_backend_state_slice ..> _suggestions_ui_slice
+_backend_state_slice --> _widget
+_backend_state_slice --> (workspace-tether)
+_backend_tools --> _image_context
+_backend_tools --> _widget
+(BindingRow) ---> _widget
+(canvas-registry) --> (pixel-store)
+_canvas_tool_registry --> _tool
+(<b>CanvasWorkspace</b>) ---[thickness=1]> _backend_state_slice
+(<b>CanvasWorkspace</b>) ---[thickness=1]> _backend_tools
+(<b>CanvasWorkspace</b>) ---[thickness=1]> (document)
+(<b>CanvasWorkspace</b>) .[thickness=1]> _ImageNode
+(<b>CanvasWorkspace</b>) .[thickness=1]> _InfoNode
+(<b>CanvasWorkspace</b>) ---[thickness=1]> _store
+(<b>CanvasWorkspace</b>) .[thickness=1]> _TetherEdge
+(<b>CanvasWorkspace</b>) ---[thickness=1]> _widget
+(<b>CanvasWorkspace</b>) .[thickness=1]> _WidgetNode
+(<b>CanvasWorkspace</b>) ..[thickness=1]> _WidgetShell
+(ColorSection) ----> (document)
+(ColorSection) ----> _image_context
+(ColorSection) ..> (SectionHeader)
+(ColorSection) ----> _store
+(colour-band-spawn) ..> _backend_tools
+(colour-band-spawn) ..> (scope-from-selection)
+(colour-band-spawn) --> _store
+(<b>CommandPalette</b>) --[thickness=1]> _menu_actions
+(<b>CommandPalette</b>) --[thickness=1]> _palette_actions
+(<b>CommandPalette</b>) --[thickness=1]> _preferences_store
+(<b>CommandPalette</b>) --[thickness=1]> _store
+(<b>CommandPalette</b>) --[thickness=1]> (toolrail-spawn)
+(<b>CommandPalette</b>) --[thickness=1]> (useImageContext)
+(<b>CommandPalette</b>) --[thickness=1]> _useSmartMatch
+(<b>CommandPalette</b>) --[thickness=1]> _widget
+(CompoundWidgetBody) ---> _backend_state_slice
+(CompoundWidgetBody) ---> _backend_tools
+(CompoundWidgetBody) ..> _PerceptualDialBody
+(CompoundWidgetBody) ---> (use-processing-param)
+(CompoundWidgetBody) ---> _widget
+(CornerTicks) ----> _store
+_curve_points_store ..> _curves
+_curves_tool ..[thickness=1]> _curve_points_store
+_curves_tool ..[thickness=1]> _curves
+_curves_tool --[thickness=1]> _store
+_curves_tool --[thickness=1]> _tool
+(CurvesSectionBody) ----> _curve
+(CurvesSectionBody) ----> (useCanonicalParam)
+(CurvesSectionBody) ----> _widget
+(CurvesWidgetBody) ---> _widget
+(document) ..> _backend_state_slice
+(document) --> _backend_tools
+(document) ..> _history
+(document) --> _image_metadata
+(document) --> _image_node_geometry
+(document) ..> (pixel-source-store)
+(document) ..> (pixel-store)
+(document) ..> _store
+(document) ..> _types
+(document) ..> (useImageContext)
+(document) --> _workspace
+_document_slice ..> _types
+_editor_state_persistence ..> _backend_state_slice
+_editor_state_persistence ..> (pixel-source-store)
+_editor_state_persistence ..> _store
+_export ..> _layer_compositor
+_export --> _store
+_filters_tool --[thickness=1]> _backend_state_slice
+_filters_tool ..[thickness=1]> _backend_tools
+_filters_tool ..[thickness=1]> (canvas-registry)
+_filters_tool ..[thickness=1]> _lut_parser
+_filters_tool ..[thickness=1]> _lut_registry
+_filters_tool ..[thickness=1]> (scope-from-selection)
+_filters_tool --[thickness=1]> _store
+_filters_tool --[thickness=1]> _tool
+_graph .[thickness=1]> _adjustment
+(HistogramsSection) ----> (document)
+(HistogramsSection) ----> _histogram_compute
+(HistogramsSection) ----> _image_context
+(HistogramsSection) ..> (MetricChipMenu)
+(HistogramsSection) ..> (SectionHeader)
+(HistogramsSection) ----> _store
+(HistoryDropdown) ---> _backend_state_slice
+(HistoryDropdown) ---> _backend_tools
+(HistoryDropdown) ---> (telemetry)
+(HistoryDropdown) ---> _useHistoryLog
+_hsl_tool --[thickness=1]> _tool
+(HslOpenOnCanvasButton) ----> (colour-band-spawn)
+(HslParamSlider) ----> _store
+(HslParamSlider) ----> (useCanonicalParam)
+(HslParamSlider) ----> (useParamProvenance)
+(HslSectionBody) ----> _backend_state_slice
+(HslSectionBody) ----> _backend_tools
+(HslSectionBody) ..> (HslParamSlider)
+(HslWidgetBody) ---> _store
+(HslWidgetBody) ---> (useParamProvenance)
+(HslWidgetBody) ---> _widget
+(image-node-actions) --> _backend_state_slice
+(image-node-actions) --> (document)
+(image-node-actions) ..> _export
+(image-node-actions) --> (pixel-source-store)
+(image-node-actions) --> (pixel-store)
+(image-node-actions) --> _store
+(image-node-actions) --> (useImageContext)
+_image_node_renderer --> _adjustment
+_image_node_renderer --> _backend_state_slice
+_image_node_renderer ..> (canvas-registry)
+_image_node_renderer ..> _image_node_geometry
+_image_node_renderer --> _mask_store
+_image_node_renderer ..> (node-to-adjustment)
+_image_node_renderer --> _operation_graph
+_image_node_renderer ..> _overlay_painters
+_image_node_renderer ..> _pipeline_manager
+_image_node_renderer ..> _select_pipeline_nodes
+_image_node_renderer --> _store
+_image_node_renderer --> _widget
+_ImageNode ..> (ImageNodeDrafting)
+(ImageNodeBody) ---> _useImageNodeRender
+(ImageNodeDrafting) ----> _backend_state_slice
+(ImageNodeDrafting) ----> _backend_tools
+(ImageNodeDrafting) ..> (BottomMarginalia)
+(ImageNodeDrafting) ..> (CornerTicks)
+(ImageNodeDrafting) ----> (document)
+(ImageNodeDrafting) ----> (image-node-actions)
+(ImageNodeDrafting) ----> _image_node_geometry
+(ImageNodeDrafting) ..> (ImageNodeBody)
+(ImageNodeDrafting) ..> (ImageNodeObjectsLayer)
+(ImageNodeDrafting) ..> (LayerStrip)
+(ImageNodeDrafting) ..> (ObjectMarkers)
+(ImageNodeDrafting) ----> _preferences_store
+(ImageNodeDrafting) ..> (SegmentHitLayer)
+(ImageNodeDrafting) ----> _store
+(ImageNodeDrafting) ..> (TopMarginalia)
+(ImageNodeDrafting) ----> (useImageContext)
+(ImageNodeDrafting) ----> _useImageNodeObjects
+(ImageNodeObjectsLayer) ---> _mask_store
+(ImageNodeObjectsLayer) ---> _store
+(ImageNodeObjectsLayer) ---> _useImageNodeObjects
+(<b>ImageNodeResizeHandle</b>) ---[thickness=1]> _store
+(<b>ImageNodeSelectionPopover</b>) ---[thickness=1]> _mask_store
+(<b>ImageNodeSelectionPopover</b>) ---[thickness=1]> (segment-actions)
+(<b>ImageNodeSelectionPopover</b>) ---[thickness=1]> _store
+_info_source_resolver ..> _image_metadata
+_info_source_resolver ..> _mechanical_context
+_info_source_resolver --> _types
+_InfoNode ..> (InfoWidgetShell)
+_InfoNode ---> _store
+(InfoTab) ----> _backend_state_slice
+(InfoTab) ..> (ColorSection)
+(InfoTab) ..> (HistogramsSection)
+(InfoTab) ----> _image_context
+(InfoTab) ..> (info-skeletons)
+(InfoTab) ----> _mechanical_context
+(InfoTab) ..> (MetadataSection)
+(InfoTab) ..> (NoContextState)
+(InfoTab) ..> (ProblemsSection)
+(InfoTab) ..> (RegionsSection)
+(InfoTab) ..> (SemanticSection)
+(InfoTab) ----> _store
+(InfoTab) ----> (useImageContext)
+(InfoTab) ----> (useLiveMechanicalContext)
+(InfoWidgetShell) ---> _histogram_compute
+(InfoWidgetShell) ---> _info_source_resolver
+(InfoWidgetShell) ---> _store
+(InfoWidgetShell) ---> (useLiveMechanicalContext)
+(InfoWidgetShell) ---> _workspace
+_InspectorPanel ..> (AdjustmentsAccordion)
+_InspectorPanel ..> (InfoTab)
+_InspectorPanel ..> (LayerTab)
+_InspectorPanel ---> _preferences_store
+_InspectorPanel ---> _store
+_InspectorPanel ---> (telemetry)
+(<b>InspectorWidgetRow</b>) ---[thickness=1]> _store
+(<b>InspectorWidgetRow</b>) ---[thickness=1]> _widget
+(<b>keyboard-shortcuts</b>) --[thickness=1]> _backend_state_slice
+(<b>keyboard-shortcuts</b>) .[thickness=1]> _canvas_tool_registry
+(<b>keyboard-shortcuts</b>) --[thickness=1]> (document)
+(<b>keyboard-shortcuts</b>) .[thickness=1]> (open-file)
+(<b>keyboard-shortcuts</b>) --[thickness=1]> _preferences_store
+(<b>keyboard-shortcuts</b>) .[thickness=1]> (revert)
+(<b>keyboard-shortcuts</b>) --[thickness=1]> _store
+(<b>keyboard-shortcuts</b>) --[thickness=1]> (useImageContext)
+_layer_compositor --> _adjustment
+_layer_compositor ..> (canvas-registry)
+_layer_compositor --> _layer_slice
+_layer_compositor --> _mask_store
+_layer_compositor ..> (node-to-adjustment)
+_layer_compositor ..> _pipeline_manager
+_layer_compositor ..> _select_pipeline_nodes
+_layer_compositor --> _store
+(<b>layer-lifecycle</b>) ..[thickness=1]> _backend_state_slice
+(<b>layer-lifecycle</b>) ..[thickness=1]> _layer_slice
+(<b>layer-lifecycle</b>) .[thickness=1]> (pixel-source-store)
+(<b>layer-lifecycle</b>) .[thickness=1]> (pixel-store)
+(<b>layer-lifecycle</b>) ..[thickness=1]> _store
+_layer_slice --> _adjustment
+_layer_slice --> _scope
+(<b>LayerProperties</b>) ---[thickness=1]> _adjustment
+(<b>LayerProperties</b>) ---[thickness=1]> _store
+(LayerRow) ----> _layer_slice
+(LayerRow) ----> _store
+(LayerStrip) ----> _layer_slice
+(LayerStrip) ----> _preferences_store
+(LayerStrip) ----> _store
+(LayerTab) ..> (LayerRow)
+(LayerTab) ----> _store
+_levels_tool --[thickness=1]> _tool
+(LevelsSectionBody) ----> (canvas-registry)
+(LevelsSectionBody) ----> _pipeline_manager
+(LevelsSectionBody) ----> (useCanonicalParam)
+(LevelsWidgetBody) ---> (canvas-registry)
+(LevelsWidgetBody) ---> _pipeline_manager
+(LevelsWidgetBody) ---> _widget
+(MarkerDot) ---> _widget
+(<b>mask-centroid</b>) --[thickness=1]> _mask_store
+(mask-filters) --> _widget
+(<b>mask-outline</b>) --[thickness=1]> _mask_store
+_mask_overlap --[thickness=1]> _mask_store
+_mask_store --> _scope
+_mechanical_context ..> _histogram_compute
+_mechanical_context --> _image_context
+_menu_actions ..> _auto_tune
+_menu_actions --> _backend_state_slice
+_menu_actions --> (document)
+_menu_actions --> _history
+_menu_actions ..> _mechanical_context
+_menu_actions ..> (revert)
+_menu_actions --> _store
+_menu_actions ..> (toolrail-spawn)
+_menu_actions --> (useCanvasZoom)
+_menu_actions --> (useFileIO)
+_menu_actions --> (useImageContext)
+_menu_actions --> _useImageTransform
+_menu_actions --> (useLiveMechanicalContext)
+(<b>MenuBar</b>) ---[thickness=1]> _auto_tune
+(<b>MenuBar</b>) ---[thickness=1]> _backend_state_slice
+(<b>MenuBar</b>) ---[thickness=1]> _canvas_tool_registry
+(<b>MenuBar</b>) ---[thickness=1]> (document)
+(<b>MenuBar</b>) ---[thickness=1]> _history
+(<b>MenuBar</b>) .[thickness=1]> (HistoryDropdown)
+(<b>MenuBar</b>) ---[thickness=1]> (revert)
+(<b>MenuBar</b>) ---[thickness=1]> _store
+(<b>MenuBar</b>) ---[thickness=1]> _suggestions_ui_slice
+(<b>MenuBar</b>) ---[thickness=1]> (toolrail-spawn)
+(<b>MenuBar</b>) ---[thickness=1]> (useCanvasZoom)
+(<b>MenuBar</b>) ---[thickness=1]> (useFileIO)
+(<b>MenuBar</b>) ---[thickness=1]> (useImageContext)
+(<b>MenuBar</b>) ---[thickness=1]> _useImageTransform
+(<b>MenuBar</b>) ---[thickness=1]> (useLiveMechanicalContext)
+(MetadataSection) ----> _image_metadata
+(MetadataSection) ..> (MetadataMap)
+(MetadataSection) ..> (MetricChipMenu)
+(MetadataSection) ..> (SectionHeader)
+(MetadataSection) ----> _store
+(MetricChipMenu) ----> (document)
+(MetricChipMenu) ----> _store
+(NoContextState) ----> _store
+(NoContextState) ----> (useImageContext)
+(node-to-adjustment) --> _adjustment
+(node-to-adjustment) ..> _curves
+(node-to-adjustment) --> _operation_graph
+(node-to-adjustment) --> _widget
+(ObjectMarkers) ----> _mask_store
+(ObjectMarkers) ----> _store
+(ObjectMarkers) ----> _useImageNodeObjects
+(open-file) --> (document)
+_operation_graph ..> _curve
+_operation_graph ..> _scope
+_overlay_painters --> _mask_store
+_palette_actions --> _backend_state_slice
+_palette_actions ..> _backend_tools
+_palette_actions --> _store
+_palette_actions --> _widget
+_param_ranges .[thickness=1]> _processing_registry
+_PerceptualDialBody ---> _kelvin_direction
+_pipeline_manager --> _adjustment
+_pipeline_manager ..> (canvas-registry)
+(PresetsSection) ----> (toolrail-spawn)
+(ProblemsSection) ----> _image_context
+(ProblemsSection) ..> (SectionHeader)
+_processing_registry --> _processing
+(PromoteOnlyBody) ----> _backend_state_slice
+(PromoteOnlyBody) ----> _store
+(RegionsSection) ----> _image_context
+(RegionsSection) ..> (RegionThumbnail)
+(RegionsSection) ..> (SectionHeader)
+(RegionThumbnail) ----> (pixel-store)
+(RegionThumbnail) ----> _store
+(RegistryDrivenSectionBody) ----> _backend_state_slice
+(RegistryDrivenSectionBody) ----> _backend_tools
+(RegistryDrivenSectionBody) ----> _processing
+(RegistryDrivenSectionBody) ..> _RegistryDrivenPanel
+(RegistryDrivenSectionBody) ..> (ScalarSectionBody)
+(RegistryDrivenSectionBody) ..> (SliderPinMenu)
+(RegistryDrivenSectionBody) ----> _store
+(RegistryDrivenSectionBody) ----> (useParamProvenance)
+(RegistryDrivenSectionBody) ----> _widget
+(restore-pixel-sources) ..> (pixel-source-store)
+(restore-pixel-sources) ..> (pixel-store)
+(restore-pixel-sources) ..> _store
+(revert) --> _backend_state_slice
+(revert) ..> _backend_tools
+(revert) ..> (canvas-registry)
+(revert) --> (document)
+(revert) --> _store
+(<b>RightSidebar</b>) ..[thickness=1]> _InspectorPanel
+(<b>RightSidebar</b>) ---[thickness=1]> _preferences_store
+(<b>RightSidebar</b>) .[thickness=1]> (SidebarShell)
+(<b>RightSidebar</b>) ---[thickness=1]> _store
+(ScalarSectionBody) ----> _processing
+(ScalarSectionBody) ..> (SliderPinMenu)
+(ScalarSectionBody) ----> _store
+(ScalarSectionBody) ----> (useCanonicalParam)
+(ScalarSectionBody) ----> (useParamProvenance)
+(scope-from-selection) --> _scope
+(SectionHeader) ----> (document)
+(SectionHeader) ----> _store
+(SectionHeader) ----> _workspace
+(segment-actions) ..> _backend_state_slice
+(segment-actions) --> _layer_compositor
+(segment-actions) ..> _mask_store
+(segment-actions) ..> (pixel-source-store)
+(segment-actions) ..> (pixel-store)
+(segment-actions) --> _scope
+(segment-actions) ..> _store
+(segment-actions) ..> (useImageContext)
+(SegmentHitLayer) ---> _backend_state_slice
+(SegmentHitLayer) ---> _backend_tools
+(SegmentHitLayer) ---> _mask_store
+(SegmentHitLayer) ..> (SegmentMaskPreview)
+(SegmentHitLayer) ---> _store
+(SegmentHitLayer) ---> _useImageNodeObjects
+(SegmentHitLayer) ---> _useMobileSam
+(<b>SegmentRow</b>) ---[thickness=1]> _mask_store
+(<b>SegmentRow</b>) ---[thickness=1]> _store
+(<b>SegmentRow</b>) ---[thickness=1]> _widget
+_select_pipeline_nodes --> _backend_state_slice
+_select_pipeline_nodes --> _operation_graph
+_selection_slice ..> _mask_store
+_selection_slice --> _scope
+(SemanticSection) ----> _image_context
+(SemanticSection) ..> (SectionHeader)
+(SidebarShell) ---> _preferences_store
+(SliderPinMenu) ----> _backend_state_slice
+(SliderPinMenu) ----> _store
+(SliderPinMenu) ----> _widget
+_sse_subscriber --> _backend_state_slice
+_sse_subscriber --> _widget
+_store ..> _document_slice
+_store ..> _layer_slice
+_store ..> _segmentation_slice
+_store ..> _selection_slice
+_store ..> _tool_slice
+_store ..> _viewport_slice
+_store ..> _workspace_slice
+(telemetry) --> _backend_state_slice
+_time_of_day_tool --[thickness=1]> _tool
+_tool --> _store
+_tool --> _tool_slice
+(toolrail-spawn) --> _backend_state_slice
+(toolrail-spawn) ..> _backend_tools
+(toolrail-spawn) ..> _canvas_tool_registry
+(toolrail-spawn) --> _scope
+(toolrail-spawn) ..> (scope-from-selection)
+(toolrail-spawn) --> _store
+(ToolSection) ----> _auto_tune
+(ToolSection) ----> _backend_state_slice
+(ToolSection) ----> _backend_tools
+(ToolSection) ...> (CompoundWidgetBody)
+(ToolSection) ----> _curve
+(ToolSection) ..> (CurvesSectionBody)
+(ToolSection) ..> (HslOpenOnCanvasButton)
+(ToolSection) ..> (HslSectionBody)
+(ToolSection) ..> (LevelsSectionBody)
+(ToolSection) ----> _processing
+(ToolSection) ..> (PromoteOnlyBody)
+(ToolSection) ..> (RegistryDrivenSectionBody)
+(ToolSection) ..> (ScalarSectionBody)
+(ToolSection) ----> _store
+(ToolSection) ----> (useLiveMechanicalContext)
+(TopMarginalia) ----> (telemetry)
+_types --> _image_metadata
+_types ..> _layer_slice
+_types --> _workspace
+_use_param --> _backend_state_slice
+_use_param ..> _backend_tools
+_use_param --> _widget
+(use-processing-param) ..> _use_param
+(<b>useAutoTetherAiSuggestions</b>) ..[thickness=1]> _backend_state_slice
+(<b>useAutoTetherAiSuggestions</b>) ..[thickness=1]> _suggestions_ui_slice
+(<b>useAutoTetherAiSuggestions</b>) --[thickness=1]> (workspace-tether)
+(<b>useBackendSession</b>) ..[thickness=1]> _backend_state_slice
+(<b>useBackendSession</b>) ..[thickness=1]> _editor_state_persistence
+(<b>useBackendSession</b>) ..[thickness=1]> _mask_store
+(<b>useBackendSession</b>) ..[thickness=1]> (pixel-source-store)
+(<b>useBackendSession</b>) ..[thickness=1]> (restore-pixel-sources)
+(<b>useBackendSession</b>) --[thickness=1]> _sse_subscriber
+(<b>useBackendSession</b>) ..[thickness=1]> _store
+(<b>useBackendSession</b>) .[thickness=1]> (useImageContext)
+_useBackendStatus ..[thickness=1]> _backend_state_slice
+_useBackendStatus .[thickness=1]> (useImageContext)
+(useCanonicalParam) --> _use_param
+(useCanonicalParam) --> _widget
+(useCanvasZoom) ..> _store
+(useFileIO) ..> (document)
+(useFileIO) --> _export
+(useFileIO) --> (open-file)
+_useHistoryLog ..> _backend_state_slice
+_useHistoryLog --> _backend_tools
+(useHoveredWidget) ..> _store
+(useImageContext) --> (ai-client)
+(useImageContext) ..> _backend_state_slice
+(useImageContext) --> _backend_tools
+(useImageContext) --> (downscale-for-upload)
+(useImageContext) --> _image_context
+(useImageContext) ..> _mask_store
+(useImageContext) ..> (pixel-store)
+(useImageContext) ..> _store
+_useImageNodeObjects ..> _backend_state_slice
+_useImageNodeObjects ..> _mask_store
+_useImageNodeRender --> (active-canvas-bus)
+_useImageNodeRender ..> _backend_state_slice
+_useImageNodeRender --> _image_node_geometry
+_useImageNodeRender --> _image_node_renderer
+_useImageNodeRender --> _operation_graph
+_useImageNodeRender ..> _preferences_store
+_useImageNodeRender ..> _store
+_useImageNodeRender ..> _suggestions_ui_slice
+_useImageNodeRender --> _widget
+_useImageTransform --> (canvas-registry)
+_useImageTransform ..> _store
+(<b>useLayerWidgets</b>) ..[thickness=1]> _backend_state_slice
+(<b>useLayerWidgets</b>) --[thickness=1]> _widget
+(useLiveMechanicalContext) --> (active-canvas-bus)
+(useLiveMechanicalContext) --> _mechanical_context
+(useLiveMechanicalContext) ..> _store
+_useMobileSam --> (canvas-registry)
+_useMobileSam ..> _store
+(<b>useNodePreview</b>) --[thickness=1]> (canvas-registry)
+(<b>useNodePreview</b>) --[thickness=1]> _layer_compositor
+(<b>useNodePreview</b>) --[thickness=1]> (node-to-adjustment)
+(<b>useNodePreview</b>) --[thickness=1]> _pipeline_manager
+(<b>useNodePreview</b>) --[thickness=1]> _select_pipeline_nodes
+(<b>useNodePreview</b>) ..[thickness=1]> _store
+(<b>useOutputPreview</b>) --[thickness=1]> (canvas-registry)
+(<b>useOutputPreview</b>) --[thickness=1]> _layer_compositor
+(<b>useOutputPreview</b>) --[thickness=1]> _pipeline_manager
+(<b>useOutputPreview</b>) ..[thickness=1]> _store
+(useParamProvenance) ..> _backend_state_slice
+(useParamProvenance) ..> _store
+_useSmartMatch ..> _backend_state_slice
+_useSmartMatch --> _backend_tools
+(useWidgetExpansion) ..> _store
+(<b>useWorkspaceSelection</b>) ..[thickness=1]> _store
+(WhyPopover) ---> _widget
+_widget ..> _curve
+_widget ..> _image_context
+_widget ..> _operation_graph
+_widget ..> _scope
+(<b>widget-anchor</b>) --[thickness=1]> _widget
+(WidgetAutoButton) ---> _auto_tune
+(WidgetAutoButton) ---> (useLiveMechanicalContext)
+(WidgetAutoButton) ---> _widget
+_WidgetNode ..> (MarkerDot)
+_WidgetNode ---> (useChromeVisible)
+_WidgetNode ---> _widget
+_WidgetNode ..> _WidgetShell
+_WidgetShell ---> _backend_state_slice
+_WidgetShell ---> _backend_tools
+_WidgetShell ..> (BindingRow)
+_WidgetShell ..> (CompoundWidgetBody)
+_WidgetShell ..> (CurvesWidgetBody)
+_WidgetShell ..> (HslWidgetBody)
+_WidgetShell ..> (LevelsWidgetBody)
+_WidgetShell ---> (mask-filters)
+_WidgetShell ..> (RefineInput)
+_WidgetShell ---> _store
+_WidgetShell ---> (useHoveredWidget)
+_WidgetShell ---> (useParamProvenance)
+_WidgetShell ---> (useWidgetExpansion)
+_WidgetShell ..> (WhyPopover)
+_WidgetShell ---> _widget
+_WidgetShell ..> (WidgetAutoButton)
+_WidgetShell ..> (WidgetShellHeader)
+(WidgetShellHeader) ---> _widget
+_workspace_slice --> _workspace
+(workspace-tether) --> (document)
+(workspace-tether) --> _store
+(workspace-tether) --> _widget
+(workspace-tether) ---> _WidgetShell
+(workspace-tether) --> _workspace
+
+@enduml
+
+' View and edit on https://arkit.pro

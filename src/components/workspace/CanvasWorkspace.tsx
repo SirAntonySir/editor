@@ -375,7 +375,22 @@ export function CanvasWorkspace() {
   // user is editing layer properties.
   const onNodeClick = useCallback(
     (_: unknown, node: Node) => {
-      if (node.type === 'image') setActiveImageNode(node.id);
+      if (node.type !== 'image') return;
+      setActiveImageNode(node.id);
+      // Sync activeLayerId to the clicked image-node's first photo layer so
+      // the Adjustments tab targets this image's widgets (it filters via
+      // useLayerWidgets(activeLayerId)). Without this, clicking a different
+      // image leaves activeLayerId stale and slider writes hit the prior
+      // image's widgets. Falls back to the first layerId of any kind if no
+      // image layer exists.
+      const state = useEditorStore.getState();
+      const imageNode = state.imageNodes[node.id];
+      if (!imageNode) return;
+      const photoLayer =
+        imageNode.layerIds.find(
+          (lid) => state.layers.find((l) => l.id === lid)?.type === 'image',
+        ) ?? imageNode.layerIds[0];
+      if (photoLayer) state.setActiveLayer(photoLayer);
     },
     [setActiveImageNode],
   );

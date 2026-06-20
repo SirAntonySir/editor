@@ -6,7 +6,15 @@ export type Scope =
   | { kind: 'global' }
   | { kind: 'mask'; mask_id: string }
   | { kind: 'mask:proposed'; label: string }
-  | { kind: 'named_region'; label: string };
+  | { kind: 'named_region'; label: string }
+  /** Wire-only: the backend's broadcast-to-image-node routing keys off
+   *  scope.kind === 'image_node'. The frontend selection state never
+   *  stores this variant (image-node selection lives in workspace-slice
+   *  as `activeImageNodeId`), but the LLM-facing propose_stack handler
+   *  upgrades a 'global' request to this when an image is active so the
+   *  backend produces a multi-layer-broadcast widget the renderer paints
+   *  via composite-then-apply. */
+  | { kind: 'image_node'; imageNodeId: string; layerIds: string[] };
 
 export const GLOBAL_SCOPE: Scope = { kind: 'global' };
 

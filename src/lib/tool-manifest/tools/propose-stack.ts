@@ -53,10 +53,45 @@ export const proposeStackTool: ToolManifest<typeof input, typeof output> = {
   outputSchema: output,
   handler: ({ intent, scope, origin, forced_ops, prompt, layerId }) => {
     const sid = useBackendState.getState().sessionId;
-    const resolvedLayerId = layerId ?? useEditorStore.getState().activeLayerId ?? undefined;
     if (!sid) return { ok: false, message: 'Backend session not available.' };
 
-    const resolvedScope = resolveScope(scope);
+    // Resolve a REAL layer id, never letting the backend fall back to its
+    // "legacy" default. Without this the produced widget's nodes carry
+    // layer_id="legacy", which the frontend tether resolver can't match to
+    // any image-node — the widget exists in the snapshot but has no canvas
+    // home. Order: caller-supplied → activeLayerId → first image-layer of
+    // the active image-node. If none of those exist there is no image to
+    // adjust; refuse with a useful message so the LLM can recover.
+    const editor = useEditorStore.getState();
+    const activeNode = editor.activeImageNodeId
+      ? editor.imageNodes[editor.activeImageNodeId]
+      : undefined;
+    const firstPhotoLayer = activeNode
+      ? activeNode.layerIds.find(
+          (lid) => editor.layers.find((l) => l.id === lid)?.type === 'image',
+        ) ?? activeNode.layerIds[0]
+      : undefined;
+    const resolvedLayerId = layerId ?? editor.activeLayerId ?? firstPhotoLayer;
+    if (!resolvedLayerId) {
+      return {
+        ok: false,
+        message:
+          'No image is active. Open an image and try again, or pass layerId explicitly.',
+      };
+    }
+
+    // The backend reads multi-layer broadcast routing from
+    // scope.kind === "image_node". The LLM-facing scope vocabulary
+    // doesn't expose that variant, so when the LLM asks for global scope
+    // and we have an active image-node, upgrade silently to image_node so
+    // the produced widget broadcasts across the node's layers — matching
+    // what the frontend spawn paths (toolrail / promote / Cmd+K) already
+    // do via the layerIds field they cannot send from here.
+    const resolvedScope: Scope =
+      scope.kind === 'global' && activeNode
+        ? { kind: 'image_node', imageNodeId: activeNode.id, layerIds: activeNode.layerIds }
+        : resolveScope(scope);
+
     void backendTools.proposeStack(sid, {
       intent,
       scope: resolvedScope,

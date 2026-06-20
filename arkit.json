@@ -1,0 +1,109 @@
+{
+  "$schema": "./node_modules/arkit/schema.json",
+  "excludePatterns": [
+    "**/*.test.*",
+    "**/*.d.ts",
+    "src/test/**",
+    "src/main.tsx",
+    "src/vite-env.d.ts"
+  ],
+  "components": [
+    {
+      "type": "Type",
+      "patterns": ["src/types/**/*.ts"]
+    },
+    {
+      "type": "Workspace component",
+      "patterns": ["src/components/workspace/**/*.{ts,tsx}"]
+    },
+    {
+      "type": "Widget component",
+      "patterns": ["src/components/widget/**/*.{ts,tsx}"]
+    },
+    {
+      "type": "Inspector component",
+      "patterns": ["src/components/inspector/**/*.{ts,tsx}"]
+    },
+    {
+      "type": "Toolbar component",
+      "patterns": ["src/components/toolbar/**/*.{ts,tsx}"]
+    },
+    {
+      "type": "Panel component",
+      "patterns": ["src/components/panels/**/*.{ts,tsx}"]
+    },
+    {
+      "type": "UI primitive",
+      "patterns": ["src/components/ui/**/*.{ts,tsx}"]
+    },
+    {
+      "type": "Page scaffold",
+      "patterns": ["src/components/*.{ts,tsx}"]
+    },
+    {
+      "type": "Store slice",
+      "patterns": ["src/store/**/*.ts"]
+    },
+    {
+      "type": "Core",
+      "patterns": ["src/core/**/*.ts"]
+    },
+    {
+      "type": "Hook",
+      "patterns": ["src/hooks/**/*.ts"]
+    },
+    {
+      "type": "Tool manifest",
+      "patterns": ["src/lib/tool-manifest/**/*.ts"]
+    },
+    {
+      "type": "Library",
+      "patterns": ["src/lib/**/*.ts"]
+    },
+    {
+      "type": "Tool",
+      "patterns": ["src/tools/**/*.{ts,tsx}"]
+    },
+    {
+      "type": "Processing definition",
+      "patterns": ["src/processing/**/*.{ts,tsx}"]
+    }
+  ],
+  "output": [
+    {
+      "path": "docs/figures/architecture.puml",
+      "groups": [
+        {
+          "first": true,
+          "components": ["Page scaffold"]
+        },
+        {
+          "type": "Components (level-2)",
+          "components": [
+            "Workspace component",
+            "Widget component",
+            "Inspector component",
+            "Toolbar component",
+            "Panel component"
+          ]
+        },
+        {
+          "type": "Primitives",
+          "components": ["UI primitive"]
+        },
+        {
+          "type": "State + core",
+          "components": ["Store slice", "Core", "Hook"]
+        },
+        {
+          "type": "Library + tools",
+          "components": ["Library", "Tool manifest", "Tool", "Processing definition"]
+        },
+        {
+          "type": "Types",
+          "components": ["Type"]
+        }
+      ]
+    }
+  ]
+}

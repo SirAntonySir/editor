@@ -1,4 +1,4 @@
-.PHONY: help install dev dev-backend admin electron build electron-build lint test test-run check preview clean download-sam
+.PHONY: help install dev dev-backend admin diagram electron build electron-build lint test test-run check preview clean download-sam
 
 # The admin cockpit lives at /admin on the backend (FastAPI, port 8787)
 # and is gated to loopback peers (see backend/app/api/admin.py). Override
@@ -14,6 +14,7 @@ help:
 	@echo "  make dev             Run Vite dev server"
 	@echo "  make dev-backend     Run FastAPI backend (uvicorn)"
 	@echo "  make admin           Start backend and open the admin cockpit"
+	@echo "  make diagram         Regenerate docs/figures/architecture.{puml,svg} via arkit + PlantUML"
 	@echo "  make electron        Run Electron + Vite (dev)"
 	@echo "  make build           Type-check and build for production"
 	@echo "  make electron-build  Build Electron desktop app"
@@ -44,6 +45,9 @@ admin:
 		cd backend && source .venv/bin/activate && \
 		ANALYZE_SAM=1 uvicorn app.main:app --reload \
 		--host $$BACKEND_HOST --port $$BACKEND_PORT'
+
+diagram:
+	npm run diagram
 
 electron:
 	npm run electron:dev

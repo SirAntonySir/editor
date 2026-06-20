@@ -52,3 +52,6 @@ backend/.sessions/
 # Vendored ML model + runtime assets (populated via `make download-sam`)
 public/models/
 public/ort/
+
+# PlantUML jar (downloaded on demand by `make diagram`)
+tools/plantuml/plantuml.jar

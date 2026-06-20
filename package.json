@@ -16,6 +16,9 @@
     "test:run": "vitest run --passWithNoTests",
     "check": "npm run gen:types:check && tsc -b && eslint . && vitest run --passWithNoTests",
     "lint:rules": "node tools/eslint-rules/no-nested-component-definition.test.js",
+    "diagram:puml": "arkit -c arkit.json",
+    "diagram:svg": "test -f tools/plantuml/plantuml.jar || (mkdir -p tools/plantuml && curl -L -o tools/plantuml/plantuml.jar https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar) && java -jar tools/plantuml/plantuml.jar -tsvg -Playout=smetana docs/figures/architecture.puml",
+    "diagram": "npm run diagram:puml && npm run diagram:svg",
     "gen:types": "cd backend && . .venv/bin/activate && python ../scripts/gen-shared-types.py",
     "gen:types:check": "cd backend && . .venv/bin/activate && python ../scripts/gen-shared-types.py --check",
     "prepare": "git config core.hooksPath .git-hooks"
@@ -81,6 +84,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "arkit": "^1.6.4",
     "concurrently": "^9.2.1",
     "electron": "^42.2.0",
     "electron-builder": "^26.8.1",

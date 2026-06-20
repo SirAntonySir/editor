@@ -212,43 +212,41 @@ export function WidgetShellHeader({
         </button>
       </Tooltip>
 
-      {expanded && (
-        <>
-          {/* Accept (✓) / Reject (✗) pair. Both are flat ghost icon buttons —
-              the previous filled-circle Apply read as a heavy stamp; matching
-              the row's visual weight is more in line with the flat register.
-              Apply's tint (AI violet for AI widgets, accent for tool) is the
-              only visual signal that it's the primary action. */}
-          <Tooltip label="Apply this widget">
-            <button
-              type="button"
-              aria-label="Apply widget"
-              disabled={applyDisabled}
-              onClick={(e) => { e.stopPropagation(); onApply(); }}
-              className={[
-                'inline-flex items-center justify-center size-4 rounded-[3px]',
-                'transition-colors',
-                'disabled:opacity-40 disabled:cursor-not-allowed',
-                showAiAffordances
-                  ? 'text-ai hover:bg-[color-mix(in_srgb,var(--color-ai)_14%,transparent)]'
-                  : 'text-accent hover:bg-[color-mix(in_srgb,var(--color-accent)_14%,transparent)]',
-              ].join(' ')}
-            >
-              <Check size={12} strokeWidth={2.5} aria-hidden />
-            </button>
-          </Tooltip>
-          <Tooltip label="Discard widget">
-            <button
-              type="button"
-              aria-label="Close widget"
-              onClick={(e) => { e.stopPropagation(); onClose(); }}
-              className={GHOST_BTN}
-            >
-              <X size={11} aria-hidden />
-            </button>
-          </Tooltip>
-        </>
-      )}
+      {/* Accept (✓) / Reject (✗) pair. Rendered in BOTH expanded and
+          collapsed states so the user can decide on a pill without opening
+          it. Flat ghost icon buttons — the previous filled-circle Apply
+          read as a heavy stamp; matching the row's visual weight is more
+          in line with the flat register. Apply's tint (AI violet for AI
+          widgets, accent for tool) is the only visual signal that it's
+          the primary action. */}
+      <Tooltip label="Apply this widget">
+        <button
+          type="button"
+          aria-label="Apply widget"
+          disabled={applyDisabled}
+          onClick={(e) => { e.stopPropagation(); onApply(); }}
+          className={[
+            'inline-flex items-center justify-center size-4 rounded-[3px]',
+            'transition-colors',
+            'disabled:opacity-40 disabled:cursor-not-allowed',
+            showAiAffordances
+              ? 'text-ai hover:bg-[color-mix(in_srgb,var(--color-ai)_14%,transparent)]'
+              : 'text-accent hover:bg-[color-mix(in_srgb,var(--color-accent)_14%,transparent)]',
+          ].join(' ')}
+        >
+          <Check size={12} strokeWidth={2.5} aria-hidden />
+        </button>
+      </Tooltip>
+      <Tooltip label="Discard widget">
+        <button
+          type="button"
+          aria-label="Close widget"
+          onClick={(e) => { e.stopPropagation(); onClose(); }}
+          className={GHOST_BTN}
+        >
+          <X size={11} aria-hidden />
+        </button>
+      </Tooltip>
     </div>
   );
 }

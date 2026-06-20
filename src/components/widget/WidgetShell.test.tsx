@@ -50,10 +50,14 @@ describe('WidgetShell', () => {
     vi.clearAllMocks();
   });
 
-  it('renders as collapsed strip by default', () => {
+  it('renders as collapsed strip by default with Apply + Close on the pill', () => {
     renderInFlow(<WidgetShell widget={makeAiWidget()} />);
     expect(screen.getByText('Warm up shadows')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /apply widget/i })).not.toBeInTheDocument();
+    // Apply + Close stay on the collapsed pill so the user can decide
+    // without expanding. Refine/Why/Reset stay gated to expanded.
+    expect(screen.getByRole('button', { name: /apply widget/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /close widget/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /refine widget/i })).not.toBeInTheDocument();
   });
 
   it('expands on header click', () => {

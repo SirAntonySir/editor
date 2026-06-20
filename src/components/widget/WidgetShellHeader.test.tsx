@@ -61,10 +61,12 @@ describe('WidgetShellHeader', () => {
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
-  it('renders close button only when expanded; clicking it invokes onClose', () => {
+  it('close button is present in both collapsed and expanded states; clicking it invokes onClose', () => {
     const onClose = vi.fn();
     const { rerender } = render(<WidgetShellHeader widget={makeAiWidget()} {...baseProps} onClose={onClose} />);
-    expect(screen.queryByRole('button', { name: /close widget/i })).not.toBeInTheDocument();
+    // Collapsed: Close (and Apply) live in the header so the user can
+    // decide on a pill without opening it.
+    expect(screen.getByRole('button', { name: /close widget/i })).toBeInTheDocument();
     rerender(<WidgetShellHeader widget={makeAiWidget()} {...baseProps} expanded onClose={onClose} />);
     fireEvent.click(screen.getByRole('button', { name: /close widget/i }));
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -113,12 +115,14 @@ describe('WidgetShellHeader', () => {
 });
 
 describe('WidgetShellHeader action buttons', () => {
-  it('hides action buttons (Refine, Why, Reset, Apply) when collapsed', () => {
+  it('hides expand-only action buttons (Refine, Why, Reset) when collapsed but keeps Apply + Close', () => {
     render(<WidgetShellHeader widget={makeAiWidget()} {...baseProps} expanded={false} />);
     expect(screen.queryByRole('button', { name: /refine widget/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /explain widget/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /reset widget/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /apply widget/i })).not.toBeInTheDocument();
+    // Apply + Close are the decision pair and stay visible on the pill.
+    expect(screen.getByRole('button', { name: /apply widget/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /close widget/i })).toBeInTheDocument();
   });
 
   it('shows all four AI action buttons when expanded on an AI widget', () => {

@@ -2,10 +2,12 @@ import { useState, useMemo } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Handle, Position } from '@xyflow/react';
+import { Sparkles } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
+import { analyseImageLayer } from '@/hooks/useImageContext';
 import { backendTools } from '@/lib/backend-tools';
 import { editorDocument } from '@/core/document';
 import { toast } from '@/components/ui/Toast';
@@ -198,6 +200,16 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   const itemClassDim = 'px-2 py-1 text-[10px] rounded-sm cursor-not-allowed outline-none text-text-secondary opacity-60';
   const renderMenuItems = (Item: typeof DropdownMenu.Item | typeof ContextMenu.Item) => (
     <>
+      <Item
+        className={itemClass}
+        onSelect={() => void analyseImageLayer(id)}
+      >
+        <span className="flex items-center gap-1.5">
+          <Sparkles size={11} className="text-[var(--color-ai)]" />
+          <span>Analyze with AI</span>
+        </span>
+      </Item>
+      <div className="my-1 h-px bg-separator" />
       {selectedObject && (
         <>
           <div className="px-2 pt-1 pb-0.5 text-[9px] uppercase tracking-wide text-text-secondary">

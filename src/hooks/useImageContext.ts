@@ -352,6 +352,49 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
 }));
 
 /**
+ * Resolve the first photo-type layer id for the given image-node id.
+ * Returns null when the node doesn't exist or has no image layers.
+ */
+function resolveLayerIdForImageNode(imageNodeId: string): string | null {
+  const { imageNodes, layers } = useEditorStore.getState();
+  const node = imageNodes[imageNodeId];
+  if (!node) return null;
+  for (const lid of node.layerIds) {
+    if (layers.find((l) => l.id === lid)?.type === 'image') return lid;
+  }
+  return node.layerIds[0] ?? null;
+}
+
+/**
+ * Run AI analyze for a specific image-node. If a session is already alive
+ * just calls `runAnalyse` (the session's own layer resolution picks up the
+ * explicit id via `resolveTargetImageLayerId`). When no session exists,
+ * uploads the target layer's pixels first. This lets per-node context-menu
+ * items target an image that is not the current `activeImageNodeId`.
+ */
+export async function analyseImageLayer(imageNodeId: string): Promise<void> {
+  const { setActiveImageNode, activeImageNodeId } = useEditorStore.getState();
+  // Temporarily promote this node to active so `resolveTargetImageLayerId`
+  // inside `runAnalyse` picks the right layer. Restore the previous active
+  // node only if it was different — avoids a spurious state write on
+  // re-clicking the already-active node.
+  const prevActive = activeImageNodeId;
+  if (prevActive !== imageNodeId) setActiveImageNode(imageNodeId);
+
+  const ai = useAiSession.getState();
+  if (ai.sessionId) {
+    await ai.runAnalyse();
+  } else {
+    const targetLayerId = resolveLayerIdForImageNode(imageNodeId);
+    if (!targetLayerId) return;
+    const source = pixelStore.getSource(targetLayerId);
+    if (!source) return;
+    const bitmap = await createImageBitmap(source);
+    await ai.uploadAndAnalyse(bitmap);
+  }
+}
+
+/**
  * Run AI analyze for the active image layer (the one belonging to the
  * currently selected ImageNode on the canvas, falling back to activeLayerId
  * or the document's first image layer). If a session is already alive
@@ -361,6 +404,10 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
  * `.edp` open, and by IndexedDB session-restore.
  */
 export async function analyseActiveImageLayer(): Promise<void> {
+  const activeImageNodeId = useEditorStore.getState().activeImageNodeId;
+  if (activeImageNodeId) {
+    return analyseImageLayer(activeImageNodeId);
+  }
   const ai = useAiSession.getState();
   if (ai.sessionId) {
     await ai.runAnalyse();

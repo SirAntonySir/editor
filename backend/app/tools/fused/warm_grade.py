@@ -1,37 +1,12 @@
 from __future__ import annotations
 
-from typing import Any
-
-from app.schemas.enriched_context import EnrichedImageContext
-from app.schemas.widget import ControlSchema, NodeParamTarget, Scope, Widget
+from app.schemas.widget import ControlSchema, NodeParamTarget
 from app.tools.fused_framework import (
     BindingSkeleton,
     FusedToolTemplate,
     NodeSkeleton,
     ParamRange,
-    ResolvedNumbers,
-    ResolverError,
 )
-
-
-_RESPONSE_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["values"],
-    "properties": {
-        "values": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["temperature", "highlight_warmth", "saturation_lift"],
-            "properties": {
-                "temperature": {"type": "number"},
-                "highlight_warmth": {"type": "number"},
-                "saturation_lift": {"type": "number"},
-            },
-        },
-        "reasoning": {"type": "string"},
-    },
-}
 
 
 class WarmGradeTemplate(FusedToolTemplate):
@@ -86,38 +61,4 @@ class WarmGradeTemplate(FusedToolTemplate):
         "saturation_lift": ParamRange(min=-20, max=20, step=1, skin_safe_max=5),
     }
     safety = {"skin_protect": True}
-    context_inputs = ["cast_direction", "wb_neutral_confidence", "region_stats.mean_rgb", "grade_character"]
-
-    async def resolve(
-        self,
-        intent: str,
-        scope: Scope,
-        ctx: EnrichedImageContext,
-        prior_widget: Widget | None,
-        instruction: str | None,
-        anthropic: Any,
-    ) -> ResolvedNumbers:
-        prompt_payload = {
-            "intent": intent,
-            "scope": scope.model_dump(mode="json"),
-            "context_summary": {
-                "cast_direction": ctx.cast_direction,
-                "wb_neutral_confidence": ctx.wb_neutral_confidence,
-                "grade_character": ctx.grade_character,
-            },
-            "prior_widget_values": (
-                {b.param_key: b.value for b in prior_widget.bindings}
-                if prior_widget is not None else None
-            ),
-            "instruction": instruction,
-        }
-        try:
-            raw = anthropic.resolve_fused_tool(
-                template_id=self.id,
-                prompt_payload=prompt_payload,
-                response_schema=_RESPONSE_SCHEMA,
-                session_id=getattr(ctx, "model_version", None),
-            )
-        except Exception as exc:
-            raise ResolverError(str(exc)) from exc
-        return ResolvedNumbers.model_validate(raw)
+    context_inputs = ["cast_direction", "wb_neutral_confidence", "grade_character"]

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { RegistryOp, OpBinding } from '../../../shared/registry/schema';
 import { CONTROL_MAP } from '../registry-controls';
 
@@ -6,6 +7,10 @@ export interface RegistryDrivenPanelProps {
   values: Record<string, unknown>;
   onParamChange: (paramKey: string, value: unknown) => void;
   disabled?: boolean;
+  /** Renders the Pin (or other) affordance for each binding, slotted next
+   *  to the label by the control primitive. Caller composes per-key — e.g.
+   *  the ToolrailSectionBody wraps each binding in `<SliderPinMenu>`. */
+  renderPinSlot?: (paramKey: string, label: string) => ReactNode;
 }
 
 interface BindingGroup {
@@ -40,6 +45,7 @@ export function RegistryDrivenPanel({
   values,
   onParamChange,
   disabled,
+  renderPinSlot,
 }: RegistryDrivenPanelProps) {
   const groups = groupBindings(op);
   return (
@@ -49,24 +55,25 @@ export function RegistryDrivenPanel({
           {group && <GroupTitle label={group} />}
           <div className="flex flex-col gap-2">
             {bindings.map((binding) => {
-              const Component = CONTROL_MAP[binding.control_type];
-              const param = op.params[binding.param_key];
+              const Component = CONTROL_MAP[binding.controlType];
+              const param = op.params[binding.paramKey];
               if (!Component) {
                 return (
-                  <div key={binding.param_key} className="text-[10px] text-text-secondary">
-                    missing control: {binding.control_type}
+                  <div key={binding.paramKey} className="text-[10px] text-text-secondary">
+                    missing control: {binding.controlType}
                   </div>
                 );
               }
               return (
                 <Component
-                  key={binding.param_key}
-                  paramKey={binding.param_key}
+                  key={binding.paramKey}
+                  paramKey={binding.paramKey}
                   label={binding.label}
-                  value={values[binding.param_key] ?? param.default}
+                  value={values[binding.paramKey] ?? param.default}
                   schema={param}
-                  onChange={(next) => onParamChange(binding.param_key, next)}
+                  onChange={(next) => onParamChange(binding.paramKey, next)}
                   disabled={disabled}
+                  pinSlot={renderPinSlot ? renderPinSlot(binding.paramKey, binding.label) : undefined}
                 />
               );
             })}

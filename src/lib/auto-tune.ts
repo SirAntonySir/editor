@@ -26,12 +26,12 @@ function _clamp(v: number, lo: number, hi: number): number {
 /** Auto Light — exposure toward median-luma 128, optional contrast lift when
  *  the histogram is flat. Maps to `light` op params in [-100, 100]. */
 export function autoLight(m: MechanicalSnapshot): AutoSpawnSpec {
-  // median_luma is in [0, 255]. Target a perceptually mid value of 128.
+  // medianLuma is in [0, 255]. Target a perceptually mid value of 128.
   // Scale the gap by ~0.6 so we nudge rather than slam — the user can push
   // further with the slider.
-  const exposureDelta = _clamp(((128 - m.median_luma) / 128) * 60, -50, 50);
+  const exposureDelta = _clamp(((128 - m.medianLuma) / 128) * 60, -50, 50);
   // Lift contrast when the histogram is compressed (p10-p90 < ~140).
-  const contrastDelta = _clamp((140 - m.contrast_p10_p90) * 0.4, -20, 30);
+  const contrastDelta = _clamp((140 - m.contrastP10P90) * 0.4, -20, 30);
   return {
     opId: 'light',
     params: {
@@ -44,7 +44,7 @@ export function autoLight(m: MechanicalSnapshot): AutoSpawnSpec {
 
 /** Auto Contrast — only contrast, target a wider p10-p90 spread. */
 export function autoContrast(m: MechanicalSnapshot): AutoSpawnSpec {
-  const contrastDelta = _clamp((160 - m.contrast_p10_p90) * 0.5, -30, 50);
+  const contrastDelta = _clamp((160 - m.contrastP10P90) * 0.5, -30, 50);
   return {
     opId: 'light',
     params: { contrast: Math.round(contrastDelta) },
@@ -56,11 +56,11 @@ export function autoContrast(m: MechanicalSnapshot): AutoSpawnSpec {
 export function autoTone(m: MechanicalSnapshot): AutoSpawnSpec {
   // Convert clipped percentages (0-100) into highlight/shadow nudges.
   // 1% clipping ≈ -8 highlights / +8 shadows; cap at ±40.
-  const highlights = m.clipped_highlights_pct > 0.5
-    ? _clamp(-m.clipped_highlights_pct * 8, -50, 0)
+  const highlights = m.clippedHighlightsPct > 0.5
+    ? _clamp(-m.clippedHighlightsPct * 8, -50, 0)
     : 0;
-  const shadows = m.clipped_shadows_pct > 0.5
-    ? _clamp(m.clipped_shadows_pct * 8, 0, 50)
+  const shadows = m.clippedShadowsPct > 0.5
+    ? _clamp(m.clippedShadowsPct * 8, 0, 50)
     : 0;
   return {
     opId: 'light',
@@ -73,12 +73,14 @@ export function autoTone(m: MechanicalSnapshot): AutoSpawnSpec {
 }
 
 /** Auto Color — neutralise a chromatic cast via white balance.
- *  cast_direction is Lab a-star / b-star of the mean RGB. Positive a-star =
+ *  castDirection is Lab a-star / b-star of the mean RGB. Positive a-star =
  *  red cast → cool the image (lower kelvin). Negative b-star = blue cast →
  *  warm (raise kelvin). Coarse single-knob correction; real cast correction
  *  needs per-channel curves. Good enough as a first pass. */
 export function autoColor(m: MechanicalSnapshot): AutoSpawnSpec {
-  const [a, b] = m.cast_direction;
+  // Defensive default: a malformed snapshot (or partial mock) may omit
+  // castDirection. Treat absent as "no cast detected".
+  const [a, b] = m.castDirection ?? [0, 0];
   // Kelvin is in [2000, 10000], neutral 6500. Warm = higher k, cool = lower.
   // Use b* (yellow/blue axis) as the primary signal: positive b* (yellow
   // cast) → cool toward lower kelvin. a* (red/green) is secondary; we
@@ -104,12 +106,12 @@ export function autoParamsForOp(
   if (opId === 'light') {
     // Rolled-up Light: exposure to target median, contrast to widen
     // spread, plus highlight recovery / shadow lift for any clipping.
-    const exposure = _clamp(((128 - m.median_luma) / 128) * 60, -50, 50);
-    const contrast = _clamp((140 - m.contrast_p10_p90) * 0.4, -20, 30);
-    const highlights = m.clipped_highlights_pct > 0.5
-      ? _clamp(-m.clipped_highlights_pct * 8, -50, 0) : 0;
-    const shadows = m.clipped_shadows_pct > 0.5
-      ? _clamp(m.clipped_shadows_pct * 8, 0, 50) : 0;
+    const exposure = _clamp(((128 - m.medianLuma) / 128) * 60, -50, 50);
+    const contrast = _clamp((140 - m.contrastP10P90) * 0.4, -20, 30);
+    const highlights = m.clippedHighlightsPct > 0.5
+      ? _clamp(-m.clippedHighlightsPct * 8, -50, 0) : 0;
+    const shadows = m.clippedShadowsPct > 0.5
+      ? _clamp(m.clippedShadowsPct * 8, 0, 50) : 0;
     return {
       exposure: Math.round(exposure),
       contrast: Math.round(contrast),
@@ -121,7 +123,7 @@ export function autoParamsForOp(
   if (opId === 'color') {
     // Cap saturation boost by current cast strength — a cast-heavy image
     // shouldn't get its colours pushed further.
-    const sat = _clamp(15 - m.cast_strength * 30, -10, 20);
+    const sat = _clamp(15 - m.castStrength * 30, -10, 20);
     return { saturation: Math.round(sat) };
   }
   if (opId === 'levels') {
@@ -129,16 +131,16 @@ export function autoParamsForOp(
     // Approximate p1 = first non-empty bin, p99 = last non-empty bin.
     let p1 = 0, p99 = 255;
     let total = 0;
-    for (const c of m.luma_histogram) total += c;
+    for (const c of m.lumaHistogram) total += c;
     if (total > 0) {
       let acc = 0;
       for (let i = 0; i < 256; i++) {
-        acc += m.luma_histogram[i];
+        acc += m.lumaHistogram[i];
         if (acc / total >= 0.01) { p1 = i; break; }
       }
       acc = 0;
       for (let i = 255; i >= 0; i--) {
-        acc += m.luma_histogram[i];
+        acc += m.lumaHistogram[i];
         if (acc / total >= 0.01) { p99 = i; break; }
       }
     }

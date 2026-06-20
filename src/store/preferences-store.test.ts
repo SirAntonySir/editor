@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { usePreferencesStore } from './preferences-store';
+import { usePreferencesStore, migratePreferences } from './preferences-store';
 
 beforeEach(() => {
   usePreferencesStore.setState({ rightSidebarCollapsed: true, inspectorTab: 'adjustments' });
@@ -26,5 +26,25 @@ describe('showCrop', () => {
     usePreferencesStore.getState().showCrop();
     expect(usePreferencesStore.getState().rightSidebarCollapsed).toBe(false);
     expect(usePreferencesStore.getState().inspectorTab).toBe('crop');
+  });
+});
+
+describe('migratePreferences', () => {
+  it('drops visualStyle from old persisted state', () => {
+    const before = { themeMode: 'dark', visualStyle: 'classic' };
+    const after = migratePreferences(before, 0);
+    expect('visualStyle' in (after as object)).toBe(false);
+    expect((after as { themeMode: string }).themeMode).toBe('dark');
+  });
+
+  it('is a no-op when visualStyle is absent', () => {
+    const before = { themeMode: 'light', accentColor: '#0071e3' };
+    const after = migratePreferences(before, 0);
+    expect(after).toEqual({ themeMode: 'light', accentColor: '#0071e3' });
+  });
+
+  it('handles null/non-object state safely', () => {
+    expect(migratePreferences(null, 0)).toBeNull();
+    expect(migratePreferences('bad', 0)).toBe('bad');
   });
 });

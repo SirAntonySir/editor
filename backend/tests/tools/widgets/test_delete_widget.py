@@ -154,6 +154,57 @@ def test_delete_widget_resets_owned_canonical_params(client) -> None:
     )
 
 
+def test_delete_widget_after_accept_keeps_canonical(client) -> None:
+    """The intent doc'd on dismiss_widget says '(accept_widget keeps canonical)'
+    — meaning the user's Apply flow commits the values, and a subsequent
+    close on the now-accepted widget should NOT roll them back.
+
+    Without this guard, the WidgetShell Apply → SSE removes the widget →
+    user clicks × on the next widget → previous canonical wiped → the
+    adjustment sliders the user just committed to in the inspector drop
+    back to defaults the next time the user opens the canvas widget."""
+    from app.state.operations import project_to_graph
+
+    sid = _create_session(client)
+    wid = _push_widget(sid)  # node: layer_01 / kelvin / temperature=5800
+
+    # Apply first.
+    client.post(
+        "/api/tools/accept_widget",
+        json={"session_id": sid, "input": {"widget_id": wid}},
+    )
+
+    doc = deps.get_session_store().get_document(sid)
+    canon_node_id = "canon:layer_01:kelvin"
+    pre_close_graph = project_to_graph(doc)
+    pre_close_node = next(
+        (n for n in pre_close_graph.nodes if n.id == canon_node_id),
+        None,
+    )
+    assert pre_close_node is not None and pre_close_node.params.get("temperature") == 5800, (
+        "test prerequisite: accept_widget must have committed the value to canonical"
+    )
+
+    # Now close (×) the accepted widget.
+    client.post(
+        "/api/tools/delete_widget",
+        json={"session_id": sid, "input": {"widget_id": wid, "suppress_similar": False}},
+    )
+
+    post_close_graph = project_to_graph(doc)
+    post_close_node = next(
+        (n for n in post_close_graph.nodes if n.id == canon_node_id),
+        None,
+    )
+    assert post_close_node is not None, (
+        "close after accept must NOT remove the canonical node — the user committed those values"
+    )
+    assert post_close_node.params.get("temperature") == 5800, (
+        f"close after accept must NOT roll back the canonical param "
+        f"(got {post_close_node.params.get('temperature')!r}, expected 5800)"
+    )
+
+
 def test_delete_widget_emits_widget_deleted_event(client) -> None:
     """delete_widget MUST emit a 'widget.deleted' history event."""
     sid = _create_session(client)

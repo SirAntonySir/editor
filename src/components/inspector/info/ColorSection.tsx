@@ -1,27 +1,23 @@
 import { Palette, Pin } from 'lucide-react';
-import type { EnrichedImageContext } from '@/types/enriched-context';
+import type { ImageContext } from '@/types/image-context';
 import { Swatch } from '@/components/ui/Swatch';
+import { ColorCastPlot } from '@/components/ui/ColorCastPlot';
 import { SectionHeader } from './SectionHeader';
 import { useEditorStore } from '@/store';
 import { editorDocument } from '@/core/document';
 import { toast } from '@/components/ui/Toast';
 
 interface Props {
-  ctx: EnrichedImageContext;
+  ctx: ImageContext;
 }
-
-// Lab a*/b* are theoretically unbounded but typical natural images stay
-// within ±50. Beyond that we clamp.
-const AB_RANGE = 50;
-const CAST_BOX_SIZE = 56;
 
 export function ColorSection({ ctx }: Props) {
   // Streaming-aware: palette + cast arrive on the mechanical delta; white
   // point + WB confidence land on the soft-fields delta. Render whatever's
   // present, hold the rest as compact skeleton lines so the section grows
   // into place rather than reflowing when soft arrives.
-  const hasWhitePoint = Array.isArray(ctx.estimated_white_point);
-  const [r, g, b] = hasWhitePoint ? ctx.estimated_white_point : [0, 0, 0];
+  const hasWhitePoint = Array.isArray(ctx.estimatedWhitePoint);
+  const [r, g, b] = hasWhitePoint ? ctx.estimatedWhitePoint! : [0, 0, 0];
 
   function pinAt(): { position: { x: number; y: number }; targetImageNodeId?: string } {
     const editor = useEditorStore.getState();
@@ -36,12 +32,12 @@ export function ColorSection({ ctx }: Props) {
   }
 
   function pinPalette() {
-    if (ctx.color_palette.length === 0) return;
+    if (!ctx.colorPalette || ctx.colorPalette.length === 0) return;
     editorDocument.workspace.addInfoNode(
       {
         kind: 'palette',
         palette: {
-          swatches: ctx.color_palette.map((s) => ({
+          swatches: ctx.colorPalette.map((s) => ({
             rgb: [s.rgb[0], s.rgb[1], s.rgb[2]] as [number, number, number],
             weight: s.weight,
           })),
@@ -53,10 +49,11 @@ export function ColorSection({ ctx }: Props) {
   }
 
   function pinCast() {
+    if (!ctx.castDirection) return;
     editorDocument.workspace.addInfoNode(
       {
         kind: 'cast',
-        cast: { a: ctx.cast_direction[0], b: ctx.cast_direction[1], strength: ctx.cast_strength },
+        cast: { a: ctx.castDirection[0], b: ctx.castDirection[1], strength: ctx.castStrength ?? 0 },
       },
       { ...pinAt(), title: 'Color cast' },
     );
@@ -66,19 +63,37 @@ export function ColorSection({ ctx }: Props) {
   return (
     <section className="px-3 py-2.5">
       <SectionHeader icon={Palette} label="Color" />
-      {ctx.color_palette.length > 0 && (
+      {(ctx.colorPalette?.length ?? 0) > 0 && (
         <div className="relative group flex h-5 mb-2.5 rounded-[3px] overflow-hidden border border-separator">
-          {ctx.color_palette.map((s, i) => (
-            <div
-              key={i}
-              style={{
-                flexGrow: Math.max(s.weight, 0.02),
-                minWidth: 8,
-                backgroundColor: `rgb(${s.rgb[0]}, ${s.rgb[1]}, ${s.rgb[2]})`,
-              }}
-              title={`#${hex(s.rgb[0])}${hex(s.rgb[1])}${hex(s.rgb[2])} · ${(s.weight * 100).toFixed(0)}%`}
-            />
-          ))}
+          {ctx.colorPalette!.map((s, i) => {
+            const hexStr = `#${hex(s.rgb[0])}${hex(s.rgb[1])}${hex(s.rgb[2])}`;
+            const pctStr = `${(s.weight * 100).toFixed(0)}%`;
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() =>
+                  window.dispatchEvent(new CustomEvent('spawn-palette:open', {
+                    detail: {
+                      attachContext: [{
+                        label: 'Color',
+                        value: `${hexStr} · ${pctStr}`,
+                        sourceId: `color:${hexStr}`,
+                      }],
+                    },
+                  }))
+                }
+                title={`${hexStr} · ${pctStr} — click to attach as context`}
+                style={{
+                  flexGrow: Math.max(s.weight, 0.02),
+                  minWidth: 8,
+                  backgroundColor: `rgb(${s.rgb[0]}, ${s.rgb[1]}, ${s.rgb[2]})`,
+                }}
+                className="block cursor-pointer focus:outline-none hover:opacity-80 transition-opacity"
+                aria-label={`Color ${hexStr}`}
+              />
+            );
+          })}
           <button
             type="button"
             onClick={pinPalette}
@@ -99,7 +114,7 @@ export function ColorSection({ ctx }: Props) {
         <dd className="text-[10px] text-text-primary text-right">
           {hasWhitePoint ? (
             <span className="inline-flex items-center gap-1">
-              <Swatch rgb={ctx.estimated_white_point} size={10} />
+              <Swatch rgb={ctx.estimatedWhitePoint!} size={10} />
               <span className="tabular-nums">rgb({Math.round(r)}, {Math.round(g)}, {Math.round(b)})</span>
             </span>
           ) : (
@@ -108,16 +123,21 @@ export function ColorSection({ ctx }: Props) {
         </dd>
         <dt className="text-[10px] text-text-secondary">WB confidence</dt>
         <dd className="text-[10px] text-text-primary text-right tabular-nums">
-          {typeof ctx.wb_neutral_confidence === 'number' ? (
-            `${(ctx.wb_neutral_confidence * 100).toFixed(0)}%`
+          {typeof ctx.wbNeutralConfidence === 'number' ? (
+            `${(ctx.wbNeutralConfidence * 100).toFixed(0)}%`
           ) : (
             <span className="inline-block w-10 h-2.5 rounded-sm bg-surface-secondary" aria-hidden />
           )}
         </dd>
       </dl>
-      {ctx.cast_strength > 0 && (
+      {(ctx.castStrength ?? 0) > 0 && ctx.castDirection && (
         <div className="relative group">
-          <CastDot direction={ctx.cast_direction} strength={ctx.cast_strength} />
+          <div className="text-[10px] text-text-secondary mb-1">Color cast (a*/b*)</div>
+          <ColorCastPlot
+            a={ctx.castDirection[0]}
+            b={ctx.castDirection[1]}
+            strength={ctx.castStrength!}
+          />
           <button
             type="button"
             onClick={pinCast}
@@ -135,47 +155,6 @@ export function ColorSection({ ctx }: Props) {
       )}
     </section>
   );
-}
-
-function CastDot({ direction, strength }: { direction: [number, number]; strength: number }) {
-  const ax = clamp(direction[0], -AB_RANGE, AB_RANGE);
-  const ay = clamp(direction[1], -AB_RANGE, AB_RANGE);
-  const x = ((ax + AB_RANGE) / (2 * AB_RANGE)) * CAST_BOX_SIZE;
-  const y = ((ay + AB_RANGE) / (2 * AB_RANGE)) * CAST_BOX_SIZE;
-  return (
-    <div>
-      <div className="text-[10px] text-text-secondary mb-1">Color cast (a*/b*)</div>
-      <div className="flex items-stretch gap-3">
-        {/* 2D Lab-a / Lab-b plot — fixed square, geometric meaning matters. */}
-        <div
-          className="relative flex-none bg-surface-secondary rounded-[3px] border border-separator"
-          style={{ width: CAST_BOX_SIZE, height: CAST_BOX_SIZE }}
-        >
-          <div className="absolute top-1/2 left-0 right-0 h-px bg-separator" />
-          <div className="absolute top-0 bottom-0 left-1/2 w-px bg-separator" />
-          <div
-            className="absolute w-2 h-2 -ml-1 -mt-1 rounded-full bg-accent shadow-sm"
-            style={{ left: x, top: y, opacity: Math.min(1, 0.4 + strength * 0.6) }}
-          />
-        </div>
-        {/* Values column — grid pulls labels left, values right; flex-1 +
-            min-w-0 lets it claim every pixel the chart doesn't use. */}
-        <dl className="flex-1 min-w-0 grid grid-cols-[auto_1fr] auto-rows-min content-center
-          gap-x-3 gap-y-0.5 text-[10px] tabular-nums">
-          <dt className="text-text-secondary">a*</dt>
-          <dd className="text-text-primary text-right">{ax.toFixed(1)}</dd>
-          <dt className="text-text-secondary">b*</dt>
-          <dd className="text-text-primary text-right">{ay.toFixed(1)}</dd>
-          <dt className="text-text-secondary">strength</dt>
-          <dd className="text-text-primary text-right">{(strength * 100).toFixed(0)}%</dd>
-        </dl>
-      </div>
-    </div>
-  );
-}
-
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
 }
 
 function hex(n: number): string {

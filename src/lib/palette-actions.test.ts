@@ -43,7 +43,7 @@ describe('proposeFromPalette', () => {
       intent: 'warmer',
       scope: { kind: 'global' },
       prompt: 'warmer',
-      layer_id: LAYER_ID,
+      layerId: LAYER_ID,
       origin: 'mcp_user_prompt',
     });
   });
@@ -57,7 +57,7 @@ describe('proposeFromPalette', () => {
       intent: 'warmer',
       scope: { kind: 'named_region', label: 'sky' },
       prompt: 'warmer',
-      layer_id: LAYER_ID,
+      layerId: LAYER_ID,
       origin: 'mcp_user_prompt',
     });
   });

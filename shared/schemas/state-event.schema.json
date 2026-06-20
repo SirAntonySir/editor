@@ -1,0 +1,53 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "emittedAt": {
+      "format": "date-time",
+      "title": "Emittedat",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "widget.created",
+        "widget.updated",
+        "widget.deleted",
+        "widget.accepted",
+        "widget.restored",
+        "mask.created",
+        "mask.deleted",
+        "mask.renamed",
+        "selection.changed",
+        "context.updated",
+        "dismissal.added",
+        "note.created",
+        "phase.started",
+        "phase.progress",
+        "phase.completed",
+        "phase.cancelled",
+        "canonical.updated",
+        "image_node_transform.updated",
+        "mcp.usage",
+        "history.applied",
+        "state.gap"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "payload": {
+      "title": "Payload",
+      "type": "object"
+    },
+    "revision": {
+      "minimum": 0,
+      "title": "Revision",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "revision",
+    "kind",
+    "payload"
+  ],
+  "title": "StateEvent",
+  "type": "object"
+}

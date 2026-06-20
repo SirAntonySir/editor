@@ -2,7 +2,7 @@
 """Every param key a fused tool writes onto a node must exist in the shared
 engine registry for that node's shader binding — otherwise the WebGL pipeline
 silently drops it (no uniform to receive it)."""
-from app.engine.registry import ENGINE_OPS
+from app.registry.loader import get_registry
 from app.tools.fused import all_fused_templates
 
 # Node types that are texture/structured shaders (no scalar param contract),
@@ -22,8 +22,8 @@ KNOWN_UNBOUND = {
 def _binding_to_params() -> dict[str, set[str]]:
     """shaderBinding -> union of scalar param keys across ops that bind to it."""
     out: dict[str, set[str]] = {}
-    for op in ENGINE_OPS.values():
-        out.setdefault(op["shaderBinding"], set()).update(op["params"].keys())
+    for op in get_registry().ops.values():
+        out.setdefault(op.engine.shader, set()).update(op.params.keys())
     return out
 
 

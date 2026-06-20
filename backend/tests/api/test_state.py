@@ -3,6 +3,7 @@ import json
 import socket
 import threading
 import time
+from contextlib import asynccontextmanager
 
 import httpx
 import pytest
@@ -22,7 +23,7 @@ async def test_state_snapshot_returns_revision() -> None:
         r = await ac.get(f"/api/state/{sid}")
         assert r.status_code == 200
         body = r.json()
-        assert body["session_id"] == sid
+        assert body["sessionId"] == sid
         assert body["revision"] == 0
         assert body["widgets"] == []
 
@@ -147,3 +148,401 @@ async def test_get_mask_bytes_404_unknown_mask() -> None:
         sid = (await ac.post("/api/session", files=files)).json()["session_id"]
         r = await ac.get(f"/api/state/{sid}/masks/no_such_mask")
         assert r.status_code == 404
+
+
+# ---------- Last-Event-Id replay ----------
+
+
+def _parse_sse_lines(raw_lines: list[str]) -> list[dict]:
+    """Group consecutive raw SSE lines into event dicts.
+    Returns a list of {"id": str|None, "data": dict|None} per event."""
+    events: list[dict] = []
+    pending_id: str | None = None
+    pending_data: str | None = None
+    for line in raw_lines:
+        if line.startswith("id:"):
+            pending_id = line[3:].strip()
+        elif line.startswith("data:"):
+            pending_data = line[5:].strip()
+        elif line == "":
+            if pending_data is not None:
+                events.append({"id": pending_id, "data": json.loads(pending_data)})
+            pending_id = None
+            pending_data = None
+    return events
+
+
+async def _collect_initial(stream, max_events: int, timeout: float = 1.5) -> list[dict]:
+    """Read SSE lines until we've seen `max_events` complete events or the
+    timeout fires. Used to capture the replay burst before the stream goes
+    live (and blocks)."""
+    lines: list[str] = []
+    try:
+        async with asyncio.timeout(timeout):
+            async for raw in stream.aiter_lines():
+                lines.append(raw)
+                # Count blank-line separators — one per complete event.
+                blank_count = sum(1 for L in lines if L == "")
+                if blank_count >= max_events:
+                    break
+    except asyncio.TimeoutError:
+        pass
+    return _parse_sse_lines(lines)
+
+
+@pytest.mark.asyncio
+async def test_sse_replay_from_last_event_id() -> None:
+    """Reconnect with Last-Event-ID < newest revision → backend replays the
+    missing entries from doc.history (each with its own id: line)."""
+    from app.main import app
+
+    port = _free_port()
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", lifespan="on")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(50):
+        if server.started:
+            break
+        time.sleep(0.05)
+    assert server.started
+
+    try:
+        base = f"http://127.0.0.1:{port}"
+        async with httpx.AsyncClient(base_url=base, timeout=5.0) as ac:
+            files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+            sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+
+            doc = deps.get_session_store().get_document(sid)
+            # Build 5 events. Frontend pretends to have seen up to revision 2.
+            for i in range(5):
+                doc.set_param("layer-1", "basic", "exposure", float(i))
+            assert doc.revision == 5
+
+            async with ac.stream(
+                "GET",
+                f"/api/state/{sid}/events",
+                headers={"Last-Event-ID": "2"},
+            ) as r:
+                # Expect 3 replay events (revisions 3, 4, 5), no gap.
+                events = await _collect_initial(r, max_events=3, timeout=2.0)
+
+            assert len(events) == 3, f"expected 3 replay events, got {len(events)}: {events}"
+            revisions = [int(e["id"]) for e in events]
+            assert revisions == [3, 4, 5]
+            kinds = [e["data"]["kind"] for e in events]
+            assert all(k == "canonical.updated" for k in kinds)
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5.0)
+
+
+@pytest.mark.asyncio
+async def test_sse_gap_event_when_last_event_id_older_than_history() -> None:
+    """When Last-Event-ID points before the oldest entry in (a pruned)
+    doc.history, the backend can't replay — it emits a synthetic
+    state.gap event so the frontend knows to refetch the snapshot."""
+    from app.main import app
+
+    port = _free_port()
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", lifespan="on")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(50):
+        if server.started:
+            break
+        time.sleep(0.05)
+    assert server.started
+
+    try:
+        base = f"http://127.0.0.1:{port}"
+        async with httpx.AsyncClient(base_url=base, timeout=5.0) as ac:
+            files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+            sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+
+            doc = deps.get_session_store().get_document(sid)
+            # Emit a burst, then prune so oldest revision in history is 8+.
+            for i in range(10):
+                doc.set_param("layer-1", "basic", "exposure", float(i))
+            doc.prune_history(3)
+            # history now holds revisions {8, 9, 10}; pretend frontend last
+            # saw revision 1 — much older than oldest (8).
+            assert doc.history[0].revision == 8
+
+            async with ac.stream(
+                "GET",
+                f"/api/state/{sid}/events",
+                headers={"Last-Event-ID": "1"},
+            ) as r:
+                events = await _collect_initial(r, max_events=1, timeout=2.0)
+
+            assert len(events) >= 1
+            gap = events[0]
+            assert gap["data"]["kind"] == "state.gap"
+            assert gap["data"]["payload"] == {"reason": "history_pruned"}
+            # id of the gap event is the newest revision so the browser
+            # treats it as a forward marker, not a stale duplicate.
+            assert int(gap["id"]) == 10
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5.0)
+
+
+@pytest.mark.asyncio
+async def test_sse_no_replay_when_last_event_id_at_or_past_newest() -> None:
+    """Last-Event-ID == newest revision → nothing to replay, stream goes
+    live with no preamble. Same for a future/garbage id."""
+    from app.main import app
+
+    port = _free_port()
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", lifespan="on")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(50):
+        if server.started:
+            break
+        time.sleep(0.05)
+    assert server.started
+
+    try:
+        base = f"http://127.0.0.1:{port}"
+        async with httpx.AsyncClient(base_url=base, timeout=5.0) as ac:
+            files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+            sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+            doc = deps.get_session_store().get_document(sid)
+            for i in range(3):
+                doc.set_param("layer-1", "basic", "exposure", float(i))
+
+            # Last-Event-ID equal to newest — no replay expected.
+            async with ac.stream(
+                "GET",
+                f"/api/state/{sid}/events",
+                headers={"Last-Event-ID": "3"},
+            ) as r:
+                events = await _collect_initial(r, max_events=1, timeout=1.0)
+            assert events == []
+
+            # Garbage Last-Event-ID — treated as "no Last-Event-ID", still
+            # no replay (replay only triggers on a parseable value < newest).
+            async with ac.stream(
+                "GET",
+                f"/api/state/{sid}/events",
+                headers={"Last-Event-ID": "not-a-number"},
+            ) as r:
+                events = await _collect_initial(r, max_events=1, timeout=1.0)
+            assert events == []
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5.0)
+
+
+# ---------- C9 regression: read routes acquire the document write lock ----------
+
+
+@pytest.mark.asyncio
+async def test_state_snapshot_acquires_document_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """C9 regression: GET /api/state/{sid} reads under the document write lock."""
+    from app.main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        files = {"image": ("t.jpg", b"\xff\xd8\xff" + b"\x00" * 100, "image/jpeg")}
+        r = await ac.post("/api/session", files=files)
+        assert r.status_code == 200
+        sid = r.json()["session_id"]
+
+        store = deps.get_session_store()
+        calls: list[str] = []
+        real_lock = store.with_document_lock
+
+        @asynccontextmanager
+        async def spy(s: str):
+            calls.append(s)
+            async with real_lock(s) as doc:
+                yield doc
+
+        monkeypatch.setattr(store, "with_document_lock", spy)
+        r = await ac.get(f"/api/state/{sid}")
+        assert r.status_code == 200
+        assert sid in calls
+
+
+@pytest.mark.asyncio
+async def test_state_events_acquires_document_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """C9 regression: GET /api/state/{sid}/events captures the replay under the lock."""
+    from app.main import app
+
+    port = _free_port()
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", lifespan="on")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(50):
+        if server.started:
+            break
+        time.sleep(0.05)
+    assert server.started, "uvicorn did not start"
+
+    try:
+        base = f"http://127.0.0.1:{port}"
+        async with httpx.AsyncClient(base_url=base, timeout=5.0) as ac:
+            files = {"image": ("t.jpg", b"\xff\xd8\xff" + b"\x00" * 100, "image/jpeg")}
+            r = await ac.post("/api/session", files=files)
+            assert r.status_code == 200
+            sid = r.json()["session_id"]
+
+            store = deps.get_session_store()
+            calls: list[str] = []
+            real_lock = store.with_document_lock
+
+            @asynccontextmanager
+            async def spy(s: str):
+                calls.append(s)
+                async with real_lock(s) as doc:
+                    yield doc
+
+            monkeypatch.setattr(store, "with_document_lock", spy)
+
+            # Open the SSE stream and collect the initial burst; the lock is
+            # acquired during the subscribe + replay prologue before the live loop.
+            async with ac.stream("GET", f"/api/state/{sid}/events") as resp:
+                assert resp.status_code == 200
+                # Read at least one line to ensure the prologue has run.
+                await _collect_initial(resp, max_events=0, timeout=0.5)
+
+            assert sid in calls
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5.0)
+
+
+# ---------- history list + jump-to-cursor ----------
+
+
+@pytest.mark.asyncio
+async def test_state_history_empty() -> None:
+    """GET /api/state/{sid}/history on a fresh session returns an empty list."""
+    from app.main import app
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+        sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+        r = await ac.get(f"/api/state/{sid}/history")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["entries"] == []
+        assert body["cursor"] == -1
+        assert body["can_undo"] is False
+        assert body["can_redo"] is False
+
+
+@pytest.mark.asyncio
+async def test_state_history_lists_entries() -> None:
+    """After pushing a history entry the list endpoint reflects it."""
+    from app.main import app
+    from app.session.history import Snapshot
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+        sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+        history = deps.get_session_store().get_history(sid)
+        history.push("set exposure", Snapshot(), Snapshot())
+        r = await ac.get(f"/api/state/{sid}/history")
+        assert r.status_code == 200
+        body = r.json()
+        assert len(body["entries"]) == 1
+        assert body["entries"][0]["label"] == "set exposure"
+        assert body["cursor"] == 0
+        assert body["can_undo"] is True
+        assert body["can_redo"] is False
+
+
+@pytest.mark.asyncio
+async def test_state_history_404_unknown_session() -> None:
+    from app.main import app
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.get("/api/state/no_such_sid/history")
+        assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_state_jump_seeks_to_target() -> None:
+    """POST /api/state/{sid}/jump/{target} returns 200 and applies the snapshot."""
+    from app.main import app
+    from app.session.history import Snapshot
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+        sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+        history = deps.get_session_store().get_history(sid)
+        before = Snapshot()
+        after = Snapshot()
+        history.push("step A", before, after)
+        # Jump back to baseline (-1).
+        r = await ac.post(f"/api/state/{sid}/jump/-1")
+        assert r.status_code == 200
+        body = r.json()
+        assert "revision" in body
+        assert body["applied"] == "jump:-1"
+
+
+@pytest.mark.asyncio
+async def test_state_jump_409_no_op() -> None:
+    """409 when jumping to the current cursor (no-op)."""
+    from app.main import app
+    from app.session.history import Snapshot
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+        sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+        history = deps.get_session_store().get_history(sid)
+        history.push("step A", Snapshot(), Snapshot())
+        # Cursor is at 0 — jumping to 0 is a no-op.
+        r = await ac.post(f"/api/state/{sid}/jump/0")
+        assert r.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_state_jump_409_invalid_index() -> None:
+    """409 when jumping to an index beyond the history length."""
+    from app.main import app
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        files = {"image": ("a.jpg", b"\xff\xd8\xff", "image/jpeg")}
+        sid = (await ac.post("/api/session", files=files)).json()["session_id"]
+        # No entries pushed — jump to index 5 is invalid.
+        r = await ac.post(f"/api/state/{sid}/jump/5")
+        assert r.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_state_jump_404_unknown_session() -> None:
+    from app.main import app
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        r = await ac.post("/api/state/no_such_sid/jump/0")
+        assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_mask_bytes_acquires_document_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """C9 regression: GET /api/state/{sid}/masks/{mid} reads under the lock.
+    A missing mask id produces a 404 that is raised INSIDE the lock block,
+    so the lock is still acquired before the not-found response."""
+    from app.main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        files = {"image": ("t.jpg", b"\xff\xd8\xff" + b"\x00" * 100, "image/jpeg")}
+        r = await ac.post("/api/session", files=files)
+        assert r.status_code == 200
+        sid = r.json()["session_id"]
+
+        store = deps.get_session_store()
+        calls: list[str] = []
+        real_lock = store.with_document_lock
+
+        @asynccontextmanager
+        async def spy(s: str):
+            calls.append(s)
+            async with real_lock(s) as doc:
+                yield doc
+
+        monkeypatch.setattr(store, "with_document_lock", spy)
+        r = await ac.get(f"/api/state/{sid}/masks/m_missing")
+        assert r.status_code == 404
+        assert sid in calls

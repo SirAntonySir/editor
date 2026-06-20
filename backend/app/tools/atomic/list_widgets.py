@@ -37,7 +37,7 @@ class ListWidgetsTool(BackendTool[_Input, _Output]):
             w = doc.widgets[wid]
             out.append(_WidgetSummary(
                 id=w.id, intent=w.intent,
-                scope=w.scope.model_dump(mode="json"),
+                scope=w.scope.model_dump(mode="json", by_alias=True),
                 status=w.status, revision=w.revision,
                 origin_kind=w.origin.kind,
             ))

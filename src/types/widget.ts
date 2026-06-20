@@ -19,10 +19,11 @@ export type ControlType =
   | 'point_list'
   | 'enum_select'
   | 'bool_toggle'
-  | 'kelvin_strip';
+  | 'kelvin_strip'
+  | 'tint_strip';
 
 export interface SliderSchema {
-  control_type: 'slider';
+  controlType: 'slider';
   min: number;
   max: number;
   step: number;
@@ -30,77 +31,85 @@ export interface SliderSchema {
 }
 
 export interface ToggleSchema {
-  control_type: 'toggle';
-  on_label: string;
-  off_label: string;
+  controlType: 'toggle';
+  onLabel: string;
+  offLabel: string;
 }
 
 export interface ChoiceSchema {
-  control_type: 'choice';
+  controlType: 'choice';
   options: { value: string; label: string; description?: string }[];
 }
 
 export interface ColorSchema {
-  control_type: 'color';
+  controlType: 'color';
   mode: 'rgb' | 'hex';
 }
 
 export interface RegionPickerSchema {
-  control_type: 'region_picker';
+  controlType: 'region_picker';
 }
 
 export interface MaskThumbnailSchema {
-  control_type: 'mask_thumbnail';
+  controlType: 'mask_thumbnail';
 }
 
 export interface CurveSchema {
-  control_type: 'curve';
-  min_points?: number;
-  max_points?: number;
+  controlType: 'curve';
+  minPoints?: number;
+  maxPoints?: number;
 }
 
 // Registry-vocab schema interfaces (aligned with backend registry-vocab additions).
 
 export interface SwatchSchema {
-  control_type: 'swatch';
+  controlType: 'swatch';
   space?: 'rgb' | 'lab' | 'hsl';
-  show_alpha?: boolean;
+  showAlpha?: boolean;
   presets?: number[][];
 }
 
 export interface HueWheelSchema {
-  control_type: 'hue_wheel';
+  controlType: 'hue_wheel';
   min: number;
   max: number;
 }
 
 export interface CurveEditorSchema {
-  control_type: 'curve_editor';
+  controlType: 'curve_editor';
   channel?: 'luma' | 'r' | 'g' | 'b' | null;
-  min_points?: number;
-  max_points?: number;
+  minPoints?: number;
+  maxPoints?: number;
 }
 
 export interface PointListSchema {
-  control_type: 'point_list';
-  min_points?: number;
-  max_points?: number;
+  controlType: 'point_list';
+  minPoints?: number;
+  maxPoints?: number;
 }
 
 export interface EnumSelectSchema {
-  control_type: 'enum_select';
+  controlType: 'enum_select';
   options: { value: string; label: string }[];
-  allow_custom?: boolean;
+  allowCustom?: boolean;
 }
 
 export interface BoolToggleSchema {
-  control_type: 'bool_toggle';
-  on_label?: string;
-  off_label?: string;
+  controlType: 'bool_toggle';
+  onLabel?: string;
+  offLabel?: string;
 }
 
 export interface KelvinStripSchema {
-  control_type: 'kelvin_strip';
+  controlType: 'kelvin_strip';
+  min: number;
+  max: number;
+  step: number;
+  unit?: string;
+}
+
+export interface TintStripSchema {
+  controlType: 'tint_strip';
   min: number;
   max: number;
   step: number;
@@ -121,7 +130,8 @@ export type ControlSchema =
   | PointListSchema
   | EnumSelectSchema
   | BoolToggleSchema
-  | KelvinStripSchema;
+  | KelvinStripSchema
+  | TintStripSchema;
 
 // Curve value model lives in its own leaf module (cycle-free); re-exported here
 // so existing `@/types/widget` imports keep working.
@@ -132,16 +142,16 @@ export { IDENTITY_CURVES } from './curve';
 export type ControlValue = number | string | boolean | CurvesValue;
 
 export interface NodeParamTarget {
-  node_id: string;
-  param_key: string;
+  nodeId: string;
+  paramKey: string;
 }
 
 export interface ControlBinding {
-  param_key: string;
+  paramKey: string;
   label: string;
-  control_type: ControlType;
+  controlType: ControlType;
   target: NodeParamTarget;
-  control_schema: ControlSchema;
+  controlSchema: ControlSchema;
   value: ControlValue;
   default: ControlValue;
   reasoning?: string;
@@ -152,12 +162,12 @@ export type ParamValue = number | string | boolean | CurvesValue;
 export interface WidgetNode {
   id: string;
   type: string;
-  op_id?: string | null;
+  opId?: string | null;
   params: Record<string, ParamValue>;
   scope: Scope;
   inputs: string[];
-  widget_id: string;
-  layer_id?: string;
+  widgetId: string;
+  layerId?: string;
 }
 
 export type WidgetOriginKind =
@@ -177,13 +187,13 @@ export type WidgetAnchor =
 export interface WidgetOrigin {
   kind: WidgetOriginKind;
   prompt?: string | null;
-  parent_widget_id?: string | null;
+  parentWidgetId?: string | null;
   anchor?: WidgetAnchor;
 }
 
 export interface WidgetPreview {
   kind: 'thumbnail' | 'histogram_delta' | 'color_swatches' | 'none';
-  auto_before_after: boolean;
+  autoBeforeAfter: boolean;
 }
 
 export interface Widget {
@@ -192,22 +202,22 @@ export interface Widget {
   reasoning?: string;
   scope: Scope;
   origin: WidgetOrigin;
-  op_id?: string;
+  opId?: string;
   composed: boolean;
   nodes: WidgetNode[];
   bindings: ControlBinding[];
   preview: WidgetPreview;
-  rejected_attempts: unknown[];
+  rejectedAttempts: unknown[];
   status: 'active' | 'dismissed' | 'accepted';
   revision: number;
   /** Param keys the user has explicitly edited; bundle-recompute paths
    *  (e.g. Time-of-Day dial) skip these so manual values aren't overwritten.
    *  Cleared via the `unlock_widget_param` backend tool. */
-  locked_params: string[];
-  display_name?: string | null;
+  lockedParams: string[];
+  displayName?: string | null;
   category?: string | null;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MaskSummary {
@@ -216,17 +226,24 @@ export interface MaskSummary {
   height: number;
   source: string;
   label: string | null;
+  /**
+   * ImageNode this mask belongs to. Optional for backwards-compat — legacy
+   * fixtures and pre-multi-image masks leave it undefined, in which case
+   * consumers treat the mask as global and render it for every ImageNode.
+   */
+  imageNodeId?: string | null;
 }
 
 // Re-export the existing OperationGraph type for the snapshot.
 import type { OperationGraph } from './operation-graph';
+import type { ImageContext } from './image-context';
 
 export interface SessionStateSnapshot {
-  session_id: string;
-  image_context: unknown | null;     // EnrichedImageContext — opaque to the frontend
+  sessionId: string;
+  imageContext: ImageContext | null;
   widgets: Widget[];
-  masks_index: MaskSummary[];
-  operation_graph: OperationGraph;
+  masksIndex: MaskSummary[];
+  operationGraph: OperationGraph;
   revision: number;
 }
 
@@ -237,16 +254,22 @@ export type StateEventKind =
   | 'widget.accepted'
   | 'widget.restored'
   | 'mask.created'
+  | 'mask.deleted'
+  | 'mask.renamed'
   | 'selection.changed'
   | 'context.updated'
   | 'dismissal.added'
   | 'phase.started'
   | 'phase.progress'
-  | 'phase.completed';
+  | 'phase.completed'
+  | 'phase.cancelled'
+  | 'mcp.usage'
+  | 'state.gap'
+  | 'history.applied';
 
 export interface StateEvent {
   revision: number;
   kind: StateEventKind;
   payload: Record<string, unknown>;
-  emitted_at: string;
+  emittedAt: string;
 }

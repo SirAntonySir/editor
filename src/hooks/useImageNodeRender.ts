@@ -14,12 +14,14 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '@xyflow/react';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { renderImageNodeComposite } from '@/lib/image-node-renderer';
 import { computeEffectiveSize } from '@/lib/image-node-geometry';
 import { activeCanvasBus } from '@/lib/active-canvas-bus';
 import type { Widget } from '@/types/widget';
+import type { Node as OperationNode } from '@/types/operation-graph';
 
 const EMPTY_WIDGETS: Widget[] = [];
 
@@ -61,7 +63,7 @@ export function useImageNodeRender({
   bypassAdjustments = false,
 }: ImageNodeRenderInput) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const opGraph = useBackendState((s) => s.snapshot?.operation_graph);
+  const opGraph = useBackendState((s) => s.snapshot?.operationGraph);
   const widgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
   // Re-render when adjustment params or raw pixels change. The optimistic Map
   // identity changes on every applyOptimistic (immer reproduces the map), so
@@ -71,19 +73,30 @@ export function useImageNodeRender({
   // Re-render when selection / mask overlays change. `maskStore` is not
   // reactive — these store fields are the SSoT the painters branch on, so
   // changes here are what trigger overlay repaint.
-  const activeScope = useEditorStore((s) => s.activeScope);
-  const hoveredScope = useEditorStore((s) => s.hoveredScope);
+  const activeObjectId = useEditorStore((s) => s.activeObjectId);
+  const hoveredObjectId = useEditorStore((s) => s.hoveredObjectId);
   const activeMaskRef = useEditorStore((s) => s.activeMaskRef);
   const committedMaskRef = useEditorStore((s) => s.committedMaskRef);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   const hiddenWidgetIds = useEditorStore((s) => s.hiddenWidgetIds);
   const hiddenCanonNodeIds = useEditorStore((s) => s.hiddenCanonNodeIds);
+  // Re-render when composite-relevant layer fields change: visibility, opacity,
+  // blend mode, layer mask, or ordering. The joined string changes whenever any
+  // of these fields flip on any layer that belongs to this image-node, or when
+  // layers are added / removed.
+  const layersSignature = useEditorStore((s) => {
+    const ids = new Set(layerIds);
+    return s.layers
+      .filter((l) => ids.has(l.id))
+      .map((l) => `${l.id}:${l.visible ? 1 : 0}:${l.opacity}:${l.blendMode}:${l.layerMask ?? ''}:${l.order}`)
+      .join('|');
+  });
   // Pending suggestion widgets are hidden from the render so their adjustments
   // don't live-apply before the user clicks Allow on the chip — unless the
   // user is previewing one via the chip's eye icon, in which case its id sits
   // in previewingSuggestionIds and is unmuted here.
-  const pendingSuggestionIds = useBackendState((s) => s.pendingSuggestionIds);
-  const previewingSuggestionIds = useBackendState((s) => s.previewingSuggestionIds);
+  const pendingSuggestionIds = useSuggestionsUi((s) => s.pendingSuggestionIds);
+  const previewingSuggestionIds = useSuggestionsUi((s) => s.previewingSuggestionIds);
 
   // Subscribe to the RF viewport zoom. `renderScale` is derived from the ratio
   // of target screen pixels (display × zoom × dpr) to source pixels and
@@ -95,14 +108,14 @@ export function useImageNodeRender({
   // this image-node. The visible canvas is sized to these; `applyGeometry`
   // inside the renderer then maps the internal (source-dims) composite onto it.
   const rotateAngle = useBackendState((s) => {
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${imageNodeId}:rotate`,
     );
     if (!node) return null;
     return (node.params.angle as number) ?? null;
   });
   const cropRectX = useBackendState((s) => {
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${imageNodeId}:crop`,
     );
     if (!node) return null;
@@ -110,7 +123,7 @@ export function useImageNodeRender({
     return p.w != null && p.h != null ? (p.x ?? 0) : null;
   });
   const cropRectY = useBackendState((s) => {
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${imageNodeId}:crop`,
     );
     if (!node) return null;
@@ -118,14 +131,14 @@ export function useImageNodeRender({
     return p.w != null && p.h != null ? (p.y ?? 0) : null;
   });
   const cropRectW = useBackendState((s) => {
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${imageNodeId}:crop`,
     );
     if (!node) return null;
     return (node.params as { w?: number }).w ?? null;
   });
   const cropRectH = useBackendState((s) => {
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${imageNodeId}:crop`,
     );
     if (!node) return null;
@@ -180,15 +193,36 @@ export function useImageNodeRender({
     if (canvas.style.height !== `${cssH}px`) canvas.style.height = `${cssH}px`;
 
     const hiddenNodeIds = new Set<string>();
+    const extraNodes: OperationNode[] = [];
     for (const w of widgets) {
       // Hide if the user explicitly hid the widget, OR it's a pending
       // suggestion that the user isn't previewing.
-      const isPendingSilenced =
-        pendingSuggestionIds.has(w.id) && !previewingSuggestionIds.has(w.id);
+      const isPending = pendingSuggestionIds.has(w.id);
+      const isPreviewing = previewingSuggestionIds.has(w.id);
+      const isPendingSilenced = isPending && !isPreviewing;
+      // Preview path: splice the widget's own nodes into the render so the
+      // AI's proposed adjustment lights up even if the snapshot's canonical
+      // projection lags or doesn't carry them yet. Synthesize an
+      // OperationNode-shaped record from each WidgetNode using the canonical
+      // id scheme (`canon:<layer>:<type>`), so a co-existing canonical entry
+      // is REPLACED by the preview values in the renderer.
+      if (isPending && isPreviewing) {
+        for (const n of w.nodes) {
+          const id = n.layerId ? `canon:${n.layerId}:${n.type}` : n.id;
+          extraNodes.push({
+            id,
+            type: n.type,
+            scope: n.scope,
+            params: n.params as OperationNode['params'],
+            inputs: n.inputs,
+            layerId: n.layerId,
+          });
+        }
+      }
       if (!hiddenWidgetIds.has(w.id) && !isPendingSilenced) continue;
       for (const n of w.nodes) {
-        if (n.layer_id) {
-          hiddenNodeIds.add(`canon:${n.layer_id}:${n.type}`);
+        if (n.layerId) {
+          hiddenNodeIds.add(`canon:${n.layerId}:${n.type}`);
         } else {
           // Node-scope or layerless nodes — fall back to the widget-internal id;
           // matches the snapshot's id when layer_id isn't set.
@@ -208,6 +242,7 @@ export function useImageNodeRender({
       widgets,
       optimistic,
       hiddenNodeIds,
+      extraNodes: extraNodes.length > 0 ? extraNodes : undefined,
       bypassAdjustments,
       overrideRotate: previewActive && cropPreview ? cropPreview.rotate : undefined,
       overrideCrop:   previewActive && cropPreview ? cropPreview.crop   : undefined,
@@ -230,8 +265,8 @@ export function useImageNodeRender({
     widgets,
     optimistic,
     pixelVersion,
-    activeScope,
-    hoveredScope,
+    activeObjectId,
+    hoveredObjectId,
     activeMaskRef,
     committedMaskRef,
     activeImageNodeId,
@@ -242,6 +277,7 @@ export function useImageNodeRender({
     bypassAdjustments,
     previewActive,
     cropPreview,
+    layersSignature,
   ]);
 
   return { canvasRef };

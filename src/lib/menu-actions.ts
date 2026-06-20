@@ -15,12 +15,12 @@
 
 import { useMemo } from 'react';
 import { useEditorStore } from '@/store';
-import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
+import { useBackendState } from '@/store/backend-state-slice';
+import { useAiSession, analyseActiveImageLayer } from '@/hooks/useImageContext';
 import { useFileIO } from '@/hooks/useFileIO';
 import { useCanvasZoom } from '@/hooks/useCanvasZoom';
 import { useImageTransform } from '@/hooks/useImageTransform';
 import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';
-import { usePreferencesStore } from '@/store/preferences-store';
 import { editorDocument } from '@/core/document';
 import { revertToOriginal } from '@/lib/revert';
 import { spawnRegistryOp } from '@/lib/toolrail-spawn';
@@ -74,7 +74,8 @@ function _autoAction(
 }
 
 export function useMenuActions(): MenuAction[] {
-  const { handleOpen, handleClose, handleExport } = useFileIO();
+  const { handleOpen, handleAddImage, handleClose, handleExport } = useFileIO();
+  const sseOpen = useBackendState((s) => s.sseStatus === 'open');
   const { applyZoom, fitOnScreen, zoomIn, zoomOut } = useCanvasZoom();
   const { transformImage } = useImageTransform();
   const canUndo = useHistoryFlag((s) => s.canUndo);
@@ -90,7 +91,14 @@ export function useMenuActions(): MenuAction[] {
   return useMemo<MenuAction[]>(() => [
     // ── File ────────────────────────────────────────────────────────
     { id: 'file:open',     group: 'File', label: 'Open…',
+      aliases: ['open an image', 'open image', 'load image'],
       shortcut: ['mod', 'O'], run: handleOpen },
+    { id: 'file:add-image', group: 'File', label: 'Add image…',
+      aliases: ['add an image', 'add image', 'second image', 'import image'],
+      shortcut: ['mod', 'shift', 'O'],
+      // Adding only makes sense once a document/session exists.
+      disabled: !hasLayers || !sseOpen,
+      run: handleAddImage },
     { id: 'file:export:png',  group: 'File', label: 'Export as PNG',
       shortcut: ['mod', 'shift', 'E'], disabled: !hasLayers,
       run: () => handleExport('png') },
@@ -107,9 +115,10 @@ export function useMenuActions(): MenuAction[] {
     { id: 'edit:redo',   group: 'Edit', label: 'Redo',
       shortcut: ['mod', 'shift', 'Z'], disabled: !canRedo, run: () => editorDocument.redo() },
     { id: 'edit:revert', group: 'Edit', label: 'Revert to Original',
-      shortcut: ['mod', 'shift', 'R'], disabled: !hasLayers, run: revertToOriginal },
-    { id: 'edit:prefs',  group: 'Edit', label: 'Preferences…',
-      shortcut: ['mod', ','], run: () => usePreferencesStore.getState().setShowPreferences(true) },
+      shortcut: ['mod', 'alt', 'R'], disabled: !hasLayers, run: revertToOriginal },
+    // Preferences live inside the palette now — see `buildPreferencesSections`.
+    // The legacy modal entry has been removed; Cmd+, just opens the palette
+    // (`spawn-palette:open`) via the keyboard-shortcut layer.
 
     // ── Image ───────────────────────────────────────────────────────
     // Auto-tune: deterministic, mechanical-only (no LLM). Each spawns the
@@ -148,11 +157,12 @@ export function useMenuActions(): MenuAction[] {
     { id: 'ai:analyze', group: 'AI',
       label: hasContext ? 'Re-analyze image' : 'Analyze image',
       aliases: ['get context', 'analyze with ai', 'reanalyze', 'image context'],
-      shortcut: ['mod', 'shift', 'A'],
+      shortcut: ['mod', 'alt', 'A'],
       disabled: !hasLayers || analysing,
-      run: () => { void analyseFirstImageLayer(); } },
+      run: () => { void analyseActiveImageLayer(); } },
   ], [
-    handleOpen, handleClose, handleExport, applyZoom, fitOnScreen, zoomIn, zoomOut,
-    transformImage, hasLayers, canUndo, canRedo, hasContext, analysing, mech,
+    handleOpen, handleAddImage, handleClose, handleExport,
+    applyZoom, fitOnScreen, zoomIn, zoomOut,
+    transformImage, hasLayers, canUndo, canRedo, hasContext, analysing, mech, sseOpen,
   ]);
 }

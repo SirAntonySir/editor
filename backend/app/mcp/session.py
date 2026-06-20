@@ -1,3 +1,15 @@
+"""MCP wire-layer pairing registry.
+
+This is NOT a session-lifecycle module — it just maps an MCP transport
+session id (assigned by the JSON-RPC client at ``initialize``) to an editor
+session id (a real session owned by ``services/session_store.py``). Used by
+``mcp/server.py`` to look up which editor doc a ``tools/call`` should
+target.
+
+For the responsibility split across the four ``session*`` files, see the
+header of ``app/api/session.py``.
+"""
+
 from __future__ import annotations
 
 from threading import Lock

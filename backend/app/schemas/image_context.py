@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas._camel import camel_config
+
 # ---------------------------------------------------------------------------
 # Two-pass refinement schemas
 # ---------------------------------------------------------------------------
@@ -18,7 +20,7 @@ DominantTone = Literal["shadows", "midtones", "highlights"]
 
 
 class CandidateRegion(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     label: str
     description: str
     # Normalised image coordinates (0–1). Optional — the analyse pass may
@@ -39,7 +41,7 @@ class CandidateRegion(BaseModel):
 
 
 class ImageContext(BaseModel):
-    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+    model_config = camel_config(extra="forbid", protected_namespaces=())
     subjects: list[str] = Field(default_factory=list)
     lighting: Lighting
     dominant_tones: list[DominantTone] = Field(default_factory=list)
@@ -53,14 +55,14 @@ class ImageContext(BaseModel):
 class SamPromptSet(BaseModel):
     """Richer SAM prompts emitted by the refinement pass — supports a bbox plus
     multiple positive and negative click points. All coordinates normalised 0–1."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     bbox: list[float] | None = Field(default=None, min_length=4, max_length=4)
     positive_points: list[list[float]] = Field(default_factory=list)
     negative_points: list[list[float]] = Field(default_factory=list)
 
 
 class RegionRefinement(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     # 1-based index into the regions presented to Claude (matches the label
     # drawn on the annotated composite image).
     region_index: int = Field(ge=1)
@@ -70,7 +72,7 @@ class RegionRefinement(BaseModel):
 
 
 class ContextRefinements(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     refinements: list[RegionRefinement] = Field(default_factory=list)
 
 
@@ -78,7 +80,7 @@ class RegionLabel(BaseModel):
     """Output of /api/name-region — a short, concrete label for a SAM mask
     the user just created. Claude is shown the original image with the mask
     outlined in magenta and asked to label the highlighted region."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     label: str = Field(min_length=1, max_length=64)
 
 

@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { useImageContextFull } from '@/hooks/useImageContextFull';
+import { useImageContextSnapshot } from '@/hooks/useImageContext';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useAiSession } from '@/hooks/useImageContext';
 import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';
+import { useEditorStore } from '@/store';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { SemanticSection } from './SemanticSection';
 import { HistogramsSection } from './HistogramsSection';
@@ -18,7 +19,7 @@ import {
   RegionsSkeleton,
   ProblemsSkeleton,
 } from './info-skeletons';
-import type { EnrichedImageContext } from '@/types/enriched-context';
+import type { ImageContext } from '@/types/image-context';
 import type { MechanicalSnapshot } from '@/lib/mechanical-context';
 
 /**
@@ -36,17 +37,22 @@ import type { MechanicalSnapshot } from '@/lib/mechanical-context';
  *  unset, the mechanical sections gracefully render the parts they care
  *  about. When neither is present, returns null. */
 function withLiveMechanical(
-  ctx: EnrichedImageContext | null,
+  ctx: ImageContext | null,
   live: MechanicalSnapshot | null,
-): EnrichedImageContext | null {
+): ImageContext | null {
   if (!ctx && !live) return null;
-  if (!ctx) return { ...live! } as unknown as EnrichedImageContext;
+  if (!ctx) return { ...live! } as unknown as ImageContext;
   if (!live) return ctx;
   return { ...ctx, ...live };
 }
 
 export function InfoTab() {
-  const ctx = useImageContextFull();
+  // Explicit subscription so InfoTab always rerenders when the user selects a
+  // different image node — even if the transitive path through
+  // useLiveMechanicalContext were ever refactored away.
+  useEditorStore((s) => s.activeImageNodeId);
+
+  const ctx = useImageContextSnapshot();
   const live = useLiveMechanicalContext();
   const phases = useBackendState((s) => s.phases);
   const mcpComplete = useBackendState((s) => s.mcpAnalyzeComplete);
@@ -80,9 +86,9 @@ export function InfoTab() {
   // everywhere because ctx is a partial dict during streaming.
   const hasSemantic =
     !!ctx && ((ctx.subjects?.length ?? 0) > 0 || !!ctx.lighting || !!ctx.mood);
-  const hasHistograms = (!!mechCtx && (mechCtx.luma_histogram?.length ?? 0) > 0) || !!live;
-  const hasColor = (!!mechCtx && (mechCtx.color_palette?.length ?? 0) > 0) || !!live;
-  const hasRegions = !!ctx && (ctx.candidate_regions?.length ?? 0) > 0;
+  const hasHistograms = (!!mechCtx && (mechCtx.lumaHistogram?.length ?? 0) > 0) || !!live;
+  const hasColor = (!!mechCtx && (mechCtx.colorPalette?.length ?? 0) > 0) || !!live;
+  const hasRegions = !!ctx && (ctx.candidateRegions?.length ?? 0) > 0;
   // Problems renders once the soft-fields delta lands (the field exists).
   // Empty array is a valid "no issues" result, so we don't gate on length.
   const hasProblems = !!ctx && ctx.problems !== undefined;

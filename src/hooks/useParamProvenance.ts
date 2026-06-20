@@ -1,6 +1,6 @@
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
-import type { SliderProvenance } from '@/components/inspector/AdjustmentSlider';
+import type { SliderProvenance } from '@/components/ui/AdjustmentSlider';
 
 /** Key a canonical (layer, op, param) slot for the touched-params set. */
 export function touchKey(layerId: string, op: string, param: string): string {
@@ -62,9 +62,9 @@ export function useParamProvenance(
       if (w.status !== 'active' && w.status !== 'accepted') continue;
       if (w.origin.kind === 'tool_invoked') continue; // only AI/fused origins
       for (const b of w.bindings) {
-        if (b.target.param_key !== param) continue;
-        const node = w.nodes.find((n) => n.id === b.target.node_id);
-        if (node?.layer_id === layerId && node.type === op && b.value !== b.default) {
+        if (b.target.paramKey !== param) continue;
+        const node = w.nodes.find((n) => n.id === b.target.nodeId);
+        if (node?.layerId === layerId && node.type === op && b.value !== b.default) {
           return true;
         }
       }

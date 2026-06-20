@@ -27,7 +27,7 @@ function buildTetherForWidget(widget: Widget, viewport?: Viewport): void {
   // first node — locate the ImageNode containing that layer. Fall back to
   // the active image node if the layer can't be resolved.
   const firstNode = widget.nodes[0];
-  const widgetLayerId = firstNode?.layer_id ?? null;
+  const widgetLayerId = firstNode?.layerId ?? null;
 
   let targetImageNodeId: string | null = null;
   if (widgetLayerId) {
@@ -68,8 +68,8 @@ function buildTetherForWidget(widget: Widget, viewport?: Viewport): void {
   );
 
   // Build edge scope from the widget's WidgetNode.layer_id. Widgets without
-  // a layer_id (e.g. future image_node scope) fall through to a node-wide
-  // tether.
+  // a layer_id (truly global widgets with no layer affinity) fall through to
+  // a node-wide tether.
   const edgeScope: TetherEdgeState['scope'] = widgetLayerId
     ? { kind: 'layer', layerId: widgetLayerId }
     : { kind: 'node' };

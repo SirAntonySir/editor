@@ -1,4 +1,4 @@
-import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
+import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
 import type { RegistryControlProps } from './Slider';
 
 /**
@@ -9,21 +9,27 @@ import type { RegistryControlProps } from './Slider';
  * The range defaults to 2000–12000 K if not specified.
  */
 
-/** Build a warm→cool gradient matching approximate blackbody colours */
-function kelvinGradient(): string {
-  // Approximate perceptual stops across 2000–12000K
+/** Cool→warm gradient track. Flipped from blackbody-temperature direction so
+ *  the slider matches the Lightroom/Photoshop white-balance convention:
+ *  blue (cool) on the LEFT, amber (warm) on the RIGHT. The underlying
+ *  parameter is still Kelvin (low K = warm light source), so the rendered
+ *  position-to-value mapping stays standard. */
+export function kelvinGradient(): string {
+  // Approximate perceptual stops, written right-to-left in Kelvin terms so
+  // the resulting linear-gradient lays them out cool → neutral → warm
+  // (left → right of the track).
   const stops = [
-    'hsl(28 100% 55%)',   // ~2000K — deep amber
-    'hsl(38 90% 65%)',    // ~3000K — warm orange
-    'hsl(48 70% 80%)',    // ~4500K — neutral warm
-    'hsl(210 5% 95%)',    // ~6500K — near-white / daylight
-    'hsl(210 50% 75%)',   // ~8000K — cool blue-white
-    'hsl(220 70% 65%)',   // ~12000K — sky blue
+    'hsl(220 70% 65%)',   // far left — sky blue (highest K)
+    'hsl(210 50% 75%)',
+    'hsl(210 5% 95%)',    // mid — daylight neutral
+    'hsl(48 70% 80%)',
+    'hsl(38 90% 65%)',
+    'hsl(28 100% 55%)',   // far right — deep amber (lowest K)
   ];
   return `linear-gradient(90deg, ${stops.join(', ')})`;
 }
 
-export function KelvinStrip({ schema, value, onChange, label, disabled }: RegistryControlProps) {
+export function KelvinStrip({ schema, value, onChange, label, disabled, pinSlot }: RegistryControlProps) {
   if (schema.type !== 'scalar' || !schema.range) {
     throw new Error(`KelvinStrip needs a scalar param with range, got ${schema.type}`);
   }
@@ -42,6 +48,7 @@ export function KelvinStrip({ schema, value, onChange, label, disabled }: Regist
         trackGradient={kelvinGradient()}
         onChange={(v) => onChange(v)}
         formatValue={(v) => `${Math.round(v)}K`}
+        pinSlot={pinSlot}
       />
     </div>
   );

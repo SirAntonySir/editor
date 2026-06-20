@@ -4,12 +4,14 @@ import uuid
 
 from pydantic import BaseModel, Field
 
+from app.schemas._camel import camel_config
 from app.schemas.widget import Scope, Widget, WidgetNode, WidgetOrigin, WidgetPreview
 from app.state.document import SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 
 
 class _Input(BaseModel):
+    model_config = camel_config(extra="forbid")
     scope: dict
     kind: str = Field(min_length=1)
     params: dict
@@ -30,6 +32,7 @@ class ApplyAdjustmentTool(BackendTool[_Input, _Output]):
     input_schema = _Input
     output_schema = _Output
     permissions = ToolPermissions(requires_image=False)
+    is_user_action = True
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         wid = f"w_{uuid.uuid4().hex[:8]}"

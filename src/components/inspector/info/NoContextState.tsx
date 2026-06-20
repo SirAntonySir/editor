@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Loader2, Sparkles } from 'lucide-react';
 import { useEditorStore } from '@/store';
-import { analyseFirstImageLayer } from '@/hooks/useImageContext';
+import { analyseActiveImageLayer } from '@/hooks/useImageContext';
 
 interface Props {
   /** True once analyze has been kicked off but no context delta has arrived
@@ -29,7 +29,7 @@ export function NoContextState({ analyzing }: Props) {
     if (disabled) return;
     setBusy(true);
     try {
-      await analyseFirstImageLayer();
+      await analyseActiveImageLayer();
     } finally {
       setBusy(false);
     }

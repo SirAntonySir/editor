@@ -105,3 +105,31 @@ def test_node_widget_id_optional():
         layer_id="layer_a",
     )
     assert node.widget_id is None
+
+
+def test_camel_config_round_trip():
+    from pydantic import BaseModel, Field
+
+    from app.schemas._camel import camel_config
+
+    class Sample(BaseModel):
+        model_config = camel_config(extra="forbid")
+        first_name: str
+        last_name: str | None = None
+        nested_items: list[int] = Field(default_factory=list)
+
+    obj = Sample(first_name="A", last_name="B", nested_items=[1, 2])
+    assert obj.model_dump() == {
+        "first_name": "A",
+        "last_name": "B",
+        "nested_items": [1, 2],
+    }
+    assert obj.model_dump(by_alias=True) == {
+        "firstName": "A",
+        "lastName": "B",
+        "nestedItems": [1, 2],
+    }
+    again = Sample.model_validate({"firstName": "A", "lastName": "B", "nestedItems": [1, 2]})
+    assert again.last_name == "B"
+    again2 = Sample.model_validate({"first_name": "X"})
+    assert again2.first_name == "X"

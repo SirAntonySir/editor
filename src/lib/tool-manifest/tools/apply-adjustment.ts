@@ -68,7 +68,7 @@ export const applyAdjustmentTool: ToolManifest<typeof input, typeof ackSchema> =
       intent: label ?? `${kind} adjustment`,
       scope: resolved,
       forced_ops: [kind],
-      layer_id: layerId,
+      layerId,
       origin: 'tool_invoked',
     });
     return { ok: true, message: `Proposing ${kind} with scope ${scope.kind}.` };

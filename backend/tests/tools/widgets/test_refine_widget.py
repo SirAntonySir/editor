@@ -47,13 +47,15 @@ def _setup(client) -> tuple[str, str]:
     buf = BytesIO(); Image.new("RGB", (16, 16)).save(buf, format="JPEG")
     files = {"image": ("a.jpg", buf.getvalue(), "image/jpeg")}
     sid = client.post("/api/session", files=files).json()["session_id"]
+    from app.state.document import DEFAULT_IMAGE_NODE_ID
     doc = deps.get_session_store().get_document(sid)
-    doc.image_context = EnrichedImageContext(
+    ctx = EnrichedImageContext(
         subjects=[], lighting="flat", dominant_tones=[], mood="calm",
         candidate_regions=[],
         model_name="x", model_version="y", generated_at="2026-05-21T00:00:00Z",
     )
-    deps.get_session_store().set_context(sid, doc.image_context.model_dump(mode="json"))
+    doc.set_image_context(DEFAULT_IMAGE_NODE_ID, ctx)
+    deps.get_session_store().set_context(sid, ctx.model_dump(mode="json"))
     reg = deps.get_tool_registry()
     if "propose_stack" not in reg._tools:
         reg.register(ProposeStackTool())
@@ -83,7 +85,7 @@ def test_refine_removes_a_binding(client) -> None:
         }},
     ).json()
     assert body["ok"] is True
-    keys = [b["param_key"] for b in body["output"]["widget"]["bindings"]]
+    keys = [b["paramKey"] for b in body["output"]["widget"]["bindings"]]
     assert first_key not in keys
     assert body["output"]["widget"]["composed"] is True
 
@@ -99,5 +101,5 @@ def test_refine_adds_a_binding(client) -> None:
         }},
     ).json()
     assert body["ok"] is True
-    keys = [b["param_key"] for b in body["output"]["widget"]["bindings"]]
+    keys = [b["paramKey"] for b in body["output"]["widget"]["bindings"]]
     assert "skin_protect" in keys

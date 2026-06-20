@@ -1,12 +1,13 @@
-import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
+import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
 import { useCanonicalParam } from '@/hooks/useCanonicalParam';
 import { useParamProvenance, touchKey } from '@/hooks/useParamProvenance';
 import { useEditorStore } from '@/store';
+import { SliderPinMenu } from './SliderPinMenu';
 import type { ParamDefinition } from '@/types/processing';
 
-interface ScalarRowProps { layerId: string; op: string; param: ParamDefinition; }
+interface ScalarRowProps { toolId: string; layerId: string; op: string; param: ParamDefinition; }
 
-function ScalarRow({ layerId, op, param }: ScalarRowProps) {
+function ScalarRow({ toolId, layerId, op, param }: ScalarRowProps) {
   const [value, setValue] = useCanonicalParam<number>(layerId, op, param.key, param.default);
   const provenance = useParamProvenance(layerId, op, param.key, value, param.default);
   function onChange(v: number) {
@@ -24,19 +25,28 @@ function ScalarRow({ layerId, op, param }: ScalarRowProps) {
       defaultValue={param.default}
       provenance={provenance}
       onChange={onChange}
+      pinSlot={
+        <SliderPinMenu
+          toolId={toolId}
+          opAdjustmentType={op}
+          layerId={layerId}
+          paramKey={param.key}
+          paramLabel={param.label}
+        />
+      }
     />
   );
 }
 
-interface ScalarSectionBodyProps { layerId: string; op: string; params: ParamDefinition[]; }
+interface ScalarSectionBodyProps { toolId: string; layerId: string; op: string; params: ParamDefinition[]; }
 
 /** The per-section Reset row used to live here; it's been consolidated into
  *  the clickable touched-count badge in `ToolSection.tsx`. One affordance,
  *  same handler, no duplication. */
-export function ScalarSectionBody({ layerId, op, params }: ScalarSectionBodyProps) {
+export function ScalarSectionBody({ toolId, layerId, op, params }: ScalarSectionBodyProps) {
   return (
     <div className="flex flex-col gap-2 px-2.5 py-2">
-      {params.map((p) => <ScalarRow key={p.key} layerId={layerId} op={op} param={p} />)}
+      {params.map((p) => <ScalarRow key={p.key} toolId={toolId} layerId={layerId} op={op} param={p} />)}
     </div>
   );
 }

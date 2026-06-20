@@ -6,12 +6,13 @@ import { backendTools } from '@/lib/backend-tools';
 import { loadRegistry } from '@/lib/registry/loader';
 import { RegistryDrivenPanel } from '../RegistryDrivenPanel';
 import { ScalarSectionBody } from './ScalarSectionBody';
+import { SliderPinMenu } from './SliderPinMenu';
 import { touchKey } from '@/hooks/useParamProvenance';
 import type { ParamDefinition } from '@/types/processing';
 import type { Widget, ControlBinding } from '@/types/widget';
 import type { RegistryOp } from '../../../../shared/registry/schema';
+import { RUNTIME } from '@/config';
 
-const DEBOUNCE_MS = 300;
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 // ---------------------------------------------------------------------------
@@ -60,18 +61,18 @@ function sliceWidgetByOp(widget: Widget): OpSlice[] {
   const reg = loadRegistry();
   const slices: OpSlice[] = [];
   for (const node of widget.nodes) {
-    let op = node.op_id ? reg.ops[node.op_id] : undefined;
+    let op = node.opId ? reg.ops[node.opId] : undefined;
     if (!op) {
-      // Back-compat: nodes without op_id (e.g. persisted before this feature) — match by node_type.
+      // Back-compat: nodes without opId (e.g. persisted before this feature) — match by node_type.
       op = Object.values(reg.ops).find((o) => o.engine.node_type === node.type);
     }
     if (!op) {
-      console.warn(`RegistryDrivenSectionBody: no registry op for node ${node.id} (type=${node.type}, op_id=${node.op_id ?? 'none'})`);
+      console.warn(`RegistryDrivenSectionBody: no registry op for node ${node.id} (type=${node.type}, opId=${node.opId ?? 'none'})`);
       continue;
     }
-    const bindings = widget.bindings.filter((b) => b.target?.node_id === node.id);
+    const bindings = widget.bindings.filter((b) => b.target?.nodeId === node.id);
     const values: Record<string, unknown> = {};
-    for (const b of bindings) values[b.param_key] = b.value;
+    for (const b of bindings) values[b.paramKey] = b.value;
     slices.push({ op, bindings, values, nodeId: node.id });
   }
   return slices;
@@ -95,8 +96,8 @@ function WidgetSectionBodyInner({ widget, disabled }: WidgetSectionBodyInnerProp
     (paramKey: string, value: unknown) => {
       if (!sessionId || offline) return;
       void backendTools.set_widget_param(sessionId, {
-        widget_id: widget.id,
-        param_key: paramKey,
+        widgetId: widget.id,
+        paramKey,
         value: value as number,
       });
     },
@@ -169,17 +170,17 @@ function ToolrailSectionBodyInner({
       const result: Record<string, unknown> = {};
       if (!registryOp) return result;
       for (const binding of registryOp.bindings) {
-        const param = registryOp.params[binding.param_key];
+        const param = registryOp.params[binding.paramKey];
         const defaultVal = param.default;
         const opt = s.optimistic.get(nodeId);
-        const hit = opt?.bindings.find((b) => b.paramKey === binding.param_key);
+        const hit = opt?.bindings.find((b) => b.paramKey === binding.paramKey);
         if (hit !== undefined) {
-          result[binding.param_key] = hit.value;
+          result[binding.paramKey] = hit.value;
           continue;
         }
-        const node = s.snapshot?.operation_graph.nodes.find((n) => n.id === nodeId);
-        const v = node?.params?.[binding.param_key];
-        result[binding.param_key] = v === undefined ? defaultVal : v;
+        const node = s.snapshot?.operationGraph.nodes.find((n) => n.id === nodeId);
+        const v = node?.params?.[binding.paramKey];
+        result[binding.paramKey] = v === undefined ? defaultVal : v;
       }
       return result;
     }),
@@ -205,12 +206,12 @@ function ToolrailSectionBodyInner({
         setTimeout(() => {
           debounceTimers.delete(timerKey);
           void backendTools.set_param(sessionId, {
-            layer_id: layerId,
+            layerId,
             op: opType,
             param: paramKey,
             value: value as number,
           });
-        }, DEBOUNCE_MS),
+        }, RUNTIME.sliderDebounceMs),
       );
     },
     [sessionId, offline, layerId, opType, nodeId],
@@ -218,7 +219,7 @@ function ToolrailSectionBodyInner({
 
   if (!registryOp) {
     // Fallback: op not yet in the registry — use the bespoke scalar body.
-    return <ScalarSectionBody layerId={layerId} op={opType} params={params} />;
+    return <ScalarSectionBody toolId={defId} layerId={layerId} op={opType} params={params} />;
   }
 
   return (
@@ -227,6 +228,15 @@ function ToolrailSectionBodyInner({
       values={values}
       onParamChange={onParamChange}
       disabled={offline}
+      renderPinSlot={(paramKey, label) => (
+        <SliderPinMenu
+          toolId={defId}
+          opAdjustmentType={opType}
+          layerId={layerId}
+          paramKey={paramKey}
+          paramLabel={label}
+        />
+      )}
     />
   );
 }

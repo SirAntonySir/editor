@@ -6,7 +6,7 @@
   "llm": {
     "description": "Per-color-band hue, saturation, and luminance. Bands: red, orange, yellow, green, aqua, blue, purple, magenta.",
     "typical_use": "Shifting skin tones, retoning skies, isolating a single color's hue/sat/lum.",
-    "semantic_tags": ["color", "hsl", "selective"]
+    "semantic_tags": ["color", "hsl", "selective", "hue", "saturation", "luminance", "skin", "sky", "shift", "channels", "bands", "retone"]
   },
   "params": {
     "red_hue":     { "type": "scalar", "range": [-100, 100], "default": 0 },
@@ -35,30 +35,30 @@
     "magenta_lum": { "type": "scalar", "range": [-100, 100], "default": 0 }
   },
   "bindings": [
-    { "param_key": "red_hue",     "control_type": "slider", "label": "Hue",        "group": "Red" },
-    { "param_key": "red_sat",     "control_type": "slider", "label": "Saturation", "group": "Red" },
-    { "param_key": "red_lum",     "control_type": "slider", "label": "Luminance",  "group": "Red" },
-    { "param_key": "orange_hue",  "control_type": "slider", "label": "Hue",        "group": "Orange" },
-    { "param_key": "orange_sat",  "control_type": "slider", "label": "Saturation", "group": "Orange" },
-    { "param_key": "orange_lum",  "control_type": "slider", "label": "Luminance",  "group": "Orange" },
-    { "param_key": "yellow_hue",  "control_type": "slider", "label": "Hue",        "group": "Yellow" },
-    { "param_key": "yellow_sat",  "control_type": "slider", "label": "Saturation", "group": "Yellow" },
-    { "param_key": "yellow_lum",  "control_type": "slider", "label": "Luminance",  "group": "Yellow" },
-    { "param_key": "green_hue",   "control_type": "slider", "label": "Hue",        "group": "Green" },
-    { "param_key": "green_sat",   "control_type": "slider", "label": "Saturation", "group": "Green" },
-    { "param_key": "green_lum",   "control_type": "slider", "label": "Luminance",  "group": "Green" },
-    { "param_key": "aqua_hue",    "control_type": "slider", "label": "Hue",        "group": "Aqua" },
-    { "param_key": "aqua_sat",    "control_type": "slider", "label": "Saturation", "group": "Aqua" },
-    { "param_key": "aqua_lum",    "control_type": "slider", "label": "Luminance",  "group": "Aqua" },
-    { "param_key": "blue_hue",    "control_type": "slider", "label": "Hue",        "group": "Blue" },
-    { "param_key": "blue_sat",    "control_type": "slider", "label": "Saturation", "group": "Blue" },
-    { "param_key": "blue_lum",    "control_type": "slider", "label": "Luminance",  "group": "Blue" },
-    { "param_key": "purple_hue",  "control_type": "slider", "label": "Hue",        "group": "Purple" },
-    { "param_key": "purple_sat",  "control_type": "slider", "label": "Saturation", "group": "Purple" },
-    { "param_key": "purple_lum",  "control_type": "slider", "label": "Luminance",  "group": "Purple" },
-    { "param_key": "magenta_hue", "control_type": "slider", "label": "Hue",        "group": "Magenta" },
-    { "param_key": "magenta_sat", "control_type": "slider", "label": "Saturation", "group": "Magenta" },
-    { "param_key": "magenta_lum", "control_type": "slider", "label": "Luminance",  "group": "Magenta" }
+    { "paramKey": "red_hue",     "controlType": "slider", "label": "Hue",        "group": "Red" },
+    { "paramKey": "red_sat",     "controlType": "slider", "label": "Saturation", "group": "Red" },
+    { "paramKey": "red_lum",     "controlType": "slider", "label": "Luminance",  "group": "Red" },
+    { "paramKey": "orange_hue",  "controlType": "slider", "label": "Hue",        "group": "Orange" },
+    { "paramKey": "orange_sat",  "controlType": "slider", "label": "Saturation", "group": "Orange" },
+    { "paramKey": "orange_lum",  "controlType": "slider", "label": "Luminance",  "group": "Orange" },
+    { "paramKey": "yellow_hue",  "controlType": "slider", "label": "Hue",        "group": "Yellow" },
+    { "paramKey": "yellow_sat",  "controlType": "slider", "label": "Saturation", "group": "Yellow" },
+    { "paramKey": "yellow_lum",  "controlType": "slider", "label": "Luminance",  "group": "Yellow" },
+    { "paramKey": "green_hue",   "controlType": "slider", "label": "Hue",        "group": "Green" },
+    { "paramKey": "green_sat",   "controlType": "slider", "label": "Saturation", "group": "Green" },
+    { "paramKey": "green_lum",   "controlType": "slider", "label": "Luminance",  "group": "Green" },
+    { "paramKey": "aqua_hue",    "controlType": "slider", "label": "Hue",        "group": "Aqua" },
+    { "paramKey": "aqua_sat",    "controlType": "slider", "label": "Saturation", "group": "Aqua" },
+    { "paramKey": "aqua_lum",    "controlType": "slider", "label": "Luminance",  "group": "Aqua" },
+    { "paramKey": "blue_hue",    "controlType": "slider", "label": "Hue",        "group": "Blue" },
+    { "paramKey": "blue_sat",    "controlType": "slider", "label": "Saturation", "group": "Blue" },
+    { "paramKey": "blue_lum",    "controlType": "slider", "label": "Luminance",  "group": "Blue" },
+    { "paramKey": "purple_hue",  "controlType": "slider", "label": "Hue",        "group": "Purple" },
+    { "paramKey": "purple_sat",  "controlType": "slider", "label": "Saturation", "group": "Purple" },
+    { "paramKey": "purple_lum",  "controlType": "slider", "label": "Luminance",  "group": "Purple" },
+    { "paramKey": "magenta_hue", "controlType": "slider", "label": "Hue",        "group": "Magenta" },
+    { "paramKey": "magenta_sat", "controlType": "slider", "label": "Saturation", "group": "Magenta" },
+    { "paramKey": "magenta_lum", "controlType": "slider", "label": "Luminance",  "group": "Magenta" }
   ],
   "engine": { "shader": "hsl", "render_order": 25, "node_type": "hsl" }
 }

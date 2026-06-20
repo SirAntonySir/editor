@@ -4,6 +4,11 @@ export type Size = { w: number; h: number };
 export interface ImageNodeState {
   id: string;
   layerIds: string[];
+  /**
+   * User-editable display name shown in the image-node header. When unset,
+   * the workspace mapper falls back to the first layer's name (file basename).
+   */
+  name?: string;
   position: Point;
   /**
    * Canvas-space layout box. Independent of the source bitmap dims so a 24MP
@@ -17,6 +22,13 @@ export interface ImageNodeState {
    * coordinates; never changed by user resize.
    */
   sourceSize: Size;
+  /**
+   * ImageNode this one was extracted from (via the object-action "Extract
+   * to Image Node"). Set at extract time; absent for the original/source
+   * image-node and for anything added via the file picker. Drives the
+   * "Rejoin source image" menu item which undoes the extract.
+   */
+  sourceImageNodeId?: string;
 }
 
 export interface WidgetNodeState {

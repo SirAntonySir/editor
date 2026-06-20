@@ -1,0 +1,109 @@
+{
+  "$schema": "./node_modules/arkit/schema.json",
+  "excludePatterns": [
+    "**/*.test.*",
+    "**/*.d.ts",
+    "src/test/**",
+    "src/vite-env.d.ts",
+    "shared/**"
+  ],
+  "components": [
+    {
+      "type": "Workspace",
+      "patterns": [
+        "src/components/workspace/*.tsx",
+        "src/components/workspace/drafting/*.tsx"
+      ]
+    },
+    {
+      "type": "Widget",
+      "patterns": ["src/components/widget/*.tsx"]
+    },
+    {
+      "type": "Inspector",
+      "patterns": [
+        "src/components/inspector/*.tsx",
+        "src/components/inspector/adjustments/*.tsx",
+        "src/components/inspector/layer/*.tsx",
+        "src/components/inspector/info/*.tsx"
+      ]
+    },
+    {
+      "type": "Toolbar / Panel / Palette",
+      "patterns": [
+        "src/components/toolbar/*.tsx",
+        "src/components/panels/*.tsx",
+        "src/components/CommandPalette.tsx"
+      ]
+    },
+    {
+      "type": "Store slice",
+      "patterns": ["src/store/*.ts"]
+    },
+    {
+      "type": "Core",
+      "patterns": ["src/core/*.ts"]
+    },
+    {
+      "type": "Hook",
+      "patterns": ["src/hooks/*.ts"]
+    },
+    {
+      "type": "Library",
+      "patterns": ["src/lib/*.ts"]
+    },
+    {
+      "type": "Tool manifest",
+      "patterns": ["src/lib/tool-manifest/llm-tool-registry.ts"]
+    },
+    {
+      "type": "Toolrail tool",
+      "patterns": ["src/tools/*.tsx"]
+    },
+    {
+      "type": "Type",
+      "patterns": ["src/types/*.ts"]
+    }
+  ],
+  "output": [
+    {
+      "path": "docs/figures/architecture-overview.puml",
+      "groups": [
+        {
+          "type": "UI surfaces",
+          "components": ["Workspace", "Widget", "Inspector", "Toolbar / Panel / Palette"]
+        },
+        {
+          "type": "State + lifecycle",
+          "components": ["Store slice", "Core", "Hook"]
+        },
+        {
+          "type": "Library + tools",
+          "components": ["Library", "Tool manifest", "Toolrail tool"]
+        },
+        { "type": "Types", "components": ["Type"] }
+      ]
+    },
+    {
+      "path": "docs/figures/architecture-workspace.puml",
+      "groups": [
+        { "type": "Workspace", "components": ["Workspace"] },
+        { "type": "Used by workspace", "components": ["Store slice", "Core", "Hook", "Library", "Type"] }
+      ]
+    },
+    {
+      "path": "docs/figures/architecture-widget.puml",
+      "groups": [
+        { "type": "Widget", "components": ["Widget"] },
+        { "type": "Used by widget", "components": ["Store slice", "Core", "Hook", "Library", "Type"] }
+      ]
+    },
+    {
+      "path": "docs/figures/architecture-inspector.puml",
+      "groups": [
+        { "type": "Inspector", "components": ["Inspector"] },
+        { "type": "Used by inspector", "components": ["Store slice", "Hook", "Library", "Type"] }
+      ]
+    }
+  ]
+}

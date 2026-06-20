@@ -12,18 +12,18 @@ function makeWidget(overrides: Partial<Widget> = {}): Widget {
     origin: { kind: 'tool_invoked' },
     composed: false,
     bindings: [],
-    preview: { kind: 'none', auto_before_after: false },
-    rejected_attempts: [],
+    preview: { kind: 'none', autoBeforeAfter: false },
+    rejectedAttempts: [],
     status: 'accepted',
     revision: 1,
-    created_at: '',
-    updated_at: '',
+    createdAt: '',
+    updatedAt: '',
     nodes: [{
       id: 'n1', type: 'curves', scope: { kind: 'global' },
       params: { intensity: 0.5 }, inputs: [],
-      widget_id: 'w1', layer_id: 'L1',
+      widgetId: 'w1', layerId: 'L1',
     }],
-    locked_params: [],
+    lockedParams: [],
     ...overrides,
   };
 }
@@ -31,11 +31,11 @@ function makeWidget(overrides: Partial<Widget> = {}): Widget {
 function setSnapshot(widgets: Widget[]): void {
   const nodes = widgets.flatMap((w) => w.nodes);
   useBackendState.getState().setSnapshot({
-    session_id: 's',
-    image_context: null,
+    sessionId: 's',
+    imageContext: null,
     widgets,
-    masks_index: [],
-    operation_graph: {
+    masksIndex: [],
+    operationGraph: {
       id: 'g',
       userGoal: '',
       nodes,

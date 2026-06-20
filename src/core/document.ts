@@ -16,10 +16,41 @@ import * as history from './history';
 import { putSource } from './pixel-source-store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
+import { useAiSession } from '@/hooks/useImageContext';
 import { clearInternalCanvasCache } from '@/lib/image-node-geometry';
 import { parseImageMetadata } from '@/lib/image-metadata';
+import { backendTools } from '@/lib/backend-tools';
+import { toast } from '@/components/ui/Toast';
+
+const BACKEND_BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
 const DEBOUNCE_MS = 2000;
+
+// ─── Burst-coalesce toast for non-stealing image adds ───────────────
+const BURST_WINDOW_MS = 250;
+let pendingImageAdds = 0;
+let imageAddFlush: ReturnType<typeof setTimeout> | null = null;
+
+function notifyImageAdded(): void {
+  pendingImageAdds += 1;
+  if (imageAddFlush !== null) return;
+  imageAddFlush = setTimeout(() => {
+    const n = pendingImageAdds;
+    pendingImageAdds = 0;
+    imageAddFlush = null;
+    toast.info(n === 1 ? 'Image added — click to edit.' : `${n} images added — click to edit.`);
+  }, BURST_WINDOW_MS);
+}
+
+/** Reset burst-coalesce state. Exported for test isolation only. */
+export function _resetImageAddBurst(): void {
+  if (imageAddFlush !== null) {
+    clearTimeout(imageAddFlush);
+    imageAddFlush = null;
+  }
+  pendingImageAdds = 0;
+}
+// ────────────────────────────────────────────────────────────────────
 
 let store: StoreApi<EditorState> | null = null;
 let interaction: InteractionSession | null = null;
@@ -187,10 +218,6 @@ async function openImage(file: File): Promise<void> {
   const layerId = crypto.randomUUID();
   pixelStore.register(layerId, offscreen);
 
-  // Best-effort: persist the source blob so Cmd+R can rehydrate this layer.
-  const sid = useBackendState.getState().sessionId;
-  if (sid) void putSource(sid, layerId, file);
-
   const meta: DocumentMeta = {
     id: crypto.randomUUID(),
     name: file.name.replace(/\.[^.]+$/, ''),
@@ -234,11 +261,117 @@ async function openImage(file: File): Promise<void> {
   // immediately — analyse runs later, on explicit user click. Awaiting
   // would block image-open on a backend round-trip, so fire-and-forget.
   // Pass the OffscreenCanvas (not `bitmap` — closed below; not `file` —
-  // openSession's downscaleForUpload doesn't accept Blob). `openSession`
-  // is idempotent so re-opening the same image is a no-op.
-  void import('@/hooks/useImageContext').then(({ useAiSession }) => {
-    void useAiSession.getState().openSession(offscreen);
-  });
+  // openSession's downscaleForUpload doesn't accept Blob).
+  // Reset useAiSession first: openSession early-returns when sessionId is
+  // already set, so without a reset a new image would either skip the
+  // upload entirely (re-opening) or inherit a stuck 'uploading'/'error'
+  // status from a previous attempt (backend reload, network blip).
+  //
+  // NOTE: openSession is async (uploads the offscreen canvas). If the user
+  // opens a second image while a prior upload is still in flight, the late
+  // upload can clobber the new session. Addressing that race requires a
+  // generation counter on useAiSession.openSession — out of scope for this
+  // cluster, tracked as a follow-up under audit C8.
+  useAiSession.getState().reset();
+  void useAiSession
+    .getState()
+    .openSession(offscreen)
+    .then(() => {
+      // openSession sets useAiSession.sessionId before resolving. Persist
+      // the source blob here (not synchronously above) because the session
+      // didn't exist yet at openImage entry — without this, Cmd+R reload
+      // finds no IDB entry and the canvas paints gray.
+      const sid = useAiSession.getState().sessionId;
+      if (sid) void putSource(sid, layerId, file);
+    });
+
+  bitmap.close();
+}
+
+/**
+ * Append a second (or Nth) image to the current document/session without
+ * resetting any existing state. Creates a new layer + image node placed to
+ * the right of the existing ones.
+ *
+ * Fire-and-forget backend upload: posts the file to
+ * `/api/session/{sid}/images`. The backend mints its own image_node_id;
+ * the frontend separately mints a workspace id via `addImageNode`. For
+ * this slice we accept that the two ids may not match — revival will
+ * reconcile.
+ */
+async function addImage(file: File): Promise<void> {
+  const bitmap = await createImageBitmap(file);
+  const offscreen = new OffscreenCanvas(bitmap.width, bitmap.height);
+  const ctx = offscreen.getContext('2d');
+  if (ctx) ctx.drawImage(bitmap, 0, 0);
+
+  const layerId = crypto.randomUUID();
+  pixelStore.register(layerId, offscreen);
+
+  const sid = useBackendState.getState().sessionId;
+
+  // Best-effort persist source blob so revival can rehydrate this layer.
+  if (sid) void putSource(sid, layerId, file);
+
+  // Best-effort backend upload — fire-and-forget. Mismatch in ids is a known
+  // gap for this slice; the revival ticket will reconcile.
+  if (sid) {
+    const fd = new FormData();
+    fd.append('image', file);
+    void fetch(`${BACKEND_BASE_URL}/api/session/${sid}/images`, {
+      method: 'POST',
+      body: fd,
+    }).catch((err) => {
+      console.warn('[addImage] backend upload failed:', err);
+    });
+  }
+
+  if (store) {
+    const existing = Object.values(store.getState().imageNodes);
+    const maxRight = existing.reduce(
+      (m, n) => Math.max(m, n.position.x + n.size.w),
+      0,
+    );
+    const position = { x: existing.length > 0 ? maxRight + 80 : 0, y: 0 };
+
+    const wasNothingActive = useEditorStore.getState().activeImageNodeId === null;
+
+    const newNodeId = useEditorStore.getState().addImageNode(
+      [layerId],
+      position,
+      { w: bitmap.width, h: bitmap.height },
+    );
+
+    store.setState((s) => ({
+      layers: [
+        ...s.layers,
+        {
+          id: layerId,
+          type: 'image',
+          name: file.name,
+          visible: true,
+          opacity: 1,
+          blendMode: 'normal',
+          locked: false,
+          order: s.layers.length,
+        },
+      ],
+      // Only adopt the new layer as active when nothing was active —
+      // preserves the user's selection when they add a second image.
+      ...(wasNothingActive ? { activeLayerId: layerId } : {}),
+    }));
+
+    // Promote the new node to active ONLY when there's nothing to preserve.
+    if (wasNothingActive) {
+      useEditorStore.getState().setActiveImageNode(newNodeId);
+    } else {
+      notifyImageAdded();
+    }
+  }
+
+  const post = captureState();
+  if (post) history.push(post);
+  markDirty();
 
   bitmap.close();
 }
@@ -309,15 +442,40 @@ function recordSnapshot<T>(_label: string, fn: () => T): T {
 }
 
 // ─── Undo / redo ────────────────────────────────────────────────────
+//
+// Two stacks compose here: the backend's snapshot-based history (canonical
+// adjustments, widgets, masks, image-node transforms) and the frontend's
+// workspace-layout history (image-node positions, tether edges, widget
+// node placement). Undo/redo tries the BACKEND first — slider commits and
+// widget lifecycle are far more frequent than workspace ops — then falls
+// back to the frontend stack when the backend has nothing.
 
-function undoAction(): void {
+async function undoAction(): Promise<void> {
   if (interaction) endInteraction();
+  const sessionId = useBackendState.getState().sessionId;
+  if (sessionId) {
+    try {
+      const applied = await backendTools.undo(sessionId);
+      if (applied !== null) return;  // backend handled it
+    } catch (err) {
+      console.warn('[history] backend undo failed, falling back:', err);
+    }
+  }
   const snap = history.undo<SerializableState>();
   if (snap) restoreState(snap);
 }
 
-function redoAction(): void {
+async function redoAction(): Promise<void> {
   if (interaction) endInteraction();
+  const sessionId = useBackendState.getState().sessionId;
+  if (sessionId) {
+    try {
+      const applied = await backendTools.redo(sessionId);
+      if (applied !== null) return;
+    } catch (err) {
+      console.warn('[history] backend redo failed, falling back:', err);
+    }
+  }
   const snap = history.redo<SerializableState>();
   if (snap) restoreState(snap);
 }
@@ -351,16 +509,79 @@ const workspace = {
     );
   },
 
+  /**
+   * Peel the currently active layer off `sourceNodeId` onto a new ImageNode.
+   * Guards: source node exists, an active layer is set, the layer actually
+   * belongs to the source, and the source has more than one layer.
+   *
+   * Wraps the slice action in a history snapshot so the user can undo the split.
+   */
+  splitActiveLayer(sourceNodeId: string): void {
+    const state = useEditorStore.getState();
+    const node = state.imageNodes[sourceNodeId];
+    const activeLayerId = state.activeLayerId;
+    if (!node || !activeLayerId) return;
+    if (!node.layerIds.includes(activeLayerId)) return;
+    if (node.layerIds.length < 2) return;
+    recordSnapshot('Split active layer', () => {
+      useEditorStore.getState().splitImageNode(sourceNodeId, activeLayerId);
+    });
+  },
+
   mergeImageNodes(sourceId: string, targetId: string): void {
     recordSnapshot('Merge image nodes', () =>
       useEditorStore.getState().mergeImageNodes(sourceId, targetId),
     );
   },
 
+  /**
+   * Fold `sourceNodeId` into `targetNodeId`. Thin wrapper over `mergeImageNodes`
+   * with arg order matching "merge SOURCE into TARGET" (target first), guarding
+   * against missing nodes and self-merge.
+   */
+  mergeInto(targetNodeId: string, sourceNodeId: string): void {
+    const state = useEditorStore.getState();
+    if (!state.imageNodes[targetNodeId] || !state.imageNodes[sourceNodeId]) return;
+    if (targetNodeId === sourceNodeId) return;
+    recordSnapshot('Merge into image node', () => {
+      useEditorStore.getState().mergeImageNodes(sourceNodeId, targetNodeId);
+    });
+  },
+
   removeImageNode(id: string): void {
     recordSnapshot('Remove image node', () =>
       useEditorStore.getState().removeImageNode(id),
     );
+  },
+
+  /**
+   * User-facing "Delete" on an image node. Behaves as:
+   *  - last image node in the document → `closeDocument()` (legacy behaviour,
+   *    the document is meaningless without an image).
+   *  - any secondary node (e.g. one produced by "Extract to Image Node") →
+   *    drop the node + the layers it exclusively owned. Layers shared with
+   *    other nodes are left alone. Pixel data is cleaned up by the layer-
+   *    lifecycle hook when the orphaned layers are removed.
+   */
+  deleteImageNode(id: string): void {
+    const state = useEditorStore.getState();
+    const node = state.imageNodes[id];
+    if (!node) return;
+    const allNodes = Object.values(state.imageNodes);
+    if (allNodes.length <= 1) {
+      closeDocument();
+      return;
+    }
+    const exclusiveLayers = node.layerIds.filter((lid) =>
+      !allNodes.some((n) => n.id !== id && n.layerIds.includes(lid)),
+    );
+    recordSnapshot('Delete image node', () => {
+      const s = useEditorStore.getState();
+      s.removeImageNode(id);
+      for (const lid of exclusiveLayers) {
+        try { s.removeLayer(lid); } catch { /* layer with children: skip */ }
+      }
+    });
   },
 
   setEdge(edge: TetherEdgeState): void {
@@ -435,6 +656,7 @@ export const editorDocument = {
   newDocument,
   closeDocument,
   openImage,
+  addImage,
 
   // Interactions (slider debouncing)
   beginInteraction,

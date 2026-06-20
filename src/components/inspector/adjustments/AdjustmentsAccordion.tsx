@@ -1,22 +1,15 @@
 import { useEditorStore } from '@/store';
-import { useBackendState } from '@/store/backend-state-slice';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import type { ProcessingDefinition } from '@/types/processing';
-import type { Widget } from '@/types/widget';
+import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
 import { ToolSection } from './ToolSection';
-import { AiSection } from './AiSection';
-
-// Stable empty reference so the selector below doesn't return a fresh literal
-// each render (avoids useSyncExternalStore re-render churn when snapshot is null).
-const EMPTY_WIDGETS: Widget[] = [];
+import { PresetsSection } from './PresetsSection';
 
 // Per-def label overrides for the accordion. Most defs use their own `.label`
 // directly; a few need a slightly different toolrail-style name here. Empty
 // today now that "White Balance" is the canonical name for the kelvin def.
-const SECTION_LABELS: Record<string, string> = {
-  filter: 'Filters',
-};
+const SECTION_LABELS: Record<string, string> = {};
 
 // Tool grouping. Each inner array is a contiguous group of rows; only the
 // gaps BETWEEN groups get a separator. Within a group rows have no internal
@@ -31,7 +24,6 @@ const TOOL_GROUPS: string[][] = [
   ['color', 'kelvin', 'hsl'],
   ['sharpen', 'clarity', 'blur'],
   ['splitTone', 'vignette', 'grain'],
-  ['filter'],
 ];
 
 function sectionDef(def: ProcessingDefinition): ProcessingDefinition {
@@ -41,43 +33,28 @@ function sectionDef(def: ProcessingDefinition): ProcessingDefinition {
 
 export function AdjustmentsAccordion() {
   const layerId = useEditorStore((s) => s.activeLayerId);
-  const widgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
-  // Pending suggestions are gated by the SuggestionChips row at the top of
-  // the editor; hide them from the inspector AI section so they don't appear
-  // anywhere until the user has clicked Allow.
-  const pendingIds = useBackendState((s) => s.pendingSuggestionIds);
-  const aiWidgets = widgets.filter(
-    (w) =>
-      (w.status === 'active' || w.status === 'accepted') &&
-      w.origin.kind === 'mcp_autonomous' &&
-      !pendingIds.has(w.id),
-  );
+  const activeObjectId = useEditorStore((s) => s.activeObjectId);
+  const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
+  const objects = useImageNodeObjects(activeImageNodeId ?? '');
+  const objectName = objects.find((o) => o.id === activeObjectId)?.label ?? 'Whole image';
 
   // Build the ordered list of (def, isLastInGroup) tuples so the renderer can
   // decide where to drop separators. Defs not in TOOL_GROUPS are ignored —
   // adding a new processing def requires adding it to a group explicitly.
   const allDefs = new Map(
-    [
-      ...ProcessingRegistry.getByCategory('adjust'),
-      ...ProcessingRegistry.getByCategory('filter'),
-    ].map((d) => [d.id, d]),
+    ProcessingRegistry.getByCategory('adjust').map((d) => [d.id, d]),
   );
   const groups = TOOL_GROUPS.map((ids) =>
     ids.map((id) => allDefs.get(id)).filter((d): d is ProcessingDefinition => Boolean(d)),
   ).filter((g) => g.length > 0);
 
   return (
-    <ScrollArea className="flex-1 min-h-0">
-      {aiWidgets.length > 0 && (
-        <div className="px-2.5 pt-2 pb-3 flex flex-col gap-2">
-          <div className="text-[9px] uppercase tracking-wide text-text-secondary">
-            AI Suggestions
-          </div>
-          {aiWidgets.map((w) => (
-            <AiSection key={w.id} widget={w} />
-          ))}
-        </div>
-      )}
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-text-secondary border-b border-separator shrink-0">
+        Targets:{' '}
+        <span className="text-text-primary">{objectName}</span>
+      </div>
+      <ScrollArea className="flex-1 min-h-0">
       <div className="text-[9px] uppercase tracking-wide text-text-secondary px-2.5 pt-2 pb-1">
         Tools
       </div>
@@ -91,6 +68,13 @@ export function AdjustmentsAccordion() {
           ))}
         </div>
       ))}
+      <div className="border-t border-separator">
+        <div className="text-[10px] uppercase tracking-wide text-text-secondary px-2 pt-2 pb-1">
+          Presets
+        </div>
+        <PresetsSection />
+      </div>
     </ScrollArea>
+    </div>
   );
 }

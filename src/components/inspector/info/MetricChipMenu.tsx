@@ -4,7 +4,7 @@ import { Copy, Pin, PlusSquare, Sparkles } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { editorDocument } from '@/core/document';
 import { toast } from '@/components/ui/Toast';
-import { MetricChip } from './MetricChip';
+import { MetricChip } from '@/components/ui/MetricChip';
 
 interface Props {
   /** Stable identifier for what this chip represents (e.g.

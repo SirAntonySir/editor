@@ -261,4 +261,121 @@ describe('workspace-slice', () => {
     s.setActiveImageNode(null);
     expect(useEditorStore.getState().activeImageNodeId).toBeNull();
   });
+
+  describe('previousImageNodeId tracking', () => {
+    it('starts null and updates when active switches to a different non-null id', () => {
+      const s = useEditorStore.getState();
+      const a = s.addImageNode(['l-1']);
+      const b = s.addImageNode(['l-2']);
+      expect(useEditorStore.getState().previousImageNodeId).toBeNull();
+      s.setActiveImageNode(a);
+      expect(useEditorStore.getState().previousImageNodeId).toBeNull();
+      s.setActiveImageNode(b);
+      expect(useEditorStore.getState().previousImageNodeId).toBe(a);
+      expect(useEditorStore.getState().activeImageNodeId).toBe(b);
+    });
+
+    it('preserves previous when active is cleared to null', () => {
+      const s = useEditorStore.getState();
+      const a = s.addImageNode(['l-1']);
+      const b = s.addImageNode(['l-2']);
+      s.setActiveImageNode(a);
+      s.setActiveImageNode(b);
+      s.setActiveImageNode(null);
+      expect(useEditorStore.getState().previousImageNodeId).toBe(a);
+      expect(useEditorStore.getState().activeImageNodeId).toBeNull();
+    });
+
+    it('selecting the same node twice is a no-op for previous', () => {
+      const s = useEditorStore.getState();
+      const a = s.addImageNode(['l-1']);
+      const b = s.addImageNode(['l-2']);
+      s.setActiveImageNode(a);
+      s.setActiveImageNode(b);
+      s.setActiveImageNode(b);
+      expect(useEditorStore.getState().previousImageNodeId).toBe(a);
+    });
+
+    it('A→B→A leaves previous=B (cycling)', () => {
+      const s = useEditorStore.getState();
+      const a = s.addImageNode(['l-1']);
+      const b = s.addImageNode(['l-2']);
+      s.setActiveImageNode(a);
+      s.setActiveImageNode(b);
+      s.setActiveImageNode(a);
+      expect(useEditorStore.getState().previousImageNodeId).toBe(b);
+      expect(useEditorStore.getState().activeImageNodeId).toBe(a);
+    });
+
+    it('removeImageNode clears previousImageNodeId if it matched', () => {
+      const s = useEditorStore.getState();
+      const a = s.addImageNode(['l-1']);
+      const b = s.addImageNode(['l-2']);
+      s.setActiveImageNode(a);
+      s.setActiveImageNode(b);
+      expect(useEditorStore.getState().previousImageNodeId).toBe(a);
+      s.removeImageNode(a);
+      expect(useEditorStore.getState().previousImageNodeId).toBeNull();
+    });
+
+    it('mergeImageNodes redirects active when the source was active (target survives)', () => {
+      const s = useEditorStore.getState();
+      const a = s.addImageNode(['l-1']);
+      const b = s.addImageNode(['l-2']);
+      s.setActiveImageNode(a);
+      s.setActiveImageNode(b);
+      // Merging b into a: source=b (active), target=a (previous).
+      s.mergeImageNodes(b, a);
+      const after = useEditorStore.getState();
+      expect(after.imageNodes[b]).toBeUndefined();
+      // Active redirects to the surviving target.
+      expect(after.activeImageNodeId).toBe(a);
+      // Previous was `a`, which still exists — so it stays.
+      expect(after.previousImageNodeId).toBe(a);
+    });
+
+    it('mergeImageNodes clears previous when the source was the previous', () => {
+      const s = useEditorStore.getState();
+      const a = s.addImageNode(['l-1']);
+      const b = s.addImageNode(['l-2']);
+      const c = s.addImageNode(['l-3']);
+      s.setActiveImageNode(a);
+      s.setActiveImageNode(c);
+      // active=c, previous=a. Merge a into b → a is the deleted source.
+      s.mergeImageNodes(a, b);
+      const after = useEditorStore.getState();
+      expect(after.imageNodes[a]).toBeUndefined();
+      expect(after.previousImageNodeId).toBeNull();
+    });
+  });
+
+  describe('imageNodeMode', () => {
+    beforeEach(() => useEditorStore.getState().resetWorkspace());
+
+    it('defaults to empty record', () => {
+      expect(useEditorStore.getState().imageNodeMode).toEqual({});
+    });
+
+    it('setImageNodeMode persists the mode per node', () => {
+      const id = useEditorStore.getState().addImageNode(['l1']);
+      useEditorStore.getState().setImageNodeMode(id, 'layers');
+      expect(useEditorStore.getState().imageNodeMode[id]).toBe('layers');
+      useEditorStore.getState().setImageNodeMode(id, 'objects');
+      expect(useEditorStore.getState().imageNodeMode[id]).toBe('objects');
+    });
+
+    it('resetWorkspace clears it', () => {
+      const id = useEditorStore.getState().addImageNode(['l1']);
+      useEditorStore.getState().setImageNodeMode(id, 'layers');
+      useEditorStore.getState().resetWorkspace();
+      expect(useEditorStore.getState().imageNodeMode).toEqual({});
+    });
+
+    it('removeImageNode drops the mode entry', () => {
+      const id = useEditorStore.getState().addImageNode(['l1']);
+      useEditorStore.getState().setImageNodeMode(id, 'layers');
+      useEditorStore.getState().removeImageNode(id);
+      expect(useEditorStore.getState().imageNodeMode[id]).toBeUndefined();
+    });
+  });
 });

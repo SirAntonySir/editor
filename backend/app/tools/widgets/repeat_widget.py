@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from app.schemas._camel import camel_config
 from app.api import deps
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 from app.tools.fused import all_fused_templates
 from app.tools.fused_framework import ResolvedNumbers, run_fused_tool
@@ -19,6 +20,7 @@ class _InvalidInput(Exception):
 
 
 class _Input(BaseModel):
+    model_config = camel_config(extra="forbid")
     widget_id: str
     feedback: str | None = None
 
@@ -37,6 +39,10 @@ class RepeatWidgetTool(BackendTool[_Input, _Output]):
     input_schema = _Input
     output_schema = _Output
     permissions = ToolPermissions(requires_image=True, requires_context=True)
+    is_user_action = True
+
+    def history_label(self, input: _Input, output: _Output) -> str:  # noqa: A002
+        return "Re-rolled widget"
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         w = doc.widgets.get(input.widget_id)
@@ -53,11 +59,11 @@ class RepeatWidgetTool(BackendTool[_Input, _Output]):
         instruction = input.feedback or "The user rejected the previous attempt. Produce a meaningfully different result for the same intent."
         anthropic = deps.get_anthropic_client()
         new_widget = await run_fused_tool(
-            template, intent=w.intent, scope=w.scope, ctx=doc.image_context,
+            template, intent=w.intent, scope=w.scope, ctx=doc.get_image_context(DEFAULT_IMAGE_NODE_ID),
             prior=w, instruction=instruction, anthropic=anthropic, origin=w.origin,
         )
         new_widget.id = w.id
         new_widget.revision = w.revision + 1
         new_widget.rejected_attempts = w.rejected_attempts
         doc.update_widget(new_widget)
-        return _Output(widget=new_widget.model_dump(mode="json"))
+        return _Output(widget=new_widget.model_dump(mode="json", by_alias=True))

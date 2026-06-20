@@ -92,14 +92,45 @@ export function getScratchCanvas(imageNodeId: string, w: number, h: number): HTM
   return canvas;
 }
 
+interface ScratchCacheState { source: object; w: number; h: number }
+const scratchState = new Map<string, ScratchCacheState>();
+
+/** Memoised scratch downscale: returns a canvas containing `source`
+ *  drawn at `w × h`. If the (source, w, h) tuple matches the previous
+ *  call for this `imageNodeId`, the cached canvas is returned without a
+ *  redraw — a `drawImage` of a 4 K source into the scratch canvas costs
+ *  several ms and used to run every frame even when only an adjustment
+ *  param moved. Caller must NOT mutate the returned canvas. */
+export function getMemoisedScratchCanvas(
+  imageNodeId: string,
+  source: HTMLCanvasElement | OffscreenCanvas,
+  w: number,
+  h: number,
+): HTMLCanvasElement {
+  const canvas = getScratchCanvas(imageNodeId, w, h);
+  const last = scratchState.get(imageNodeId);
+  if (last && last.source === (source as unknown as object) && last.w === w && last.h === h) {
+    return canvas;
+  }
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(source, 0, 0, w, h);
+  }
+  scratchState.set(imageNodeId, { source: source as unknown as object, w, h });
+  return canvas;
+}
+
 /** Drop one entry or the whole cache. Called by `editorDocument.closeDocument()`. */
 export function clearInternalCanvasCache(imageNodeId?: string): void {
   if (imageNodeId) {
     internalCache.delete(imageNodeId);
     scratchCache.delete(imageNodeId);
+    scratchState.delete(imageNodeId);
   } else {
     internalCache.clear();
     scratchCache.clear();
+    scratchState.clear();
   }
 }
 

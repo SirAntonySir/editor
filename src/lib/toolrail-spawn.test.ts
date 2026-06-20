@@ -43,11 +43,11 @@ describe('spawnToolWidget', () => {
     expect(backendTools.proposeStack).not.toHaveBeenCalled();
   });
 
-  it('active node → proposeStack with forced_ops and the node\'s layer', async () => {
+  it('active node → proposeStack with forced_ops and global scope', async () => {
     const { backendTools } = await import('@/lib/backend-tools');
     useBackendState.setState({ sessionId: 's1' });
 
-    const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 0, y: 0 });
+    const nodeId = useEditorStore.getState().addImageNode(['layer-a', 'layer-b'], { x: 0, y: 0 });
     useEditorStore.getState().setActiveImageNode(nodeId);
 
     expect(spawnToolWidget('light')).toBe(true);
@@ -55,7 +55,25 @@ describe('spawnToolWidget', () => {
       intent: 'Light',
       scope: { kind: 'global' },
       forced_ops: ['light'],
-      layer_id: 'layer-a',
+      layerId: 'layer-a',
+      origin: 'tool_invoked',
+    });
+  });
+
+  it('active mask scope wins — user-selected scope is preserved', async () => {
+    const { backendTools } = await import('@/lib/backend-tools');
+    useBackendState.setState({ sessionId: 's1' });
+
+    const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 0, y: 0 });
+    useEditorStore.getState().setActiveImageNode(nodeId);
+    useEditorStore.getState().setActiveObjectId('m1');
+
+    expect(spawnToolWidget('light')).toBe(true);
+    expect(backendTools.proposeStack).toHaveBeenCalledWith('s1', {
+      intent: 'Light',
+      scope: { kind: 'mask', mask_id: 'm1' },
+      forced_ops: ['light'],
+      layerId: 'layer-a',
       origin: 'tool_invoked',
     });
   });

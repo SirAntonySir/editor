@@ -1,5 +1,14 @@
 import type { ProcessingDefinition, ParamDefinition } from '@/types/processing';
 
+/**
+ * Registry of ProcessingDefinitions (light, color, kelvin, curves, levels,
+ * filters, …). Every public method is **defensively soft on misses**: a
+ * lookup for an unregistered id returns `undefined` / `[]` / a fallback,
+ * never throws. This is the Phase 4 contract — a freshly cloned tree
+ * with a different set of registered ops should still render the widgets
+ * for the ops it DOES know, falling through to a generic block-kit
+ * renderer for the rest.
+ */
 class ProcessingRegistryImpl {
   private defs = new Map<string, ProcessingDefinition>();
 

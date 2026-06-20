@@ -18,6 +18,13 @@ interface AiSessionState {
   context: ImageContext | null;
   status: 'idle' | 'uploading' | 'analysing' | 'ready' | 'error';
   error: string | null;
+  /** image-node ids whose analyse has completed at least once this session.
+   *  Updated by analyseImageLayer on success. Pruned when image-nodes are
+   *  removed (worst case: a stale flag pointing at a vanished id, which only
+   *  affects the menu label and harmlessly shows "Re-analyze"). */
+  analysedImageNodeIds: string[];
+  /** Mark an image-node as having been analysed. Idempotent. */
+  markAnalysed: (imageNodeId: string) => void;
   /** Upload source pixels + create a backend session. No analyze — tools
    *  that just need a session for `set_param` writes (the toolrail
    *  adjustments) become usable as soon as this resolves and SSE handshakes.
@@ -166,11 +173,41 @@ function contextIsStale(context: ImageContext): boolean {
   return regions.every((r) => !r.paths || r.paths.length === 0);
 }
 
+/**
+ * Pick which image layer the AI should target. Prefers the layer of the
+ * currently active ImageNode on the canvas (so the user's selection drives
+ * analysis), then falls back to `activeLayerId`, then the first image layer
+ * in the document. Returns null only when the document has no image layers.
+ */
+export function resolveTargetImageLayerId(): string | null {
+  const editor = useEditorStore.getState();
+  const { activeImageNodeId, imageNodes, layers, activeLayerId } = editor;
+  if (activeImageNodeId) {
+    const node = imageNodes[activeImageNodeId];
+    if (node) {
+      for (const lid of node.layerIds) {
+        if (layers.find((l) => l.id === lid)?.type === 'image') return lid;
+      }
+    }
+  }
+  if (activeLayerId && layers.find((l) => l.id === activeLayerId)?.type === 'image') {
+    return activeLayerId;
+  }
+  return layers.find((l) => l.type === 'image')?.id ?? null;
+}
+
 export const useAiSession = create<AiSessionState>((set, get) => ({
   sessionId: null,
   context: null,
   status: 'idle',
   error: null,
+  analysedImageNodeIds: [],
+  markAnalysed: (imageNodeId) =>
+    set((s) => ({
+      analysedImageNodeIds: s.analysedImageNodeIds.includes(imageNodeId)
+        ? s.analysedImageNodeIds
+        : [...s.analysedImageNodeIds, imageNodeId],
+    })),
   async openSession(source) {
     // Idempotent: if a session is already alive, do nothing. Reset() must
     // run first when the caller wants a fresh session for a new image.
@@ -197,33 +234,39 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
     }
     set({ status: 'analysing' });
     try {
-      // Use the TOOL endpoint (/api/tools/analyze_image), not the legacy
-      // REST /api/analyze. The tool path emits phase + streamed
-      // `context.updated` SSE events that progressively populate
-      // `snapshot.image_context` — the source `useImageContextFull` reads
-      // from. The legacy endpoint returns the context as a JSON body and
-      // never fires SSE, which left the InfoTab overlay stuck because
-      // `showOverlay = !ctx` kept reading null from the snapshot.
-      const activeLayerId = useEditorStore.getState().activeLayerId
-        ?? useEditorStore.getState().layers.find((l) => l.type === 'image')?.id;
-      const envelope = await backendTools.analyze_image(
+      const activeLayerId = resolveTargetImageLayerId();
+
+      // Phase 1: prepare (cv2 + SAM embed). Required before analyze_context;
+      // its output is reused server-side via doc.prepare_result.
+      await backendTools.prepare_image(sessionId);
+      if (get().sessionId !== sessionId) return;
+
+      // Phase 2: Claude analyze + soft fields + region stats. This is what
+      // the user perceives as "analyze done". Block on it; everything else
+      // streams off the critical path.
+      const ctxEnv = await backendTools.analyze_context(
         sessionId,
-        activeLayerId ? { layer_id: activeLayerId } : {},
+        activeLayerId ? { layerId: activeLayerId } : {},
       );
       if (get().sessionId !== sessionId) return;
-      if (!envelope.ok || !envelope.output) {
-        console.error('[ImageContext] runAnalyse: tool error', envelope.error);
-        set({ status: 'error', error: envelope.error?.message ?? 'analyze failed' });
+      if (!ctxEnv.ok || !ctxEnv.output) {
+        console.error('[ImageContext] runAnalyse: tool error', ctxEnv.error);
+        set({
+          status: 'error',
+          error: ctxEnv.error?.message ?? 'analyze_context failed',
+        });
         return;
       }
-      // The tool's _Output is the EnrichedImageContext directly. Cast
-      // matches the legacy `analyzeImage` return shape so downstream
-      // (registerRegionPaths, useAiSession.context consumers) is unchanged.
-      const context = envelope.output as unknown as ImageContext;
+      // The backend emits camelCase on the wire (Phase 1 Task 1.1).
+      // Cast directly — no Zod transform needed.
+      const context = ctxEnv.output as ImageContext;
       console.log('[ImageContext]', context);
+
       if (activeLayerId) {
         await registerRegionPaths(context, activeLayerId);
       }
+      set({ context, status: 'ready' });
+
       // Belt-and-braces snapshot refetch: the SSE deltas already populated
       // `snapshot.image_context` for the InfoTab; this picks up any widget /
       // op_graph / masks_index state that landed alongside.
@@ -236,7 +279,28 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
       } catch {
         // SSE merges cover the user-facing fields; this is just cleanup.
       }
-      set({ context, status: 'ready' });
+
+      // Phase 3 + 4: fire-and-forget, but SERIALIZED. Each mutate tool
+      // takes the per-session document write_lock on the backend (sync
+      // threading.Lock acquired from inside an async handler). If we fired
+      // these in parallel, the second tool would block the event-loop
+      // thread on lock.acquire() while the first was awaiting work in the
+      // thread pool — classic deadlock. Chaining them keeps the lock held
+      // by at most one tool at a time. SSE updates still stream into the
+      // store as each completes.
+      // TODO: convert backend write_lock to asyncio.Lock; remove this chain.
+      void backendTools.precompute_regions(sessionId)
+        .catch((err) => {
+          console.warn('[ImageContext] precompute_regions failed:', err);
+        })
+        .then(() =>
+          backendTools.suggest_widgets(
+            sessionId,
+            activeLayerId ? { layerId: activeLayerId } : {},
+          ).catch((err) => {
+            console.warn('[ImageContext] suggest_widgets failed:', err);
+          }),
+        );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[ImageContext] runAnalyse failed:', msg, err);
@@ -291,53 +355,119 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
       status: 'ready',
       error: null,
     });
-    const activeLayerId = useEditorStore.getState().activeLayerId
-      ?? useEditorStore.getState().layers.find((l) => l.type === 'image')?.id;
+    const activeLayerId = resolveTargetImageLayerId();
     if (activeLayerId) {
       void registerRegionPaths(context, activeLayerId);
     }
   },
   reset() {
-    set({ sessionId: null, context: null, status: 'idle', error: null });
+    set({ sessionId: null, context: null, status: 'idle', error: null, analysedImageNodeIds: [] });
   },
 }));
 
 /**
- * Run AI analyze for the first image layer. If a session is already alive
+ * Resolve the first photo-type layer id for the given image-node id.
+ * Returns null when the node doesn't exist or has no image layers.
+ */
+function resolveLayerIdForImageNode(imageNodeId: string): string | null {
+  const { imageNodes, layers } = useEditorStore.getState();
+  const node = imageNodes[imageNodeId];
+  if (!node) return null;
+  for (const lid of node.layerIds) {
+    if (layers.find((l) => l.id === lid)?.type === 'image') return lid;
+  }
+  return node.layerIds[0] ?? null;
+}
+
+/**
+ * Run AI analyze for a specific image-node. If a session is already alive
+ * just calls `runAnalyse` (the session's own layer resolution picks up the
+ * explicit id via `resolveTargetImageLayerId`). When no session exists,
+ * uploads the target layer's pixels first. This lets per-node context-menu
+ * items target an image that is not the current `activeImageNodeId`.
+ */
+export async function analyseImageLayer(imageNodeId: string): Promise<void> {
+  const { setActiveImageNode, activeImageNodeId } = useEditorStore.getState();
+  // Temporarily promote this node to active so `resolveTargetImageLayerId`
+  // inside `runAnalyse` picks the right layer. Restore the previous active
+  // node only if it was different — avoids a spurious state write on
+  // re-clicking the already-active node.
+  const prevActive = activeImageNodeId;
+  if (prevActive !== imageNodeId) setActiveImageNode(imageNodeId);
+
+  const ai = useAiSession.getState();
+  if (ai.sessionId) {
+    await ai.runAnalyse();
+  } else {
+    const targetLayerId = resolveLayerIdForImageNode(imageNodeId);
+    if (!targetLayerId) return;
+    const source = pixelStore.getSource(targetLayerId);
+    if (!source) return;
+    const bitmap = await createImageBitmap(source);
+    await ai.uploadAndAnalyse(bitmap);
+  }
+
+  // Mark this node as analysed if the session completed without error.
+  // Check status rather than catching — runAnalyse/uploadAndAnalyse set
+  // status:'ready' on success and status:'error' on failure.
+  if (useAiSession.getState().status === 'ready') {
+    useAiSession.getState().markAnalysed(imageNodeId);
+  }
+}
+
+/**
+ * Run AI analyze for the active image layer (the one belonging to the
+ * currently selected ImageNode on the canvas, falling back to activeLayerId
+ * or the document's first image layer). If a session is already alive
  * (the normal case now — `editorDocument.openImage` opens one on image
  * load), just call `runAnalyse`. Otherwise upload pixels first via
  * `uploadAndAnalyse`. Used by the Info tab "Analyze with AI" CTA, by
  * `.edp` open, and by IndexedDB session-restore.
  */
-export async function analyseFirstImageLayer(): Promise<void> {
+export async function analyseActiveImageLayer(): Promise<void> {
+  const activeImageNodeId = useEditorStore.getState().activeImageNodeId;
+  if (activeImageNodeId) {
+    return analyseImageLayer(activeImageNodeId);
+  }
   const ai = useAiSession.getState();
   if (ai.sessionId) {
     await ai.runAnalyse();
     return;
   }
-  const firstImage = useEditorStore.getState().layers.find((l) => l.type === 'image');
-  if (!firstImage) return;
-  const source = pixelStore.getSource(firstImage.id);
+  const targetLayerId = resolveTargetImageLayerId();
+  if (!targetLayerId) return;
+  const source = pixelStore.getSource(targetLayerId);
   if (!source) return;
   const bitmap = await createImageBitmap(source);
   await ai.uploadAndAnalyse(bitmap);
 }
 
 /**
- * Lazy-bind a backend session from the first image layer's pixels, using the
- * cached `ImageContext` if available (no Claude call). Falls back to a full
- * `uploadAndAnalyse` if no cached context.
+ * Lazy-bind a backend session from the active image layer's pixels, using
+ * the cached `ImageContext` if available (no Claude call). Falls back to a
+ * full `uploadAndAnalyse` if no cached context.
  *
  * Called from `handlePaletteSubmit` when the user invokes Cmd+K after a
  * reload — the cached context is on disk but the backend session has died.
  */
-export async function bindSessionFromFirstImageLayer(): Promise<void> {
+export async function bindSessionFromActiveImageLayer(): Promise<void> {
   if (useAiSession.getState().sessionId) return;
-  const firstImage = useEditorStore.getState().layers.find((l) => l.type === 'image');
-  if (!firstImage) return;
-  const source = pixelStore.getSource(firstImage.id);
+  const targetLayerId = resolveTargetImageLayerId();
+  if (!targetLayerId) return;
+  const source = pixelStore.getSource(targetLayerId);
   if (!source) return;
   const bitmap = await createImageBitmap(source);
   await useAiSession.getState().bindCachedSession(bitmap);
+}
+
+/**
+ * Read the latest analysis context from the backend snapshot. Replaces
+ * the deleted `useImageContextFull`. Prefer this over `useAiSession.context`
+ * when you want SSE-merged partial updates (e.g. soft fields arriving
+ * mid-analyze); use `useAiSession.context` when you want the final
+ * post-runAnalyse value.
+ */
+export function useImageContextSnapshot(): ImageContext | null {
+  return useBackendState((s) => s.snapshot?.imageContext ?? null);
 }
 

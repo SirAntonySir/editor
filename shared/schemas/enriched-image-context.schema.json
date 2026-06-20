@@ -1,0 +1,459 @@
+{
+  "$defs": {
+    "CandidateRegion": {
+      "additionalProperties": false,
+      "properties": {
+        "bbox": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "maskPngBase64": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maskpngbase64"
+        },
+        "paths": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paths"
+        },
+        "representativePoint": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Representativepoint"
+        }
+      },
+      "required": [
+        "label",
+        "description"
+      ],
+      "title": "CandidateRegion",
+      "type": "object"
+    },
+    "ColorSwatch": {
+      "additionalProperties": false,
+      "properties": {
+        "rgb": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "title": "Rgb",
+          "type": "array"
+        },
+        "weight": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rgb",
+        "weight"
+      ],
+      "title": "ColorSwatch",
+      "type": "object"
+    },
+    "Problem": {
+      "additionalProperties": false,
+      "properties": {
+        "bbox": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox"
+        },
+        "kind": {
+          "enum": [
+            "clipped_highlights",
+            "crushed_shadows",
+            "low_contrast",
+            "strong_color_cast",
+            "noisy_shadows",
+            "uneven_white_balance"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "regionLabel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Regionlabel"
+        },
+        "severity": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Severity",
+          "type": "number"
+        },
+        "suggestedFusedTools": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Suggestedfusedtools",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "severity"
+      ],
+      "title": "Problem",
+      "type": "object"
+    },
+    "RegionStats": {
+      "additionalProperties": false,
+      "properties": {
+        "contrastP10P90": {
+          "title": "Contrastp10P90",
+          "type": "number"
+        },
+        "dominantSwatches": {
+          "items": {
+            "$ref": "#/$defs/ColorSwatch"
+          },
+          "title": "Dominantswatches",
+          "type": "array"
+        },
+        "isSkinLikely": {
+          "title": "Isskinlikely",
+          "type": "boolean"
+        },
+        "isSkyLikely": {
+          "title": "Isskylikely",
+          "type": "boolean"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "lumaHistogram": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 32,
+          "minItems": 32,
+          "title": "Lumahistogram",
+          "type": "array"
+        },
+        "meanLuma": {
+          "title": "Meanluma",
+          "type": "number"
+        },
+        "meanRgb": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Meanrgb",
+          "type": "array"
+        },
+        "pixelCount": {
+          "minimum": 0,
+          "title": "Pixelcount",
+          "type": "integer"
+        },
+        "saturationMean": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Saturationmean",
+          "type": "number"
+        }
+      },
+      "required": [
+        "label",
+        "pixelCount",
+        "meanLuma",
+        "meanRgb",
+        "isSkinLikely",
+        "isSkyLikely",
+        "saturationMean",
+        "contrastP10P90"
+      ],
+      "title": "RegionStats",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Additive extension of v1 ImageContext.\n\nCheap pass fills the numeric fields locally; the Claude-augmented pass\nfills `estimated_white_point`, `wb_neutral_confidence`, `grade_character`,\n`problems`, plus per-region `is_skin_likely` / `is_sky_likely`.",
+  "properties": {
+    "candidateRegions": {
+      "items": {
+        "$ref": "#/$defs/CandidateRegion"
+      },
+      "title": "Candidateregions",
+      "type": "array"
+    },
+    "castDirection": {
+      "default": [
+        0.0,
+        0.0
+      ],
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Castdirection",
+      "type": "array"
+    },
+    "castStrength": {
+      "default": 0.0,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Caststrength",
+      "type": "number"
+    },
+    "clippedHighlightsPct": {
+      "default": 0.0,
+      "maximum": 100.0,
+      "minimum": 0.0,
+      "title": "Clippedhighlightspct",
+      "type": "number"
+    },
+    "clippedShadowsPct": {
+      "default": 0.0,
+      "maximum": 100.0,
+      "minimum": 0.0,
+      "title": "Clippedshadowspct",
+      "type": "number"
+    },
+    "colorPalette": {
+      "items": {
+        "$ref": "#/$defs/ColorSwatch"
+      },
+      "title": "Colorpalette",
+      "type": "array"
+    },
+    "contrastP10P90": {
+      "default": 0.0,
+      "title": "Contrastp10P90",
+      "type": "number"
+    },
+    "dominantTones": {
+      "items": {
+        "enum": [
+          "shadows",
+          "midtones",
+          "highlights"
+        ],
+        "type": "string"
+      },
+      "title": "Dominanttones",
+      "type": "array"
+    },
+    "estimatedWhitePoint": {
+      "default": [
+        255.0,
+        255.0,
+        255.0
+      ],
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Estimatedwhitepoint",
+      "type": "array"
+    },
+    "generatedAt": {
+      "title": "Generatedat",
+      "type": "string"
+    },
+    "gradeCharacter": {
+      "default": "neutral",
+      "title": "Gradecharacter",
+      "type": "string"
+    },
+    "lighting": {
+      "enum": [
+        "flat",
+        "backlit",
+        "side",
+        "rim",
+        "mixed"
+      ],
+      "title": "Lighting",
+      "type": "string"
+    },
+    "lumaHistogram": {
+      "items": {
+        "type": "integer"
+      },
+      "maxItems": 256,
+      "minItems": 256,
+      "title": "Lumahistogram",
+      "type": "array"
+    },
+    "medianLuma": {
+      "default": 0.0,
+      "title": "Medianluma",
+      "type": "number"
+    },
+    "modelName": {
+      "title": "Modelname",
+      "type": "string"
+    },
+    "modelVersion": {
+      "title": "Modelversion",
+      "type": "string"
+    },
+    "mood": {
+      "title": "Mood",
+      "type": "string"
+    },
+    "problems": {
+      "items": {
+        "$ref": "#/$defs/Problem"
+      },
+      "title": "Problems",
+      "type": "array"
+    },
+    "regionStats": {
+      "items": {
+        "$ref": "#/$defs/RegionStats"
+      },
+      "title": "Regionstats",
+      "type": "array"
+    },
+    "rgbHistograms": {
+      "additionalProperties": {
+        "items": {
+          "type": "integer"
+        },
+        "type": "array"
+      },
+      "title": "Rgbhistograms",
+      "type": "object"
+    },
+    "subjects": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Subjects",
+      "type": "array"
+    },
+    "wbNeutralConfidence": {
+      "default": 0.0,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Wbneutralconfidence",
+      "type": "number"
+    }
+  },
+  "required": [
+    "lighting",
+    "mood",
+    "modelName",
+    "modelVersion",
+    "generatedAt"
+  ],
+  "title": "EnrichedImageContext",
+  "type": "object"
+}

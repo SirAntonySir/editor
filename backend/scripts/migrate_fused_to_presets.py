@@ -25,9 +25,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-from app.engine.registry import ENGINE_OPS
+from app.registry.loader import get_registry
 from app.tools.fused import all_fused_templates
 from app.tools.fused_framework import FusedToolTemplate, NodeSkeleton
+
+# Materialise the known op-id set once at module load — the script is one-shot
+# and the registry is immutable across its run.
+KNOWN_OP_IDS: frozenset[str] = frozenset(get_registry().ops)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -158,8 +162,8 @@ def _handle_compound_node(
         op_id, param_key = key.split(".", 1)
         if op_id in ("time_of_day", "filters"):
             continue  # skip meta/unsupported ops
-        if op_id not in ENGINE_OPS:
-            print(f"  WARN: {template.id} compound bundle op {op_id!r} not in ENGINE_OPS; skipping")
+        if op_id not in KNOWN_OP_IDS:
+            print(f"  WARN: {template.id} compound bundle op {op_id!r} not in registry; skipping")
             continue
 
         env_key = lookup.get(key, key)
@@ -184,7 +188,7 @@ def _process_template(template: FusedToolTemplate) -> list[dict[str, Any]]:
         elif node.node_type == "kelvin":
             _handle_kelvin_node(template, node, preset_ops)
 
-        elif node.node_type in ENGINE_OPS:
+        elif node.node_type in KNOWN_OP_IDS:
             # Direct 1:1 mapping (hsl, levels, sharpen, blur, clarity, etc.)
             params = _node_params(template, node)
             preset_ops.append({"op_id": node.node_type, "params": params})

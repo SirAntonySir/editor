@@ -4,7 +4,6 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 
 from app.api import deps
-from app.mcp.rate_limit import RateLimiter
 from app.mcp.session import MCPSessionNotPaired, MCPSessionRegistry
 from app.tools.base import BackendTool
 from app.tools.registry import BackendToolRegistry
@@ -13,15 +12,10 @@ router = APIRouter()
 
 
 _session_registry = MCPSessionRegistry()
-_rate_limiter = RateLimiter(rate_per_minute=30)
 
 
 def get_mcp_session_registry() -> MCPSessionRegistry:
     return _session_registry
-
-
-def get_mcp_rate_limiter() -> RateLimiter:
-    return _rate_limiter
 
 
 _SERVER_NAME = "editor-mcp"
@@ -90,7 +84,7 @@ async def mcp_dispatch(
             editor_sid = _session_registry.editor_session_id(x_editor_session_id)
         except MCPSessionNotPaired:
             return _jsonrpc_error(req_id, -32602, "MCP session not paired — call initialize first")
-        if not _rate_limiter.try_consume(editor_sid):
+        if not deps.get_tool_rate_limiter().try_consume(editor_sid):
             return _jsonrpc_error(req_id, -32000, "rate limited")
         name = params.get("name")
         arguments = params.get("arguments") or {}

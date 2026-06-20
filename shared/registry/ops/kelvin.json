@@ -6,15 +6,15 @@
   "llm": {
     "description": "Color temperature and tint — corrects or shifts overall warmth and green/magenta cast.",
     "typical_use": "Fix indoor light cast, warm up a cold image, neutralize a green tint.",
-    "semantic_tags": ["color", "white-balance", "kelvin", "temperature"]
+    "semantic_tags": ["color", "white-balance", "kelvin", "temperature", "wb", "warm", "warmer", "cool", "cooler", "tint", "cast", "blue", "orange", "magenta", "green"]
   },
   "params": {
     "kelvin": { "type": "scalar", "range": [2000, 10000], "default": 6500, "unit": "K", "step": 50 },
     "tint":   { "type": "scalar", "range": [-100, 100],   "default": 0 }
   },
   "bindings": [
-    { "param_key": "kelvin", "control_type": "kelvin_strip", "label": "Temperature" },
-    { "param_key": "tint",   "control_type": "slider",       "label": "Tint" }
+    { "paramKey": "kelvin", "controlType": "kelvin_strip", "label": "Temperature" },
+    { "paramKey": "tint",   "controlType": "tint_strip",   "label": "Tint" }
   ],
   "engine": { "shader": "kelvin", "render_order": 5, "node_type": "kelvin" }
 }

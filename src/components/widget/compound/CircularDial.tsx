@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Anchor } from '@/lib/perceptual-dial/types';
 import {
   activeWedgeIndexFromAngle,
@@ -13,13 +13,17 @@ interface Props {
   anchors: Anchor[];                            // sorted by position[0]
   position: number;                             // 0..1
   onPositionChange: (next: number) => void;
+  /** Rendered width/height in px. The SVG viewBox is fixed at 320; the dial
+   *  scales to fit. Defaults to a compact 220 — the canvas widget shell isn't
+   *  the whole panel, it lives inside a card on the workspace. */
+  size?: number;
 }
 
 const CENTER = 160;
 const VIEWBOX = 320;
 const WEDGE_RADIUS = 110;
 const TRACK_RADIUS = 135;
-const INDICATOR_RADIUS = 7;
+const INDICATOR_RADIUS = 6;
 const LABEL_RADIUS = 75;     // where label text sits
 
 /** Convert (angleDeg from top, going clockwise) → (x, y) on a circle. */
@@ -44,7 +48,7 @@ function arcPath(startDeg: number, endDeg: number, r: number): string {
   return `M ${sx} ${sy} A ${r} ${r} 0 ${largeArc} 1 ${ex} ${ey}`;
 }
 
-export function CircularDial({ anchors, position, onPositionChange }: Props) {
+export function CircularDial({ anchors, position, onPositionChange, size = 220 }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   // While dragging we track the raw cursor angle locally so the indicator
   // can follow the cursor smoothly across the seam, even when the underlying
@@ -52,6 +56,13 @@ export function CircularDial({ anchors, position, onPositionChange }: Props) {
   // gap, so the seam quarter-arc would otherwise pin the indicator to
   // angles[last]). On release we fall back to the prop-derived angle.
   const [dragAngle, setDragAngle] = useState<number | null>(null);
+
+  // rAF-throttled state. Pointer events fire faster than the display refresh;
+  // batching state updates per frame keeps re-renders bounded to ~60/120fps
+  // instead of >300/s on a hi-poll trackpad. Also de-noises the upstream
+  // applyOptimistic burst, which has to re-fan out to every store subscriber.
+  const pendingAngleRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   const anchorsLike = useMemo(
     () => anchors.map((a) => {
@@ -95,6 +106,27 @@ export function CircularDial({ anchors, position, onPositionChange }: Props) {
     return deg;
   }
 
+  /** Schedule a state update on the next animation frame, coalescing multiple
+   *  pointer events that land within the same frame into one React render. */
+  const flushAngle = useCallback(() => {
+    rafRef.current = null;
+    const deg = pendingAngleRef.current;
+    if (deg == null) return;
+    setDragAngle(deg);
+    onPositionChange(angleToPosition(anchorsLike, deg));
+  }, [anchorsLike, onPositionChange]);
+
+  const scheduleAngle = useCallback((deg: number) => {
+    pendingAngleRef.current = deg;
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(flushAngle);
+  }, [flushAngle]);
+
+  // Cancel any in-flight rAF on unmount so the callback can't fire post-unmount.
+  useEffect(() => () => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+  }, []);
+
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     const deg = cursorAngle(e);
     if (deg == null) return;
@@ -106,14 +138,20 @@ export function CircularDial({ anchors, position, onPositionChange }: Props) {
     if (dragAngle == null) return;
     const deg = cursorAngle(e);
     if (deg == null) return;
-    setDragAngle(deg);
-    onPositionChange(angleToPosition(anchorsLike, deg));
-  }, [dragAngle, anchorsLike, onPositionChange]);
+    scheduleAngle(deg);
+  }, [dragAngle, scheduleAngle]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    // Flush any pending angle so the final position commits even if the
+    // pointer-up lands inside the same frame as the last move.
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      flushAngle();
+    }
     setDragAngle(null);
     (e.target as Element).releasePointerCapture?.(e.pointerId);
-  }, []);
+  }, [flushAngle]);
 
   const dragging = dragAngle != null;
 
@@ -136,7 +174,14 @@ export function CircularDial({ anchors, position, onPositionChange }: Props) {
       // triggering node drag / canvas pan. RF treats these classes as
       // "interactive content — leave it alone".
       className="circular-dial nodrag nopan"
-      style={{ width: 320, height: 320, userSelect: 'none' }}
+      style={{
+        width: '100%',
+        maxWidth: size,
+        aspectRatio: '1 / 1',
+        display: 'block',
+        margin: '0 auto',
+        userSelect: 'none',
+      }}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >
@@ -160,12 +205,8 @@ export function CircularDial({ anchors, position, onPositionChange }: Props) {
               data-active={isActive ? 'true' : 'false'}
               d={wedgePath(startDeg, endDeg, WEDGE_RADIUS)}
               fill={color}
-              fillOpacity={isActive ? 0.95 : 0.85}
-              style={{
-                cursor: 'pointer',
-                filter: isActive ? 'brightness(1.25) drop-shadow(0 0 8px rgba(255,255,255,0.3))' : undefined,
-                transition: 'filter 0.15s',
-              }}
+              fillOpacity={isActive ? 1 : 0.78}
+              style={{ cursor: 'pointer' }}
               onClick={() => handleWedgeClick(i)}
             />
             <text
@@ -173,10 +214,20 @@ export function CircularDial({ anchors, position, onPositionChange }: Props) {
               y={labelY}
               textAnchor="middle"
               dominantBaseline="middle"
-              fontSize={14}
-              fontWeight={700}
+              fontSize={13}
+              fontWeight={600}
               fill="white"
-              style={{ pointerEvents: 'none', textTransform: 'uppercase', letterSpacing: '0.5px' }}
+              style={{
+                pointerEvents: 'none',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                // Cheap legibility on coloured fills — paint-order keeps the
+                // stroke behind the fill so the letterforms stay crisp,
+                // unlike drop-shadow which forces a filter region per glyph.
+                paintOrder: 'stroke',
+                stroke: 'rgba(0, 0, 0, 0.18)',
+                strokeWidth: 2,
+              }}
             >
               {anchor.label}
             </text>
@@ -184,31 +235,34 @@ export function CircularDial({ anchors, position, onPositionChange }: Props) {
         );
       })}
 
-      {/* Outer ring track */}
+      {/* Outer ring track — hairline in the surface separator colour so it
+          reads as structure, not weight. */}
       <circle
         cx={CENTER} cy={CENTER} r={TRACK_RADIUS}
-        fill="none" stroke="#2a2a3a" strokeWidth={4}
+        fill="none"
+        stroke="var(--color-separator)"
+        strokeWidth={2}
       />
 
-      {/* Active segment arc on outer ring */}
+      {/* Active segment arc on outer ring — coloured wedge accent, no filter. */}
       <path
         d={arcPath(activeStart, activeEnd, TRACK_RADIUS)}
         fill="none"
         stroke={activeColor}
-        strokeWidth={6}
+        strokeWidth={4}
         strokeLinecap="round"
-        style={{ filter: 'drop-shadow(0 0 6px currentColor)', opacity: 0.9 }}
+        opacity={0.9}
       />
 
-      {/* Position indicator */}
+      {/* Position indicator — small white dot with a thin border-strong outline
+          (no drop-shadow filter, which is the main cause of jank during drag). */}
       <circle
         data-testid="indicator"
         cx={indicatorX} cy={indicatorY} r={INDICATOR_RADIUS}
-        fill="white"
-        style={{
-          filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.8))',
-          cursor: dragging ? 'grabbing' : 'grab',
-        }}
+        fill="var(--color-surface)"
+        stroke="var(--color-border-strong)"
+        strokeWidth={1.5}
+        style={{ cursor: dragging ? 'grabbing' : 'grab' }}
         onPointerDown={handlePointerDown}
       />
     </svg>

@@ -17,8 +17,8 @@ beforeEach(() => {
     sseStatus: 'open',
     optimistic: new Map(),
     snapshot: {
-      session_id: 's1', image_context: null, widgets: [], masks_index: [],
-      operation_graph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+      sessionId: 's1', imageContext: null, widgets: [], masksIndex: [],
+      operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
       revision: 1,
     },
   } as never);

@@ -11,8 +11,8 @@ function FiltersPanel({ layerId }: ProcessingPanelProps) {
 
 function FiltersNodeCompact({ layerId }: ProcessingPanelProps) {
   const filterName = useBackendState((s) => {
-    const nodes = s.snapshot?.operation_graph.nodes ?? [];
-    const lutNode = nodes.find((n) => n.layer_id === layerId && n.type === 'lut');
+    const nodes = s.snapshot?.operationGraph.nodes ?? [];
+    const lutNode = nodes.find((n) => n.layerId === layerId && n.type === 'lut');
     return lutNode?.params?.['lutName'] as string | undefined ?? null;
   });
 

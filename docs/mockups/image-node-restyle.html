@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Image Node Restyle — Direction A · Architectural Drafting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400;1,9..144,500&family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&display=swap" />
+<style>
+  :root {
+    /* Paper + ink ramp */
+    --paper:        oklch(0.97 0.012 90);
+    --paper-dot:    oklch(0.86 0.014 90);
+    --ink:          oklch(0.22 0.012 280);
+    --ink-mute:     oklch(0.50 0.010 280);
+    --ink-soft:     oklch(0.70 0.010 280);
+    --hairline:     oklch(0.84 0.014 280);
+
+    /* The single accent — marginalia ink */
+    --ochre:        oklch(0.55 0.20 30);
+    --ochre-soft:   oklch(0.55 0.20 30 / 0.15);
+    --ochre-glow:   oklch(0.55 0.20 30 / 0.55);
+
+    /* Spacing */
+    --margin-w:    160px;   /* outer margin column on each side */
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background:
+      radial-gradient(circle at center, var(--paper-dot) 0.6px, transparent 1px) 0 0 / 14px 14px,
+      var(--paper);
+    color: var(--ink);
+    font-family: 'Geist', system-ui, sans-serif;
+    font-feature-settings: 'ss01', 'cv11';
+  }
+
+  /* ---------- Page header / nav ---------- */
+  header.page {
+    padding: 48px 64px 24px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--hairline);
+  }
+  header.page .title {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-style: italic;
+    font-size: 28px;
+    letter-spacing: -0.01em;
+  }
+  header.page .meta {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  header.page .meta b {
+    color: var(--ochre);
+    font-weight: 500;
+  }
+
+  /* ---------- Stage / main composition ---------- */
+  .stage {
+    padding: 80px 64px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .composition {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--margin-w) auto var(--margin-w);
+    gap: 0;
+    align-items: start;
+  }
+
+  /* ---------- Image node body ---------- */
+  .node {
+    position: relative;
+    width: 500px;
+    aspect-ratio: 3 / 4;
+  }
+  .node .canvas {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  .node .canvas img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  /* Corner ticks (unselected state). On select they animate into the
+     full hairline frame. The mockup shows the SELECTED treatment so the
+     frame is visible. */
+  .node .frame {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border: 1px solid var(--ink);
+  }
+
+  /* Crop ticks at corners — visible only when NOT selected. In the
+     selected mockup they sit underneath the full frame as a layered
+     reference. */
+  .node .ticks {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .node .ticks::before,
+  .node .ticks::after,
+  .node .ticks > i,
+  .node .ticks > i.b {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--ochre);
+  }
+  .node .ticks::before { top: -7px;    left: -7px;    border-right: 0; border-bottom: 0; }
+  .node .ticks::after  { top: -7px;    right: -7px;   border-left: 0;  border-bottom: 0; }
+  .node .ticks > i     { bottom: -7px; left: -7px;    border-right: 0; border-top: 0; }
+  .node .ticks > i.b   { bottom: -7px; right: -7px;   border-left: 0;  border-top: 0; }
+
+  /* ---------- Margin labels — TOP ---------- */
+  .top-marginalia {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 28px;
+    padding-left: var(--margin-w);
+    padding-right: var(--margin-w);
+  }
+  .top-marginalia .lhs .overline {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 4px;
+  }
+  .top-marginalia .lhs .overline .dot {
+    display: inline-block;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--ochre);
+    transform: translateY(-1px);
+    margin-right: 6px;
+  }
+  .top-marginalia .lhs .title {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 36px;
+    line-height: 1;
+    letter-spacing: -0.015em;
+  }
+  .top-marginalia .lhs .title sup {
+    font-family: 'Geist Mono', monospace;
+    font-style: normal;
+    font-size: 11px;
+    letter-spacing: 0.10em;
+    color: var(--ink-mute);
+    margin-left: 8px;
+    vertical-align: super;
+  }
+  .top-marginalia .rhs {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    text-align: right;
+    line-height: 1.6;
+  }
+
+  /* ---------- Margin labels — BOTTOM (the new "footer") ---------- */
+  .bottom-marginalia {
+    grid-column: 2 / 3;
+    margin-top: 16px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    display: flex;
+    gap: 14px;
+    align-items: center;
+  }
+  .bottom-marginalia .sep {
+    width: 4px; height: 4px;
+    background: var(--ink-soft);
+    border-radius: 50%;
+  }
+  .bottom-marginalia .num {
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  /* ---------- LEFT margin — tracing-paper layer strip ---------- */
+  .layers {
+    grid-column: 1 / 2;
+    align-self: end;
+    margin-right: 28px;
+    display: flex;
+    flex-direction: column-reverse; /* L01 at bottom = oldest paper sheet */
+    gap: 6px;
+    align-items: flex-end;
+  }
+  .layers .label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 6px;
+    text-align: right;
+  }
+  .layer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+  }
+  .layer .ord {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 14px;
+    color: var(--ink-mute);
+    width: 18px;
+    text-align: right;
+  }
+  .layer .sheet {
+    width: 44px;
+    height: 28px;
+    border: 1px solid var(--ink);
+    background: transparent;
+    transform: skewX(-4deg);
+    position: relative;
+  }
+  .layer.active .sheet {
+    background: var(--ochre);
+    border-color: var(--ochre);
+  }
+  .layer.active .ord {
+    color: var(--ochre);
+    font-weight: 500;
+  }
+  .layer .name {
+    /* The name reveals on hover; static in mockup for the active one */
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--ink);
+    margin-left: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .layer.active .name { opacity: 1; }
+  .layer:hover .name { opacity: 1; }
+
+  /* ---------- RIGHT margin — object markers ---------- */
+  .objects {
+    grid-column: 3 / 4;
+    align-self: start;
+    margin-left: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .objects .label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 4px;
+  }
+  .object {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+  }
+  .object .marker {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid var(--ochre);
+    color: var(--ochre);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    background: var(--paper);
+  }
+  .object.active .marker {
+    background: var(--ochre);
+    color: var(--paper);
+  }
+  .object .name {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 16px;
+    color: var(--ink);
+  }
+  .object .meta {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-left: auto;
+  }
+
+  /* ---------- SVG overlay for outlines + leader lines ---------- */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: visible;
+  }
+  .overlay path.outline {
+    fill: var(--ochre-soft);
+    stroke: var(--ochre);
+    stroke-width: 1.25;
+    stroke-dasharray: 4 3;
+  }
+  .overlay line.leader {
+    stroke: var(--ochre);
+    stroke-width: 0.8;
+    stroke-dasharray: 2 3;
+  }
+  .overlay circle.endpoint {
+    fill: var(--ochre);
+    r: 2.2;
+  }
+
+  /* ---------- Compare strip: B and C miniatures ---------- */
+  .compare {
+    margin-top: 96px;
+    padding: 48px 64px 96px;
+    border-top: 1px solid var(--hairline);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .mini h3 {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 18px;
+    margin: 0 0 4px;
+  }
+  .mini .tag {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 16px;
+  }
+  .mini p {
+    font-size: 13px;
+    color: var(--ink-mute);
+    line-height: 1.5;
+    margin: 0 0 16px;
+  }
+  .mini .preview {
+    height: 200px;
+    background: var(--paper);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .mini-b .preview {
+    display: grid;
+    grid-template-columns: 1fr 100px;
+    align-items: center;
+    padding: 16px;
+    gap: 16px;
+  }
+  .mini-b .img {
+    width: 100%; height: 100%; background: #999;
+    background-image: url('https://picsum.photos/seed/editor-b/200/200');
+    background-size: cover; background-position: center;
+  }
+  .mini-b .layers-toc {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    line-height: 1.8;
+  }
+  .mini-b .layers-toc .active {
+    font-family: 'Bodoni Moda', serif;
+    font-style: italic;
+    text-transform: none;
+    font-size: 12px;
+    letter-spacing: 0;
+    color: oklch(0.68 0.24 0);
+  }
+  .mini-b .cap {
+    grid-column: 1 / -1;
+    padding-top: 12px;
+    border-top: 1px solid var(--hairline);
+  }
+  .mini-b .cap .display {
+    font-family: 'Bodoni Moda', serif;
+    font-size: 18px;
+    line-height: 1;
+  }
+  .mini-b .cap .display::after {
+    content: ' ─────';
+    color: oklch(0.68 0.24 0);
+  }
+  .mini-c .preview {
+    background: oklch(0.18 0.01 280);
+    color: oklch(0.92 0.005 280);
+  }
+  .mini-c .preview {
+    display: grid;
+    grid-template-columns: 1fr 64px;
+  }
+  .mini-c .img {
+    background-image: url('https://picsum.photos/seed/editor-c/280/200');
+    background-size: cover; background-position: center;
+  }
+  .mini-c .strip {
+    border-left: 1px solid oklch(0.30 0.01 280);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0;
+    gap: 10px;
+    font-family: 'Fira Sans Compressed', 'Geist Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: oklch(0.70 0.005 280);
+  }
+  .mini-c .strip .dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 1px solid oklch(0.50 0.005 280);
+  }
+  .mini-c .strip .dot.on {
+    background: oklch(0.85 0.18 130);
+    border-color: oklch(0.85 0.18 130);
+    box-shadow: 0 0 6px oklch(0.85 0.18 130 / 0.6);
+  }
+  .mini-c .strip .sep { width: 70%; height: 1px; background: oklch(0.30 0.01 280); }
+
+  /* footer */
+  footer.page {
+    padding: 24px 64px 64px;
+    text-align: center;
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+</style>
+</head>
+<body>
+
+<header class="page">
+  <div class="title">Image Node Restyle</div>
+  <div class="meta">Direction <b>A</b> · Architectural Drafting · Mockup 2026-06-16</div>
+</header>
+
+<section class="stage">
+  <div class="composition">
+
+    <!-- TOP MARGINALIA -->
+    <div class="top-marginalia">
+      <div class="lhs">
+        <div class="overline"><span class="dot"></span>Active layer · Source</div>
+        <div class="title">Image 01<sup>JPEG</sup></div>
+      </div>
+      <div class="rhs">
+        4.2 MB · 24-bit RGB<br />
+        Shot 14:32 · f/2.8 · 1/250
+      </div>
+    </div>
+
+    <!-- LEFT MARGIN — LAYERS -->
+    <div class="layers">
+      <div class="label">Layers</div>
+      <div class="layer">
+        <span class="name">Highlights mask</span>
+        <span class="ord">04</span>
+        <span class="sheet"></span>
+      </div>
+      <div class="layer active">
+        <span class="name">Bottle isolation</span>
+        <span class="ord">03</span>
+        <span class="sheet"></span>
+      </div>
+      <div class="layer">
+        <span class="name">Tone curve</span>
+        <span class="ord">02</span>
+        <span class="sheet"></span>
+      </div>
+      <div class="layer">
+        <span class="name">Source</span>
+        <span class="ord">01</span>
+        <span class="sheet"></span>
+      </div>
+    </div>
+
+    <!-- IMAGE NODE -->
+    <div class="node">
+      <div class="canvas">
+        <img src="https://picsum.photos/seed/editor-shot/500/667" alt="" />
+        <svg class="overlay" viewBox="0 0 500 667" preserveAspectRatio="none">
+          <!-- Object 1: Bottle -->
+          <path class="outline" d="
+            M 220 220 C 215 200, 230 180, 250 180
+            C 270 180, 285 200, 280 220
+            L 285 340 C 290 360, 290 400, 280 440
+            L 290 540 C 290 560, 270 575, 250 575
+            C 230 575, 210 560, 210 540
+            L 220 440 C 210 400, 210 360, 215 340 Z"
+          />
+          <!-- Leader line from object 1 centroid to right margin -->
+          <line class="leader" x1="250" y1="380" x2="540" y2="120" />
+          <circle class="endpoint" cx="250" cy="380" />
+
+          <!-- Object 2: Hand -->
+          <path class="outline" d="
+            M 80 480 C 70 470, 70 460, 85 455
+            C 100 450, 130 450, 160 460
+            L 200 480 C 215 490, 215 510, 200 520
+            L 170 540 C 150 555, 110 555, 90 540
+            C 75 530, 70 510, 80 500 Z"
+          />
+          <line class="leader" x1="140" y1="500" x2="540" y2="310" />
+          <circle class="endpoint" cx="140" cy="500" />
+
+          <!-- Object 3: Background -->
+          <path class="outline" d="
+            M 0 0 L 500 0 L 500 200
+            C 460 180, 400 175, 350 180
+            C 250 190, 150 195, 50 180
+            C 25 175, 10 170, 0 165 Z"
+          />
+          <line class="leader" x1="250" y1="100" x2="540" y2="500" />
+          <circle class="endpoint" cx="250" cy="100" />
+        </svg>
+      </div>
+      <div class="frame"></div>
+      <div class="ticks"><i></i><i class="b"></i></div>
+    </div>
+
+    <!-- RIGHT MARGIN — OBJECT MARKERS -->
+    <div class="objects">
+      <div class="label">Objects</div>
+      <div class="object active">
+        <span class="marker">1</span>
+        <span class="name">Bottle</span>
+        <span class="meta">38%</span>
+      </div>
+      <div class="object">
+        <span class="marker">2</span>
+        <span class="name">Hand</span>
+        <span class="meta">14%</span>
+      </div>
+      <div class="object">
+        <span class="marker">3</span>
+        <span class="name">Background</span>
+        <span class="meta">48%</span>
+      </div>
+    </div>
+
+    <!-- BOTTOM MARGINALIA (replaces the footer tabs) -->
+    <div class="bottom-marginalia">
+      <span><span class="num">1013</span> × <span class="num">1350</span> PX</span>
+      <span class="sep"></span>
+      <span>JPEG</span>
+      <span class="sep"></span>
+      <span><span class="num">4.2</span> MB</span>
+      <span class="sep"></span>
+      <span><span class="num">04</span> Layers</span>
+      <span class="sep"></span>
+      <span><span class="num">03</span> Objects</span>
+    </div>
+
+  </div>
+</section>
+
+<!-- ---------- Comparison miniatures ---------- -->
+<section class="compare">
+  <div class="mini mini-b">
+    <h3>Direction B — Editorial / Magazine</h3>
+    <div class="tag">Bodoni Moda · Hot pink · No frame</div>
+    <p>The image floats. Caption underneath in display serif. Layers on
+    the right as a typographic table of contents. Selection state is a
+    paragraph rule under the caption.</p>
+    <div class="preview">
+      <div class="img"></div>
+      <div class="layers-toc">
+        L01&nbsp;&nbsp;Source<br />
+        <span class="active">L02 — Adjustments</span><br />
+        L03&nbsp;&nbsp;Bottle mask<br />
+        L04&nbsp;&nbsp;Highlight glow
+      </div>
+      <div class="cap">
+        <span class="display">Image 01 — Untitled</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="mini mini-c">
+    <h3>Direction C — Modular Patch Bay</h3>
+    <div class="tag">Industrial · Chartreuse LEDs · Right strip</div>
+    <p>Chrome compressed into a vertical patch bay on the right edge.
+    Layers + objects share the column. Active state lights chartreuse.
+    Image owns the centre.</p>
+    <div class="preview">
+      <div class="img"></div>
+      <div class="strip">
+        <span class="dot on" title="L1"></span>
+        <span class="dot" title="L2"></span>
+        <span class="dot" title="L3"></span>
+        <span class="sep"></span>
+        <span class="dot on" title="O1"></span>
+        <span class="dot" title="O2"></span>
+        <span class="sep"></span>
+        <span>1013</span>
+        <span>×1350</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="page">
+  Live mockup · refresh to swap the seed image · pick A · B · C
+</footer>
+
+</body>
+</html>

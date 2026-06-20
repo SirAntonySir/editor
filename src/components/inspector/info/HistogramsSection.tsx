@@ -1,25 +1,25 @@
 import { useMemo } from 'react';
 import { BarChart3, Pin } from 'lucide-react';
-import type { EnrichedImageContext } from '@/types/enriched-context';
+import type { ImageContext } from '@/types/image-context';
 import { HistogramPlot } from '@/components/ui/HistogramPlot';
 import type { HistogramBins } from '@/lib/histogram-compute';
 import { SectionHeader } from './SectionHeader';
-import { MetricChipGrid } from './MetricChip';
+import { MetricChipGrid } from '@/components/ui/MetricChip';
 import { MetricChipMenu } from './MetricChipMenu';
 import { useEditorStore } from '@/store';
 import { editorDocument } from '@/core/document';
 import { toast } from '@/components/ui/Toast';
 
 interface Props {
-  ctx: EnrichedImageContext;
+  ctx: ImageContext;
 }
 
 /** Convert the backend's number-array histogram payloads into the
  *  Uint32Array-shaped `HistogramBins` the shared `HistogramPlot`
  *  consumes. Missing channels default to a 256-element zero array — the
  *  plot then renders just the channels that ARE populated. */
-function binsFromContext(ctx: EnrichedImageContext): HistogramBins | null {
-  if (!ctx.luma_histogram || ctx.luma_histogram.length === 0) return null;
+function binsFromContext(ctx: ImageContext): HistogramBins | null {
+  if (!ctx.lumaHistogram || ctx.lumaHistogram.length === 0) return null;
   const zero = (): Uint32Array => new Uint32Array(256);
   const fromArr = (arr: number[] | undefined): Uint32Array => {
     if (!arr) return zero();
@@ -28,10 +28,10 @@ function binsFromContext(ctx: EnrichedImageContext): HistogramBins | null {
     return out;
   };
   return {
-    r: fromArr(ctx.rgb_histograms.r),
-    g: fromArr(ctx.rgb_histograms.g),
-    b: fromArr(ctx.rgb_histograms.b),
-    lum: fromArr(ctx.luma_histogram),
+    r: fromArr(ctx.rgbHistograms?.['r']),
+    g: fromArr(ctx.rgbHistograms?.['g']),
+    b: fromArr(ctx.rgbHistograms?.['b']),
+    lum: fromArr(ctx.lumaHistogram),
   };
 }
 
@@ -48,10 +48,10 @@ export function HistogramsSection({ ctx }: Props) {
   const push = (sourceId: string, label: string, value: string | undefined) => {
     if (value !== undefined) chips.push({ sourceId, label, value });
   };
-  push('mech:clipped_shadows',    'Clipped ▼', formatPct(ctx.clipped_shadows_pct));
-  push('mech:clipped_highlights', 'Clipped ▲', formatPct(ctx.clipped_highlights_pct));
-  push('mech:median_luma',        'Median',    formatLuma(ctx.median_luma));
-  push('mech:contrast_p10_p90',   'Contrast',  formatLuma(ctx.contrast_p10_p90));
+  push('mech:clipped_shadows',    'Clipped ▼', formatPct(ctx.clippedShadowsPct));
+  push('mech:clipped_highlights', 'Clipped ▲', formatPct(ctx.clippedHighlightsPct));
+  push('mech:median_luma',        'Median',    formatLuma(ctx.medianLuma));
+  push('mech:contrast_p10_p90',   'Contrast',  formatLuma(ctx.contrastP10P90));
 
   // Items the "Pin section" button on the header passes to addInfoNode.
   // Built from the same chip list so the pinned widget mirrors what's shown.

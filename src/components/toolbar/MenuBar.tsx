@@ -4,20 +4,23 @@ import { useSyncExternalStore } from 'react';
 import { Undo2, Redo2, RotateCcw } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { useEditorStore } from '@/store';
-import { usePreferencesStore } from '@/store/preferences-store';
+import { useBackendState } from '@/store/backend-state-slice';
 import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { revertToOriginal } from '@/lib/revert';
 import { editorDocument } from '@/core/document';
 import { useFileIO } from '@/hooks/useFileIO';
 import { BackendStatusBadge } from '@/components/ui/BackendStatusBadge';
-import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
+import { useAiSession, analyseImageLayer } from '@/hooks/useImageContext';
+import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { useCanvasZoom } from '@/hooks/useCanvasZoom';
 import { useImageTransform } from '@/hooks/useImageTransform';
+import { UI } from '@/config';
 import { spawnRegistryOp } from '@/lib/toolrail-spawn';
 import { loadRegistry } from '@/lib/registry/loader';
 import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';
 import { autoLight, autoColor, autoTone, autoContrast } from '@/lib/auto-tune';
 import type { HistoryStoreState } from '@/core/history';
+import { HistoryDropdown } from './HistoryDropdown';
 // EditorMode type only used by disabled ModeBtn — kept for future reference.
 // import type { EditorMode } from '@/store/tool-slice';
 
@@ -96,22 +99,15 @@ function TriggerButton({ children }: { children: React.ReactNode }) {
 /* ------------------------------------------------------------------ */
 
 export function MenuBar() {
-  const { fileInputRef, handleOpen, handleFileChange, handleClose, handleExport } = useFileIO();
+  const { handleOpen, handleAddImage, handleClose, handleExport } = useFileIO();
   const { transformImage } = useImageTransform();
   const { applyZoom, fitOnScreen, zoomIn, zoomOut } = useCanvasZoom();
 
   return (
     <>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleFileChange}
-      />
       <div className="flex items-center w-full">
         <Menubar.Root className="flex items-center gap-0 text-sm text-text-primary">
-          <FileMenu onOpen={handleOpen} onExport={handleExport} onClose={handleClose} />
+          <FileMenu onOpen={handleOpen} onAddImage={handleAddImage} onExport={handleExport} onClose={handleClose} />
           <EditMenu />
           <ImageMenu transformImage={transformImage} />
           <LayerMenu />
@@ -145,14 +141,19 @@ export function MenuBar() {
 
 function FileMenu({
   onOpen,
+  onAddImage,
   onExport,
   onClose,
 }: {
   onOpen: () => void;
+  onAddImage: () => void;
   onExport: (format: 'png' | 'jpeg' | 'webp') => void;
   onClose: () => void;
 }) {
   const hasLayers = useEditorStore((s) => s.layers.length > 0);
+  const hasDocument = useEditorStore((s) => s.documentMeta !== null);
+  const sseStatus = useBackendState((s) => s.sseStatus);
+  const canAddImage = hasDocument && sseStatus === 'open';
   return (
     <Menubar.Menu>
       <TriggerButton>File</TriggerButton>
@@ -160,6 +161,9 @@ function FileMenu({
         <Menubar.Content className={menuContentClass} align="start" sideOffset={4}>
           <Item keys={['mod', 'O']} onSelect={onOpen}>
             Open...
+          </Item>
+          <Item keys={['mod', 'shift', 'O']} disabled={!canAddImage} onSelect={onAddImage}>
+            Add image...
           </Item>
           <Sep />
           <Sub label="Export As">
@@ -196,7 +200,7 @@ function EditMenu() {
             Redo
           </Item>
           <Sep />
-          <Item keys={['mod', 'shift', 'R']} disabled={!hasLayers} onSelect={revertToOriginal}>
+          <Item keys={['mod', 'alt', 'R']} disabled={!hasLayers} onSelect={revertToOriginal}>
             Revert to Original
           </Item>
           <Sep />
@@ -217,7 +221,7 @@ function EditMenu() {
             Deselect
           </Item>
           <Sep />
-          <Item keys={['mod', ',']} onSelect={() => usePreferencesStore.getState().setShowPreferences(true)}>
+          <Item keys={['mod', ',']} onSelect={() => window.dispatchEvent(new CustomEvent('spawn-palette:open'))}>
             Preferences...
           </Item>
         </Menubar.Content>
@@ -427,28 +431,149 @@ function ViewMenu({
 /*  AI                                                                */
 /* ------------------------------------------------------------------ */
 
+function formatHistoryTime(ms: number): string {
+  // Compact "HH:MM" so a 50-entry submenu stays readable. Locale-aware so
+  // 24h vs 12h matches the user's environment.
+  return new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+function SuggestionHistorySubmenu() {
+  const history = useSuggestionsUi((s) => s.suggestionHistory);
+  if (history.length === 0) {
+    return (
+      <Sub label="Suggestion history">
+        <Menubar.Item className={menuItemClass} disabled>
+          <span className="flex-1 text-text-secondary italic">No decisions yet</span>
+        </Menubar.Item>
+      </Sub>
+    );
+  }
+  return (
+    <Sub label="Suggestion history">
+      {history.map((entry) => (
+        <Menubar.Item
+          key={`${entry.id}:${entry.decidedAt}`}
+          className={menuItemClass}
+          // Read-only entries — selecting one does nothing today. Future:
+          // re-show the SuggestionChip / re-tether an allowed widget.
+          disabled
+          title={entry.reasoning ?? undefined}
+        >
+          <span
+            className={
+              entry.decision === 'allowed'
+                ? 'text-ai shrink-0 mr-1.5'
+                : 'text-text-secondary shrink-0 mr-1.5'
+            }
+            aria-hidden
+          >
+            {entry.decision === 'allowed' ? '✓' : '✗'}
+          </span>
+          <span className="flex-1 truncate">{entry.intent}</span>
+          <span className="ml-3 text-text-secondary text-[10px] tabular-nums">
+            {formatHistoryTime(entry.decidedAt)}
+          </span>
+        </Menubar.Item>
+      ))}
+    </Sub>
+  );
+}
+
 function AiMenu() {
   const status = useAiSession((s) => s.status);
-  const hasContext = useAiSession((s) => s.context != null);
-  const hasLayers = useEditorStore((s) => s.layers.length > 0);
+  const analysedIds = useAiSession((s) => s.analysedImageNodeIds);
+  const imageNodes = useEditorStore((s) => s.imageNodes);
+  const layers = useEditorStore((s) => s.layers);
+  const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
+  const hasLayers = layers.length > 0;
   const analysing = status === 'uploading' || status === 'analysing';
 
-  const handleReanalyse = () => {
-    void analyseFirstImageLayer();
+  const nodeIds = Object.keys(imageNodes);
+
+  // Human-readable name for an image-node: node.name → first layer's name → id.
+  const nameFor = (id: string): string => {
+    const node = imageNodes[id];
+    if (!node) return id;
+    if (node.name) return node.name;
+    const firstLayer = node.layerIds[0]
+      ? layers.find((l) => l.id === node.layerIds[0])
+      : undefined;
+    return firstLayer?.name ?? id;
   };
 
+  const labelFor = (id: string): string => {
+    const verb = analysedIds.includes(id) ? 'Re-analyze' : 'Analyze';
+    return `${verb} "${nameFor(id)}"`;
+  };
+
+  const runAnalyse = (id: string) => void analyseImageLayer(id);
+
+  // Single-image (or no image) case: simple one-item shape with the shortcut.
+  if (nodeIds.length <= 1) {
+    const onlyId = nodeIds[0] ?? null;
+    return (
+      <Menubar.Menu>
+        <TriggerButton>AI</TriggerButton>
+        <Menubar.Portal>
+          <Menubar.Content className={menuContentClass} align="start" sideOffset={4}>
+            <Item
+              onSelect={() => onlyId && runAnalyse(onlyId)}
+              disabled={!hasLayers || analysing || !onlyId}
+              keys={['mod', 'alt', 'A']}
+            >
+              {onlyId ? labelFor(onlyId) : 'Analyze image'}
+            </Item>
+            <Sep />
+            <SuggestionHistorySubmenu />
+          </Menubar.Content>
+        </Menubar.Portal>
+      </Menubar.Menu>
+    );
+  }
+
+  // Multi-image case: a top-level shortcut row for the active image (keeps
+  // Cmd+Alt+A discoverable) plus a submenu listing every image-node.
   return (
     <Menubar.Menu>
       <TriggerButton>AI</TriggerButton>
       <Menubar.Portal>
         <Menubar.Content className={menuContentClass} align="start" sideOffset={4}>
-          <Item
-            onSelect={handleReanalyse}
-            disabled={!hasLayers || analysing}
-            keys={['mod', 'shift', 'A']}
-          >
-            {hasContext ? 'Re-analyze image' : 'Analyze image'}
-          </Item>
+          {/* Active-image shortcut row — always visible so Cmd+Alt+A is shown. */}
+          {activeImageNodeId && imageNodes[activeImageNodeId] && (
+            <Item
+              onSelect={() => runAnalyse(activeImageNodeId)}
+              disabled={!hasLayers || analysing}
+              keys={['mod', 'alt', 'A']}
+            >
+              <span
+                className="inline-block w-1.5 h-1.5 mr-2 rounded-full bg-[var(--color-accent)] align-middle"
+                aria-hidden
+              />
+              {labelFor(activeImageNodeId)}
+            </Item>
+          )}
+          {/* Submenu listing all image-nodes so the user can target any one. */}
+          <Sub label="Analyze image…">
+            {nodeIds.map((id) => (
+              <Item
+                key={id}
+                onSelect={() => runAnalyse(id)}
+                disabled={analysing}
+              >
+                {id === activeImageNodeId ? (
+                  <span
+                    className="inline-block w-1.5 h-1.5 mr-2 rounded-full bg-[var(--color-accent)] align-middle"
+                    aria-hidden
+                  />
+                ) : (
+                  <span className="inline-block w-1.5 h-1.5 mr-2" aria-hidden />
+                )}
+                {labelFor(id)}
+              </Item>
+            ))}
+          </Sub>
+          <Sep />
+          <SuggestionHistorySubmenu />
         </Menubar.Content>
       </Menubar.Portal>
     </Menubar.Menu>
@@ -518,7 +643,7 @@ function UndoRedoButtons() {
             </button>
           </Tooltip.Trigger>
           <Tooltip.Portal>
-            <Tooltip.Content className="overlay px-1.5 py-0.5 text-[10px] text-text-primary z-[60]" sideOffset={6}>
+            <Tooltip.Content className="overlay px-1.5 py-0.5 text-[10px] text-text-primary" style={{ zIndex: UI.zPopover }} sideOffset={6}>
               Undo <Kbd keys={['mod', 'Z']} className="inline-flex ml-1" />
             </Tooltip.Content>
           </Tooltip.Portal>
@@ -530,11 +655,12 @@ function UndoRedoButtons() {
             </button>
           </Tooltip.Trigger>
           <Tooltip.Portal>
-            <Tooltip.Content className="overlay px-1.5 py-0.5 text-[10px] text-text-primary z-[60]" sideOffset={6}>
+            <Tooltip.Content className="overlay px-1.5 py-0.5 text-[10px] text-text-primary" style={{ zIndex: UI.zPopover }} sideOffset={6}>
               Redo <Kbd keys={['mod', 'shift', 'Z']} className="inline-flex ml-1" />
             </Tooltip.Content>
           </Tooltip.Portal>
         </Tooltip.Root>
+        <HistoryDropdown />
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button disabled={!hasLayers} onClick={revertToOriginal} className={btnClass}>
@@ -542,8 +668,8 @@ function UndoRedoButtons() {
             </button>
           </Tooltip.Trigger>
           <Tooltip.Portal>
-            <Tooltip.Content className="overlay px-1.5 py-0.5 text-[10px] text-text-primary z-[60]" sideOffset={6}>
-              Revert to Original <Kbd keys={['mod', 'shift', 'R']} className="inline-flex ml-1" />
+            <Tooltip.Content className="overlay px-1.5 py-0.5 text-[10px] text-text-primary" style={{ zIndex: UI.zPopover }} sideOffset={6}>
+              Revert to Original <Kbd keys={['mod', 'alt', 'R']} className="inline-flex ml-1" />
             </Tooltip.Content>
           </Tooltip.Portal>
         </Tooltip.Root>

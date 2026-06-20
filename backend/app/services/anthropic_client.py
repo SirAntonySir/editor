@@ -6,22 +6,31 @@ import json
 import logging
 from typing import Any
 
-from anthropic import Anthropic
+import time
+
+from anthropic import (
+    Anthropic,
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    RateLimitError,
+)
 from PIL import Image
 from pydantic import BaseModel, ValidationError
 
-# Claude downsamples vision input to ~1568px on the long edge, so sending more
-# is pure upload/latency waste. Capping here keeps analyze fast on large source
-# images (a 14MP photo is ~19MB of base64 and was stalling the analyze stepper).
-MAX_VISION_DIM = 1568
-
-# Hard ceiling on a single Anthropic request so a slow/hung call surfaces as an
-# error instead of blocking on the SDK's 10-minute default.
-ANTHROPIC_TIMEOUT_S = 120.0
-
+from app.config import get_app_config
 from app.schemas.enriched_context import Problem
 from app.schemas.image_context import ContextRefinements, ImageContext, RegionLabel
 from app.schemas.operation_graph import OperationGraph
+
+_runtime = get_app_config().runtime
+MAX_VISION_DIM = _runtime.max_vision_dim
+ANTHROPIC_TIMEOUT_S = _runtime.anthropic_timeout_s
+MAX_TOKENS_ANALYZE = _runtime.max_tokens_analyze
+MAX_TOKENS_COMPOSE = _runtime.max_tokens_compose
+MAX_TOKENS_REFINE = _runtime.max_tokens_refine
+MAX_TOKENS_CLASSIFY = _runtime.max_tokens_classify
+MAX_TOKENS_SHORT = _runtime.max_tokens_short
 
 logger = logging.getLogger(__name__)
 
@@ -34,28 +43,46 @@ def _log_cache_stats(call: str, session_id: str | None, response: Any) -> None:
     create = getattr(usage, "cache_creation_input_tokens", 0) or 0
     read = getattr(usage, "cache_read_input_tokens", 0) or 0
     total_input = getattr(usage, "input_tokens", 0) or 0
+    total_output = getattr(usage, "output_tokens", 0) or 0
     logger.info(
-        "call=%s session=%s cache_create=%d cache_read=%d input_tokens=%d",
-        call, session_id, create, read, total_input,
+        "call=%s session=%s cache_create=%d cache_read=%d input_tokens=%d output_tokens=%d",
+        call, session_id, create, read, total_input, total_output,
     )
+    # Surface usage to any in-flight SSE consumer (frontend status bar).
+    # Import lazily to avoid pulling app.state into module-import order.
+    from app.state.active_doc import get_active_doc
+    doc = get_active_doc()
+    if doc is not None:
+        doc._emit_usage(
+            call=call,
+            input_tokens=total_input,
+            output_tokens=total_output,
+            cache_create=create,
+            cache_read=read,
+        )
 
 ANALYZE_SYSTEM_PROMPT = """You are a photo-editing assistant. Given an image, \
 produce a structured ImageContext capturing subjects, lighting, dominant \
 tonal regions, mood, and candidate regions a user might want to edit. \
 \
-ALWAYS emit at least 4 (preferably 6–10) `candidate_regions`, mixing THREE \
-LEVELS OF GRANULARITY so the user can target the right scope: \
+Emit 3–6 `candidate_regions` at TWO LEVELS OF GRANULARITY only — no part-level \
+sub-regions, no nested faces/hair/hands/clothing: \
   (a) WHOLE-SUBJECT — every distinct person, animal, or major foreground object \
       as ONE region covering its full body, head to feet, clothing and held \
       objects included. For a two-person portrait you MUST emit `"left person"` \
       and `"right person"`, not just their faces. \
-  (b) PART-LEVEL — useful sub-parts when retouching them matters: face, hair, \
-      hands, distinct clothing, a held object. Emit IN ADDITION to (a). \
-  (c) ENVIRONMENT — sky, water, walls, background, light sources, tonal zones. \
+  (b) ENVIRONMENT — sky, water, walls, background, light sources, tonal zones \
+      — emit ONLY if the environment is a meaningful target a user would want \
+      to grade independently (sky, water, distinct background). Do not emit \
+      ground/floor as a separate region unless it's the main editing target. \
+\
+Each `subject` you list MUST be represented by at least one candidate_region. \
+Do NOT emit a region for a part of a subject (face, hair, cap, shoes, phone, \
+sweatshirt) — those belong inside the WHOLE-SUBJECT region, not as their own. \
 \
 Region labels: short and concrete. Use whole-subject names without redundant \
-qualifiers (`"right person"`, not `"right person's body"`). Parts name the part \
-inside the subject (`"right person's face"`). Empty region lists are invalid. \
+qualifiers (`"right person"`, not `"right person's body"`). Empty region lists \
+are invalid. \
 \
 COORDINATE SYSTEM — read carefully, this is the most common source of errors: \
   - All coordinates are normalised to [0, 1]. \
@@ -73,9 +100,7 @@ For each candidate region, emit: \
   - `representative_point`: [x, y]. A single point UNAMBIGUOUSLY inside the \
     region — SAM segments outward from this click, so the point determines the \
     scope. For a WHOLE-SUBJECT person, click on the TORSO/CHEST (clicking on \
-    the face returns just the face). For a FACE region, click on the cheek or \
-    nose. When you emit both a whole-subject and a face region for the same \
-    person, the two points MUST land on different parts (torso vs face). \
+    the face would return just the face, defeating the whole-subject intent). \
 \
 Both fields are strongly recommended; regions without `representative_point` will \
 be discarded downstream. \
@@ -406,9 +431,69 @@ _FLESH_BINDING_TOOL = {
 class AnthropicClient:
     """Wrapper around the Anthropic SDK with structured tool use + prompt caching."""
 
-    def __init__(self, api_key: str, model: str) -> None:
+    def __init__(self, api_key: str, model: str, fast_model: str | None = None) -> None:
         self._client = Anthropic(api_key=api_key, timeout=ANTHROPIC_TIMEOUT_S)
         self._model = model
+        # Latency tier — used by smart_match (palette typing-time suggestions).
+        # Falls back to the primary model so call sites work in tests that
+        # construct the client with only `model=`.
+        self._fast_model = fast_model or model
+
+    def _messages_create(self, **kwargs):
+        """`self._messages_create` with transport-level retries.
+
+        The SDK raises distinct error classes for different failure modes.
+        Validation retries (handled by callers) only make sense for the
+        small subset where Claude emitted a tool call with malformed
+        fields. Transport failures (connection drop, 5xx, 429) deserve
+        their own retry with backoff before we surface them. Without
+        this, a single network blip is reported to the user as a hard
+        failure — yet retrying succeeds the vast majority of the time.
+
+        4xx (other than 429) still raise: those are caller bugs, not
+        transient — retrying just wastes tokens.
+        """
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                return self._client.messages.create(**kwargs)
+            except (APIConnectionError, APITimeoutError, RateLimitError) as exc:
+                last_exc = exc
+                logger.warning(
+                    "Anthropic transient error (attempt %d/3): %s", attempt + 1, exc,
+                )
+            except APIStatusError as exc:
+                last_exc = exc
+                if exc.status_code is None or exc.status_code < 500:
+                    # 4xx — caller bug, no point retrying. Log the response
+                    # body so the actual API rejection reason ("model not
+                    # found", "max_tokens too low", etc) is visible — the
+                    # bare exception just shows the status code.
+                    body = getattr(exc, "body", None)
+                    response = getattr(exc, "response", None)
+                    body_text = None
+                    if body is not None:
+                        body_text = str(body)
+                    elif response is not None:
+                        try:
+                            body_text = response.text
+                        except Exception:
+                            body_text = None
+                    logger.error(
+                        "Anthropic %s (4xx) model=%s: %s | body=%s",
+                        exc.status_code, kwargs.get("model"), exc, body_text,
+                    )
+                    raise
+                logger.warning(
+                    "Anthropic 5xx (attempt %d/3): %s", attempt + 1, exc,
+                )
+            # Exponential backoff: 0.5s, 1.0s. (No sleep after the final
+            # attempt — we'll raise immediately.)
+            if attempt < 2:
+                time.sleep(0.5 * (2 ** attempt))
+        raise RuntimeError(
+            f"Anthropic transport failed after 3 attempts: {last_exc}",
+        ) from last_exc
 
     @staticmethod
     def _cap_image(image_bytes: bytes, mime_type: str) -> tuple[bytes, str]:
@@ -451,13 +536,13 @@ class AnthropicClient:
     ) -> ImageContext:
         last_error: ValidationError | None = None
         for _ in range(3):  # initial + 2 retries — Claude occasionally omits required fields
-            response = self._client.messages.create(
+            response = self._messages_create(
                 model=self._model,
                 # Output budget: ImageContext + 6–10 candidate_regions (each with
                 # label, description, bbox, representative_point) regularly
                 # exceeds 1024 tokens. 2048 leaves comfortable headroom and
                 # matches the panel endpoint.
-                max_tokens=2048,
+                max_tokens=MAX_TOKENS_ANALYZE,
                 system=[{"type": "text", "text": ANALYZE_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
                 tools=[IMAGE_CONTEXT_TOOL],
                 tool_choice={"type": "tool", "name": "emit_image_context"},
@@ -489,7 +574,7 @@ class AnthropicClient:
                     return ctx
             else:
                 raise RuntimeError("Anthropic did not emit emit_image_context tool call")
-        raise RuntimeError(f"Image analysis failed after retries: {last_error}")
+        raise RuntimeError(f"Image analysis failed after retries: {last_error}") from last_error
 
     def refine_image_context(
         self,
@@ -506,9 +591,9 @@ class AnthropicClient:
         )
         last_error: ValidationError | None = None
         for _ in range(3):
-            response = self._client.messages.create(
+            response = self._messages_create(
                 model=self._model,
-                max_tokens=2048,
+                max_tokens=MAX_TOKENS_ANALYZE,
                 system=[{"type": "text", "text": REFINE_CONTEXT_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
                 tools=[CONTEXT_REFINEMENTS_TOOL],
                 tool_choice={"type": "tool", "name": "emit_context_refinements"},
@@ -540,7 +625,7 @@ class AnthropicClient:
                         break
             else:
                 raise RuntimeError("Anthropic did not emit emit_context_refinements tool call")
-        raise RuntimeError(f"Context refinement failed after retries: {last_error}")
+        raise RuntimeError(f"Context refinement failed after retries: {last_error}") from last_error
 
     def name_region(
         self,
@@ -554,9 +639,9 @@ class AnthropicClient:
         so Claude can disambiguate similar objects (e.g. left vs right person)."""
         last_error: ValidationError | None = None
         for _ in range(2):
-            response = self._client.messages.create(
+            response = self._messages_create(
                 model=self._model,
-                max_tokens=128,
+                max_tokens=MAX_TOKENS_SHORT,
                 system=[{"type": "text", "text": NAME_REGION_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
                 tools=[LABEL_REGION_TOOL],
                 tool_choice={"type": "tool", "name": "emit_region_label"},
@@ -581,7 +666,7 @@ class AnthropicClient:
                         break
             else:
                 raise RuntimeError("Anthropic did not emit emit_region_label tool call")
-        raise RuntimeError(f"Region naming failed after retries: {last_error}")
+        raise RuntimeError(f"Region naming failed after retries: {last_error}") from last_error
 
     def generate_panel(
         self,
@@ -593,9 +678,9 @@ class AnthropicClient:
     ) -> OperationGraph:
         last_error: ValidationError | None = None
         for _ in range(3):  # initial + 2 retries
-            response = self._client.messages.create(
+            response = self._messages_create(
                 model=self._model,
-                max_tokens=2048,
+                max_tokens=MAX_TOKENS_ANALYZE,
                 system=[{"type": "text", "text": PANEL_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
                 tools=[OPERATION_GRAPH_TOOL],
                 tool_choice={"type": "tool", "name": "emit_operation_graph"},
@@ -624,7 +709,7 @@ class AnthropicClient:
                         break
             else:
                 raise RuntimeError("Anthropic did not emit emit_operation_graph tool call")
-        raise RuntimeError(f"Panel generation failed validation after retries: {last_error}")
+        raise RuntimeError(f"Panel generation failed validation after retries: {last_error}") from last_error
 
     def generate_refined_panel(
         self,
@@ -637,9 +722,9 @@ class AnthropicClient:
     ) -> OperationGraph:
         last_error: ValidationError | None = None
         for _ in range(3):
-            response = self._client.messages.create(
+            response = self._messages_create(
                 model=self._model,
-                max_tokens=2048,
+                max_tokens=MAX_TOKENS_ANALYZE,
                 system=[{"type": "text", "text": REFINE_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
                 tools=[OPERATION_GRAPH_TOOL],
                 tool_choice={"type": "tool", "name": "emit_operation_graph"},
@@ -672,7 +757,7 @@ class AnthropicClient:
                         break
             else:
                 raise RuntimeError("Anthropic did not emit emit_operation_graph tool call")
-        raise RuntimeError(f"Refine generation failed validation after retries: {last_error}")
+        raise RuntimeError(f"Refine generation failed validation after retries: {last_error}") from last_error
 
     def resolve_fused_tool(
         self,
@@ -686,9 +771,9 @@ class AnthropicClient:
             "description": f"Emit tunable values for fused tool {template_id}",
             "input_schema": response_schema,
         }
-        response = self._client.messages.create(
+        response = self._messages_create(
             model=self._model,
-            max_tokens=1024,
+            max_tokens=MAX_TOKENS_REFINE,
             system=[{"type": "text", "text": _FUSED_RESOLVE_PROMPT, "cache_control": {"type": "ephemeral"}}],
             tools=[tool],
             tool_choice={"type": "tool", "name": "emit_fused_tool_values"},
@@ -708,9 +793,9 @@ class AnthropicClient:
     def name_pick_fused_tool(
         self, intent: str, candidates: list[dict], session_id: str | None = None,
     ) -> str | None:
-        response = self._client.messages.create(
+        response = self._messages_create(
             model=self._model,
-            max_tokens=512,
+            max_tokens=MAX_TOKENS_CLASSIFY,
             system=[{"type": "text", "text": "Pick the fused tool id whose description best matches the intent. Return null if nothing fits.", "cache_control": {"type": "ephemeral"}}],
             tools=[_NAME_PICK_TOOL],
             tool_choice={"type": "tool", "name": "emit_chosen_fused_tool"},
@@ -726,6 +811,112 @@ class AnthropicClient:
             if getattr(block, "type", None) == "tool_use" and block.name == "emit_chosen_fused_tool":
                 return block.input.get("chosen_id")
         return None
+
+    # ------------------------------------------------------------------
+    # Palette typing-time smart-match
+    # ------------------------------------------------------------------
+    # Fired from the command palette while the user is typing. Runs on the
+    # latency tier (Haiku 4.5) so we can afford to invoke it on each
+    # debounced keystroke. The system prompt and the op/preset catalog are
+    # marked cache-ephemeral so every call after the first is mostly
+    # cache-hit — only the user's typed query and the (small) image-context
+    # block are fresh per call. Returns up to N picks as
+    # {"picks": [{"kind": "op"|"preset", "id": str, "reason": str}]}.
+
+    _SMART_MATCH_PROMPT = (
+        "You suggest editor commands from a typed query.\n"
+        "INPUT: a short user query (a goal, mood, or look) + the current image's "
+        "context (subjects, lighting, grade character) + a catalog of available "
+        "ops and presets.\n"
+        "OUTPUT: 0–N picks from the catalog, ranked. Each pick is an op or "
+        "preset id that fits BOTH the query AND the image.\n"
+        "Be aggressive about returning nothing when the deterministic palette "
+        "would already find a clear match — the frontend only calls you when "
+        "the literal-string search is sparse. Pick presets over ops when a "
+        "preset captures the intent end-to-end. Keep `reason` under 60 chars."
+    )
+
+    def smart_match(
+        self,
+        *,
+        query: str,
+        image_context: dict | None,
+        ops_catalog: list[dict],
+        presets_catalog: list[dict],
+        max_picks: int = 3,
+        session_id: str | None = None,
+    ) -> list[dict]:
+        """Palette typing-time matcher. Cheap call on the Haiku tier with
+        catalog + context as cache-hit blocks. Returns a list of
+        {kind, id, reason} dicts of length 0..max_picks."""
+        schema = {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["picks"],
+            "properties": {
+                "picks": {
+                    "type": "array",
+                    "minItems": 0,
+                    "maxItems": max_picks,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["kind", "id", "reason"],
+                        "properties": {
+                            "kind": {"type": "string", "enum": ["op", "preset"]},
+                            "id": {"type": "string"},
+                            "reason": {"type": "string", "maxLength": 60},
+                        },
+                    },
+                },
+            },
+        }
+        tool = {
+            "name": "emit_smart_match_picks",
+            "description": "Rank op/preset ids that fit the user's query AND the image.",
+            "input_schema": schema,
+        }
+        # Catalog + image_context are big and stable across queries within
+        # one session — they go into cached blocks. The query is the only
+        # fresh content.
+        catalog_text = (
+            "OPS:\n" + str(ops_catalog) + "\n\nPRESETS:\n" + str(presets_catalog)
+        )
+        context_text = (
+            "IMAGE CONTEXT:\n" + str(image_context) if image_context else "IMAGE CONTEXT: (none)"
+        )
+        response = self._messages_create(
+            model=self._fast_model,
+            max_tokens=MAX_TOKENS_SHORT,  # tight: 3 picks × ~30 tokens
+            system=[{"type": "text", "text": self._SMART_MATCH_PROMPT, "cache_control": {"type": "ephemeral"}}],
+            tools=[tool],
+            tool_choice={"type": "tool", "name": "emit_smart_match_picks"},
+            messages=[
+                {"role": "user", "content": [
+                    {"type": "text", "text": catalog_text, "cache_control": {"type": "ephemeral"}},
+                    {"type": "text", "text": context_text, "cache_control": {"type": "ephemeral"}},
+                    {"type": "text", "text": f"QUERY: {query}"},
+                ]},
+            ],
+        )
+        _log_cache_stats("smart_match", session_id, response)
+        for block in response.content:
+            if getattr(block, "type", None) == "tool_use" and block.name == "emit_smart_match_picks":
+                picks = block.input.get("picks") or []
+                # Defensive cast — Claude occasionally returns a single dict
+                # for a one-item array, or extra keys we can drop.
+                out: list[dict] = []
+                for p in picks:
+                    if not isinstance(p, dict):
+                        continue
+                    kind = p.get("kind")
+                    pid = p.get("id")
+                    reason = p.get("reason", "")
+                    if kind not in ("op", "preset") or not isinstance(pid, str) or not pid:
+                        continue
+                    out.append({"kind": kind, "id": pid, "reason": str(reason)[:60]})
+                return out[:max_picks]
+        return []
 
     def suggest_fused_tools_for_character(
         self,
@@ -784,9 +975,9 @@ class AnthropicClient:
             f"Return picks as fused-tool ids in priority order. Empty list is fine if nothing fits."
         )
 
-        response = self._client.messages.create(
+        response = self._messages_create(
             model=self._model,
-            max_tokens=512,
+            max_tokens=MAX_TOKENS_CLASSIFY,
             system=[{"type": "text", "text": "Pick fused tools whose typical_use best fits the image's character. Skip ids in the exclude list. Return an empty list if nothing fits.", "cache_control": {"type": "ephemeral"}}],
             tools=[tool_schema],
             tool_choice={"type": "tool", "name": "suggest_fused_tools"},
@@ -804,8 +995,8 @@ class AnthropicClient:
     def flesh_out_binding(
         self, request: str, widget: dict, response_schema: dict | None = None, session_id: str | None = None,
     ) -> dict:
-        response = self._client.messages.create(
-            model=self._model, max_tokens=1024,
+        response = self._messages_create(
+            model=self._model, max_tokens=MAX_TOKENS_REFINE,
             system=[{"type": "text", "text": _FLESH_BINDING_PROMPT, "cache_control": {"type": "ephemeral"}}],
             tools=[_FLESH_BINDING_TOOL],
             tool_choice={"type": "tool", "name": "emit_new_binding"},
@@ -924,9 +1115,9 @@ class AnthropicClient:
             ],
         }]
 
-        response = self._client.messages.create(
+        response = self._messages_create(
             model=self._model,
-            max_tokens=2048,
+            max_tokens=MAX_TOKENS_ANALYZE,
             system=[{
                 "type": "text",
                 "text": _PLANNER_SYSTEM_PROMPT,
@@ -974,26 +1165,41 @@ a strong prior if provided. Do not include markdown fences."""
             }
             for k, p in op.params.items()
         }
-        user_text = (
+        # Per-op text — the only fresh content in this call. Kept compact.
+        per_op_text = (
             f"OP: {op.id} ({op.llm.description})\n"
             f"PARAM SCHEMA: {params_spec}\n"
             f"INTENT: {intent}\n"
             f"RATIONALE FROM PLANNER: {rationale}\n"
-            f"STARTING PARAMS (priors): {starting_params}\n"
-            f"IMAGE CONTEXT: {image_context}\n\n"
+            f"STARTING PARAMS (priors): {starting_params}\n\n"
             "Return JSON object with one key per param, values within the schema range."
         )
-        response = self._client.messages.create(
+        # When propose_stack resolves N ops in parallel for one user
+        # prompt, the system prompt and the image_context block are
+        # identical across every call. Send them as cache-ephemeral
+        # blocks so calls 2..N read the cache instead of paying the full
+        # ~k input tokens each time. The previous shape put
+        # "OP-TYPE: {op.id}" inside the system block which gave every
+        # call a different prefix and broke the cache entirely (telemetry
+        # showed cache_read=0 across 7 parallel resolvers for one prompt).
+        response = self._messages_create(
             model=self._model,
-            max_tokens=1024,
+            max_tokens=MAX_TOKENS_REFINE,
             system=[{
                 "type": "text",
-                "text": self._RESOLVE_SYSTEM_PROMPT + f"\n\nOP-TYPE: {op.id}",
+                "text": self._RESOLVE_SYSTEM_PROMPT,
                 "cache_control": {"type": "ephemeral"},
             }],
             messages=[{
                 "role": "user",
-                "content": [{"type": "text", "text": user_text}],
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"IMAGE CONTEXT: {image_context}",
+                        "cache_control": {"type": "ephemeral"},
+                    },
+                    {"type": "text", "text": per_op_text},
+                ],
             }],
         )
         _log_cache_stats(f"resolve_widget_params/{op.id}", session_id, response)
@@ -1039,9 +1245,9 @@ a strong prior if provided. Do not include markdown fences."""
 
         last_error = None
         for attempt in range(3):
-            response = self._client.messages.create(
+            response = self._messages_create(
                 model=self._model,
-                max_tokens=1500,
+                max_tokens=MAX_TOKENS_COMPOSE,
                 system=[{"type": "text", "text": _AUGMENT_PROMPT, "cache_control": {"type": "ephemeral"}}],
                 tools=[_SOFT_FIELDS_TOOL],
                 tool_choice={"type": "tool", "name": "emit_context_soft_fields"},
@@ -1066,4 +1272,4 @@ a strong prior if provided. Do not include markdown fences."""
                         logger.warning("augment_context validation failed (attempt %d): %s", attempt, e)
                         last_error = e
                         break
-        raise RuntimeError(f"augment_context_soft_fields failed: {last_error}")
+        raise RuntimeError(f"augment_context_soft_fields failed: {last_error}") from last_error

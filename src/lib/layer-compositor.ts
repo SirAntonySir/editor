@@ -4,7 +4,7 @@ import { useEditorStore } from '@/store';
 import type { BlendMode } from '@/types/adjustment';
 import type { Layer } from '@/store/layer-slice';
 import { maskStore } from '@/core/mask-store';
-import { selectPipelineNodes } from './select-pipeline-nodes';
+import { selectPipelineNodes, matchesLayer } from './select-pipeline-nodes';
 import { nodeToAdjustment } from './node-to-adjustment';
 
 const BLEND_MODE_MAP: Record<BlendMode, GlobalCompositeOperation> = {
@@ -65,13 +65,24 @@ class LayerCompositorImpl {
   }
 
   /** Render a single layer through its adjustment pipeline. Returns an HTMLCanvasElement. */
-  renderLayer(layer: Layer): HTMLCanvasElement | null {
+  renderLayer(layer: Layer, seen: Set<string> = new Set()): HTMLCanvasElement | null {
+    // Cycle / self-reference guard. A malformed layer tree (e.g. a layer
+    // pointing to itself or a closed loop) would otherwise recurse
+    // infinitely and crash the tab. Bail and log instead.
+    if (seen.has(layer.id)) {
+      console.warn('LayerCompositor: cycle detected in parentLayerId chain', {
+        layerId: layer.id, chain: Array.from(seen),
+      });
+      return null;
+    }
+    seen.add(layer.id);
+
     // 1. Determine source pixels.
     let source: HTMLCanvasElement | OffscreenCanvas | null;
     if (layer.parentLayerId) {
       const parent = useEditorStore.getState().layers.find((l) => l.id === layer.parentLayerId);
       if (!parent) return null;
-      source = this.renderLayer(parent);
+      source = this.renderLayer(parent, seen);
       if (!source) return null;
     } else {
       source = CanvasRegistry.get(layer.id) ?? null;
@@ -79,7 +90,7 @@ class LayerCompositorImpl {
     }
 
     // 2. Apply the layer's adjustment pipeline from the backend snapshot.
-    const pipelineNodes = selectPipelineNodes().filter((n) => n.layer_id === layer.id);
+    const pipelineNodes = selectPipelineNodes().filter((n) => matchesLayer(n, layer.id));
     const adjustments = pipelineNodes.map(nodeToAdjustment).filter((a) => a.enabled);
     let result: HTMLCanvasElement;
     if (adjustments.length === 0) {
@@ -166,7 +177,7 @@ class LayerCompositorImpl {
       } else {
         // Pixel-less adjustment-only layer: apply backend pipeline nodes over
         // the accumulated composite below it.
-        const pipelineNodes = selectPipelineNodes().filter((n) => n.layer_id === layer.id);
+        const pipelineNodes = selectPipelineNodes().filter((n) => matchesLayer(n, layer.id));
         const enabledAdjs = pipelineNodes.map(nodeToAdjustment).filter((a) => a.enabled);
         if (enabledAdjs.length > 0 && outputWidth > 0 && outputHeight > 0) {
           PipelineManager.setSourceCanvas(this.outputCanvas);

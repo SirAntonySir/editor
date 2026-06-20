@@ -9,6 +9,10 @@ import { proposeStackTool } from './tools/propose-stack';
 import { listLayersTool } from './tools/list-layers';
 import { highlightRegionTool } from './tools/highlight-region';
 import { addNoteTool } from './tools/add-note';
+import { listObjectsTool } from './tools/list-objects';
+import { selectObjectTool } from './tools/select-object';
+import { extractObjectToImageNodeTool } from './tools/extract-object-to-image-node';
+import { convertObjectToLayerMaskTool } from './tools/convert-object-to-layer-mask';
 
 export { LlmToolRegistry } from './llm-tool-registry';
 export type { ToolManifest, ToolKind } from './types';
@@ -34,4 +38,9 @@ export function registerAllToolManifests(): void {
   // Annotation (2)
   LlmToolRegistry.register(highlightRegionTool);
   LlmToolRegistry.register(addNoteTool);
+  // Object actions (4)
+  LlmToolRegistry.register(listObjectsTool);
+  LlmToolRegistry.register(selectObjectTool);
+  LlmToolRegistry.register(extractObjectToImageNodeTool);
+  LlmToolRegistry.register(convertObjectToLayerMaskTool);
 }

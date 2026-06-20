@@ -45,8 +45,8 @@ export function CommandTrigger() {
           style={{
             background: 'color-mix(in srgb, var(--color-surface) 88%, transparent)',
           }}
-          className={`overlay absolute bottom-6 left-1/2 -translate-x-1/2 z-20
-            flex items-center gap-2.5 h-9 min-w-[300px] pl-3 pr-2 text-xs backdrop-blur-md
+          className={`overlay pointer-events-auto flex items-center gap-2.5 h-9
+            min-w-[300px] pl-3 pr-2 text-xs backdrop-blur-md
             transition-colors duration-150
             ${disabled
               ? 'opacity-40 cursor-not-allowed text-text-secondary'

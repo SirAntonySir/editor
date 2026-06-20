@@ -86,12 +86,13 @@ def test_panel_returns_operation_graph(client: TestClient, fake_client: MagicMoc
     # user_goal is now derived from widget intent by project_to_graph; the shim
     # threads the request's user_goal through as the widget's intent, so the
     # response should reflect it (structurally, not literally).
-    assert "make it warmer" in body["user_goal"]
+    assert "make it warmer" in body["userGoal"]
     # Panel bindings come from the warm_grade fused template — assert structural
     # presence rather than label text (which is template-defined, not test-defined).
-    assert isinstance(body["panel_bindings"], list)
-    assert len(body["panel_bindings"]) > 0
+    assert isinstance(body["panelBindings"], list)
+    assert len(body["panelBindings"]) > 0
     # Verify the lazy-analyze branch fired (no prior context on the session).
+    # analyze_context internally calls client.analyze_image exactly once.
     assert fake_client.analyze_image.call_count == 1
 
 

@@ -1,7 +1,7 @@
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
-import { HSL_BANDS } from './hsl-bands';
-import { HslPanelView } from './HslPanelView';
+import { HSL_BANDS } from '@/components/widget/hsl/hsl-bands';
+import { HslPanelView } from '@/components/widget/hsl/HslPanelView';
 import { HslParamSlider } from './HslParamSlider';
 
 const CHANNELS = ['hue', 'sat', 'lum'] as const;
@@ -15,7 +15,7 @@ export function HslSectionBody({ layerId }: { layerId: string }) {
   const sessionId = useBackendState((s) => s.sessionId);
   const offline = useBackendState((s) => s.sseStatus !== 'open');
   const params = useBackendState(
-    (s) => (s.snapshot?.operation_graph.nodes.find((n) => n.id === nodeId)?.params ?? EMPTY) as Record<string, number>,
+    (s) => (s.snapshot?.operationGraph.nodes.find((n) => n.id === nodeId)?.params ?? EMPTY) as Record<string, number>,
   );
   const opt = useBackendState((s) => s.optimistic.get(nodeId));
 
@@ -36,7 +36,7 @@ export function HslSectionBody({ layerId }: { layerId: string }) {
     const baseRevision = useBackendState.getState().snapshot?.revision ?? 0;
     for (const param of ALL_PARAMS) {
       useBackendState.getState().applyOptimistic(nodeId, { bindings: [{ paramKey: param, value: 0 }], baseRevision });
-      void backendTools.set_param(sessionId, { layer_id: layerId, op: 'hsl', param, value: 0 });
+      void backendTools.set_param(sessionId, { layerId, op: 'hsl', param, value: 0 });
     }
   }
 

@@ -6,7 +6,7 @@
   "llm": {
     "description": "1-D dial that ramps emotional tension from serene to aggressive. Coordinates contrast, clarity, shadow crush, vignette closure, and split-tone hue shift. Independent of color temperature.",
     "typical_use": "User says 'make it dramatic', 'serene', 'aggressive', 'calm', 'cinematic', 'intense', 'soft mood'.",
-    "semantic_tags": ["mood", "tension", "atmosphere", "cinematic"]
+    "semantic_tags": ["mood", "tension", "atmosphere", "cinematic", "dramatic", "serene", "calm", "aggressive", "intense", "dreamy", "moody", "somber", "energetic", "soft"]
   },
   "params": {
     "mood.position":             { "type": "scalar", "range": [0, 1],         "default": 0.33, "step": 0.001 },
@@ -21,16 +21,16 @@
     "filters.vignette_amount":   { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 }
   },
   "bindings": [
-    { "param_key": "mood.position",            "control_type": "slider", "label": "Intensity" },
-    { "param_key": "light.contrast",           "control_type": "slider", "label": "Contrast" },
-    { "param_key": "light.shadows",            "control_type": "slider", "label": "Shadows" },
-    { "param_key": "light.highlights",         "control_type": "slider", "label": "Highlights" },
-    { "param_key": "color.vibrance",           "control_type": "slider", "label": "Vibrance" },
-    { "param_key": "color.saturation",         "control_type": "slider", "label": "Saturation" },
-    { "param_key": "clarity.amount",           "control_type": "slider", "label": "Clarity" },
-    { "param_key": "splitTone.shadow_hue",     "control_type": "hue_wheel", "label": "Shadow Hue" },
-    { "param_key": "splitTone.highlight_hue",  "control_type": "hue_wheel", "label": "Highlight Hue" },
-    { "param_key": "filters.vignette_amount",  "control_type": "slider", "label": "Vignette" }
+    { "paramKey": "mood.position",            "controlType": "slider", "label": "Intensity" },
+    { "paramKey": "light.contrast",           "controlType": "slider", "label": "Contrast" },
+    { "paramKey": "light.shadows",            "controlType": "slider", "label": "Shadows" },
+    { "paramKey": "light.highlights",         "controlType": "slider", "label": "Highlights" },
+    { "paramKey": "color.vibrance",           "controlType": "slider", "label": "Vibrance" },
+    { "paramKey": "color.saturation",         "controlType": "slider", "label": "Saturation" },
+    { "paramKey": "clarity.amount",           "controlType": "slider", "label": "Clarity" },
+    { "paramKey": "splitTone.shadow_hue",     "controlType": "hue_wheel", "label": "Shadow Hue" },
+    { "paramKey": "splitTone.highlight_hue",  "controlType": "hue_wheel", "label": "Highlight Hue" },
+    { "paramKey": "filters.vignette_amount",  "controlType": "slider", "label": "Vignette" }
   ],
   "engine": { "shader": "compound", "render_order": 5, "node_type": "compound" },
   "compound": {

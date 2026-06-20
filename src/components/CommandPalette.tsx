@@ -1,22 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Loader2, AlertCircle, Sparkles, ArrowRight, Image as ImageIcon, Command as CommandIcon, X as XIcon } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
-import { ScrollArea } from '@/components/ui/ScrollArea';
 import { useEditorStore } from '@/store';
-import { useBackendState } from '@/store/backend-state-slice';
-import { toast } from '@/components/ui/Toast';
 import { spawnRegistryOp, spawnRegistryPreset } from '@/lib/toolrail-spawn';
 import { proposeFromPalette } from '@/lib/palette-actions';
 import { useMenuActions } from '@/lib/menu-actions';
 import { usePreferencesStore } from '@/store/preferences-store';
-import { analyseFirstImageLayer, useAiSession } from '@/hooks/useImageContext';
+import { analyseActiveImageLayer, useAiSession } from '@/hooks/useImageContext';
+import { objectOwnership } from '@/lib/segmentation/object-ownership';
+import { useSmartMatch } from '@/hooks/useSmartMatch';
 import type { Scope } from '@/types/widget';
 import {
   buildAdjustmentSections,
   buildPresetSections,
   buildMenuActionSections,
+  buildPreferencesSections,
+  buildRegionsSections,
   filterSections,
   flattenSections,
   imageNodeLabel,
@@ -28,10 +29,13 @@ import {
 
 /** Built once at module load — registry is static after Vite eager-glob.
  *  Menu actions are added per-render inside the component because their
- *  closures depend on hook state (canUndo, hasLayers, ...). */
+ *  closures depend on hook state (canUndo, hasLayers, ...). Preferences
+ *  commands sit here too — their `run` closures pull live state at click
+ *  time, so they don't need to be rebuilt on store changes. */
 const STATIC_REGISTRY_SECTIONS: PaletteSection[] = [
   ...buildAdjustmentSections(),
   ...buildPresetSections(),
+  ...buildPreferencesSections(),
 ];
 
 export function CommandPalette() {
@@ -55,6 +59,14 @@ export function CommandPalette() {
   const setActiveImageNode = useEditorStore((s) => s.setActiveImageNode);
   const menuActions = useMenuActions();
 
+  // Subscribe to AI context + object ownership so the Regions section stays
+  // fresh while the palette is open.
+  const aiContext = useAiSession((s) => s.context);
+  // objectOwnership is a custom external store — snapshot() returns a version
+  // int that increments on every mutation, giving useSyncExternalStore a
+  // stable snapshot to compare via Object.is.
+  useSyncExternalStore(objectOwnership.subscribe, objectOwnership.snapshot);
+
   // Right-sidebar geometry — used to keep the palette centered over the
   // canvas column rather than the full viewport. RightSidebar unmounts when
   // there are no layers, and goes to width 0 when collapsed (SidebarShell),
@@ -64,21 +76,28 @@ export function CommandPalette() {
   const sidebarOffset =
     layers.length > 0 && !rightSidebarCollapsed ? rightSidebarWidth : 0;
 
-  // Section order: Adjustments → Presets → Commands → AI. Commands sit
-  // below domain operations so a bare "light" query still surfaces the
-  // Light adjustment first; users searching for "open" / "undo" / "zoom"
-  // still find them by name and the Kbd chip reminds them of the shortcut.
+  // Section order: Regions → Adjustments → Presets → Commands → AI. Regions
+  // sit first so a quick label search surfaces the named area immediately.
+  // Commands sit below domain operations so a bare "light" query still
+  // surfaces the Light adjustment first; users searching for "open" /
+  // "undo" / "zoom" still find them by name and the Kbd chip reminds them
+  // of the shortcut.
   const allSections = useMemo<PaletteSection[]>(
     () => [
+      ...buildRegionsSections(),
       ...STATIC_REGISTRY_SECTIONS,
       ...buildMenuActionSections(menuActions),
     ],
-    [menuActions],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [menuActions, aiContext],
   );
 
-  // Filter sections by query. The AI row is synthesised separately so it
-  // always appears last when the query is non-empty.
-  const filteredSections = useMemo(
+  // Filter sections by query. Result is partitioned: `primary` holds rows
+  // whose title (or alias / op-id) matched, `secondary` holds rows that only
+  // survived on a description match. The AI "Send as a prompt" row is
+  // synthesised separately and sits *between* the two groups, so the user
+  // sees: tool titles → AI fallback → description-only matches.
+  const { primary: primarySections, secondary: secondarySections } = useMemo(
     () => filterSections(allSections, query),
     [allSections, query],
   );
@@ -94,34 +113,100 @@ export function CommandPalette() {
     [query],
   );
 
-  // Flat command list for arrow navigation. AI lives at the end of the
-  // flattened array so ArrowDown walks past Adjustments / Presets first.
+  // ─── Smart match (AI) ──────────────────────────────────────────────
+  // Typing-time LLM matcher that ranks op/preset ids by fit to both the
+  // query AND the current image. Fires only when the deterministic
+  // primary section is sparse — for unambiguous queries ("warm", "fade")
+  // the synonym match already nails it and no LLM call runs.
+  //
+  // Picks come back as {kind, id, reason}. We resolve each id against
+  // `allSections` to recover the matching `PaletteCommand` (icon, opId,
+  // presetId) so the existing `run()` path executes them with no special
+  // case.
+  const commandByRegistryId = useMemo<Map<string, PaletteCommand>>(() => {
+    const m = new Map<string, PaletteCommand>();
+    for (const s of allSections) {
+      for (const c of s.commands) {
+        if (c.kind === 'op' && c.opId) m.set(`op:${c.opId}`, c);
+        else if (c.kind === 'preset' && c.presetId) m.set(`preset:${c.presetId}`, c);
+      }
+    }
+    return m;
+  }, [allSections]);
+  const primaryCount = useMemo(
+    () => primarySections.reduce((n, s) => n + s.commands.length, 0),
+    [primarySections],
+  );
+  // Fire only when the deterministic primary section is sparse — under 3
+  // hits means the synonym match didn't fully cover the query, so the LLM
+  // has room to add value. Above 3, the deterministic side has the user
+  // covered and the AI call would just spend tokens to echo what's there.
+  const smartMatch = useSmartMatch(query, { enabled: primaryCount < 3 });
+  const smartSection = useMemo<PaletteSection | null>(() => {
+    if (smartMatch.picks.length === 0) return null;
+    // Map each pick to its canonical PaletteCommand and dedup against the
+    // primary section so the smart row never echoes a row already shown.
+    const primaryKeys = new Set<string>();
+    for (const s of primarySections) {
+      for (const c of s.commands) {
+        if (c.kind === 'op' && c.opId) primaryKeys.add(`op:${c.opId}`);
+        else if (c.kind === 'preset' && c.presetId) primaryKeys.add(`preset:${c.presetId}`);
+      }
+    }
+    const commands: PaletteCommand[] = [];
+    for (const pick of smartMatch.picks) {
+      const key = `${pick.kind}:${pick.id}`;
+      if (primaryKeys.has(key)) continue;
+      const base = commandByRegistryId.get(key);
+      if (!base) continue;
+      // Overlay the LLM's reason as the row's description so the user sees
+      // *why* the AI surfaced it ("fits warm-shadows mood") rather than
+      // the generic registry description.
+      commands.push({ ...base, description: pick.reason || base.description });
+    }
+    if (commands.length === 0) return null;
+    return { id: 'smart-match', title: 'Smart match · AI', commands };
+  }, [smartMatch.picks, primarySections, commandByRegistryId]);
+
+  // Flat command list for arrow navigation. Order mirrors the rendered
+  // layout: primary rows → smart-match rows → AI row → secondary rows.
   const flat = useMemo<PaletteCommand[]>(
     () => {
-      const flatItems = flattenSections(filteredSections);
-      return aiCommand ? [...flatItems, aiCommand] : flatItems;
+      const primaryFlat = flattenSections(primarySections);
+      const smartFlat = smartSection ? smartSection.commands : [];
+      const secondaryFlat = flattenSections(secondarySections);
+      return [
+        ...primaryFlat,
+        ...smartFlat,
+        ...(aiCommand ? [aiCommand] : []),
+        ...secondaryFlat,
+      ];
     },
-    [filteredSections, aiCommand],
+    [primarySections, smartSection, secondarySections, aiCommand],
   );
 
   const nodeIds = useMemo(() => Object.keys(imageNodes), [imageNodes]);
   const targetNode = activeImageNodeId ? imageNodes[activeImageNodeId] : undefined;
   const targetLabel = targetNode ? imageNodeLabel(targetNode, layers) : '';
 
-  // Open handler — gates on SSE + at least one image node. When triggered
-  // by the per-chip "Ask AI about this" affordance, the dispatching code
-  // attaches `detail.attachContext` items which get merged into the
-  // attached-context state and shown above the input.
+  // Open handler — no session/image gate so the palette is usable from
+  // the empty-canvas state (the user opens images and runs preferences
+  // from here). Image-targeted commands (adjustments, presets, AI) stay
+  // disabled via their own `disabled` flag inside the palette when
+  // there are no layers / sessionId. When triggered by the per-chip
+  // "Ask AI about this" affordance, the dispatching code attaches
+  // `detail.attachContext` items which get merged into the attached-
+  // context state and shown above the input.
   useEffect(() => {
     function onOpen(e: Event) {
       const ids = Object.keys(useEditorStore.getState().imageNodes);
-      if (useBackendState.getState().sseStatus !== 'open') return;
-      if (ids.length === 0) {
-        toast.info('Open an image first.');
-        return;
+      // Only auto-promote an active image node when at least one exists.
+      // `resolveInitialTargetId` handles empty input, so this guard is
+      // strictly defensive against future implementations.
+      if (ids.length > 0) {
+        const initial = resolveInitialTargetId(ids, useEditorStore.getState().activeImageNodeId);
+        if (initial) setActiveImageNode(initial);
       }
-      const initial = resolveInitialTargetId(ids, useEditorStore.getState().activeImageNodeId);
-      if (initial) setActiveImageNode(initial);
 
       // Pull any context items the dispatcher attached. When the palette
       // is already open and the user fires another "Ask AI" from a chip
@@ -162,10 +247,15 @@ export function CommandPalette() {
   }, [setActiveImageNode, open]);
 
   // Clear attached context whenever the palette closes — opening it from
-  // scratch (plain Cmd+K) should never inherit a stale attachment.
-  useEffect(() => {
+  // scratch (plain Cmd+K) should never inherit a stale attachment. Done
+  // synchronously during render via the canonical previous-prop pattern
+  // (https://react.dev/learn/you-might-not-need-an-effect#resetting-all-state-when-a-prop-changes)
+  // rather than an effect with setState.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
     if (!open) setAttachedContext([]);
-  }, [open]);
+  }
 
   // Broadcast open/close so CommandTrigger can hide itself and Framer's
   // shared-layout morph (layoutId="command-palette-shell") has only one
@@ -211,11 +301,12 @@ export function CommandPalette() {
       }
       if (cmd.kind === 'ai') {
         if (pending) return; // already in flight — ignore double-submit
-        // Mirrors the former AskAiInput behavior: only mask scope is forwarded;
-        // all other scopes collapse to global for AI prompts.
-        const active = useEditorStore.getState().activeScope ?? { kind: 'global' as const };
-        const scope: Scope = active.kind === 'mask'
-          ? { kind: 'mask', mask_id: active.mask_id }
+        // Forward an explicit mask scope when one is set; otherwise fall back
+        // to plain global — image-node selection lives in activeImageNodeId.
+        const state = useEditorStore.getState();
+        const oid = state.activeObjectId;
+        const scope: Scope = oid !== null
+          ? { kind: 'mask', mask_id: oid }
           : { kind: 'global' };
         const submitted = query.trim();
         setPending(submitted);
@@ -230,7 +321,7 @@ export function CommandPalette() {
         if (!aiSession.context) {
           setPendingPhase('analyze');
           try {
-            await analyseFirstImageLayer();
+            await analyseActiveImageLayer();
           } catch (err) {
             setPending(null);
             setPendingPhase(null);
@@ -291,17 +382,32 @@ export function CommandPalette() {
 
   // Flat index lookup so each rendered section can know which absolute
   // index its first command sits at — needed to mark the right row as
-  // `active` against the keyboard's `activeIndex`.
-  const sectionStartIndices = useMemo(() => {
+  // `active` against the keyboard's `activeIndex`. Indices walk in render
+  // order: primary sections, then AI row, then secondary sections.
+  const primaryStartIndices = useMemo(() => {
     const map: number[] = [];
     let cursor = 0;
-    for (const s of filteredSections) {
+    for (const s of primarySections) {
       map.push(cursor);
       cursor += s.commands.length;
     }
     return map;
-  }, [filteredSections]);
-  const aiStartIndex = flat.length - 1;
+  }, [primarySections]);
+  // Smart-match section sits between primary and the AI fallback row, so
+  // it pushes every later row's absolute index by `smartCount`.
+  const smartCount = smartSection ? smartSection.commands.length : 0;
+  const smartStartIndex = smartSection ? primaryCount : -1;
+  const aiStartIndex = aiCommand ? primaryCount + smartCount : -1;
+  const secondaryBase = primaryCount + smartCount + (aiCommand ? 1 : 0);
+  const secondaryStartIndices = useMemo(() => {
+    const map: number[] = [];
+    let cursor = secondaryBase;
+    for (const s of secondarySections) {
+      map.push(cursor);
+      cursor += s.commands.length;
+    }
+    return map;
+  }, [secondarySections, secondaryBase]);
 
   // Icon for the search bar: shifts to a violet Sparkles when the user has
   // typed something (it's now an AI prompt), to a spinner when in-flight.
@@ -332,8 +438,12 @@ export function CommandPalette() {
             >
               <motion.div
                 layoutId="command-palette-shell"
-                className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 overlay p-0
-                  flex flex-col w-[min(44rem,92vw)] max-h-[min(40rem,80vh)] backdrop-blur-md"
+                // Top-anchored so the input keeps its vertical position as the
+                // results list grows/shrinks — the dialog only contracts from
+                // the bottom. Was previously centered (-translate-y-1/2),
+                // which recentered the whole shell on every height change.
+                className="fixed top-[12vh] left-1/2 -translate-x-1/2 z-50 overlay p-0
+                  flex flex-col w-[min(44rem,92vw)] max-h-[min(40rem,76vh)] backdrop-blur-md"
                 style={{
                   background: 'color-mix(in srgb, var(--color-surface) 88%, transparent)',
                   // Shift center left by half the sidebar width so the
@@ -347,25 +457,23 @@ export function CommandPalette() {
                 transition={{ duration: 0.28, ease: [0.2, 0, 0, 1] }}
               >
                 <Dialog.Title className="sr-only">Command palette</Dialog.Title>
-                {/* Context attachment strip — shows above the input when the
-                    user has pinned chips via "Ask AI about this" (or, soon,
-                    via drag). Items are bundled into the AI prompt at submit
-                    time as a structured preamble. Removable individually. */}
-                {attachedContext.length > 0 && (
-                  <ContextAttachmentStrip
-                    items={attachedContext}
-                    onRemove={(id) => setAttachedContext((prev) => prev.filter((c) => c.id !== id))}
-                  />
-                )}
-                {/* Search row + target chip — the row gets the violet shimmer
-                    when an AI request is in flight, so the user sees that the
-                    panel itself is doing work. */}
+                {/* Search row — context chips (if any) sit inline just before
+                    the input, in the same flex row, so they feel attached to
+                    the prompt. The row wraps when many chips are attached.
+                    The row gets the violet shimmer when an AI request is in
+                    flight so the user sees the panel itself is doing work. */}
                 <div
-                  className={`flex items-center gap-2.5 px-3.5 py-3 border-b border-separator${
+                  className={`flex items-center gap-2 px-3.5 py-3 border-b border-separator flex-wrap${
                     pending ? ' ai-shimmer' : ''
                   }`}
                 >
                   {searchIconNode}
+                  {attachedContext.length > 0 && (
+                    <InlineContextChips
+                      items={attachedContext}
+                      onRemove={(id) => setAttachedContext((prev) => prev.filter((c) => c.id !== id))}
+                    />
+                  )}
                   <input
                     autoFocus
                     value={query}
@@ -373,12 +481,12 @@ export function CommandPalette() {
                     placeholder={
                       pending
                         ? pendingPhase === 'analyze'
-                          ? `Analyzing image first — then “${pending}”…`
-                          : `Sending “${pending}”…`
+                          ? `Analyzing image first — then "${pending}"…`
+                          : `Sending "${pending}"…`
                         : 'Search tools or ask AI…'
                     }
                     disabled={!!pending}
-                    className="flex-1 min-w-0 bg-transparent outline-none text-xs text-text-primary placeholder:text-text-secondary disabled:opacity-60"
+                    className="flex-1 min-w-[120px] bg-transparent outline-none text-xs text-text-primary placeholder:text-text-secondary disabled:opacity-60"
                   />
                   {targetLabel && (
                     <TargetChip label={targetLabel} onCycle={cycleTarget} />
@@ -399,14 +507,17 @@ export function CommandPalette() {
                 )}
 
                 {/* Results: registry-driven sections, then the AI command.
-                    Radix ScrollArea keeps the overlay scrollbar from
-                    reflowing rows and matches inspector/info panes. */}
-                <ScrollArea className="flex-1 min-h-0" viewportClassName="py-1.5">
-                  {filteredSections.map((section, sIdx) => (
+                    Plain overflow-y-auto here — the Radix ScrollArea hides
+                    its track via h-full on a viewport that needs an explicit
+                    parent height to compute, and the dialog's max-h-only
+                    container doesn't give it one (the symptom: rows just
+                    overflow past the dialog bottom instead of scrolling). */}
+                <div className="flex-1 min-h-0 overflow-y-auto py-1.5">
+                  {primarySections.map((section, sIdx) => (
                     <div key={section.id}>
                       <SectionHeader title={section.title} />
                       {section.commands.map((cmd, cIdx) => {
-                        const absIdx = sectionStartIndices[sIdx] + cIdx;
+                        const absIdx = primaryStartIndices[sIdx] + cIdx;
                         return (
                           <CommandRow
                             key={cmd.id}
@@ -418,6 +529,26 @@ export function CommandPalette() {
                       })}
                     </div>
                   ))}
+                  {smartSection && (
+                    <div key={smartSection.id}>
+                      <SectionHeader
+                        title={smartSection.title}
+                        tone="ai"
+                        loading={smartMatch.loading}
+                      />
+                      {smartSection.commands.map((cmd, cIdx) => {
+                        const absIdx = smartStartIndex + cIdx;
+                        return (
+                          <CommandRow
+                            key={`smart:${cmd.id}`}
+                            command={cmd}
+                            active={absIdx === activeIndex}
+                            onSelect={() => run(cmd)}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
                   {aiCommand && (
                     <>
                       <SectionHeader title="Ask AI" tone="ai" />
@@ -428,10 +559,26 @@ export function CommandPalette() {
                       />
                     </>
                   )}
+                  {secondarySections.map((section, sIdx) => (
+                    <div key={`sec:${section.id}`}>
+                      <SectionHeader title={section.title} />
+                      {section.commands.map((cmd, cIdx) => {
+                        const absIdx = secondaryStartIndices[sIdx] + cIdx;
+                        return (
+                          <CommandRow
+                            key={cmd.id}
+                            command={cmd}
+                            active={absIdx === activeIndex}
+                            onSelect={() => run(cmd)}
+                          />
+                        );
+                      })}
+                    </div>
+                  ))}
                   {flat.length === 0 && (
                     <div className="px-3.5 py-3 text-xs text-text-secondary">No matches.</div>
                   )}
-                </ScrollArea>
+                </div>
 
                 {/* Footer */}
                 <div className="flex items-center gap-3.5 px-3.5 py-2 border-t border-separator text-[10px] text-text-secondary">
@@ -458,11 +605,12 @@ interface AttachedContextItem {
   sourceId?: string;
 }
 
-/** Strip of attached-context chips above the Cmd+K input. Each chip shows
- *  the same label + value identity the Info tab uses, with an × to remove.
- *  Wraps when the row overflows so the strip never pushes the input out
- *  of view. */
-function ContextAttachmentStrip({
+/** Inline context chips rendered inside the input row (just before the
+ *  text input). Each chip shows a label + value identity from the Info tab,
+ *  with an × to remove. Lives in the same flex row as the search icon and
+ *  input; the parent row has flex-wrap so many chips wrap onto a second line
+ *  above the input cursor. */
+function InlineContextChips({
   items,
   onRemove,
 }: {
@@ -470,33 +618,29 @@ function ContextAttachmentStrip({
   onRemove: (id: string) => void;
 }) {
   return (
-    <div className="flex items-start gap-1.5 px-3.5 py-2 border-b border-separator
-      bg-[color-mix(in_srgb,var(--color-ai)_8%,transparent)]">
-      <Sparkles size={11} className="mt-[2px] flex-none text-[var(--color-ai)] ai-glow-pulse" />
-      <div className="flex flex-wrap gap-1 flex-1 min-w-0">
-        {items.map((c) => (
-          <div
-            key={c.id}
-            className="inline-flex items-center gap-1 max-w-full text-[10px]
-              rounded-[3px] px-1.5 py-0.5
-              bg-[color-mix(in_srgb,var(--color-ai)_15%,transparent)]
-              text-[var(--color-ai)] border border-[color-mix(in_srgb,var(--color-ai)_30%,transparent)]"
-            title={`${c.label}: ${c.value}`}
+    <>
+      {items.map((c) => (
+        <div
+          key={c.id}
+          className="inline-flex items-center gap-1 max-w-full text-[10px]
+            rounded-[3px] px-1.5 py-0.5
+            bg-[color-mix(in_srgb,var(--color-ai)_15%,transparent)]
+            text-[var(--color-ai)] border border-[color-mix(in_srgb,var(--color-ai)_30%,transparent)]"
+          title={`${c.label}: ${c.value}`}
+        >
+          <span className="text-[var(--color-ai)]/80 uppercase tracking-wide">{c.label}</span>
+          <span className="text-text-primary tabular-nums truncate max-w-[120px]">{c.value}</span>
+          <button
+            type="button"
+            onClick={() => onRemove(c.id)}
+            className="ml-0.5 text-text-secondary hover:text-text-primary"
+            aria-label={`Detach ${c.label}`}
           >
-            <span className="text-[var(--color-ai)]/80 uppercase tracking-wide">{c.label}</span>
-            <span className="text-text-primary tabular-nums truncate">{c.value}</span>
-            <button
-              type="button"
-              onClick={() => onRemove(c.id)}
-              className="ml-0.5 text-text-secondary hover:text-text-primary"
-              aria-label={`Detach ${c.label}`}
-            >
-              <XIcon size={9} />
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
+            <XIcon size={9} />
+          </button>
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -505,7 +649,7 @@ function TargetChip({ label, onCycle }: { label: string; onCycle: () => void }) 
     <button
       type="button"
       onClick={onCycle}
-      title={`Change target (Tab) — currently “${label}”`}
+      title={`Change target (Tab) — currently "${label}"`}
       className="flex-none flex items-center gap-1 max-w-[160px] text-[10px] text-text-secondary
         bg-surface-secondary px-2 py-1 rounded hover:text-text-primary transition-colors"
     >
@@ -516,15 +660,28 @@ function TargetChip({ label, onCycle }: { label: string; onCycle: () => void }) 
   );
 }
 
-function SectionHeader({ title, tone = 'default' }: { title: string; tone?: 'default' | 'ai' }) {
+function SectionHeader({
+  title,
+  tone = 'default',
+  loading = false,
+}: {
+  title: string;
+  tone?: 'default' | 'ai';
+  /** When true, render a tiny inline spinner after the title — used by the
+   *  Smart match section while its backend call is in flight. Keeps the
+   *  header presence stable so the surrounding layout doesn't jump on
+   *  every debounced fire. */
+  loading?: boolean;
+}) {
   const aiTone = tone === 'ai';
   return (
     <div
-      className={`flex items-center gap-1.5 text-[9px] uppercase tracking-wide px-3.5 py-1 mt-1
+      className={`flex items-center gap-1.5 text-[9px] uppercase tracking-wide px-3.5 py-0.5 mt-0.5
         ${aiTone ? 'text-[var(--color-ai)]' : 'text-text-secondary'}`}
     >
       {aiTone && <Sparkles size={9} className="ai-glow-pulse" />}
       <span>{title}</span>
+      {loading && <Loader2 size={9} className="animate-spin opacity-70" />}
     </div>
   );
 }
@@ -542,18 +699,26 @@ function CommandRow({
   const isAi = command.kind === 'ai';
   const isMenu = command.kind === 'menu';
   const disabled = !!command.disabled;
+  const ref = useRef<HTMLButtonElement>(null);
+  // Keep the keyboard-active row inside the scroll viewport. `block: 'nearest'`
+  // is the right default — it only scrolls when the row is actually off-screen,
+  // so clicking a mid-list row doesn't jump the list.
+  useEffect(() => {
+    if (active && ref.current) ref.current.scrollIntoView({ block: 'nearest' });
+  }, [active]);
   return (
     <button
+      ref={ref}
       type="button"
       onClick={disabled ? undefined : onSelect}
       disabled={disabled}
-      className={`flex w-full items-center gap-2.5 px-3.5 py-2 text-left transition-colors
+      className={`flex w-full items-center gap-2.5 px-3.5 py-1.5 text-left transition-colors
         ${active && !disabled ? 'bg-surface-secondary' : 'hover:bg-surface-secondary'}
         ${disabled ? 'opacity-40 cursor-not-allowed' : ''}
         ${isAi ? 'border-l-2 border-[var(--color-ai)]' : ''}`}
     >
       <span
-        className={`w-4 flex justify-center ${isAi ? 'text-[var(--color-ai)]' : 'text-text-secondary'}`}
+        className={`w-4 flex-none flex justify-center ${isAi ? 'text-[var(--color-ai)]' : 'text-text-secondary'}`}
       >
         {isAi ? (
           <Sparkles size={14} className="ai-glow-pulse" />
@@ -568,16 +733,20 @@ function CommandRow({
         )}
       </span>
       <span
-        className={`text-xs flex-none ${isAi ? 'text-[var(--color-ai)] font-medium' : 'text-text-primary'}`}
+        className={`text-xs truncate min-w-0 ${isAi ? 'text-[var(--color-ai)] font-medium' : 'text-text-primary'}`}
       >
         {command.label}
       </span>
+      {/* Description sits flush right — short category tags ("Appearance",
+          "Send as a prompt") read as a right-rail label rather than getting
+          lost between the label and the shortcut chip. */}
       {command.description && (
-        <span className="text-[10px] text-text-secondary truncate min-w-0">
+        <span className="ml-auto flex-none text-[10px] text-text-secondary truncate max-w-[50%] text-right">
           {command.description}
         </span>
       )}
-      {/* Shortcut chip pushes itself flush right via Kbd's `ml-auto`. */}
+      {/* Kbd has `ml-auto` built in, which still pins it right when no
+          description is present. */}
       {command.shortcut && <Kbd keys={command.shortcut} />}
     </button>
   );

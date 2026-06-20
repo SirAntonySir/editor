@@ -8,7 +8,7 @@ describe('RegistryOpSchema', () => {
       display_name: 'Grain',
       llm: { description: 'd', typical_use: 'u', semantic_tags: ['t'] },
       params: { amount: { type: 'scalar', range: [0, 100], default: 0 } },
-      bindings: [{ param_key: 'amount', control_type: 'slider', label: 'Amount' }],
+      bindings: [{ paramKey: 'amount', controlType: 'slider', label: 'Amount' }],
       engine: { shader: 'grain', render_order: 50, node_type: 'grain' },
     });
     expect(parsed.id).toBe('grain');
@@ -19,7 +19,7 @@ describe('RegistryOpSchema', () => {
       id: 'x', display_name: 'X',
       llm: { description: 'd', typical_use: 'u', semantic_tags: [] },
       params: { a: { type: 'scalar', range: [0, 1], default: 0 } },
-      bindings: [{ param_key: 'a', control_type: 'made_up', label: 'A' }],
+      bindings: [{ paramKey: 'a', controlType: 'made_up', label: 'A' }],
       engine: { shader: 'x', render_order: 0, node_type: 'x' },
     })).toThrow();
   });
@@ -29,7 +29,7 @@ describe('RegistryOpSchema', () => {
       id: 'x', display_name: 'X',
       llm: { description: 'd', typical_use: 'u', semantic_tags: [] },
       params: { a: { type: 'scalar', range: [0, 1], default: 0 } },
-      bindings: [{ param_key: 'b', control_type: 'slider', label: 'B' }],
+      bindings: [{ paramKey: 'b', controlType: 'slider', label: 'B' }],
       engine: { shader: 'x', render_order: 0, node_type: 'x' },
     })).toThrow();
   });
@@ -52,7 +52,7 @@ describe('RegistryOpSchema category', () => {
       id: 'x', display_name: 'X', category: 'color',
       llm: { description: 'd', typical_use: 'u', semantic_tags: [] },
       params: { a: { type: 'scalar', range: [0, 1], default: 0 } },
-      bindings: [{ param_key: 'a', control_type: 'slider', label: 'A' }],
+      bindings: [{ paramKey: 'a', controlType: 'slider', label: 'A' }],
       engine: { shader: 'x', render_order: 0, node_type: 'x' },
     });
     expect(parsed.category).toBe('color');
@@ -63,7 +63,7 @@ describe('RegistryOpSchema category', () => {
       id: 'x', display_name: 'X',
       llm: { description: 'd', typical_use: 'u', semantic_tags: [] },
       params: { a: { type: 'scalar', range: [0, 1], default: 0 } },
-      bindings: [{ param_key: 'a', control_type: 'slider', label: 'A' }],
+      bindings: [{ paramKey: 'a', controlType: 'slider', label: 'A' }],
       engine: { shader: 'x', render_order: 0, node_type: 'x' },
     });
     expect(parsed.category).toBeUndefined();
@@ -79,8 +79,8 @@ describe('RegistryOpSchema compound block', () => {
       k: { type: 'scalar', range: [0, 100], default: 50 },
     },
     bindings: [
-      { param_key: 'position', control_type: 'slider', label: 'T' },
-      { param_key: 'k', control_type: 'slider', label: 'K' },
+      { paramKey: 'position', controlType: 'slider', label: 'T' },
+      { paramKey: 'k', controlType: 'slider', label: 'K' },
     ],
     engine: { shader: 'compound', render_order: 5, node_type: 'compound' },
   };
@@ -140,8 +140,8 @@ describe('OpCompoundConfigSchema topology', () => {
       k: { type: 'scalar', range: [0, 100], default: 50 },
     },
     bindings: [
-      { param_key: 'p', control_type: 'slider', label: 'P' },
-      { param_key: 'k', control_type: 'slider', label: 'K' },
+      { paramKey: 'p', controlType: 'slider', label: 'P' },
+      { paramKey: 'k', controlType: 'slider', label: 'K' },
     ],
     engine: { shader: 'compound', render_order: 5, node_type: 'compound' },
   };
@@ -209,7 +209,7 @@ describe('strict mode parity', () => {
       id: 'x', display_name: 'X',
       llm: { description: 'd', typical_use: 'u', semantic_tags: [] },
       params: { a: { type: 'scalar', range: [0, 1], default: 0 } },
-      bindings: [{ param_key: 'a', control_type: 'slider', label: 'A' }],
+      bindings: [{ paramKey: 'a', controlType: 'slider', label: 'A' }],
       engine: { shader: 'x', render_order: 0, node_type: 'x' },
       whoops_extra: 'forbidden',
     })).toThrow();

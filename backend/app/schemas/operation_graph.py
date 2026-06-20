@@ -4,11 +4,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas._camel import camel_config
+
 ScopeKind = Literal["global", "mask:click", "mask:proposed"]
 
 
 class Scope(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     kind: ScopeKind
     # For mask:proposed — model-supplied label + representative point.
     label: str | None = None
@@ -17,7 +19,7 @@ class Scope(BaseModel):
 
 
 class Node(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     id: str
     type: str  # Resolved against ProcessingRegistry at runtime.
     scope: Scope = Field(default_factory=lambda: Scope(kind="global"))
@@ -29,7 +31,7 @@ class Node(BaseModel):
 
 
 class PanelBinding(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     node_id: str
     param_key: str
     label: str
@@ -42,7 +44,7 @@ class PanelBinding(BaseModel):
 
 
 class OperationGraph(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = camel_config(extra="forbid")
     id: str
     user_goal: str
     reasoning: str | None = None

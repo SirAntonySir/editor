@@ -94,6 +94,7 @@ export async function putSource(
   layerId: string,
   blob: Blob,
 ): Promise<void> {
+  console.log('[reload] putSource', { sessionId, layerId, bytes: blob.size, type: blob.type });
   await run(SOURCES_STORE, 'readwrite', (store) => store.put(blob, key(sessionId, layerId)));
 }
 
@@ -101,9 +102,11 @@ export async function getSource(
   sessionId: string,
   layerId: string,
 ): Promise<Blob | null> {
-  return run<Blob>(SOURCES_STORE, 'readonly', (store) =>
+  const blob = await run<Blob>(SOURCES_STORE, 'readonly', (store) =>
     store.get(key(sessionId, layerId)) as IDBRequest<Blob>,
   );
+  console.log('[reload] getSource', { sessionId, layerId, found: !!blob, bytes: blob?.size ?? 0 });
+  return blob;
 }
 
 export async function deleteOne(

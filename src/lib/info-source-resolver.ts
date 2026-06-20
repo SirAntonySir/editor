@@ -40,15 +40,15 @@ export function resolveSourceValue(sourceId: string, src: LiveSources): string |
   switch (sourceId) {
     // ─── Mechanical (live histogram + palette + cast) ──────────────
     case 'mech:median_luma':
-      return mech ? mech.median_luma.toFixed(0) : undefined;
+      return mech ? mech.medianLuma.toFixed(0) : undefined;
     case 'mech:contrast_p10_p90':
-      return mech ? mech.contrast_p10_p90.toFixed(0) : undefined;
+      return mech ? mech.contrastP10P90.toFixed(0) : undefined;
     case 'mech:clipped_shadows':
-      return mech ? `${mech.clipped_shadows_pct.toFixed(1)}%` : undefined;
+      return mech ? `${mech.clippedShadowsPct.toFixed(1)}%` : undefined;
     case 'mech:clipped_highlights':
-      return mech ? `${mech.clipped_highlights_pct.toFixed(1)}%` : undefined;
+      return mech ? `${mech.clippedHighlightsPct.toFixed(1)}%` : undefined;
     case 'mech:cast_strength':
-      return mech ? `${(mech.cast_strength * 100).toFixed(0)}%` : undefined;
+      return mech ? `${(mech.castStrength * 100).toFixed(0)}%` : undefined;
 
     // ─── Document (width × height derived) ─────────────────────────
     case 'doc:resolution':

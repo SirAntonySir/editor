@@ -13,8 +13,8 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
   useBackendState.setState({ sessionId: 's1', sseStatus: 'open', optimistic: new Map(),
-    snapshot: { session_id: 's1', image_context: null, widgets: [], masks_index: [],
-      operation_graph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, revision: 1 } as never } as never);
+    snapshot: { sessionId: 's1', imageContext: null, widgets: [], masksIndex: [],
+      operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, revision: 1 } as never } as never);
 });
 
 afterEach(() => {
@@ -23,13 +23,13 @@ afterEach(() => {
 });
 
 it('renders a slider per param', () => {
-  render(<ScalarSectionBody layerId="L1" op="basic" params={params} />);
+  render(<ScalarSectionBody toolId="light" layerId="L1" op="basic" params={params} />);
   // Radix slider exposes its thumb with role="slider".
   expect(screen.getAllByRole('slider').length).toBe(1);
 });
 
 it('typing a new value into the number field writes canonical', () => {
-  render(<ScalarSectionBody layerId="L1" op="basic" params={params} />);
+  render(<ScalarSectionBody toolId="light" layerId="L1" op="basic" params={params} />);
   // The value label scrubs on drag and opens a text input on a plain click
   // (pointer down + up with no movement).
   const num = screen.getByTitle('Drag to scrub · click to type');
@@ -39,13 +39,13 @@ it('typing a new value into the number field writes canonical', () => {
   fireEvent.change(input, { target: { value: '20' } });
   fireEvent.keyDown(input, { key: 'Enter' });
   vi.advanceTimersByTime(300);
-  expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layer_id: 'L1', op: 'basic', param: 'exposure', value: 20 });
+  expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layerId: 'L1', op: 'basic', param: 'exposure', value: 20 });
 });
 
 // The per-section Reset button used to live in ScalarSectionBody as a
 // trailing row. It's been consolidated into the clickable touched-count
 // badge in `ToolSection` — see ToolSection.test.tsx for that coverage.
 it('no longer renders an inline Reset button (consolidated into the count badge)', () => {
-  render(<ScalarSectionBody layerId="L1" op="basic" params={params} />);
+  render(<ScalarSectionBody toolId="light" layerId="L1" op="basic" params={params} />);
   expect(screen.queryByText('Reset')).toBeNull();
 });

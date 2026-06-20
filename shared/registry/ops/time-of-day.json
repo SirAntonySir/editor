@@ -6,7 +6,7 @@
   "llm": {
     "description": "1-D dial that re-lights the image across the day arc — dawn, noon, golden hour, blue hour, night. Compiles to coordinated white balance, exposure, contrast, saturation, and vignette.",
     "typical_use": "User says 'make it night', 'golden hour', 'dawn light', 'blue hour', 'sunset'.",
-    "semantic_tags": ["mood", "lighting", "atmosphere", "time"]
+    "semantic_tags": ["mood", "lighting", "atmosphere", "time", "tod", "golden-hour", "blue-hour", "dawn", "dusk", "sunset", "sunrise", "night", "noon", "midday", "morning", "evening", "twilight"]
   },
   "params": {
     "time_of_day.position":      { "type": "scalar", "range": [0, 1],         "default": 0.30, "step": 0.001 },
@@ -21,16 +21,16 @@
     "filters.vignette_amount":   { "type": "scalar", "range": [-100, 100],    "default": 0,    "step": 1 }
   },
   "bindings": [
-    { "param_key": "time_of_day.position",    "control_type": "slider", "label": "Time" },
-    { "param_key": "kelvin.kelvin",           "control_type": "slider", "label": "WB" },
-    { "param_key": "light.exposure",          "control_type": "slider", "label": "Exposure" },
-    { "param_key": "light.contrast",          "control_type": "slider", "label": "Contrast" },
-    { "param_key": "light.highlights",        "control_type": "slider", "label": "Highlights" },
-    { "param_key": "light.shadows",           "control_type": "slider", "label": "Shadows" },
-    { "param_key": "color.vibrance",          "control_type": "slider", "label": "Vibrance" },
-    { "param_key": "hsl.orange_sat",          "control_type": "slider", "label": "Orange Sat" },
-    { "param_key": "hsl.blue_sat",            "control_type": "slider", "label": "Blue Sat" },
-    { "param_key": "filters.vignette_amount", "control_type": "slider", "label": "Vignette" }
+    { "paramKey": "time_of_day.position",    "controlType": "slider", "label": "Time" },
+    { "paramKey": "kelvin.kelvin",           "controlType": "slider", "label": "WB" },
+    { "paramKey": "light.exposure",          "controlType": "slider", "label": "Exposure" },
+    { "paramKey": "light.contrast",          "controlType": "slider", "label": "Contrast" },
+    { "paramKey": "light.highlights",        "controlType": "slider", "label": "Highlights" },
+    { "paramKey": "light.shadows",           "controlType": "slider", "label": "Shadows" },
+    { "paramKey": "color.vibrance",          "controlType": "slider", "label": "Vibrance" },
+    { "paramKey": "hsl.orange_sat",          "controlType": "slider", "label": "Orange Sat" },
+    { "paramKey": "hsl.blue_sat",            "controlType": "slider", "label": "Blue Sat" },
+    { "paramKey": "filters.vignette_amount", "controlType": "slider", "label": "Vignette" }
   ],
   "engine": { "shader": "compound", "render_order": 5, "node_type": "compound" },
   "compound": {

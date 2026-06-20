@@ -81,3 +81,73 @@ def test_set_param_is_rest_only() -> None:
     tool = SetParamTool()
     assert tool.permissions.expose_rest is True
     assert tool.permissions.expose_mcp is False
+
+
+# ---------------------------------------------------------------------------
+# history_label tests
+# ---------------------------------------------------------------------------
+
+class _Out:
+    """Minimal stand-in for _Output to satisfy type hints."""
+    ok = True
+
+
+def _make_input(**kwargs):
+    from app.tools.widgets.set_param import _Input as SI
+    base = {"layer_id": "L", "op": "basic", "param": "exposure", "value": 0.5}
+    base.update(kwargs)
+    return SI.model_validate(base)
+
+
+def test_history_label_positive_float() -> None:
+    tool = SetParamTool()
+    inp = _make_input(param="exposure", value=0.42)
+    assert tool.history_label(inp, _Out()) == "Setting exposure = +0.42"
+
+
+def test_history_label_negative_float() -> None:
+    tool = SetParamTool()
+    inp = _make_input(param="contrast", value=-0.3)
+    assert tool.history_label(inp, _Out()) == "Setting contrast = -0.3"
+
+
+def test_history_label_zero_float() -> None:
+    tool = SetParamTool()
+    inp = _make_input(param="saturation", value=0.0)
+    assert tool.history_label(inp, _Out()) == "Setting saturation = +0"
+
+
+def test_history_label_positive_int() -> None:
+    tool = SetParamTool()
+    inp = _make_input(param="kelvin", value=6200)
+    assert tool.history_label(inp, _Out()) == "Setting kelvin = +6200"
+
+
+def test_history_label_negative_int() -> None:
+    tool = SetParamTool()
+    inp = _make_input(param="shadows", value=-20)
+    assert tool.history_label(inp, _Out()) == "Setting shadows = -20"
+
+
+def test_history_label_bool_true() -> None:
+    tool = SetParamTool()
+    inp = _make_input(param="enabled", value=True)
+    assert tool.history_label(inp, _Out()) == "Setting enabled = on"
+
+
+def test_history_label_bool_false() -> None:
+    tool = SetParamTool()
+    inp = _make_input(param="enabled", value=False)
+    assert tool.history_label(inp, _Out()) == "Setting enabled = off"
+
+
+def test_history_label_string_value() -> None:
+    tool = SetParamTool()
+    inp = _make_input(param="blend_mode", value="multiply")
+    assert tool.history_label(inp, _Out()) == "Setting blend_mode = multiply"
+
+
+def test_coalesce_key_format() -> None:
+    tool = SetParamTool()
+    inp = _make_input(layer_id="layerX", op="kelvin", param="kelvin", value=5500)
+    assert tool.coalesce_key(inp) == "set_param:layerX:kelvin:kelvin"

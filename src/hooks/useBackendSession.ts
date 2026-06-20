@@ -62,8 +62,9 @@ async function rehydrateMaskBytes(
 
 /**
  * Boots the BackendStateSlice + SSE subscription whenever the AiSession
- * has a session id. Calls analyze_image to populate context + autonomous
- * suggestions. Lives in EditorProvider; one instance per app.
+ * has a session id. Calls the 4-tool analyze pipeline (prepare_image →
+ * analyze_context → precompute_regions → suggest_widgets) to populate
+ * context + autonomous suggestions. Lives in EditorProvider; one instance per app.
  *
  * On boot, if there is no live AiSession yet, the hook checks localStorage
  * for a previously-persisted sessionId and probes the backend. If the session
@@ -107,7 +108,7 @@ export function useBackendSession(): void {
               setSnapshot(snap);
               // Rehydrate any mask bytes from a restored session; harmless
               // when masks_index is empty (the fresh-upload case).
-              void rehydrateMaskBytes(sessionId, snap.masks_index ?? []);
+              void rehydrateMaskBytes(sessionId, snap.masksIndex ?? []);
             }
           } catch (err) {
             console.warn('[backend-session] initial snapshot fetch failed:', err);
@@ -179,19 +180,38 @@ export function useBackendSession(): void {
         if (snapshotResp.ok) {
           const snap = await snapshotResp.json();
           setSnapshot(snap);
-          void rehydrateMaskBytes(persisted, snap.masks_index ?? []);
+          void rehydrateMaskBytes(persisted, snap.masksIndex ?? []);
           // Restore frontend layer metadata BEFORE restoring bitmaps — the
           // bitmap helper iterates `useEditorStore.layers`, which is empty
           // on reload until we repopulate it from IDB.
           const persistedState = await getEditorState<PersistedEditorState>(persisted);
+          console.log('[reload] persisted editor state read', {
+            sessionId: persisted,
+            found: !!persistedState,
+            layers: persistedState?.layers?.length ?? 0,
+            imageNodes: Object.keys(persistedState?.imageNodes ?? {}).length,
+            widgetNodes: Object.keys(persistedState?.widgetNodes ?? {}).length,
+          });
           if (persistedState) {
+            // Restore layers + workspace graph in ONE setState so the
+            // auto-create effect in CanvasWorkspace sees the rehydrated
+            // imageNodes alongside the layers. Without the workspace
+            // fields, that effect would collapse all layers into a single
+            // new node.
             useEditorStore.setState({
               layers: persistedState.layers,
               activeLayerId: persistedState.activeLayerId,
               pixelVersion: persistedState.pixelVersion,
               documentMeta: persistedState.documentMeta,
+              imageNodes: persistedState.imageNodes ?? {},
+              widgetNodes: persistedState.widgetNodes ?? {},
+              tetherEdges: persistedState.tetherEdges ?? {},
+              infoNodes: persistedState.infoNodes ?? {},
+              activeImageNodeId: persistedState.activeImageNodeId ?? null,
+              imageNodeMode: persistedState.imageNodeMode ?? {},
             });
           }
+          console.log('[reload] kicking off restorePixelSources');
           void restorePixelSources(persisted);
         }
       } catch (err) {

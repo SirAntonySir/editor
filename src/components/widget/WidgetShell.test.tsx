@@ -33,9 +33,9 @@ vi.mock('@/store/backend-state-slice', async () => {
     useBackendState: Object.assign(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (selector: (s: any) => any) => selector({
-        sessionId: 's-1', optimistic: new Map(), snapshot: { masks_index: [], revision: 1 }, sseStatus: 'open',
+        sessionId: 's-1', optimistic: new Map(), snapshot: { masksIndex: [], revision: 1 }, sseStatus: 'open',
       }),
-      { getState: () => ({ sessionId: 's-1', optimistic: new Map(), snapshot: { masks_index: [], revision: 1 }, sseStatus: 'open', applyOptimistic: mockApplyOptimistic }) },
+      { getState: () => ({ sessionId: 's-1', optimistic: new Map(), snapshot: { masksIndex: [], revision: 1 }, sseStatus: 'open', applyOptimistic: mockApplyOptimistic }) },
     ),
   };
 });
@@ -50,55 +50,59 @@ describe('WidgetShell', () => {
     vi.clearAllMocks();
   });
 
-  it('renders as collapsed strip by default', () => {
+  it('renders as collapsed strip by default with Apply + Close on the pill', () => {
     renderInFlow(<WidgetShell widget={makeAiWidget()} />);
     expect(screen.getByText('Warm up shadows')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^apply$/i })).not.toBeInTheDocument();
+    // Apply + Close stay on the collapsed pill so the user can decide
+    // without expanding. Refine/Why/Reset stay gated to expanded.
+    expect(screen.getByRole('button', { name: /apply widget/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /close widget/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /refine widget/i })).not.toBeInTheDocument();
   });
 
   it('expands on header click', () => {
     renderInFlow(<WidgetShell widget={makeAiWidget()} />);
     fireEvent.click(screen.getByRole('button', { name: /toggle widget/i }));
-    expect(screen.getByRole('button', { name: /^apply$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /apply widget/i })).toBeInTheDocument();
   });
 
   it('Apply calls backendTools.accept_widget', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
     renderInFlow(<WidgetShell widget={makeAiWidget()} />);
-    fireEvent.click(screen.getByRole('button', { name: /^apply$/i }));
-    expect(backendTools.accept_widget).toHaveBeenCalledWith('s-1', { widget_id: 'w-ai-1' });
+    fireEvent.click(screen.getByRole('button', { name: /apply widget/i }));
+    expect(backendTools.accept_widget).toHaveBeenCalledWith('s-1', { widgetId: 'w-ai-1' });
   });
 
   it('Close (×) calls backendTools.delete_widget', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
     renderInFlow(<WidgetShell widget={makeAiWidget()} />);
     fireEvent.click(screen.getByRole('button', { name: /close widget/i }));
-    expect(backendTools.delete_widget).toHaveBeenCalledWith('s-1', { widget_id: 'w-ai-1', suppress_similar: false });
+    expect(backendTools.delete_widget).toHaveBeenCalledWith('s-1', { widgetId: 'w-ai-1', suppressSimilar: false });
   });
 
   it('tool_invoked widget shows NO Refine and NO Why when expanded', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-tool-1');
     renderInFlow(<WidgetShell widget={makeToolWidget()} />);
-    expect(screen.queryByText(/refine/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/why\?/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /refine widget/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /explain widget/i })).not.toBeInTheDocument();
   });
 
   it('mcp_autonomous widget shows Refine when expanded', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
     renderInFlow(<WidgetShell widget={makeAiWidget()} />);
-    expect(screen.getByText(/refine/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /refine widget/i })).toBeInTheDocument();
   });
 
-  it('setParam keys the optimistic patch by binding.target.node_id, not widget id', () => {
-    // Build a widget with a slider binding whose target.node_id is 'n_abc'
+  it('setParam keys the optimistic patch by binding.target.nodeId, not widget id', () => {
+    // Build a widget with a slider binding whose target.nodeId is 'n_abc'
     const widget = makeAiWidget({
       bindings: [
         {
-          param_key: 'exposure',
+          paramKey: 'exposure',
           label: 'Exposure',
-          control_type: 'slider',
-          target: { node_id: 'n_abc', param_key: 'exposure' },
-          control_schema: { control_type: 'slider', min: -100, max: 100, step: 1 },
+          controlType: 'slider',
+          target: { nodeId: 'n_abc', paramKey: 'exposure' },
+          controlSchema: { controlType: 'slider', min: -100, max: 100, step: 1 },
           value: 0,
           default: 0,
         },
@@ -119,7 +123,7 @@ describe('WidgetShell', () => {
     fireEvent.change(input, { target: { value: '40' } });
     fireEvent.keyDown(input, { key: 'Enter' });
 
-    // The optimistic patch must be keyed by node_id ('n_abc'), not the widget id ('w-ai-1')
+    // The optimistic patch must be keyed by nodeId ('n_abc'), not the widget id ('w-ai-1')
     expect(mockApplyOptimistic).toHaveBeenCalledWith(
       'n_abc',
       expect.objectContaining({
@@ -135,15 +139,15 @@ describe('WidgetShell', () => {
     // pixels update mid-drag instead of waiting for the SSE roundtrip.
     const widget = makeAiWidget({
       nodes: [
-        { id: 'n_abc', type: 'basic', layer_id: 'L1', params: {}, scope: { kind: 'global' } } as never,
+        { id: 'n_abc', type: 'basic', layerId: 'L1', params: {}, scope: { kind: 'global' } } as never,
       ],
       bindings: [
         {
-          param_key: 'exposure',
+          paramKey: 'exposure',
           label: 'Exposure',
-          control_type: 'slider',
-          target: { node_id: 'n_abc', param_key: 'exposure' },
-          control_schema: { control_type: 'slider', min: -100, max: 100, step: 1 },
+          controlType: 'slider',
+          target: { nodeId: 'n_abc', paramKey: 'exposure' },
+          controlSchema: { controlType: 'slider', min: -100, max: 100, step: 1 },
           value: 0,
           default: 0,
         },
@@ -242,7 +246,7 @@ describe('WidgetShell ellipsis title', () => {
 
   it('truncates long titles with ellipsis in collapsed state', () => {
     const widget = makeAiWidget({
-      display_name: 'A very long widget name that should not stretch the pill wider',
+      displayName: 'A very long widget name that should not stretch the pill wider',
     });
     const { container } = renderInFlow(<WidgetShell widget={widget} />);
     const titleEl = container.querySelector('.widget-title-ellipsis');

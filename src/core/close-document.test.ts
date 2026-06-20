@@ -21,10 +21,10 @@ describe('editorDocument.closeDocument', () => {
     useEditorStore.getState().addImageNode(['L1'], { x: 10, y: 20 });
     useBackendState.getState().setSessionId('test-session-abc');
     useBackendState.getState().setSnapshot({
-      session_id: 'test-session-abc',
+      sessionId: 'test-session-abc',
       revision: 5,
-      widgets: [], masks_index: [], image_context: { lighting: 'flat' } as never,
-      operation_graph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+      widgets: [], masksIndex: [], imageContext: { lighting: 'flat' } as never,
+      operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
     } as never);
   });
 

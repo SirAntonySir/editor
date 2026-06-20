@@ -1,4 +1,4 @@
-import { ChevronRight, ChevronDown, ArrowUpRight, Eye, EyeOff, RotateCcw, Wand2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, Pin, Eye, EyeOff, RotateCcw, Wand2 } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import type { ProcessingDefinition } from '@/types/processing';
@@ -32,7 +32,7 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
   const offline = useBackendState((s) => s.sseStatus !== 'open');
   const canonical = useBackendState((s) => {
     const id = layerId ? `canon:${layerId}:${def.adjustmentType}` : '';
-    return (s.snapshot?.operation_graph.nodes.find((n) => n.id === id)?.params ?? EMPTY_PARAMS) as Record<string, unknown>;
+    return (s.snapshot?.operationGraph.nodes.find((n) => n.id === id)?.params ?? EMPTY_PARAMS) as Record<string, unknown>;
   });
   // For compound ops: locate the active widget from the snapshot so the generic
   // CompoundWidgetBody can drive the dial + anchor cards. Only used when the
@@ -42,9 +42,9 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
     const op = loadRegistry().ops[def.id];
     if (!op?.compound) return null;
     return s.snapshot?.widgets.find(
-      (w) => w.op_id === def.id &&
+      (w) => w.opId === def.id &&
         w.status === 'active' &&
-        w.nodes.some((n) => n.layer_id === layerId),
+        w.nodes.some((n) => n.layerId === layerId),
     ) ?? null;
   });
   // For curves the section has no scalar params — the touched signal is binary
@@ -84,7 +84,7 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
         bindings: [{ paramKey, value }], baseRevision,
       });
       void backendTools.set_param(sessionId, {
-        layer_id: layerId, op: def.adjustmentType, param: paramKey, value,
+        layerId, op: def.adjustmentType, param: paramKey, value,
       });
     }
   }
@@ -100,7 +100,7 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
         bindings: [{ paramKey: 'curves', value: IDENTITY_CURVES }], baseRevision,
       });
       void backendTools.set_param(sessionId, {
-        layer_id: layerId, op: 'curves', param: 'curves', value: IDENTITY_CURVES,
+        layerId, op: 'curves', param: 'curves', value: IDENTITY_CURVES,
       });
       return;
     }
@@ -109,7 +109,7 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
         bindings: [{ paramKey: p.key, value: p.default as number }], baseRevision,
       });
       void backendTools.set_param(sessionId, {
-        layer_id: layerId, op: def.adjustmentType, param: p.key, value: p.default as number,
+        layerId, op: def.adjustmentType, param: p.key, value: p.default as number,
       });
     }
   }
@@ -194,11 +194,11 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
             type="button"
             disabled={promoteDisabled}
             onClick={() => promoteToCanvas(sessionId, def.id, layerId)}
-            aria-label="Open on canvas"
-            title="Open on canvas"
+            aria-label="Pin to canvas"
+            title="Pin to canvas"
             className="inline-flex items-center text-text-secondary hover:text-text-primary hover:bg-surface-secondary p-0.5 rounded-[3px] disabled:opacity-40"
           >
-            <ArrowUpRight size={13} aria-hidden />
+            <Pin size={13} aria-hidden />
           </button>
         )}
       </div>
@@ -223,7 +223,7 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
             params={def.params}
           />
         ) : (
-          <ScalarSectionBody layerId={layerId} op={def.adjustmentType} params={def.params} />
+          <ScalarSectionBody toolId={def.id} layerId={layerId} op={def.adjustmentType} params={def.params} />
         )
       )}
     </div>

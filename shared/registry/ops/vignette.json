@@ -6,7 +6,7 @@
   "llm": {
     "description": "Edge darkening (negative amount) or lightening with controllable midpoint, feather, and roundness.",
     "typical_use": "Focus the eye on the subject, classical portrait darkening.",
-    "semantic_tags": ["vignette", "edge", "framing"]
+    "semantic_tags": ["vignette", "edge", "framing", "darken-corners", "corners", "frame", "oval", "classical", "portrait", "focus"]
   },
   "params": {
     "amount":    { "type": "scalar", "range": [-100, 100], "default": 0 },
@@ -15,10 +15,10 @@
     "roundness": { "type": "scalar", "range": [-100, 100], "default": 0 }
   },
   "bindings": [
-    { "param_key": "amount",    "control_type": "slider", "label": "Amount" },
-    { "param_key": "midpoint",  "control_type": "slider", "label": "Midpoint" },
-    { "param_key": "feather",   "control_type": "slider", "label": "Feather" },
-    { "param_key": "roundness", "control_type": "slider", "label": "Roundness" }
+    { "paramKey": "amount",    "controlType": "slider", "label": "Amount" },
+    { "paramKey": "midpoint",  "controlType": "slider", "label": "Midpoint" },
+    { "paramKey": "feather",   "controlType": "slider", "label": "Feather" },
+    { "paramKey": "roundness", "controlType": "slider", "label": "Roundness" }
   ],
   "engine": { "shader": "vignette", "render_order": 95, "node_type": "vignette" }
 }

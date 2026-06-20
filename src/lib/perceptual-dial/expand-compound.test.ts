@@ -13,7 +13,7 @@ function compoundNode(params: Record<string, number>): Node {
   return {
     id: 'c1',
     type: 'compound',
-    layer_id: 'L1',
+    layerId: 'L1',
     params,
     inputs: [],
     scope: { kind: 'global' },
@@ -23,7 +23,7 @@ function compoundNode(params: Record<string, number>): Node {
 describe('expandCompoundNodes', () => {
   it('passes non-compound nodes through unchanged', () => {
     const nodes: Node[] = [{
-      id: 'n1', type: 'basic', layer_id: 'L1', inputs: [],
+      id: 'n1', type: 'basic', layerId: 'L1', inputs: [],
       params: { exposure: 0.2 }, scope: { kind: 'global' },
     }];
     expect(expandCompoundNodes(nodes)).toEqual(nodes);
@@ -42,7 +42,7 @@ describe('expandCompoundNodes', () => {
     expect(types).toContain('hsl');
     const basic = out.find((n) => n.type === 'basic')!;
     expect(basic.params).toEqual({ exposure: 0.2 });
-    expect(basic.layer_id).toBe('L1');
+    expect(basic.layerId).toBe('L1');
     expect(basic.scope).toEqual({ kind: 'global' });
   });
 

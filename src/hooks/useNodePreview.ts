@@ -36,7 +36,7 @@ function renderNodeOutput(
   // Adjustment node: render pipeline nodes up to and including this widget.
   // adjustmentId is now a widgetId from the backend snapshot.
   if (adjustmentId) {
-    const allNodes = selectPipelineNodes().filter((n) => n.layer_id === layerId);
+    const allNodes = selectPipelineNodes().filter((n) => n.layerId === layerId);
     const adjIndex = allNodes.findIndex((n) => n.id === adjustmentId);
     if (adjIndex >= 0) {
       const upTo = allNodes.slice(0, adjIndex + 1).map(nodeToAdjustment).filter((a) => a.enabled);

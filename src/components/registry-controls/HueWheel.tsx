@@ -1,4 +1,4 @@
-import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
+import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
 import type { RegistryControlProps } from './Slider';
 
 /**
@@ -13,7 +13,7 @@ import type { RegistryControlProps } from './Slider';
  */
 
 /** Build the full hue gradient for the slider track */
-function hueGradient(min: number, max: number): string {
+export function hueGradient(min: number, max: number): string {
   const startDeg = min % 360;
   const steps = 12;
   const stops = Array.from({ length: steps + 1 }, (_, i) => {
@@ -23,7 +23,7 @@ function hueGradient(min: number, max: number): string {
   return `linear-gradient(90deg, ${stops.join(', ')})`;
 }
 
-export function HueWheel({ schema, value, onChange, label, disabled }: RegistryControlProps) {
+export function HueWheel({ schema, value, onChange, label, disabled, pinSlot }: RegistryControlProps) {
   const [min, max] = schema.range ?? [0, 360];
   const numValue = typeof value === 'number' ? value : Number(schema.default);
 
@@ -39,6 +39,7 @@ export function HueWheel({ schema, value, onChange, label, disabled }: RegistryC
         trackGradient={hueGradient(min, max)}
         onChange={(v) => onChange(v)}
         formatValue={(v) => `${Math.round(v)}°`}
+        pinSlot={pinSlot}
       />
     </div>
   );

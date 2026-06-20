@@ -5,15 +5,15 @@ import type { DocumentMeta } from '@/core/types';
 
 function makeMech(p: Partial<MechanicalSnapshot> = {}): MechanicalSnapshot {
   return {
-    luma_histogram: new Array(256).fill(0),
-    rgb_histograms: { r: new Array(256).fill(0), g: new Array(256).fill(0), b: new Array(256).fill(0) },
-    clipped_shadows_pct: 0.5,
-    clipped_highlights_pct: 1.2,
-    median_luma: 127,
-    contrast_p10_p90: 140,
-    color_palette: [],
-    cast_strength: 0.18,
-    cast_direction: [-4.8, -9.9],
+    lumaHistogram: new Array(256).fill(0),
+    rgbHistograms: { r: new Array(256).fill(0), g: new Array(256).fill(0), b: new Array(256).fill(0) },
+    clippedShadowsPct: 0.5,
+    clippedHighlightsPct: 1.2,
+    medianLuma: 127,
+    contrastP10P90: 140,
+    colorPalette: [],
+    castStrength: 0.18,
+    castDirection: [-4.8, -9.9],
     ...p,
   };
 }

@@ -16,17 +16,17 @@ describe('scalarsFromBins', () => {
     luma[128] = 100;
     luma[255] = 100;
     const s = scalarsFromBins(bins(luma));
-    expect(s.clipped_shadows_pct).toBeCloseTo((100 / 300) * 100, 5);
-    expect(s.clipped_highlights_pct).toBeCloseTo((100 / 300) * 100, 5);
+    expect(s.clippedShadowsPct).toBeCloseTo((100 / 300) * 100, 5);
+    expect(s.clippedHighlightsPct).toBeCloseTo((100 / 300) * 100, 5);
   });
 
   it('returns zeroed stats for an empty histogram', () => {
     const s = scalarsFromBins(bins([]));
     expect(s).toEqual({
-      clipped_shadows_pct: 0,
-      clipped_highlights_pct: 0,
-      median_luma: 0,
-      contrast_p10_p90: 0,
+      clippedShadowsPct: 0,
+      clippedHighlightsPct: 0,
+      medianLuma: 0,
+      contrastP10P90: 0,
     });
   });
 
@@ -36,8 +36,8 @@ describe('scalarsFromBins', () => {
     const luma = new Array(256).fill(0);
     for (let i = 0; i <= 200; i++) luma[i] = 100;
     const s = scalarsFromBins(bins(luma));
-    expect(s.contrast_p10_p90).toBeGreaterThan(140);
-    expect(s.contrast_p10_p90).toBeLessThan(180);
+    expect(s.contrastP10P90).toBeGreaterThan(140);
+    expect(s.contrastP10P90).toBeLessThan(180);
   });
 });
 
@@ -54,9 +54,9 @@ describe('computeMechanicalSnapshot', () => {
     const snap = computeMechanicalSnapshot(c);
     expect(snap).not.toBeNull();
     if (!snap) return;
-    expect(snap.luma_histogram.length).toBe(256);
-    expect(snap.color_palette.length).toBeGreaterThan(0);
+    expect(snap.lumaHistogram.length).toBe(256);
+    expect(snap.colorPalette.length).toBeGreaterThan(0);
     // Mid-grey RGB → near-neutral Lab → tiny cast.
-    expect(snap.cast_strength).toBeLessThan(0.05);
+    expect(snap.castStrength).toBeLessThan(0.05);
   });
 });

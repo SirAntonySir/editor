@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Literal
 
 from pydantic import ValidationError
 
+from app.config import get_app_config
 from app.schemas.errors import ToolError, ToolResponseEnvelope
 from app.services.session_store import SessionNotFound, SessionStore
+from app.state.active_doc import reset_active_doc, set_active_doc
 from app.state.events import EventBus
 from app.tools.base import BackendTool
 
@@ -31,6 +34,8 @@ def _classify_exception(exc: Exception) -> ToolResponseEnvelope | None:
             code = "unknown_region"
         elif ex_name == "_UnknownMask":
             code = "unknown_mask"
+        elif ex_name == "_OrphanBinding":
+            code = "orphan_binding"
         elif ex_name == "_ScopeUnresolvable":
             code = "scope_unresolvable"
         elif ex_name == "_FusedToolNotFound":
@@ -42,7 +47,7 @@ def _classify_exception(exc: Exception) -> ToolResponseEnvelope | None:
     if cls_name == "_InvalidInput":
         return _err("invalid_input", str(exc), retryable=False)
     if cls_name == "_MissingContext":
-        return _err("missing_context", str(exc), retryable=True, recovery_hint="call analyze_image")
+        return _err("missing_context", str(exc), retryable=True, recovery_hint="call prepare_image then analyze_context")
     return None
 
 
@@ -87,7 +92,7 @@ class BackendToolRegistry:
                 output = await tool.handler(doc, parsed)
             except Exception as exc:
                 return _err("internal_error", repr(exc), retryable=False)
-            return ToolResponseEnvelope(ok=True, output=output.model_dump(mode="json"))
+            return ToolResponseEnvelope(ok=True, output=output.model_dump(mode="json", by_alias=True))
 
         # Resolve session
         try:
@@ -105,28 +110,70 @@ class BackendToolRegistry:
         if tool.permissions.requires_context and record.context is None:
             return _err(
                 "missing_context",
-                "call analyze_image first",
+                "call prepare_image then analyze_context first",
                 retryable=True,
-                recovery_hint="call analyze_image",
+                recovery_hint="call prepare_image then analyze_context",
             )
 
         # Acquire write lock for mutate/emit; query tools take no lock.
         if tool.kind in {"mutate", "emit"}:
-            with self._store.with_document_lock(session_id) as doc:
+            async with self._store.with_document_lock(session_id) as doc:
                 # Stream events live as the handler emits them, rather than
                 # flushing in one burst once it returns. Critical for
-                # long-running handlers (analyze_image) whose progress stepper
+                # long-running handlers (analyze_context) whose progress stepper
                 # would otherwise jump straight to done.
                 doc._event_sink = lambda ev: self._bus.publish(session_id, ev)
+                # Make the doc visible to deep call sites (anthropic_client
+                # _log_cache_stats → mcp.usage events).
+                doc_token = set_active_doc(doc)
+                # Register the running task so POST /sessions/{sid}/cancel can
+                # interrupt it. Only mutate/emit tools are cancellable — query
+                # tools complete fast and aren't worth the bookkeeping.
+                self._store.register_task(session_id, asyncio.current_task())
+                # Phase 3: capture pre-state Snapshot for the history engine
+                # when the tool advertises itself as a user-action. We do this
+                # BEFORE the handler runs so a failed mutation doesn't poison
+                # the undo stack.
+                history_before = None
+                if tool.is_user_action:
+                    from app.session.history import Snapshot
+                    history_before = Snapshot.capture(doc)
                 try:
                     output = await tool.handler(doc, parsed)
+                except asyncio.CancelledError:
+                    # User-initiated cancel via the cancel endpoint. Emit a
+                    # phase.cancelled event before re-raising so the frontend
+                    # status bar can clear its in-progress state. Re-raise so
+                    # FastAPI sees the cancellation.
+                    try:
+                        doc._emit_phase_cancelled()
+                    except Exception:
+                        pass
+                    self._flush_history_to_bus(doc, session_id)
+                    raise
                 except Exception as exc:
                     classified = _classify_exception(exc)
                     if classified is not None:
                         return classified
                     return _err("internal_error", repr(exc), retryable=False)
                 finally:
+                    self._store.clear_task(session_id)
+                    reset_active_doc(doc_token)
                     doc._event_sink = None
+                # Push the undo entry only on a successful user-action handler.
+                # Cancelled or errored handlers re-raise or short-circuit before
+                # this point — see the early-return branches above.
+                if history_before is not None:
+                    from app.session.history import Snapshot
+                    after = Snapshot.capture(doc)
+                    cfg = get_app_config().runtime
+                    self._store.get_history(session_id).push(
+                        label=tool.history_label(parsed, output),
+                        before=history_before,
+                        after=after,
+                        coalesce_key=tool.coalesce_key(parsed),
+                        coalesce_window_s=cfg.history_coalesce_window_ms / 1000.0,
+                    )
                 self._flush_history_to_bus(doc, session_id)
         else:
             doc = self._store.get_document(session_id)
@@ -138,13 +185,26 @@ class BackendToolRegistry:
                     return classified
                 return _err("internal_error", repr(exc), retryable=False)
 
-        return ToolResponseEnvelope(ok=True, output=output.model_dump(mode="json"))
+        return ToolResponseEnvelope(ok=True, output=output.model_dump(mode="json", by_alias=True))
 
     # ---------------- internals ----------------
 
     def _flush_history_to_bus(self, doc, session_id: str) -> None:
-        """Publish any history entries that haven't been published yet."""
+        """Publish any history entries that haven't been published yet, prune
+        the event log to the configured history cap, GC dismissed widgets
+        whose dismissal aged past the log floor, then mark the session
+        dirty for the next checkpointer tick.
+
+        Order matters:
+          1. publish — never drop an unpublished event
+          2. prune — keep the persisted doc small
+          3. gc dismissed — hard-delete widgets whose dismissal scrolled off
+          4. mark dirty — flush the post-cleanup state to disk
+        """
         last_idx = doc._published_idx
         for ev in doc.history[last_idx:]:
             self._bus.publish(session_id, ev)
         doc._published_idx = len(doc.history)
+        doc.prune_history(get_app_config().runtime.history_max_entries)
+        doc.gc_dismissed_widgets()
+        self._store.checkpointer.mark_dirty(doc)

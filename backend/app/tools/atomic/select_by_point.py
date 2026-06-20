@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from app.api import deps
 from app.schemas.widget import MaskRecord
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 
 
@@ -46,7 +46,7 @@ class SelectByPointTool(BackendTool[_Input, _Output]):
     permissions = ToolPermissions(requires_image=True)
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
-        img = Image.open(io.BytesIO(doc.image_bytes)).convert("RGB")
+        img = Image.open(io.BytesIO(doc.get_image_bytes(DEFAULT_IMAGE_NODE_ID))).convert("RGB")
         arr = np.array(img)
         h, w = arr.shape[:2]
         sam = deps.get_sam_client()
@@ -66,6 +66,7 @@ class SelectByPointTool(BackendTool[_Input, _Output]):
         record = MaskRecord(
             id=mid, width=mask.shape[1], height=mask.shape[0],
             png_b64=png_b64, source="sam_point",
+            image_node_id=DEFAULT_IMAGE_NODE_ID,
         )
         doc.add_mask(record)
         if input.commit:

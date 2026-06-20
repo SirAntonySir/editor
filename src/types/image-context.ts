@@ -4,6 +4,40 @@ export type DominantTone = 'shadows' | 'midtones' | 'highlights';
 /** One polygon in normalised (0–1) image coordinates. */
 export type RegionPolygon = [number, number][];
 
+export interface ColorSwatchData {
+  rgb: [number, number, number];
+  weight: number;
+}
+
+export type ProblemKind =
+  | 'clipped_highlights'
+  | 'crushed_shadows'
+  | 'low_contrast'
+  | 'strong_color_cast'
+  | 'noisy_shadows'
+  | 'uneven_white_balance';
+
+export interface Problem {
+  kind: ProblemKind;
+  severity: number;
+  regionLabel?: string | null;
+  bbox?: [number, number, number, number] | null;
+  suggestedFusedTools: string[];
+}
+
+export interface RegionStats {
+  label: string;
+  pixelCount: number;
+  meanLuma: number;
+  lumaHistogram: number[];
+  meanRgb: [number, number, number];
+  dominantSwatches: ColorSwatchData[];
+  isSkinLikely: boolean;
+  isSkyLikely: boolean;
+  saturationMean: number;
+  contrastP10P90: number;
+}
+
 export interface CandidateRegion {
   label: string;
   description: string;
@@ -31,6 +65,7 @@ export interface CandidateRegion {
 }
 
 export interface ImageContext {
+  // Base context fields
   subjects: string[];
   lighting: Lighting;
   dominantTones: DominantTone[];
@@ -39,4 +74,20 @@ export interface ImageContext {
   modelName: string;
   modelVersion: string;
   generatedAt: string;
+
+  // Enriched fields (mechanical pass + Claude-augmented)
+  lumaHistogram?: number[];
+  rgbHistograms?: Record<string, number[]>;
+  clippedShadowsPct?: number;
+  clippedHighlightsPct?: number;
+  medianLuma?: number;
+  contrastP10P90?: number;
+  colorPalette?: ColorSwatchData[];
+  castStrength?: number;
+  castDirection?: [number, number];
+  regionStats?: RegionStats[];
+  estimatedWhitePoint?: [number, number, number];
+  wbNeutralConfidence?: number;
+  gradeCharacter?: string;
+  problems?: Problem[];
 }

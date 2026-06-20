@@ -31,14 +31,13 @@ const RADIUS_VALUES: Record<RadiusScale, { panel: string; button: string; sm: st
 };
 
 export type RightSidebarTab = 'inspector' | 'ai';
-/** Inner tab of the inspector panel (Adjustments vs Info/context vs Crop). */
-export type InspectorTab = 'adjustments' | 'info' | 'crop';
+/** Inner tab of the inspector panel (Adjustments vs Info/context vs Layer vs Crop). */
+export type InspectorTab = 'adjustments' | 'info' | 'layer' | 'crop';
 
 export interface PreferencesState {
   themeMode: ThemeMode;
   accentColor: string;
   radiusScale: RadiusScale;
-  showPreferences: boolean;
   rightSidebarCollapsed: boolean;
   rightSidebarWidth: number;
   rightSidebarTab: RightSidebarTab;
@@ -47,7 +46,6 @@ export interface PreferencesState {
   setThemeMode: (mode: ThemeMode) => void;
   setAccentColor: (color: string) => void;
   setRadiusScale: (scale: RadiusScale) => void;
-  setShowPreferences: (show: boolean) => void;
   toggleRightSidebar: () => void;
   setRightSidebarWidth: (w: number) => void;
   setRightSidebarTab: (tab: RightSidebarTab) => void;
@@ -65,13 +63,19 @@ function clampSidebarWidth(w: number): number {
   return Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Math.round(w)));
 }
 
+export function migratePreferences(state: unknown, _version: number): unknown {
+  if (typeof state !== 'object' || state === null) return state;
+  const next: Record<string, unknown> = { ...(state as Record<string, unknown>) };
+  if ('visualStyle' in next) delete next.visualStyle;
+  return next;
+}
+
 export const usePreferencesStore = create<PreferencesState>()(
   persist(
     (set) => ({
       themeMode: 'system',
       accentColor: '#0071e3',
       radiusScale: 'medium',
-      showPreferences: false,
       rightSidebarCollapsed: false,
       rightSidebarWidth: 264,
       rightSidebarTab: 'inspector',
@@ -80,7 +84,6 @@ export const usePreferencesStore = create<PreferencesState>()(
       setThemeMode: (mode) => set({ themeMode: mode }),
       setAccentColor: (color) => set({ accentColor: color }),
       setRadiusScale: (scale) => set({ radiusScale: scale }),
-      setShowPreferences: (show) => set({ showPreferences: show }),
       toggleRightSidebar: () =>
         set((s) => ({ rightSidebarCollapsed: !s.rightSidebarCollapsed })),
       setRightSidebarWidth: (w) =>
@@ -93,6 +96,8 @@ export const usePreferencesStore = create<PreferencesState>()(
     }),
     {
       name: 'editor-preferences',
+      version: 1,
+      migrate: migratePreferences,
       partialize: (state) => ({
         themeMode: state.themeMode,
         accentColor: state.accentColor,
@@ -109,7 +114,9 @@ function getSystemDark(): boolean {
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
-export function applyPreferences(state: Pick<PreferencesState, 'themeMode' | 'accentColor' | 'radiusScale'>) {
+export function applyPreferences(
+  state: Pick<PreferencesState, 'themeMode' | 'accentColor' | 'radiusScale'>,
+) {
   const root = document.documentElement;
 
   // Theme

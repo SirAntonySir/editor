@@ -66,7 +66,7 @@ def test_decode_point_returns_png(client_with_session):
     assert body["width"] == 4
     assert body["height"] == 4
     assert body["model"].startswith("sam-")
-    raw = base64.b64decode(body["mask_png_base64"])
+    raw = base64.b64decode(body["maskPngBase64"])
     assert raw[:8] == b"\x89PNG\r\n\x1a\n"
 
 

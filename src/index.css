@@ -1,23 +1,35 @@
 @import "tailwindcss";
 
+/* Fraunces — variable italic serif, used as the display family in the
+ * drafting visual style only. Imported unconditionally because Phase 1
+ * keeps the bundle hit deliberate and visible. */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400;1,9..144,500&display=swap');
+
 /* Design tokens */
 @theme {
   /* 8pt spacing grid */
   --spacing: 8px;
 
-  /* Color tokens — light defaults (Vercel/Radix flat) */
-  --color-surface: #ffffff;
-  --color-surface-secondary: #f4f4f5;
-  --color-text-primary: #171717;
-  --color-text-secondary: #737373;
-  --color-separator: rgba(0, 0, 0, 0.08);
-  --color-border-strong: rgba(0, 0, 0, 0.15);
-  --color-accent: #0071e3;
-  --color-accent-hover: #0077ed;
-  /* AI provenance colour — distinct from the blue accent. Marks values an
-     AI/fused widget proposed (vs accent = moved by hand, grey = untouched). */
-  --color-ai: #7c5cff;
-  --color-canvas-bg: #ededee;
+  /* Color tokens — drafting register (cream paper + ochre ink, light defaults) */
+  --color-surface: oklch(0.97 0.012 90);
+  --color-surface-secondary: oklch(0.94 0.014 90);
+  --color-text-primary: oklch(0.22 0.012 280);
+  --color-text-secondary: oklch(0.50 0.010 280);
+  --color-separator: oklch(0.84 0.014 280 / 0.6);
+  --color-border-strong: oklch(0.78 0.014 280);
+  /* Sole accent — used for active states, leader lines, object outlines. */
+  --color-accent: oklch(0.55 0.20 30);
+  --color-accent-hover: oklch(0.60 0.20 30);
+  --accent-hover: oklch(0.74 0.18 235);     /* cyan hover outline */
+  --accent-selected: oklch(0.62 0.22 290);  /* violet selected outline */
+  --accent-extracted: oklch(0.78 0.16 65);  /* amber extracted-from tether */
+  /* AI provenance stays separate so AI-touched values still read as AI,
+     not as marginalia ink. */
+  --color-ai: oklch(0.55 0.18 295);
+  --color-canvas-bg: oklch(0.97 0.012 90);
+
+  /* Display family — used by drafting components. */
+  --font-display: 'Fraunces', ui-serif, Georgia, serif;
 
   /* Corner radius — tightened */
   --radius-panel: 8px;
@@ -39,14 +51,16 @@
 }
 
 [data-theme="dark"] {
-  --color-surface: #0a0a0a;
-  --color-surface-secondary: #1a1a1a;
-  --color-text-primary: #ededed;
-  --color-text-secondary: #a1a1a1;
-  --color-separator: rgba(255, 255, 255, 0.10);
-  --color-border-strong: rgba(255, 255, 255, 0.20);
-  --color-ai: #8b6dff;
-  --color-canvas-bg: #000000;
+  --color-surface: oklch(0.20 0.010 80);
+  --color-surface-secondary: oklch(0.25 0.012 80);
+  --color-text-primary: oklch(0.93 0.008 90);
+  --color-text-secondary: oklch(0.65 0.010 90);
+  --color-separator: oklch(0.40 0.014 280 / 0.6);
+  --color-border-strong: oklch(0.50 0.014 280);
+  --color-canvas-bg: oklch(0.20 0.010 80);
+  --color-accent: oklch(0.68 0.20 40);
+  --color-accent-hover: oklch(0.73 0.20 40);
+  --color-ai: oklch(0.55 0.18 295);
   --shadow-overlay-color: rgba(0, 0, 0, 0.50);
   --shadow-overlay: 0 4px 14px var(--shadow-overlay-color);
 }
@@ -101,6 +115,55 @@ html, body, #root {
   border: var(--overlay-border-width, 1px) solid var(--color-border-strong);
   border-radius: var(--overlay-radius, var(--radius-panel));
   box-shadow: var(--overlay-shadow, var(--shadow-overlay));
+}
+
+/* Running snake border: a violet conic-gradient "head" sweeps clockwise
+ * along the pill's edge. We register --ai-snake-angle as a real <angle>
+ * via @property so the conic gradient can be tweened (without @property,
+ * the browser snaps frame-to-frame and there's no animation).
+ *
+ * Geometry:
+ *   ::before is the sharp ring — `inset: 0`, `padding: 1px`, conic background
+ *   masked with `xor` so only the 1px border-edge ring is visible.
+ *   drop-shadow gives a small violet bloom along the visible portion so it
+ *   reads as a glowing trail rather than a sharp line.
+ */
+@property --ai-snake-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes ai-snake-spin {
+  to { --ai-snake-angle: 360deg; }
+}
+.ai-snake-border {
+  position: relative;
+}
+.ai-snake-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--ai-snake-angle, 0deg),
+    transparent 0deg,
+    transparent 240deg,
+    var(--color-ai) 310deg,
+    var(--color-ai) 350deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+          mask-composite: exclude;
+  pointer-events: none;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--color-ai) 70%, transparent));
+  animation: ai-snake-spin 3s linear infinite;
 }
 
 /* AI-composed widget shell: violet outline + soft glow so AI widgets stand

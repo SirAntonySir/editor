@@ -4,8 +4,8 @@ import { createMaterialIcon } from '@/components/ui/MaterialIcon';
 import type { ProcessingDefinition, ProcessingPanelProps } from '@/types/processing';
 
 const LevelsIcon = createMaterialIcon('tune');
-import { AdjustmentSlider } from '@/components/inspector/AdjustmentSlider';
-import { LevelsHistogramControl } from '@/components/inspector/LevelsHistogramControl';
+import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
+import { LevelsHistogramControl } from '@/components/ui/LevelsHistogramControl';
 import { useProcessingParam } from '@/lib/use-processing-param';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { PipelineManager } from '@/lib/pipeline-manager';
@@ -17,17 +17,19 @@ import { PipelineManager } from '@/lib/pipeline-manager';
  *  used, but exposes the canvas as state so `<LevelsHistogramControl>` can
  *  consume it directly. */
 function useHistogramSource(layerId: string | null): HTMLCanvasElement | OffscreenCanvas | null {
-  const [source, setSource] = useState<HTMLCanvasElement | OffscreenCanvas | null>(null);
+  // Lazy-init + prev-prop reset for synchronous layerId-change handling.
+  // setSource inside the subscriber callback is the canonical allowed pattern.
+  const [source, setSource] = useState<HTMLCanvasElement | OffscreenCanvas | null>(
+    () => (layerId ? CanvasRegistry.get(layerId) ?? null : null),
+  );
+  const [prevLayerId, setPrevLayerId] = useState(layerId);
+  if (prevLayerId !== layerId) {
+    setPrevLayerId(layerId);
+    setSource(layerId ? CanvasRegistry.get(layerId) ?? null : null);
+  }
   useEffect(() => {
-    if (!layerId) {
-      setSource(null);
-      return;
-    }
-    const working = CanvasRegistry.get(layerId);
-    if (working) setSource(working);
-    const unsub = PipelineManager.subscribe((output) => {
-      setSource(output);
-    });
+    if (!layerId) return;
+    const unsub = PipelineManager.subscribe((output) => setSource(output));
     return unsub;
   }, [layerId]);
   return source;

@@ -108,14 +108,14 @@ function buildEngineOps(): Record<string, EngineOp> {
 
   for (const [id, op] of Object.entries(reg.ops)) {
     // Curated toolDefaults: explicit list from registry op, else all binding keys.
-    const toolDefaults = op.tool_defaults ?? op.bindings.map((b) => b.param_key);
+    const toolDefaults = op.tool_defaults ?? op.bindings.map((b) => b.paramKey);
 
     const params: Record<string, EngineParam> = {};
     for (const [key, p] of Object.entries(op.params)) {
       if (p.type !== 'scalar') continue; // non-scalar params not in EngineParam
       const meta = SHADER_PARAM_META[key];
       if (!meta) continue; // curves/LUT params have no uniform mapping here
-      const binding = op.bindings.find((b) => b.param_key === key);
+      const binding = op.bindings.find((b) => b.paramKey === key);
       params[key] = {
         uniform: meta.uniform,
         label: binding?.label ?? key,
@@ -164,13 +164,13 @@ export function engineUniformValue(paramKey: string, raw: number): number {
  *  range → 0, unipolar → min. Returns `undefined` when nothing sensible
  *  can be inferred (non-slider control_schema). */
 export function engineNeutralForBinding(binding: {
-  target: { param_key: string };
-  control_schema: { control_type: string; min?: number; max?: number };
+  target: { paramKey: string };
+  controlSchema: { controlType: string; min?: number; max?: number };
 }): number | undefined {
-  const reg = engineParam(binding.target.param_key);
+  const reg = engineParam(binding.target.paramKey);
   if (reg) return reg.default;
-  const s = binding.control_schema;
-  if (s.control_type !== 'slider') return undefined;
+  const s = binding.controlSchema;
+  if (s.controlType !== 'slider') return undefined;
   const min = s.min ?? 0;
   const max = s.max ?? 0;
   if (min < 0 && max > 0) return 0;

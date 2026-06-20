@@ -24,7 +24,8 @@ void main() {
   vec4 texel = texture(u_texture, v_texCoord);
   vec3 c = texel.rgb;
 
-  float luma = dot(c, vec3(0.299, 0.587, 0.114));
+  // BT.709 — aligned with basic-adjustments / clarity / sharpen / histogram-compute.
+  float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
   float threshold = 0.5 + u_balance * 0.25;          // 0.25..0.75
   float w_hi = smoothstep(threshold - 0.15, threshold + 0.15, luma);
   float w_lo = 1.0 - w_hi;

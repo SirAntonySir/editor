@@ -20,7 +20,7 @@ const LightToolStub: ToolDefinition = {
 import { toast } from '@/components/ui/Toast';
 import { spawnRegistryOp, spawnRegistryPreset } from '@/lib/toolrail-spawn';
 import { proposeFromPalette } from '@/lib/palette-actions';
-import { useAiSession, analyseFirstImageLayer } from '@/hooks/useImageContext';
+import { useAiSession, analyseActiveImageLayer } from '@/hooks/useImageContext';
 
 vi.mock('@/lib/toolrail-spawn', () => ({
   // CommandPalette routes registry-driven picks through these helpers;
@@ -39,7 +39,7 @@ vi.mock('@/hooks/useImageContext', async (importActual) => {
   const actual = await importActual<typeof import('@/hooks/useImageContext')>();
   return {
     ...actual,
-    analyseFirstImageLayer: vi.fn().mockResolvedValue(undefined),
+    analyseActiveImageLayer: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -59,12 +59,12 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('CommandPalette open + gating', () => {
-  it('toasts and stays closed when there is no image node', () => {
+  it('opens even when there is no image node (file actions are usable from empty canvas)', () => {
     const spy = vi.spyOn(toast, 'info');
     render(<CommandPalette />);
     open();
-    expect(spy).toHaveBeenCalled();
-    expect(screen.queryByPlaceholderText(/search tools/i)).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+    expect(screen.getByPlaceholderText(/search tools/i)).toBeDefined();
   });
 
   it('opens and lists adjustment tools when an image node exists', () => {
@@ -81,8 +81,13 @@ describe('CommandPalette open + gating', () => {
     render(<CommandPalette />);
     open();
     await userEvent.type(screen.getByPlaceholderText(/search tools/i), 'cur');
+    // "Curves" must appear as a primary (label/id) match.
     expect(screen.getByText('Curves')).toBeDefined();
-    expect(screen.queryByText('Light')).toBeNull();
+    // "Light" now legitimately appears in the secondary section — its
+    // description contains 'c' (controls) → 'u' (exposure) → 'r' (exposure)
+    // as a subsequence, so the fuzzy filter promotes it as a description-only
+    // match below the AI row. The filter IS working; we just confirm the
+    // primary label match for "Curves" above.
   });
 });
 
@@ -115,8 +120,9 @@ describe('CommandPalette execution', () => {
     expect(spawnRegistryPreset).toHaveBeenCalledWith('golden_hour', expect.any(String));
   });
 
-  it('Cmd+Enter sends the query to the AI (when context already exists)', async () => {
-    useEditorStore.getState().addImageNode(['l1']);
+  it('Cmd+Enter sends the query to the AI with global scope when an image node is active but no object', async () => {
+    const nodeId = useEditorStore.getState().addImageNode(['l1']);
+    useEditorStore.getState().setActiveImageNode(nodeId);
     // Pre-populate AI context so the auto-analyze branch is skipped.
     useAiSession.setState({ context: { subjects: [], lighting: 'flat', dominantTones: [], mood: '', candidateRegions: [], modelName: '', modelVersion: '', generatedAt: '' } as unknown as never });
     render(<CommandPalette />);
@@ -128,17 +134,35 @@ describe('CommandPalette execution', () => {
     // context items (from the chip-menu / context-attachment strip). An
     // empty array is sent when no chips were attached.
     expect(proposeFromPalette).toHaveBeenCalledWith(
-      'make it warmer', expect.objectContaining({ kind: 'global' }), [],
+      'make it warmer',
+      { kind: 'global' },
+      [],
     );
-    expect(analyseFirstImageLayer).not.toHaveBeenCalled();
+    expect(analyseActiveImageLayer).not.toHaveBeenCalled();
+  });
+
+  it('Cmd+Enter forwards a mask scope when one is active (user-selected scope wins)', async () => {
+    const nodeId = useEditorStore.getState().addImageNode(['l1']);
+    useEditorStore.getState().setActiveImageNode(nodeId);
+    useEditorStore.getState().setActiveObjectId('m1');
+    useAiSession.setState({ context: { subjects: [], lighting: 'flat', dominantTones: [], mood: '', candidateRegions: [], modelName: '', modelVersion: '', generatedAt: '' } as unknown as never });
+    render(<CommandPalette />);
+    open();
+    const input = screen.getByPlaceholderText(/search tools/i);
+    await userEvent.type(input, 'make it warmer');
+    await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
+    expect(proposeFromPalette).toHaveBeenCalledWith(
+      'make it warmer', { kind: 'mask', mask_id: 'm1' }, [],
+    );
   });
 
   it('Cmd+Enter without context auto-runs analyze before sending to the AI', async () => {
-    useEditorStore.getState().addImageNode(['l1']);
+    const nodeId = useEditorStore.getState().addImageNode(['l1']);
+    useEditorStore.getState().setActiveImageNode(nodeId);
     // Set a context AFTER analyze "resolves" so the guard inside the AI run
     // doesn't bail. Vitest mocks resolve synchronously in microtasks.
     useAiSession.setState({ context: null });
-    (analyseFirstImageLayer as unknown as { mockImplementation: (f: () => Promise<void>) => void }).mockImplementation(async () => {
+    (analyseActiveImageLayer as unknown as { mockImplementation: (f: () => Promise<void>) => void }).mockImplementation(async () => {
       useAiSession.setState({ context: { subjects: [], lighting: 'flat', dominantTones: [], mood: '', candidateRegions: [], modelName: '', modelVersion: '', generatedAt: '' } as unknown as never });
     });
     render(<CommandPalette />);
@@ -146,9 +170,55 @@ describe('CommandPalette execution', () => {
     const input = screen.getByPlaceholderText(/search tools/i);
     await userEvent.type(input, 'make it warmer');
     await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
-    await waitFor(() => expect(analyseFirstImageLayer).toHaveBeenCalled());
+    await waitFor(() => expect(analyseActiveImageLayer).toHaveBeenCalled());
     await waitFor(() => expect(proposeFromPalette).toHaveBeenCalledWith(
-      'make it warmer', expect.objectContaining({ kind: 'global' }), [],
+      'make it warmer',
+      { kind: 'global' },
+      [],
     ));
+  });
+});
+
+describe('CommandPalette — inline context chips', () => {
+  it('renders attached context chips inside the input row (not above it)', async () => {
+    render(<CommandPalette />);
+    // Open via the chip-dispatch path, attaching a Subject context item.
+    act(() => {
+      window.dispatchEvent(new CustomEvent('spawn-palette:open', {
+        detail: { attachContext: [{ label: 'Subject', value: 'black locomotive', sourceId: 'semantic:subject:black locomotive' }] },
+      }));
+    });
+
+    // The chip should appear (label visible).
+    expect(screen.getByText('Subject')).toBeDefined();
+    expect(screen.getByText('black locomotive')).toBeDefined();
+
+    // The chip's remove button should exist in the same row as the input.
+    const detachBtn = screen.getByRole('button', { name: /detach subject/i });
+    expect(detachBtn).toBeDefined();
+
+    // The input field is still present and focusable.
+    expect(screen.getByPlaceholderText(/search tools/i)).toBeDefined();
+
+    // Clicking × removes the chip.
+    await userEvent.click(detachBtn);
+    expect(screen.queryByText('Subject')).toBeNull();
+  });
+
+  it('deduplicates chips when the same source is attached twice', () => {
+    render(<CommandPalette />);
+    act(() => {
+      window.dispatchEvent(new CustomEvent('spawn-palette:open', {
+        detail: { attachContext: [{ label: 'Tone', value: 'shadows', sourceId: 'semantic:tone:shadows' }] },
+      }));
+    });
+    // Fire again with the identical label+value — should stay at one chip.
+    act(() => {
+      window.dispatchEvent(new CustomEvent('spawn-palette:open', {
+        detail: { attachContext: [{ label: 'Tone', value: 'shadows', sourceId: 'semantic:tone:shadows' }] },
+      }));
+    });
+    const chips = screen.getAllByText('shadows');
+    expect(chips.length).toBe(1);
   });
 });

@@ -24,7 +24,7 @@ vi.mock('@/lib/canvas-registry', () => {
   };
 });
 
-function seedActive(imageNodeId = 'in-1') {
+function seedActive(imageNodeId = 'in-1', dims = { w: 800, h: 600 }) {
   useEditorStore.setState({
     activeImageNodeId: imageNodeId,
     imageNodes: {
@@ -32,7 +32,10 @@ function seedActive(imageNodeId = 'in-1') {
         id: imageNodeId,
         layerIds: ['L1'],
         position: { x: 0, y: 0 },
-        size: { w: 800, h: 600 },
+        size: dims,
+        // CropTab reads `sourceSize` (the natural pixel dims) for crop
+        // geometry. The display `size` is independent — seed both.
+        sourceSize: dims,
       },
     },
   } as never);
@@ -52,21 +55,41 @@ describe('CropTab initial state', () => {
     expect(screen.getByRole('button', { name: 'Free' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('initializes crop to sourceSize, not display size (figma-scaling regression)', () => {
+    // A 6000×4000 source displayed at 600×400 in canvas space — pre-fix the
+    // crop rect followed `size` (display box) instead of `sourceSize`.
+    useEditorStore.setState({
+      activeImageNodeId: 'in-1',
+      imageNodes: {
+        'in-1': {
+          id: 'in-1',
+          layerIds: ['L1'],
+          position: { x: 0, y: 0 },
+          size: { w: 600, h: 400 },
+          sourceSize: { w: 6000, h: 4000 },
+        },
+      },
+    } as never);
+    render(<CropTab />);
+    const readout = screen.getByTestId('crop-readout');
+    expect(readout).toHaveTextContent('6000 × 4000');
+  });
+
   it('reads existing crop from snapshot', () => {
     seedActive();
     useBackendState.setState({
       sessionId: 'sess-1',
       snapshot: {
         revision: 1,
-        operation_graph: {
+        operationGraph: {
           id: 'g', user_goal: '', reasoning: null, panel_bindings: [], metadata: {},
           nodes: [{
             id: 'transform:in-1:crop', type: 'crop',
             params: { x: 100, y: 50, w: 600, h: 400 },
-            scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'], widget_id: null,
+            scope: { kind: 'global' }, inputs: [], layerId: 'L1', layerIds: ['L1'], widgetId: null,
           }],
         },
-        masks_index: [], widgets: [], image_context: null,
+        masksIndex: [], widgets: [], imageContext: null,
       } as never,
     });
     render(<CropTab />);
@@ -79,15 +102,15 @@ describe('CropTab initial state', () => {
       sessionId: 'sess-1',
       snapshot: {
         revision: 1,
-        operation_graph: {
+        operationGraph: {
           id: 'g', user_goal: '', reasoning: null, panel_bindings: [], metadata: {},
           nodes: [{
             id: 'transform:in-1:rotate', type: 'rotate',
             params: { angle: 5.0, flip_h: false, flip_v: false },
-            scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'], widget_id: null,
+            scope: { kind: 'global' }, inputs: [], layerId: 'L1', layerIds: ['L1'], widgetId: null,
           }],
         },
-        masks_index: [], widgets: [], image_context: null,
+        masksIndex: [], widgets: [], imageContext: null,
       } as never,
     });
     render(<CropTab />);
@@ -112,15 +135,15 @@ describe('CropTab cropPreview wiring', () => {
       sessionId: 'sess-1',
       snapshot: {
         revision: 1,
-        operation_graph: {
+        operationGraph: {
           id: 'g', user_goal: '', reasoning: null, panel_bindings: [], metadata: {},
           nodes: [{
             id: 'transform:in-1:rotate', type: 'rotate',
             params: { angle: 12.5, flip_h: false, flip_v: false },
-            scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'], widget_id: null,
+            scope: { kind: 'global' }, inputs: [], layerId: 'L1', layerIds: ['L1'], widgetId: null,
           }],
         },
-        masks_index: [], widgets: [], image_context: null,
+        masksIndex: [], widgets: [], imageContext: null,
       } as never,
     });
     render(<CropTab />);
@@ -158,12 +181,12 @@ describe('CropTab Apply / Cancel', () => {
       snapshot: {
         ...(s.snapshot ?? {} as never),
         revision: 999,
-        operation_graph: {
+        operationGraph: {
           id: 'g', user_goal: '', reasoning: null, panel_bindings: [], metadata: {},
           nodes: [{
             id: 'transform:in-1:crop', type: 'crop',
             params: { x: 0, y: 0, w: 800, h: 600 },
-            scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'], widget_id: null,
+            scope: { kind: 'global' }, inputs: [], layerId: 'L1', layerIds: ['L1'], widgetId: null,
           }],
         },
       } as never,
@@ -172,8 +195,8 @@ describe('CropTab Apply / Cancel', () => {
     await new Promise((r) => setTimeout(r, 10));
 
     expect(spy).toHaveBeenCalledWith('sess-1', expect.objectContaining({
-      image_node_id: 'in-1',
-      layer_ids: ['L1'],
+      imageNodeId: 'in-1',
+      layerIds: ['L1'],
       crop: { x: 0, y: 0, w: 800, h: 600 },
       rotate: null,
     }));
@@ -214,12 +237,12 @@ describe('CropTab Apply / Cancel', () => {
       snapshot: {
         ...(s.snapshot ?? {} as never),
         revision: 999,
-        operation_graph: {
+        operationGraph: {
           id: 'g', user_goal: '', reasoning: null, panel_bindings: [], metadata: {},
           nodes: [{
             id: 'transform:in-1:crop', type: 'crop',
             params: { x: 0, y: 0, w: 800, h: 600 },
-            scope: { kind: 'global' }, inputs: [], layer_id: 'L1', layer_ids: ['L1'], widget_id: null,
+            scope: { kind: 'global' }, inputs: [], layerId: 'L1', layerIds: ['L1'], widgetId: null,
           }],
         },
       } as never,

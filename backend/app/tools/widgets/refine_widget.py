@@ -5,13 +5,14 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas._camel import camel_config
 from app.api import deps
 from app.schemas.widget import (
     ControlBinding,
     Scope,
     WidgetNode,
 )
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 from app.tools.fused import all_fused_templates
 from app.tools.fused_framework import run_fused_tool
@@ -22,17 +23,20 @@ class _UnknownWidget(KeyError):
 
 
 class BindingEdit(BaseModel):
+    model_config = camel_config(extra="forbid")
     param_key: str
     action: Literal["keep", "remove"]
 
 
 class BindingRequest(BaseModel):
+    model_config = camel_config(extra="forbid")
     request: str = Field(min_length=1)
     control_type_hint: str | None = None
     target_hint: str | None = None
 
 
 class _Input(BaseModel):
+    model_config = camel_config(extra="forbid")
     widget_id: str
     edits: list[BindingEdit] = Field(default_factory=list)
     additions: list[BindingRequest] = Field(default_factory=list)
@@ -53,6 +57,10 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
     input_schema = _Input
     output_schema = _Output
     permissions = ToolPermissions(requires_image=True, requires_context=True)
+    is_user_action = True
+
+    def history_label(self, input: _Input, output: _Output) -> str:  # noqa: A002
+        return "Refined widget"
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         w = doc.widgets.get(input.widget_id)
@@ -69,7 +77,7 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
         for req in input.additions:
             fleshed = anthropic.flesh_out_binding(
                 request=req.request,
-                widget=w.model_dump(mode="json"),
+                widget=w.model_dump(mode="json", by_alias=True),
                 session_id=doc.session_id,
             )
             binding_dict = fleshed["binding"]
@@ -90,19 +98,19 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
             w.nodes = w.nodes + new_nodes
             w.revision += 1
             doc.update_widget(w)
-            return _Output(widget=w.model_dump(mode="json"))
+            return _Output(widget=w.model_dump(mode="json", by_alias=True))
 
         # No composition change → re-tune numbers via the fused template.
         if w.op_id is None:
-            return _Output(widget=w.model_dump(mode="json"))
+            return _Output(widget=w.model_dump(mode="json", by_alias=True))
         templates = {t.id: t for t in all_fused_templates()}
         template = templates[w.op_id]
         new_widget = await run_fused_tool(
             template, intent=w.intent, scope=w.scope,
-            ctx=doc.image_context, prior=w, instruction=input.instruction,
+            ctx=doc.get_image_context(DEFAULT_IMAGE_NODE_ID), prior=w, instruction=input.instruction,
             anthropic=anthropic, origin=w.origin,
         )
         new_widget.id = w.id
         new_widget.revision = w.revision + 1
         doc.update_widget(new_widget)
-        return _Output(widget=new_widget.model_dump(mode="json"))
+        return _Output(widget=new_widget.model_dump(mode="json", by_alias=True))

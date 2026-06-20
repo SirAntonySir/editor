@@ -44,15 +44,17 @@ interface CompoundWidgetBodyProps {
  * SSoT registry rather than hard-coded constants.
  */
 export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
-  const op = loadRegistry().ops[widget.op_id ?? ''];
-  // Defensive — ToolSection should only dispatch here for compound ops.
-  if (!op?.compound) return null;
+  const op = loadRegistry().ops[widget.opId ?? ''];
 
-  const driverKey = op.compound.driver;
+  // All hooks must run unconditionally on every render, even when `op?.compound`
+  // is absent (the component returns null below in that case). Each hook body
+  // therefore guards on `op?.compound` and falls back to a safe default that
+  // is never consumed in the null branch.
+  const driverKey = op?.compound?.driver ?? '';
   const nodeType = widget.nodes[0]?.type ?? 'compound';
-  const layerId = widget.nodes[0]?.layer_id ?? '';
+  const layerId = widget.nodes[0]?.layerId ?? '';
 
-  const driverParam = op.params[driverKey];
+  const driverParam = op?.params[driverKey];
   const driverDefault = (driverParam?.default as number | undefined) ?? 0.5;
 
   const [position, setPosition] = useProcessingParam(
@@ -65,19 +67,19 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
     (s) => s.optimistic.get(`canon:${layerId}:${nodeType}`),
   );
   const lockedSet = useMemo(
-    () => new Set(widget.locked_params ?? []),
-    [widget.locked_params],
+    () => new Set(widget.lockedParams ?? []),
+    [widget.lockedParams],
   );
   const bindingByKey = useMemo(() => {
     const m = new Map<string, ControlBinding>();
-    for (const b of widget.bindings) m.set(b.param_key, b);
+    for (const b of widget.bindings) m.set(b.paramKey, b);
     return m;
   }, [widget.bindings]);
 
   // Stable anchor list loaded once from the registry.
   const dialAnchors = useMemo(
-    () => toDialAnchors(widget.op_id ?? ''),
-    [widget.op_id],
+    () => toDialAnchors(widget.opId ?? ''),
+    [widget.opId],
   );
 
   const interpolated = useMemo(
@@ -88,24 +90,15 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
   /** Bundle keys: union of anchor value keys, ordered by op.bindings declaration,
    *  excluding the driver so it doesn't appear as a card. */
   const bundleKeys = useMemo(() => {
+    if (!op?.compound) return [] as string[];
     const anchorKeys = new Set<string>();
-    for (const a of op.compound!.anchors) {
+    for (const a of op.compound.anchors) {
       for (const k of Object.keys(a.values)) anchorKeys.add(k);
     }
     return op.bindings
-      .map((b) => b.param_key)
+      .map((b) => b.paramKey)
       .filter((k) => k !== driverKey && anchorKeys.has(k));
-  }, [op.bindings, op.compound, driverKey]);
-
-  function readValue(key: string): number {
-    if (optimisticBundle) {
-      const opt = optimisticBundle.bindings.find((b) => b.paramKey === key);
-      if (opt !== undefined && typeof opt.value === 'number') return opt.value;
-    }
-    const binding = bindingByKey.get(key);
-    if (binding && typeof binding.value === 'number') return binding.value;
-    return interpolated[key] ?? 0;
-  }
+  }, [op, driverKey]);
 
   // Dial drag: write an optimistic compound patch (renderer reads via canon key),
   // then debounced set_widget_param handled by useProcessingParam internally.
@@ -148,29 +141,54 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
     const prev = debouncers.current.get(paramKey);
     if (prev) clearTimeout(prev);
     debouncers.current.set(paramKey, setTimeout(() => {
-      void backendTools.set_widget_param(sid, { widget_id: widget.id, param_key: paramKey, value });
+      void backendTools.set_widget_param(sid, { widgetId: widget.id, paramKey, value });
     }, DEBOUNCE_MS));
   }, [layerId, nodeType, widget.id]);
 
   const unlockParam = useCallback((paramKey: string) => {
     const sid = useBackendState.getState().sessionId;
     if (!sid) return;
-    void backendTools.unlock_widget_param(sid, { widget_id: widget.id, param_key: paramKey });
+    void backendTools.unlock_widget_param(sid, { widgetId: widget.id, paramKey });
+  }, [widget.id]);
+
+  // Pin a derived key without changing its value. The backend implicit-locks
+  // any non-driver key passed through set_widget_param (see
+  // backend/app/tools/widgets/set_widget_param.py:80–82), so re-sending the
+  // current value is the contract for "lock at where it already is".
+  const lockParam = useCallback((paramKey: string, value: number) => {
+    const sid = useBackendState.getState().sessionId;
+    if (!sid) return;
+    void backendTools.set_widget_param(sid, { widgetId: widget.id, paramKey, value });
   }, [widget.id]);
 
   const labelByKey = useMemo(() => {
     const m: Record<string, string> = {};
-    for (const b of op.bindings) m[b.param_key] = b.label;
+    if (!op) return m;
+    for (const b of op.bindings) m[b.paramKey] = b.label;
     return m;
-  }, [op.bindings]);
+  }, [op]);
 
   const unitByKey = useMemo(() => {
     const m: Record<string, string | undefined> = {};
+    if (!op) return m;
     for (const [k, p] of Object.entries(op.params)) m[k] = p.unit;
     return m;
-  }, [op.params]);
+  }, [op]);
 
-  const topology = op.compound?.topology ?? 'linear';
+  // Defensive — ToolSection should only dispatch here for compound ops.
+  if (!op?.compound) return null;
+
+  const topology = op.compound.topology ?? 'linear';
+
+  function readValue(key: string): number {
+    if (optimisticBundle) {
+      const opt = optimisticBundle.bindings.find((b) => b.paramKey === key);
+      if (opt !== undefined && typeof opt.value === 'number') return opt.value;
+    }
+    const binding = bindingByKey.get(key);
+    if (binding && typeof binding.value === 'number') return binding.value;
+    return interpolated[key] ?? 0;
+  }
 
   return (
     <div className="flex flex-col gap-2">
@@ -191,8 +209,8 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
       <div className="grid grid-cols-2 gap-1.5 px-2 pb-2">
         {bundleKeys.map((key) => {
           const binding = bindingByKey.get(key);
-          const schema = binding?.control_schema;
-          const range = schema && schema.control_type === 'slider'
+          const schema = binding?.controlSchema;
+          const range = schema && schema.controlType === 'slider'
             ? { min: schema.min, max: schema.max, step: schema.step }
             : { min: -100, max: 100, step: 1 };
           return (
@@ -207,6 +225,7 @@ export function CompoundWidgetBody({ widget }: CompoundWidgetBodyProps) {
               locked={lockedSet.has(key)}
               onChange={(v) => editParam(key, v)}
               onUnlock={() => unlockParam(key)}
+              onLock={() => lockParam(key, readValue(key))}
             />
           );
         })}

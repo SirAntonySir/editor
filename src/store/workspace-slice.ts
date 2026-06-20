@@ -9,6 +9,7 @@ import type {
   WidgetNodeState,
   WorkspaceViewport,
 } from '@/types/workspace';
+import { UI } from '@/config';
 
 /** Default source dims when the caller doesn't pass any (e.g. unit tests). */
 const DEFAULT_SOURCE_SIZE: Size = { w: 240, h: 180 };
@@ -18,14 +19,14 @@ const DEFAULT_SOURCE_SIZE: Size = { w: 240, h: 180 };
  * pixel dims so every image enters the workspace at the same visual size.
  * Height is derived from this width × source aspect ratio.
  */
-const DEFAULT_IMAGE_NODE_DISPLAY_WIDTH = 600;
+const DEFAULT_IMAGE_NODE_DISPLAY_WIDTH = UI.imageNodeDisplayWidthDefault;
 
 /** Lower / upper bounds for interactive resize. Aspect-locked, so only the
  *  width axis is bounded here; height follows. */
-export const IMAGE_NODE_MIN_DISPLAY_WIDTH = 120;
-export const IMAGE_NODE_MAX_DISPLAY_WIDTH = 4000;
+export const IMAGE_NODE_MIN_DISPLAY_WIDTH = UI.imageNodeDisplayWidthMin;
+export const IMAGE_NODE_MAX_DISPLAY_WIDTH = UI.imageNodeDisplayWidthMax;
 
-const SPLIT_GAP_PX = 24;
+const SPLIT_GAP_PX = UI.splitGapPx;
 
 function deriveDisplaySize(sourceSize: Size, displayWidth: number): Size {
   const aspect = sourceSize.h > 0 ? sourceSize.w / sourceSize.h : 1;
@@ -37,10 +38,10 @@ function deriveDisplaySize(sourceSize: Size, displayWidth: number): Size {
  *  bars / plots want a minimum readable strip. */
 function defaultSizeFor(kind: InfoNodeContent['kind']): Size {
   switch (kind) {
-    case 'histogram': return { w: 320, h: 180 };
-    case 'palette':   return { w: 320, h: 120 };
-    case 'cast':      return { w: 220, h: 160 };
-    case 'stats':     return { w: 280, h: 120 };
+    case 'histogram': return { w: UI.infoWidgetHistogramW, h: UI.infoWidgetHistogramH };
+    case 'palette':   return { w: UI.infoWidgetPaletteW,   h: UI.infoWidgetPaletteH };
+    case 'cast':      return { w: UI.infoWidgetCastW,      h: UI.infoWidgetCastH };
+    case 'stats':     return { w: UI.infoWidgetStatsW,     h: UI.infoWidgetStatsH };
   }
 }
 
@@ -79,6 +80,20 @@ export interface WorkspaceSlice {
   infoNodes: Record<string, InfoNodeState>;
   workspaceViewport: WorkspaceViewport;
   activeImageNodeId: string | null;
+  /**
+   * Last `activeImageNodeId` that was distinct from the current one. Updated
+   * by `setActiveImageNode` whenever the active node changes to a different
+   * non-null value. Used by the ImageNode header "Merge into previous" affordance
+   * so the user can fold the current node into the one they were just on.
+   *
+   * NOT part of the backend snapshot; UI-only.
+   */
+  previousImageNodeId: string | null;
+
+  /** Per-ImageNode UI-only display mode. Absent ⇒ caller's default
+   *  (typically 'objects' when candidateRegions exist, else 'layers').
+   *  UI-only; not part of the snapshot SSoT. */
+  imageNodeMode: Record<string, 'layers' | 'objects'>;
 
   /** Private id sequences. Reset by `resetWorkspace`. */
   _nextNodeSeq: number;
@@ -90,13 +105,25 @@ export interface WorkspaceSlice {
    *                    pipeline and to derive the initial display height.
    *                    Defaults to a placeholder if omitted (test fixtures).
    */
-  addImageNode: (layerIds: string[], position?: Point, sourceSize?: Size) => string;
+  addImageNode: (
+    layerIds: string[],
+    position?: Point,
+    sourceSize?: Size,
+    /** Optional provenance — set by the extract-to-image-node flow so the
+     *  resulting node can offer "Rejoin source image" to undo the extract. */
+    sourceImageNodeId?: string,
+  ) => string;
   /**
    * Resize an image node's canvas-space box. Aspect-locked to its source dims:
    * caller specifies the new width; height is recomputed. Clamped to
    * [IMAGE_NODE_MIN_DISPLAY_WIDTH, IMAGE_NODE_MAX_DISPLAY_WIDTH].
    */
   setImageNodeDisplayWidth: (id: string, width: number) => void;
+  /**
+   * Set or clear an image node's user-editable display name. Empty/whitespace
+   * strings clear the override and fall back to the first layer's name.
+   */
+  setImageNodeName: (id: string, name: string) => void;
   /**
    * Peel a single layer off `sourceId`, place it on a new image node, and return the new node's id.
    * Source node survives (minus the migrated layer). Tether edges whose
@@ -128,6 +155,7 @@ export interface WorkspaceSlice {
    * The workspace slice does not own selection state.
    */
   setActiveImageNode: (activeImageNodeId: string | null) => void;
+  setImageNodeMode: (id: string, mode: 'layers' | 'objects') => void;
   setWorkspaceViewport: (v: WorkspaceViewport) => void;
 
   // ─── Info widgets (chips / stat cards / visualisations on the canvas) ──
@@ -167,10 +195,12 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
   infoNodes: {},
   workspaceViewport: { zoom: 1, pan: { x: 0, y: 0 } },
   activeImageNodeId: null,
+  previousImageNodeId: null,
+  imageNodeMode: {},
   _nextNodeSeq: 1,
   _nextEdgeSeq: 1,
 
-  addImageNode: (layerIds, position = { x: 0, y: 0 }, sourceSize) => {
+  addImageNode: (layerIds, position = { x: 0, y: 0 }, sourceSize, sourceImageNodeId) => {
     let id = '';
     set((state) => {
       id = `in-${state._nextNodeSeq++}`;
@@ -181,6 +211,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
         position,
         sourceSize: src,
         size: deriveDisplaySize(src, DEFAULT_IMAGE_NODE_DISPLAY_WIDTH),
+        ...(sourceImageNodeId ? { sourceImageNodeId } : {}),
       };
     });
     return id;
@@ -195,6 +226,15 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
         Math.max(IMAGE_NODE_MIN_DISPLAY_WIDTH, width),
       );
       n.size = deriveDisplaySize(n.sourceSize, clamped);
+    }),
+
+  setImageNodeName: (id, name) =>
+    set((state) => {
+      const n = state.imageNodes[id];
+      if (!n) return;
+      const trimmed = name.trim();
+      if (trimmed) n.name = trimmed;
+      else delete n.name;
     }),
 
   splitImageNode: (sourceId, layerIdToSplit) => {
@@ -239,6 +279,9 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
         if (edge.targetImageNodeId === sourceId) edge.targetImageNodeId = targetId;
       }
       delete state.imageNodes[sourceId];
+      // Stale active/previous mirrors must not survive a node deletion.
+      if (state.activeImageNodeId === sourceId) state.activeImageNodeId = targetId;
+      if (state.previousImageNodeId === sourceId) state.previousImageNodeId = null;
     });
   },
 
@@ -256,6 +299,11 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       if (state.activeImageNodeId === id) {
         state.activeImageNodeId = null;
       }
+      // Clear previous-mirror too — a deleted node is no longer a valid merge target.
+      if (state.previousImageNodeId === id) {
+        state.previousImageNodeId = null;
+      }
+      delete state.imageNodeMode[id];
     }),
 
   setNodePosition: (id, position) =>
@@ -286,12 +334,28 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
 
   setActiveImageNode: (activeImageNodeId) =>
     set((state) => {
+      // Track previous: when the active id changes to a different non-null
+      // value, the old value (if present and distinct) becomes "previous".
+      // Selecting the same node again is a no-op for `previous`; clearing to
+      // null preserves the previous so it remains a valid merge target.
+      if (
+        activeImageNodeId !== null &&
+        state.activeImageNodeId !== null &&
+        state.activeImageNodeId !== activeImageNodeId
+      ) {
+        state.previousImageNodeId = state.activeImageNodeId;
+      }
       state.activeImageNodeId = activeImageNodeId;
     }),
 
   setWorkspaceViewport: (v) =>
     set((state) => {
       state.workspaceViewport = v;
+    }),
+
+  setImageNodeMode: (id, mode) =>
+    set((state) => {
+      state.imageNodeMode[id] = mode;
     }),
 
   // ─── Info widgets ─────────────────────────────────────────────────
@@ -341,6 +405,8 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       state.infoNodes = {};
       state.workspaceViewport = { zoom: 1, pan: { x: 0, y: 0 } };
       state.activeImageNodeId = null;
+      state.previousImageNodeId = null;
+      state.imageNodeMode = {};
       state._nextNodeSeq = 1;
       state._nextEdgeSeq = 1;
     }),

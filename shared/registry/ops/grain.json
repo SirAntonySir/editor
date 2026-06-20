@@ -6,7 +6,7 @@
   "llm": {
     "description": "Procedural film-grain texture with amount, grain size, and roughness.",
     "typical_use": "Analog/film feel, organic noise in skies and skin, vintage texture.",
-    "semantic_tags": ["texture", "film", "noise", "vintage"]
+    "semantic_tags": ["texture", "film", "noise", "vintage", "analog", "grit", "gritty", "dirty", "organic", "retro", "35mm"]
   },
   "params": {
     "amount":    { "type": "scalar", "range": [0, 100],   "default": 0 },
@@ -14,9 +14,9 @@
     "roughness": { "type": "scalar", "range": [0, 100],   "default": 50 }
   },
   "bindings": [
-    { "param_key": "amount",    "control_type": "slider", "label": "Amount" },
-    { "param_key": "size",      "control_type": "slider", "label": "Size" },
-    { "param_key": "roughness", "control_type": "slider", "label": "Roughness" }
+    { "paramKey": "amount",    "controlType": "slider", "label": "Amount" },
+    { "paramKey": "size",      "controlType": "slider", "label": "Size" },
+    { "paramKey": "roughness", "controlType": "slider", "label": "Roughness" }
   ],
   "engine": { "shader": "grain", "render_order": 90, "node_type": "grain" }
 }

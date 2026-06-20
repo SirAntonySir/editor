@@ -1,32 +1,39 @@
 import { MapPin, User, Cloud } from 'lucide-react';
 import type {
-  EnrichedImageContext,
-  EnrichedCandidateRegion,
-} from '@/types/enriched-context';
+  ImageContext,
+  CandidateRegion,
+} from '@/types/image-context';
 import { SectionHeader } from './SectionHeader';
 import { RegionThumbnail } from './RegionThumbnail';
 
 interface Props {
-  ctx: EnrichedImageContext;
+  ctx: ImageContext;
+}
+
+function dispatchChipToPalette(item: { label: string; value: string; sourceId?: string }) {
+  window.dispatchEvent(new CustomEvent('spawn-palette:open', {
+    detail: { attachContext: [item] },
+  }));
 }
 
 export function RegionsSection({ ctx }: Props) {
   // Region-stats lookup so we can surface skin/sky hints next to each region.
-  // region_stats arrives on the SOFT delta — when candidate_regions is
-  // already in (ai_context delta) but region_stats isn't yet, the map is
+  // regionStats arrives on the SOFT delta — when candidateRegions is
+  // already in (ai_context delta) but regionStats isn't yet, the map is
   // empty and the hint icons simply don't render. Defaults to [] to handle
   // the partial-streaming case without crashing.
-  const statsByLabel = new Map((ctx.region_stats ?? []).map((s) => [s.label, s]));
+  const statsByLabel = new Map((ctx.regionStats ?? []).map((s) => [s.label, s]));
   return (
     <section className="px-3 py-2.5">
-      <SectionHeader icon={MapPin} label="Regions" count={ctx.candidate_regions.length} />
+      <SectionHeader icon={MapPin} label="Regions" count={ctx.candidateRegions.length} />
       <div className="flex flex-col gap-1.5">
-        {ctx.candidate_regions.map((r) => (
+        {ctx.candidateRegions.map((r) => (
           <RegionRow
             key={`${r.label}-${r.description}`}
             region={r}
-            isSkin={statsByLabel.get(r.label)?.is_skin_likely ?? false}
-            isSky={statsByLabel.get(r.label)?.is_sky_likely ?? false}
+            isSkin={statsByLabel.get(r.label)?.isSkinLikely ?? false}
+            isSky={statsByLabel.get(r.label)?.isSkyLikely ?? false}
+            areaWeight={statsByLabel.get(r.label)?.pixelCount}
           />
         ))}
       </div>
@@ -43,17 +50,38 @@ function RegionRow({
   region,
   isSkin,
   isSky,
+  areaWeight,
 }: {
-  region: EnrichedCandidateRegion;
+  region: CandidateRegion;
   isSkin: boolean;
   isSky: boolean;
+  areaWeight?: number;
 }) {
+  // Build a context value like "sky (0.42)" when area info is available.
+  const contextValue =
+    areaWeight !== undefined
+      ? `${region.label} (${areaWeight.toFixed(2)})`
+      : region.label;
+
   return (
     <div className="flex gap-2 items-center py-0.5">
       <RegionThumbnail bbox={region.bbox ?? null} fallback={initialFor(region.label)} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1">
-          <span className="text-[11px] text-text-primary truncate">{region.label}</span>
+          <button
+            type="button"
+            onClick={() =>
+              dispatchChipToPalette({
+                label: 'Region',
+                value: contextValue,
+                sourceId: `region:${region.label}`,
+              })
+            }
+            title={`Attach as context: ${region.label}`}
+            className="text-[11px] text-text-primary truncate cursor-pointer hover:text-accent transition-colors text-left"
+          >
+            {region.label}
+          </button>
           {isSkin && (
             <span title="Skin-likely" className="inline-flex items-center text-amber-500/80">
               <User size={9} />

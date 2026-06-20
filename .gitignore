@@ -36,6 +36,11 @@ backend/**/__pycache__/
 backend/**/*.pyc
 backend/.pytest_cache/
 backend/models/
+backend/.sessions/
+# Tests run with cwd=backend so the relative SESSIONS_DIR resolves to
+# a doubly-nested backend/backend/.sessions/ if a test isn't isolated
+# via tmp_path. Ignore both shapes.
+**/.sessions/
 .superpowers/
 
 # Experimental / in-progress files
@@ -43,3 +48,10 @@ backend/models/
 
 # Worktrees (created by superpowers:using-git-worktrees)
 .worktrees/
+
+# Vendored ML model + runtime assets (populated via `make download-sam`)
+public/models/
+public/ort/
+
+# PlantUML jar (downloaded on demand by `make diagram`)
+tools/plantuml/plantuml.jar

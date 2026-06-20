@@ -1,0 +1,126 @@
+{
+  "$defs": {
+    "GlobalScope": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "global",
+          "enum": [
+            "global"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "GlobalScope",
+      "type": "object"
+    },
+    "ImageNodeScope": {
+      "additionalProperties": false,
+      "properties": {
+        "imageNodeId": {
+          "minLength": 1,
+          "title": "Imagenodeid",
+          "type": "string"
+        },
+        "kind": {
+          "const": "image_node",
+          "enum": [
+            "image_node"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "layerIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Layerids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "imageNodeId"
+      ],
+      "title": "ImageNodeScope",
+      "type": "object"
+    },
+    "MaskScope": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "mask",
+          "enum": [
+            "mask"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "maskId": {
+          "minLength": 1,
+          "title": "Maskid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "maskId"
+      ],
+      "title": "MaskScope",
+      "type": "object"
+    },
+    "NamedRegionScope": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "named_region",
+          "enum": [
+            "named_region"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "label"
+      ],
+      "title": "NamedRegionScope",
+      "type": "object"
+    }
+  },
+  "description": "Discriminated union over the scope kinds.",
+  "discriminator": {
+    "mapping": {
+      "global": "#/$defs/GlobalScope",
+      "image_node": "#/$defs/ImageNodeScope",
+      "mask": "#/$defs/MaskScope",
+      "named_region": "#/$defs/NamedRegionScope"
+    },
+    "propertyName": "kind"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/GlobalScope"
+    },
+    {
+      "$ref": "#/$defs/NamedRegionScope"
+    },
+    {
+      "$ref": "#/$defs/MaskScope"
+    },
+    {
+      "$ref": "#/$defs/ImageNodeScope"
+    }
+  ],
+  "title": "Scope"
+}

@@ -4,9 +4,11 @@ import { AnimatePresence, motion } from 'framer-motion';
 import * as Popover from '@radix-ui/react-popover';
 import { useReactFlow } from '@xyflow/react';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { backendTools } from '@/lib/backend-tools';
 import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
 import type { Widget } from '@/types/widget';
+import { UI } from '@/config';
 
 /**
  * One row of allow/deny chips, one chip per pending AI suggestion. Renders
@@ -21,7 +23,7 @@ import type { Widget } from '@/types/widget';
  * + canvas); denied widgets are gone.
  */
 export function SuggestionChips() {
-  const pendingIds = useBackendState((s) => s.pendingSuggestionIds);
+  const pendingIds = useSuggestionsUi((s) => s.pendingSuggestionIds);
   const widgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
 
   const pending: Widget[] = [];
@@ -29,35 +31,21 @@ export function SuggestionChips() {
     if (pendingIds.has(w.id) && w.status === 'active') pending.push(w);
   }
 
+  // One pill per pending widget — the dock's flex-col stacks them above the
+  // cmd+K bar. Width matches the command-trigger pill (300px) so they form
+  // a tidy column.
   return (
-    <AnimatePresence initial={false}>
-      {pending.length > 0 && (
-        <motion.div
-          key="suggestion-chips"
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: 'auto', opacity: 1 }}
-          exit={{ height: 0, opacity: 0 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="flex-none overflow-hidden border-b border-separator bg-ai/10"
-          role="region"
-          aria-label="AI suggestions awaiting approval"
-        >
-          <div className="flex items-center gap-2 px-3 py-1.5 overflow-x-auto">
-            <Sparkles size={13} className="text-ai shrink-0" aria-hidden />
-            <span className="text-[10px] uppercase tracking-wide text-text-secondary shrink-0">
-              {pending.length} pending
-            </span>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <AnimatePresence initial={false}>
-                {pending.map((w) => (
-                  <SuggestionChip key={w.id} widget={w} />
-                ))}
-              </AnimatePresence>
-            </div>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <div
+      className="flex flex-col items-center gap-1"
+      role="region"
+      aria-label="AI suggestions awaiting approval"
+    >
+      <AnimatePresence initial={false}>
+        {pending.map((w) => (
+          <SuggestionChip key={w.id} widget={w} />
+        ))}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -67,10 +55,11 @@ interface SuggestionChipProps {
 
 function SuggestionChip({ widget }: SuggestionChipProps) {
   const sessionId = useBackendState((s) => s.sessionId);
-  const resolve = useBackendState((s) => s.resolvePendingSuggestion);
-  const addAccepted = useBackendState((s) => s.addAcceptedSuggestion);
-  const previewingIds = useBackendState((s) => s.previewingSuggestionIds);
-  const setPreview = useBackendState((s) => s.setPreviewSuggestion);
+  const resolve = useSuggestionsUi((s) => s.resolvePending);
+  const addAccepted = useSuggestionsUi((s) => s.addAcceptedSuggestion);
+  const recordDecision = useSuggestionsUi((s) => s.recordSuggestionDecision);
+  const previewingIds = useSuggestionsUi((s) => s.previewingSuggestionIds);
+  const setPreview = useSuggestionsUi((s) => s.setPreview);
   const rf = useReactFlow();
 
   // Info popover: open on hover, click toggles sticky-open.
@@ -84,16 +73,30 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
     const screen = { w: window.innerWidth, h: window.innerHeight };
     tetherWorkspaceWidgetOnEngage(widget, { pan: { x, y }, zoom, screen });
     addAccepted(widget.id);
+    recordDecision({
+      id: widget.id,
+      intent: widget.intent,
+      reasoning: widget.reasoning ?? undefined,
+      decision: 'allowed',
+      decidedAt: Date.now(),
+    });
     resolve(widget.id);
   }
 
   function handleDeny() {
     if (sessionId) {
       void backendTools.delete_widget(sessionId, {
-        widget_id: widget.id,
-        suppress_similar: false,
+        widgetId: widget.id,
+        suppressSimilar: false,
       });
     }
+    recordDecision({
+      id: widget.id,
+      intent: widget.intent,
+      reasoning: widget.reasoning ?? undefined,
+      decision: 'denied',
+      decidedAt: Date.now(),
+    });
     resolve(widget.id);
   }
 
@@ -103,13 +106,18 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
   return (
     <motion.div
       layout
-      initial={{ scale: 0.9, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      exit={{ scale: 0.9, opacity: 0 }}
-      transition={{ duration: 0.15 }}
-      className="inline-flex items-center gap-0.5 rounded-[var(--radius-button)] bg-surface border border-separator pl-2 pr-0.5 py-0.5 text-[11px]"
+      initial={{ opacity: 0, y: 8, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 8, scale: 0.97 }}
+      transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }}
+      style={{
+        background: 'color-mix(in srgb, var(--color-surface) 88%, transparent)',
+      }}
+      className="overlay ai-snake-border pointer-events-auto backdrop-blur-md
+        flex items-center gap-1.5 min-w-[300px] pl-3 pr-1.5 py-1.5 text-[11px]"
     >
-      <span className="max-w-[180px] truncate text-text-primary" title={widget.intent}>
+      <Sparkles size={12} className="text-ai shrink-0" aria-hidden />
+      <span className="flex-1 min-w-0 truncate text-text-primary" title={widget.intent}>
         {widget.intent}
       </span>
 
@@ -149,7 +157,8 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
         </Popover.Anchor>
         <Popover.Portal>
           <Popover.Content
-            className="overlay w-[260px] p-2.5 text-[11px] text-text-primary z-[60] leading-snug"
+            className="overlay w-[260px] p-2.5 text-[11px] text-text-primary leading-snug"
+            style={{ zIndex: UI.zPopover }}
             side="bottom"
             align="start"
             sideOffset={6}

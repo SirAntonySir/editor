@@ -53,7 +53,7 @@ describe('RegistryDrivenPanel', () => {
     const patchedOp = {
       ...op,
       bindings: [
-        { param_key: 'exposure', control_type: 'unknown_type' as never, label: 'Exposure' },
+        { paramKey: 'exposure', controlType: 'unknown_type' as never, label: 'Exposure' },
       ],
     };
     const { container } = render(

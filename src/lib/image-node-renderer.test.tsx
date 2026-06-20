@@ -123,7 +123,7 @@ describe('renderImageNodeComposite', () => {
             params: { exposure: 0.5 },
             scope: { kind: 'global' },
             inputs: [],
-            layer_id: 'L1',
+            layerId: 'L1',
           },
         ],
         panelBindings: [],
@@ -191,7 +191,7 @@ describe('renderImageNodeComposite', () => {
             params: { exposure: 0.25 },
             scope: { kind: 'global' },
             inputs: [],
-            layer_ids: ['L1', 'L2'],
+            layerIds: ['L1', 'L2'],
           },
         ],
         panelBindings: [],
@@ -238,7 +238,7 @@ describe('renderImageNodeComposite', () => {
             params: { exposure: 0.5 },
             scope: { kind: 'global' },
             inputs: [],
-            layer_ids: ['L1', 'L-other-node'],
+            layerIds: ['L1', 'L-other-node'],
           },
         ],
         panelBindings: [],
@@ -275,7 +275,7 @@ describe('renderImageNodeComposite', () => {
             params: { exposure: 0.1 },
             scope: { kind: 'global' },
             inputs: [],
-            layer_id: 'L1',
+            layerId: 'L1',
           },
           {
             id: 'n-composite',
@@ -283,7 +283,7 @@ describe('renderImageNodeComposite', () => {
             params: { contrast: 0.2 },
             scope: { kind: 'global' },
             inputs: [],
-            layer_ids: ['L1', 'L2'],
+            layerIds: ['L1', 'L2'],
           },
         ],
         panelBindings: [],
@@ -356,7 +356,7 @@ describe('renderImageNodeComposite', () => {
             params: { exposure: 0.5 },
             scope: { kind: 'global' },
             inputs: [],
-            layer_id: 'L1',
+            layerId: 'L1',
           },
           {
             id: 'n-hide',
@@ -364,7 +364,7 @@ describe('renderImageNodeComposite', () => {
             params: { contrast: 0.5 },
             scope: { kind: 'global' },
             inputs: [],
-            layer_id: 'L1',
+            layerId: 'L1',
           },
         ],
         panelBindings: [],
@@ -402,7 +402,7 @@ describe('renderImageNodeComposite', () => {
             params: { exposure: 0.25 },
             scope: { kind: 'global' },
             inputs: [],
-            layer_ids: ['L1', 'L2'],
+            layerIds: ['L1', 'L2'],
           },
         ],
         panelBindings: [],
@@ -439,7 +439,7 @@ describe('renderImageNodeComposite', () => {
             params: { exposure: 0.5 },
             scope: { kind: 'global' },
             inputs: [],
-            layer_id: 'L1',
+            layerId: 'L1',
           },
         ],
         panelBindings: [],
@@ -478,7 +478,7 @@ describe('renderImageNodeComposite', () => {
             params: { exposure: 0.25 },
             scope: { kind: 'global' },
             inputs: [],
-            layer_ids: ['L1', 'L2'],
+            layerIds: ['L1', 'L2'],
           },
         ],
         panelBindings: [],
@@ -558,7 +558,7 @@ describe('renderImageNodeComposite', () => {
             params: { exposure: 0.5 },
             scope: { kind: 'global' },
             inputs: [],
-            layer_id: 'L1',
+            layerId: 'L1',
           },
         ],
         panelBindings: [],
@@ -576,6 +576,48 @@ describe('renderImageNodeComposite', () => {
     const src = pipelineSource as HTMLCanvasElement;
     expect(src.width).toBe(200);
     expect(src.height).toBe(150);
+  });
+
+  it('a node with only layerIds (broadcast form) is routed to the composite-then-apply pass, not per-layer', () => {
+    // Nodes with `layerIds` (plural) are node-scope nodes — they run after all
+    // layers are composited, not during the per-layer loop. `matchesLayer` in
+    // the per-layer filter is guarded by `!Array.isArray(n.layerIds)` to keep
+    // the two passes mutually exclusive.
+    setLayers([{ id: 'L1', visible: true, opacity: 1, blendMode: 'normal', order: 0 }]);
+    const canvas = makeCanvas();
+
+    renderImageNodeComposite({
+      canvas,
+      imageNodeId: 'in-1',
+      layerIds: ['L1'],
+      sourceWidth: 8,
+      sourceHeight: 8,
+      opGraph: {
+        id: 'g',
+        userGoal: '',
+        nodes: [
+          {
+            id: 'n-broadcast',
+            type: 'basic',
+            params: { exposure: 0.3 },
+            scope: { kind: 'global' },
+            inputs: [],
+            // Only the broadcast array form (no `layerId` singular).
+            layerIds: ['L1'],
+          },
+        ],
+        panelBindings: [],
+        metadata: {},
+      },
+      widgets: [],
+    });
+
+    // The node goes through composite-then-apply (one pipeline call), not per-layer.
+    expect(pipelineRenderSync).toHaveBeenCalledTimes(1);
+    const adjustments = pipelineRenderSync.mock.calls[0][0] as unknown as { id: string }[];
+    expect(adjustments[0].id).toBe('n-broadcast');
+    // Source for composite pass is the internal cache canvas, not the layer working canvas.
+    expect(pipelineSetSourceCanvas.mock.calls[0][0]).not.toBe(fakeWorking);
   });
 
   it('feeds the WebGL pipeline the source directly when renderScale = 1', () => {
@@ -598,7 +640,7 @@ describe('renderImageNodeComposite', () => {
             params: { exposure: 0.5 },
             scope: { kind: 'global' },
             inputs: [],
-            layer_id: 'L1',
+            layerId: 'L1',
           },
         ],
         panelBindings: [],

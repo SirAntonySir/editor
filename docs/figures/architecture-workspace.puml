@@ -1,0 +1,457 @@
+@startuml
+
+top to bottom direction
+
+skinparam nodesep 25
+skinparam ranksep 50
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Tahoma
+skinparam defaultFontSize 12
+skinparam roundCorner 6
+skinparam dpi 150
+skinparam arrowColor black
+skinparam arrowThickness 0.5
+skinparam packageTitleAlignment left
+
+' oval
+skinparam usecase {
+  borderThickness 0.5
+}
+
+' rectangle
+skinparam rectangle {
+  borderThickness 0.5
+}
+
+' component
+skinparam component {
+  borderThickness 1
+}
+
+
+package "Workspace" {
+  (BottomMarginalia)
+  (<b>CanvasWorkspace</b>)
+  (CornerTicks)
+  rectangle "ImageNode" as _ImageNode
+  (ImageNodeBody)
+  (ImageNodeDrafting)
+  (ImageNodeObjectsLayer)
+  (<b>ImageNodeResizeHandle</b>)
+  (<b>ImageNodeSelectionPopover</b>)
+  rectangle "InfoNode" as _InfoNode
+  (LayerStrip)
+  (MarkerDot)
+  (ObjectMarkers)
+  rectangle "<b>PerceptualDialBody</b>" as _PerceptualDialBody
+  (SegmentHitLayer)
+  (SegmentMaskPreview)
+  rectangle "TetherEdge" as _TetherEdge
+  (TopMarginalia)
+  rectangle "WidgetNode" as _WidgetNode
+}
+
+package "Used by workspace" {
+  (active-canvas-bus)
+  rectangle "adjustment" as _adjustment
+  (ai-client)
+  rectangle "auto-tune" as _auto_tune
+  rectangle "backend-state-slice" as _backend_state_slice
+  rectangle "backend-tools" as _backend_tools
+  (canvas-registry)
+  rectangle "canvas-tool-registry" as _canvas_tool_registry
+  (<b>colour-band-spawn</b>)
+  rectangle "curve" as _curve
+  rectangle "<b>curve-points-store</b>" as _curve_points_store
+  rectangle "curves" as _curves
+  (document)
+  rectangle "document-slice" as _document_slice
+  (downscale-for-upload)
+  rectangle "editor-state-persistence" as _editor_state_persistence
+  rectangle "export" as _export
+  rectangle "<b>graph</b>" as _graph
+  rectangle "histogram-compute" as _histogram_compute
+  rectangle "history" as _history
+  rectangle "image-context" as _image_context
+  rectangle "image-metadata" as _image_metadata
+  (image-node-actions)
+  rectangle "image-node-geometry" as _image_node_geometry
+  rectangle "image-node-renderer" as _image_node_renderer
+  rectangle "<b>info-source-resolver</b>" as _info_source_resolver
+  rectangle "kelvin-direction" as _kelvin_direction
+  (<b>keyboard-shortcuts</b>)
+  (<b>largest-inset-rect</b>)
+  rectangle "layer-compositor" as _layer_compositor
+  (<b>layer-lifecycle</b>)
+  rectangle "layer-slice" as _layer_slice
+  rectangle "<b>lut-parser</b>" as _lut_parser
+  rectangle "<b>lut-registry</b>" as _lut_registry
+  (<b>mask-centroid</b>)
+  (<b>mask-filters</b>)
+  (<b>mask-outline</b>)
+  rectangle "<b>mask-overlap</b>" as _mask_overlap
+  rectangle "mask-store" as _mask_store
+  rectangle "mechanical-context" as _mechanical_context
+  rectangle "<b>menu-actions</b>" as _menu_actions
+  (node-to-adjustment)
+  (open-file)
+  rectangle "operation-graph" as _operation_graph
+  rectangle "overlay-painters" as _overlay_painters
+  rectangle "<b>palette-actions</b>" as _palette_actions
+  rectangle "<b>param-ranges</b>" as _param_ranges
+  rectangle "pipeline-manager" as _pipeline_manager
+  (pixel-source-store)
+  (pixel-store)
+  rectangle "preferences-store" as _preferences_store
+  rectangle "processing" as _processing
+  rectangle "processing-registry" as _processing_registry
+  (restore-pixel-sources)
+  (revert)
+  rectangle "scope" as _scope
+  (scope-from-selection)
+  (segment-actions)
+  rectangle "segmentation-slice" as _segmentation_slice
+  rectangle "select-pipeline-nodes" as _select_pipeline_nodes
+  rectangle "selection-slice" as _selection_slice
+  rectangle "sse-subscriber" as _sse_subscriber
+  rectangle "store" as _store
+  rectangle "suggestions-ui-slice" as _suggestions_ui_slice
+  (telemetry)
+  rectangle "tool" as _tool
+  rectangle "tool-slice" as _tool_slice
+  (toolrail-spawn)
+  rectangle "types" as _types
+  rectangle "use-param" as _use_param
+  (<b>use-processing-param</b>)
+  (<b>useAutoTetherAiSuggestions</b>)
+  (<b>useBackendSession</b>)
+  rectangle "<b>useBackendStatus</b>" as _useBackendStatus
+  (<b>useCanonicalParam</b>)
+  (useCanvasZoom)
+  (<b>useChromeMinFloor</b>)
+  (useChromeVisible)
+  (useFileIO)
+  rectangle "<b>useHistoryLog</b>" as _useHistoryLog
+  (<b>useHoveredWidget</b>)
+  (<b>useIfVisible</b>)
+  (useImageContext)
+  rectangle "useImageNodeObjects" as _useImageNodeObjects
+  rectangle "useImageNodeRender" as _useImageNodeRender
+  rectangle "useImageTransform" as _useImageTransform
+  (<b>useLayerWidgets</b>)
+  (useLiveMechanicalContext)
+  (<b>useMemoObject</b>)
+  rectangle "useMobileSam" as _useMobileSam
+  (<b>useNodePreview</b>)
+  (<b>useOutputPreview</b>)
+  (<b>useParamProvenance</b>)
+  rectangle "<b>useSmartMatch</b>" as _useSmartMatch
+  (<b>useWidgetExpansion</b>)
+  (<b>useWorkspaceSelection</b>)
+  rectangle "viewport-slice" as _viewport_slice
+  rectangle "widget" as _widget
+  (<b>widget-anchor</b>)
+  rectangle "workspace" as _workspace
+  rectangle "workspace-slice" as _workspace_slice
+  (workspace-tether)
+}
+
+_adjustment ..> _scope
+(ai-client) ..> _image_context
+_auto_tune ..> _mechanical_context
+_backend_state_slice ..> _mask_store
+_backend_state_slice ..> (pixel-source-store)
+_backend_state_slice ..> _store
+_backend_state_slice ..> _suggestions_ui_slice
+_backend_state_slice ..> _widget
+_backend_state_slice ..> (workspace-tether)
+_backend_tools ..> _image_context
+_backend_tools ..> _widget
+(canvas-registry) ..> (pixel-store)
+_canvas_tool_registry ..> _tool
+(<b>CanvasWorkspace</b>) ---[thickness=1]> _backend_state_slice
+(<b>CanvasWorkspace</b>) ---[thickness=1]> _backend_tools
+(<b>CanvasWorkspace</b>) ---[thickness=1]> (document)
+(<b>CanvasWorkspace</b>) .[thickness=1]> _ImageNode
+(<b>CanvasWorkspace</b>) .[thickness=1]> _InfoNode
+(<b>CanvasWorkspace</b>) ---[thickness=1]> _store
+(<b>CanvasWorkspace</b>) .[thickness=1]> _TetherEdge
+(<b>CanvasWorkspace</b>) ---[thickness=1]> _widget
+(<b>CanvasWorkspace</b>) .[thickness=1]> _WidgetNode
+(<b>colour-band-spawn</b>) .[thickness=1]> _backend_tools
+(<b>colour-band-spawn</b>) .[thickness=1]> (scope-from-selection)
+(<b>colour-band-spawn</b>) ..[thickness=1]> _store
+(CornerTicks) ----> _store
+_curve_points_store .[thickness=1]> _curves
+(document) ..> _backend_state_slice
+(document) ..> _backend_tools
+(document) ..> _history
+(document) ..> _image_metadata
+(document) ..> _image_node_geometry
+(document) ..> (pixel-source-store)
+(document) ..> (pixel-store)
+(document) ..> _store
+(document) ..> _types
+(document) ..> (useImageContext)
+(document) ..> _workspace
+_document_slice ..> _types
+_editor_state_persistence ..> _backend_state_slice
+_editor_state_persistence ..> (pixel-source-store)
+_editor_state_persistence ..> _store
+_export ..> _layer_compositor
+_export ..> _store
+_graph .[thickness=1]> _adjustment
+(image-node-actions) ..> _backend_state_slice
+(image-node-actions) ..> (document)
+(image-node-actions) ..> _export
+(image-node-actions) ..> (pixel-source-store)
+(image-node-actions) ..> (pixel-store)
+(image-node-actions) ..> _store
+(image-node-actions) ..> (useImageContext)
+_image_node_renderer ..> _adjustment
+_image_node_renderer ..> _backend_state_slice
+_image_node_renderer ..> (canvas-registry)
+_image_node_renderer ..> _image_node_geometry
+_image_node_renderer ..> _mask_store
+_image_node_renderer ..> (node-to-adjustment)
+_image_node_renderer ..> _operation_graph
+_image_node_renderer ..> _overlay_painters
+_image_node_renderer ..> _pipeline_manager
+_image_node_renderer ..> _select_pipeline_nodes
+_image_node_renderer ..> _store
+_image_node_renderer ..> _widget
+_ImageNode ..> (ImageNodeDrafting)
+(ImageNodeBody) ---> _useImageNodeRender
+(ImageNodeDrafting) ----> _backend_state_slice
+(ImageNodeDrafting) ----> _backend_tools
+(ImageNodeDrafting) ..> (BottomMarginalia)
+(ImageNodeDrafting) ..> (CornerTicks)
+(ImageNodeDrafting) ----> (document)
+(ImageNodeDrafting) ----> (image-node-actions)
+(ImageNodeDrafting) ----> _image_node_geometry
+(ImageNodeDrafting) ..> (ImageNodeBody)
+(ImageNodeDrafting) ..> (ImageNodeObjectsLayer)
+(ImageNodeDrafting) ..> (LayerStrip)
+(ImageNodeDrafting) ..> (ObjectMarkers)
+(ImageNodeDrafting) ----> _preferences_store
+(ImageNodeDrafting) ..> (SegmentHitLayer)
+(ImageNodeDrafting) ----> _store
+(ImageNodeDrafting) ..> (TopMarginalia)
+(ImageNodeDrafting) ----> (useImageContext)
+(ImageNodeDrafting) ----> _useImageNodeObjects
+(ImageNodeObjectsLayer) ---> _mask_store
+(ImageNodeObjectsLayer) ---> _store
+(ImageNodeObjectsLayer) ---> _useImageNodeObjects
+(<b>ImageNodeResizeHandle</b>) ---[thickness=1]> _store
+(<b>ImageNodeSelectionPopover</b>) ---[thickness=1]> _mask_store
+(<b>ImageNodeSelectionPopover</b>) ---[thickness=1]> (segment-actions)
+(<b>ImageNodeSelectionPopover</b>) ---[thickness=1]> _store
+_info_source_resolver .[thickness=1]> _image_metadata
+_info_source_resolver .[thickness=1]> _mechanical_context
+_info_source_resolver ..[thickness=1]> _types
+_InfoNode ---> _store
+(<b>keyboard-shortcuts</b>) ..[thickness=1]> _backend_state_slice
+(<b>keyboard-shortcuts</b>) .[thickness=1]> _canvas_tool_registry
+(<b>keyboard-shortcuts</b>) ..[thickness=1]> (document)
+(<b>keyboard-shortcuts</b>) .[thickness=1]> (open-file)
+(<b>keyboard-shortcuts</b>) ..[thickness=1]> _preferences_store
+(<b>keyboard-shortcuts</b>) .[thickness=1]> (revert)
+(<b>keyboard-shortcuts</b>) ..[thickness=1]> _store
+(<b>keyboard-shortcuts</b>) ..[thickness=1]> (useImageContext)
+_layer_compositor ..> _adjustment
+_layer_compositor ..> (canvas-registry)
+_layer_compositor ..> _layer_slice
+_layer_compositor ..> _mask_store
+_layer_compositor ..> (node-to-adjustment)
+_layer_compositor ..> _pipeline_manager
+_layer_compositor ..> _select_pipeline_nodes
+_layer_compositor ..> _store
+(<b>layer-lifecycle</b>) ..[thickness=1]> _backend_state_slice
+(<b>layer-lifecycle</b>) ..[thickness=1]> _layer_slice
+(<b>layer-lifecycle</b>) .[thickness=1]> (pixel-source-store)
+(<b>layer-lifecycle</b>) .[thickness=1]> (pixel-store)
+(<b>layer-lifecycle</b>) ..[thickness=1]> _store
+_layer_slice ..> _adjustment
+_layer_slice ..> _scope
+(LayerStrip) ----> _layer_slice
+(LayerStrip) ----> _preferences_store
+(LayerStrip) ----> _store
+(MarkerDot) ---> _widget
+(<b>mask-centroid</b>) ..[thickness=1]> _mask_store
+(<b>mask-filters</b>) ..[thickness=1]> _widget
+(<b>mask-outline</b>) ..[thickness=1]> _mask_store
+_mask_overlap ..[thickness=1]> _mask_store
+_mask_store ..> _scope
+_mechanical_context ..> _histogram_compute
+_mechanical_context ..> _image_context
+_menu_actions .[thickness=1]> _auto_tune
+_menu_actions ..[thickness=1]> _backend_state_slice
+_menu_actions ..[thickness=1]> (document)
+_menu_actions ..[thickness=1]> _history
+_menu_actions .[thickness=1]> _mechanical_context
+_menu_actions .[thickness=1]> (revert)
+_menu_actions ..[thickness=1]> _store
+_menu_actions .[thickness=1]> (toolrail-spawn)
+_menu_actions ..[thickness=1]> (useCanvasZoom)
+_menu_actions ..[thickness=1]> (useFileIO)
+_menu_actions ..[thickness=1]> (useImageContext)
+_menu_actions ..[thickness=1]> _useImageTransform
+_menu_actions ..[thickness=1]> (useLiveMechanicalContext)
+(node-to-adjustment) ..> _adjustment
+(node-to-adjustment) ..> _curves
+(node-to-adjustment) ..> _operation_graph
+(node-to-adjustment) ..> _widget
+(ObjectMarkers) ----> _mask_store
+(ObjectMarkers) ----> _store
+(ObjectMarkers) ----> _useImageNodeObjects
+(open-file) ..> (document)
+_operation_graph ..> _curve
+_operation_graph ..> _scope
+_overlay_painters ..> _mask_store
+_palette_actions ..[thickness=1]> _backend_state_slice
+_palette_actions .[thickness=1]> _backend_tools
+_palette_actions ..[thickness=1]> _store
+_palette_actions ..[thickness=1]> _widget
+_param_ranges .[thickness=1]> _processing_registry
+_PerceptualDialBody ---[thickness=1]> _kelvin_direction
+_pipeline_manager ..> _adjustment
+_pipeline_manager ..> (canvas-registry)
+_processing_registry ..> _processing
+(restore-pixel-sources) ..> (pixel-source-store)
+(restore-pixel-sources) ..> (pixel-store)
+(restore-pixel-sources) ..> _store
+(revert) ..> _backend_state_slice
+(revert) ..> _backend_tools
+(revert) ..> (canvas-registry)
+(revert) ..> (document)
+(revert) ..> _store
+(scope-from-selection) ..> _scope
+(segment-actions) ..> _backend_state_slice
+(segment-actions) ..> _layer_compositor
+(segment-actions) ..> _mask_store
+(segment-actions) ..> (pixel-source-store)
+(segment-actions) ..> (pixel-store)
+(segment-actions) ..> _scope
+(segment-actions) ..> _store
+(segment-actions) ..> (useImageContext)
+(SegmentHitLayer) ---> _backend_state_slice
+(SegmentHitLayer) ---> _backend_tools
+(SegmentHitLayer) ---> _mask_store
+(SegmentHitLayer) ..> (SegmentMaskPreview)
+(SegmentHitLayer) ---> _store
+(SegmentHitLayer) ---> _useImageNodeObjects
+(SegmentHitLayer) ---> _useMobileSam
+_select_pipeline_nodes ..> _backend_state_slice
+_select_pipeline_nodes ..> _operation_graph
+_selection_slice ..> _mask_store
+_selection_slice ..> _scope
+_sse_subscriber ..> _backend_state_slice
+_sse_subscriber ..> _widget
+_store ..> _document_slice
+_store ..> _layer_slice
+_store ..> _segmentation_slice
+_store ..> _selection_slice
+_store ..> _tool_slice
+_store ..> _viewport_slice
+_store ..> _workspace_slice
+(telemetry) ..> _backend_state_slice
+_tool ..> _store
+_tool ..> _tool_slice
+(toolrail-spawn) ..> _backend_state_slice
+(toolrail-spawn) ..> _backend_tools
+(toolrail-spawn) ..> _canvas_tool_registry
+(toolrail-spawn) ..> _scope
+(toolrail-spawn) ..> (scope-from-selection)
+(toolrail-spawn) ..> _store
+(TopMarginalia) ----> (telemetry)
+_types ..> _image_metadata
+_types ..> _layer_slice
+_types ..> _workspace
+_use_param ..> _backend_state_slice
+_use_param ..> _backend_tools
+_use_param ..> _widget
+(<b>use-processing-param</b>) .[thickness=1]> _use_param
+(<b>useAutoTetherAiSuggestions</b>) ..[thickness=1]> _backend_state_slice
+(<b>useAutoTetherAiSuggestions</b>) ..[thickness=1]> _suggestions_ui_slice
+(<b>useAutoTetherAiSuggestions</b>) ..[thickness=1]> (workspace-tether)
+(<b>useBackendSession</b>) ..[thickness=1]> _backend_state_slice
+(<b>useBackendSession</b>) ..[thickness=1]> _editor_state_persistence
+(<b>useBackendSession</b>) ..[thickness=1]> _mask_store
+(<b>useBackendSession</b>) ..[thickness=1]> (pixel-source-store)
+(<b>useBackendSession</b>) ..[thickness=1]> (restore-pixel-sources)
+(<b>useBackendSession</b>) ..[thickness=1]> _sse_subscriber
+(<b>useBackendSession</b>) ..[thickness=1]> _store
+(<b>useBackendSession</b>) .[thickness=1]> (useImageContext)
+_useBackendStatus ..[thickness=1]> _backend_state_slice
+_useBackendStatus .[thickness=1]> (useImageContext)
+(<b>useCanonicalParam</b>) ..[thickness=1]> _use_param
+(<b>useCanonicalParam</b>) ..[thickness=1]> _widget
+(useCanvasZoom) ..> _store
+(useFileIO) ..> (document)
+(useFileIO) ..> _export
+(useFileIO) ..> (open-file)
+_useHistoryLog ..[thickness=1]> _backend_state_slice
+_useHistoryLog ..[thickness=1]> _backend_tools
+(<b>useHoveredWidget</b>) ..[thickness=1]> _store
+(useImageContext) ..> (ai-client)
+(useImageContext) ..> _backend_state_slice
+(useImageContext) ..> _backend_tools
+(useImageContext) ..> (downscale-for-upload)
+(useImageContext) ..> _image_context
+(useImageContext) ..> _mask_store
+(useImageContext) ..> (pixel-store)
+(useImageContext) ..> _store
+_useImageNodeObjects ..> _backend_state_slice
+_useImageNodeObjects ..> _mask_store
+_useImageNodeRender ..> (active-canvas-bus)
+_useImageNodeRender ..> _backend_state_slice
+_useImageNodeRender ..> _image_node_geometry
+_useImageNodeRender ..> _image_node_renderer
+_useImageNodeRender ..> _operation_graph
+_useImageNodeRender ..> _preferences_store
+_useImageNodeRender ..> _store
+_useImageNodeRender ..> _suggestions_ui_slice
+_useImageNodeRender ..> _widget
+_useImageTransform ..> (canvas-registry)
+_useImageTransform ..> _store
+(<b>useLayerWidgets</b>) ..[thickness=1]> _backend_state_slice
+(<b>useLayerWidgets</b>) ..[thickness=1]> _widget
+(useLiveMechanicalContext) ..> (active-canvas-bus)
+(useLiveMechanicalContext) ..> _mechanical_context
+(useLiveMechanicalContext) ..> _store
+_useMobileSam ..> (canvas-registry)
+_useMobileSam ..> _store
+(<b>useNodePreview</b>) ..[thickness=1]> (canvas-registry)
+(<b>useNodePreview</b>) ..[thickness=1]> _layer_compositor
+(<b>useNodePreview</b>) ..[thickness=1]> (node-to-adjustment)
+(<b>useNodePreview</b>) ..[thickness=1]> _pipeline_manager
+(<b>useNodePreview</b>) ..[thickness=1]> _select_pipeline_nodes
+(<b>useNodePreview</b>) ..[thickness=1]> _store
+(<b>useOutputPreview</b>) ..[thickness=1]> (canvas-registry)
+(<b>useOutputPreview</b>) ..[thickness=1]> _layer_compositor
+(<b>useOutputPreview</b>) ..[thickness=1]> _pipeline_manager
+(<b>useOutputPreview</b>) ..[thickness=1]> _store
+(<b>useParamProvenance</b>) ..[thickness=1]> _backend_state_slice
+(<b>useParamProvenance</b>) ..[thickness=1]> _store
+_useSmartMatch ..[thickness=1]> _backend_state_slice
+_useSmartMatch ..[thickness=1]> _backend_tools
+(<b>useWidgetExpansion</b>) ..[thickness=1]> _store
+(<b>useWorkspaceSelection</b>) ..[thickness=1]> _store
+_widget ..> _curve
+_widget ..> _image_context
+_widget ..> _operation_graph
+_widget ..> _scope
+(<b>widget-anchor</b>) ..[thickness=1]> _widget
+_WidgetNode ..> (MarkerDot)
+_WidgetNode ---> (useChromeVisible)
+_WidgetNode ---> _widget
+_workspace_slice ..> _workspace
+(workspace-tether) ..> (document)
+(workspace-tether) ..> _store
+(workspace-tether) ..> _widget
+(workspace-tether) ..> _workspace
+
+@enduml
+
+' View and edit on https://arkit.pro

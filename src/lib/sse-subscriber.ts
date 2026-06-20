@@ -1,5 +1,6 @@
 import type { StateEvent, SessionStateSnapshot } from '@/types/widget';
 import { useBackendState } from '@/store/backend-state-slice';
+import { RUNTIME } from '@/config';
 
 const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
@@ -12,7 +13,9 @@ export function parseSseLine(line: string): StateEvent | null {
   }
 }
 
-async function fetchSnapshot(sessionId: string): Promise<SessionStateSnapshot> {
+/** Fetch the full SessionStateSnapshot. Exposed so the backend-state slice
+ *  can call it when it sees a `state.gap` event (replay can't catch up). */
+export async function fetchSnapshot(sessionId: string): Promise<SessionStateSnapshot> {
   const response = await fetch(`${BASE_URL}/api/state/${sessionId}`);
   if (!response.ok) throw new Error(`/api/state/${sessionId} → ${response.status}`);
   return (await response.json()) as SessionStateSnapshot;
@@ -20,72 +23,56 @@ async function fetchSnapshot(sessionId: string): Promise<SessionStateSnapshot> {
 
 export interface SseHandle {
   close: () => void;
-  /** Resolves when the EventSource fires its first onopen (or after 1.5s safety timeout). */
+  /** Resolves when the EventSource fires its first onopen (or after the
+   * configured safety timeout in RUNTIME.sseSafetyTimeoutMs). */
   opened: Promise<void>;
 }
 
 export function openSseSubscription(sessionId: string): SseHandle {
   const state = useBackendState.getState();
-  let attempt = 0;
   let closed = false;
-  let source: EventSource | null = null;
 
-  // Resolve once — on first onopen or after 1.5s safety timeout.
+  // Resolve once — on first onopen or after the safety timeout.
   let resolveOpened!: () => void;
   const opened = new Promise<void>((resolve) => { resolveOpened = resolve; });
   // Safety net: if onopen never fires (e.g. the server is slow), analyze still
-  // proceeds after 1.5s rather than hanging forever.
-  setTimeout(() => resolveOpened(), 1500);
+  // proceeds rather than hanging forever.
+  setTimeout(() => resolveOpened(), RUNTIME.sseSafetyTimeoutMs);
 
-  function backoffMs(): number {
-    return Math.min(4000, 250 * 2 ** Math.min(attempt, 4));
-  }
+  // The browser's EventSource auto-reconnects on its own and re-sends
+  // `Last-Event-ID` on each reconnect — the backend uses that to replay
+  // any missed entries from doc.history. We DON'T close + recreate on
+  // error: doing so would lose the lastEventId the browser tracks, and
+  // we'd have to refetch a full snapshot every blip.
+  //
+  // When replay can't catch up (history was pruned past the lastEventId),
+  // the backend emits a synthetic `state.gap` event; the backend-state
+  // slice reacts by calling fetchSnapshot() above.
+  state.setSseStatus('connecting');
+  const source = new EventSource(`${BASE_URL}/api/state/${sessionId}/events`);
 
-  async function rehydrate() {
-    try {
-      const snap = await fetchSnapshot(sessionId);
-      state.setSnapshot(snap);
-    } catch (err) {
-      console.warn('[sse] rehydrate failed:', err);
-    }
-  }
+  source.onopen = () => {
+    state.setSseStatus('open');
+    resolveOpened();
+  };
 
-  function open() {
+  source.onmessage = (event) => {
+    const ev = parseSseLine(`data: ${event.data}`);
+    if (ev) state.applyEvent(ev);
+  };
+
+  source.onerror = () => {
     if (closed) return;
-    state.setSseStatus(attempt === 0 ? 'connecting' : 'reconnecting');
-    source = new EventSource(`${BASE_URL}/api/state/${sessionId}/events`);
-
-    source.onopen = () => {
-      attempt = 0;
-      state.setSseStatus('open');
-      // Resolve the opened promise (safe to call multiple times — Promise deduplicates).
-      resolveOpened();
-    };
-
-    source.onmessage = (event) => {
-      const ev = parseSseLine(`data: ${event.data}`);
-      if (ev) state.applyEvent(ev);
-    };
-
-    source.onerror = () => {
-      if (closed) return;
-      source?.close();
-      attempt += 1;
-      state.setSseStatus('reconnecting');
-      // Refetch the snapshot on every reconnect (no Last-Event-ID replay in v1).
-      setTimeout(() => {
-        rehydrate().finally(open);
-      }, backoffMs());
-    };
-  }
-
-  open();
+    // The browser will retry on its own (sse_starlette sends a `retry:`
+    // hint). We only surface the status so the UI can show a tiny banner.
+    state.setSseStatus('reconnecting');
+  };
 
   return {
     opened,
     close: () => {
       closed = true;
-      source?.close();
+      source.close();
       state.setSseStatus('closed');
     },
   };

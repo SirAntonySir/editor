@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Widget, MaskSummary } from '@/types/widget';
-import { HelpCircle } from 'lucide-react';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useWidgetExpansion } from '@/hooks/useWidgetExpansion';
@@ -9,16 +8,16 @@ import { useEditorStore } from '@/store';
 import { bindingProvenance, touchKey } from '@/hooks/useParamProvenance';
 import { engineNeutralForBinding } from '@/engine/registry';
 import { WidgetShellHeader } from './WidgetShellHeader';
-import { WidgetShellFooter } from './WidgetShellFooter';
 import { RefineInput } from './RefineInput';
 import { WhyPopover } from './WhyPopover';
-import { BindingRow } from '@/components/inspector/widget/BindingRow';
+import { BindingRow } from '@/components/widget/BindingRow';
 import { HslWidgetBody, isHslWidget } from './HslWidgetBody';
 import { LevelsWidgetBody, isFullLevelsWidget } from './LevelsWidgetBody';
 import { CurvesWidgetBody, isCurvesWidget } from './CurvesWidgetBody';
 import { CompoundWidgetBody } from './CompoundWidgetBody';
 import { WidgetAutoButton } from './WidgetAutoButton';
 import { loadRegistry } from '@/lib/registry/loader';
+import { maskMatchesImageNode } from '@/lib/mask-filters';
 
 /**
  * Minimum WidgetShell width in CSS pixels. The shell grows past this to fit
@@ -43,12 +42,26 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
   const { hoveredWidgetId, setHoveredWidget } = useHoveredWidget();
   const sessionId = useBackendState((s) => s.sessionId);
   const optimistic = useBackendState((s) => s.optimistic);
-  const masks = useBackendState((s) => s.snapshot?.masks_index ?? EMPTY_MASKS);
+  const allMasks = useBackendState((s) => s.snapshot?.masksIndex ?? EMPTY_MASKS);
+  const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
+  // Soft filter: hide masks scoped to a different ImageNode. Legacy / global
+  // masks (no imageNodeId) remain visible.
+  const masks = useMemo(
+    () => allMasks.filter((m) => maskMatchesImageNode(m, activeImageNodeId)),
+    [allMasks, activeImageNodeId],
+  );
   const offline = useBackendState((s) => s.sseStatus !== 'open');
   const touched = useEditorStore((s) => s.touchedParams);
 
   const hidden = useEditorStore((s) => s.hiddenWidgetIds.has(widget.id));
   const toggleHidden = useEditorStore((s) => s.toggleWidgetHidden);
+  // When the user pinned a single slider, only that binding key is shown on
+  // the canvas. The widget's other bindings still exist (the inspector still
+  // edits them) — this is a per-shell display filter.
+  const pinnedParamKeys = useEditorStore((s) => s.pinnedWidgetParams[widget.id]);
+  const visibleBindings = pinnedParamKeys && pinnedParamKeys.length > 0
+    ? widget.bindings.filter((b) => pinnedParamKeys.includes(b.paramKey))
+    : widget.bindings;
 
   const showAiAffordances = widget.origin.kind !== 'tool_invoked';
 
@@ -57,7 +70,25 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
   const [refinePending, setRefinePending] = useState(false);
 
   const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  // Coalesce backend writes per (widget, paramKey). The optimistic patch in
+  // setParam below makes the slider feel instant; the backend POST is
+  // debounced so a drag (60–120 ticks/s) doesn't flood
+  // /api/tools/set_widget_param and trip the 30/min rate limiter.
+  const setParamTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Re-arm `mountedRef` on every mount. Without this, React 19 StrictMode's
+  // simulated unmount/remount in dev sets the ref to false during the
+  // synthetic cleanup, and the `useRef(true)` seed only runs on first render —
+  // so for the rest of the component's life every debounced set_widget_param
+  // fires `SKIPPED — unmounted` and the slider's live value never reaches the
+  // backend, leaving canonical at the binding default.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      for (const timer of setParamTimersRef.current.values()) clearTimeout(timer);
+      setParamTimersRef.current.clear();
+    };
+  }, []);
 
   const hovered = hoveredWidgetId === widget.id;
 
@@ -68,13 +99,13 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
   // would correctly bump the slider position in JS state but leave the
   // rendered pixels waiting for the SSE roundtrip — felt laggy.
   function canonIdFor(b: Widget['bindings'][number]): string {
-    const node = widget.nodes.find((n) => n.id === b.target.node_id);
-    return node ? `canon:${node.layer_id}:${node.type}` : b.target.node_id;
+    const node = widget.nodes.find((n) => n.id === b.target.nodeId);
+    return node ? `canon:${node.layerId}:${node.type}` : b.target.nodeId;
   }
   function readOptimistic(b: Widget['bindings'][number]): Widget['bindings'][number]['value'] | undefined {
     const patch = optimistic.get(canonIdFor(b));
     if (!patch) return undefined;
-    const p = patch.bindings.find((p) => p.paramKey === b.target.param_key);
+    const p = patch.bindings.find((p) => p.paramKey === b.target.paramKey);
     return p?.value;
   }
 
@@ -87,42 +118,80 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
 
   function setParam(paramKey: string, value: Widget['bindings'][number]['value']) {
     if (!sessionId || offline) return;
-    const binding = widget.bindings.find((b) => b.param_key === paramKey);
+    const binding = widget.bindings.find((b) => b.paramKey === paramKey);
     if (binding) {
       const baseRevision = useBackendState.getState().snapshot?.revision ?? 0;
       // Key the optimistic patch by canonical id so the WebGL render pass
       // picks it up immediately — see canonIdFor() above.
       useBackendState.getState().applyOptimistic(canonIdFor(binding), {
-        bindings: [{ paramKey: binding.target.param_key, value }],
+        bindings: [{ paramKey: binding.target.paramKey, value }],
         baseRevision,
       });
-      const node = widget.nodes.find((n) => n.id === binding.target.node_id);
-      if (node?.layer_id) {
-        useEditorStore.getState().markParamTouched(touchKey(node.layer_id, node.type, binding.target.param_key));
+      const node = widget.nodes.find((n) => n.id === binding.target.nodeId);
+      if (node?.layerId) {
+        useEditorStore.getState().markParamTouched(touchKey(node.layerId, node.type, binding.target.paramKey));
       }
     }
-    void backendTools.set_widget_param(sessionId, { widget_id: widget.id, param_key: paramKey, value });
+    // Debounce backend writes per paramKey so the optimistic UI stays
+    // instant but the network sees one POST per ~100ms of dragging
+    // instead of one per pointer-move tick. Always sends the LATEST value.
+    const existing = setParamTimersRef.current.get(paramKey);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      setParamTimersRef.current.delete(paramKey);
+      if (!mountedRef.current) return;
+      void backendTools.set_widget_param(sessionId, { widgetId: widget.id, paramKey, value });
+    }, 100);
+    setParamTimersRef.current.set(paramKey, timer);
   }
 
-  function handleApply() {
+  async function handleApply() {
     if (!sessionId || offline) return;
-    void backendTools.accept_widget(sessionId, { widget_id: widget.id });
+    // Flush any pending debounced set_widget_param timers BEFORE accept so
+    // the backend's binding.value reflects the just-dragged slider position.
+    // accept_widget walks bindings to write canonical — if a timer is still
+    // queued, accept reads the stale binding.value and rolls the live edit
+    // back the moment the optimistic patch clears.
+    const pendingKeys = Array.from(setParamTimersRef.current.keys());
+    if (pendingKeys.length > 0) {
+      const optMap = useBackendState.getState().optimistic;
+      await Promise.all(
+        pendingKeys.map((paramKey) => {
+          const timer = setParamTimersRef.current.get(paramKey);
+          if (timer) clearTimeout(timer);
+          setParamTimersRef.current.delete(paramKey);
+          const binding = widget.bindings.find((b) => b.paramKey === paramKey);
+          if (!binding) return Promise.resolve();
+          // Read the latest optimistic value (if any) — that's the live slider
+          // position. Falls back to binding.value otherwise.
+          const node = widget.nodes.find((n) => n.id === binding.target.nodeId);
+          const canonId = node ? `canon:${node.layerId}:${node.type}` : binding.target.nodeId;
+          const patch = optMap.get(canonId);
+          const live = patch?.bindings.find((p) => p.paramKey === binding.target.paramKey)?.value;
+          const value = live !== undefined ? live : binding.value;
+          return backendTools.set_widget_param(sessionId, {
+            widgetId: widget.id, paramKey, value,
+          });
+        }),
+      );
+    }
+    void backendTools.accept_widget(sessionId, { widgetId: widget.id });
   }
 
   function handleClose() {
     if (!sessionId || offline) return;
-    void backendTools.delete_widget(sessionId, { widget_id: widget.id, suppress_similar: false });
+    void backendTools.delete_widget(sessionId, { widgetId: widget.id, suppressSimilar: false });
   }
 
   function handleReset() {
-    for (const b of widget.bindings) setParam(b.param_key, b.default);
+    for (const b of widget.bindings) setParam(b.paramKey, b.default);
   }
 
   function handleRefineSubmit(instruction: string) {
     if (!sessionId || offline) return;
     setRefinePending(true);
     void backendTools
-      .refine_widget(sessionId, { widget_id: widget.id, instruction, edits: [], additions: [] })
+      .refine_widget(sessionId, { widgetId: widget.id, instruction, edits: [], additions: [] })
       .finally(() => {
         if (!mountedRef.current) return;
         setRefinePending(false);
@@ -158,42 +227,70 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
         onToggle={toggle}
         onClose={handleClose}
         onToggleHidden={() => toggleHidden(widget.id)}
+        onRefine={() => setRefineOpen((v) => !v)}
+        onWhy={() => setWhyOpen((v) => !v)}
+        onReset={handleReset}
+        onApply={handleApply}
+        applyDisabled={offline}
+        showAiAffordances={showAiAffordances}
+        whyButton={
+          <WhyPopover open={whyOpen} widget={widget} onOpenChange={setWhyOpen}>
+            <button
+              type="button"
+              aria-label="Explain widget"
+              title="Why? — explain this widget's reasoning"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center justify-center size-4 rounded-[3px]
+                text-text-secondary hover:text-text-primary hover:bg-surface-secondary transition-colors"
+            >
+              <span aria-hidden className="inline-block leading-none font-semibold text-[12px] -mt-px">
+                ?
+              </span>
+            </button>
+          </WhyPopover>
+        }
       />
       {isExpanded && (
         <>
           {/* Inline reasoning banner removed — the footer's "Why?" button
               already exposes the same string in a popover. */}
-          {loadRegistry().ops[widget.op_id ?? '']?.compound && (
+          {/* When a single-param pin filter is active, fall through to the
+              flat BindingRow list regardless of widget shape — the rich
+              bodies (HSL band rail, Levels histogram, Curves editor) expect
+              all bindings to be present, so they're skipped here. */}
+          {!pinnedParamKeys && loadRegistry().ops[widget.opId ?? '']?.compound && (
             <div className="px-1.5 py-1">
               <CompoundWidgetBody widget={widget} />
             </div>
           )}
-          {widget.bindings.length > 0 && isHslWidget(widget) && (
+          {!pinnedParamKeys && widget.bindings.length > 0 && isHslWidget(widget) && (
             <div className="px-1.5 py-1">
               <HslWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
             </div>
           )}
-          {widget.bindings.length > 0 && isFullLevelsWidget(widget) && (
+          {!pinnedParamKeys && widget.bindings.length > 0 && isFullLevelsWidget(widget) && (
             <div className="px-1.5 py-1">
               <LevelsWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
             </div>
           )}
-          {widget.bindings.length > 0 && isCurvesWidget(widget) && (
+          {!pinnedParamKeys && widget.bindings.length > 0 && isCurvesWidget(widget) && (
             <div className="py-1">
               <CurvesWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
             </div>
           )}
-          {widget.bindings.length > 0 && !loadRegistry().ops[widget.op_id ?? '']?.compound && !isHslWidget(widget) && !isFullLevelsWidget(widget) && !isCurvesWidget(widget) && (
+          {widget.bindings.length > 0 && (pinnedParamKeys || (!loadRegistry().ops[widget.opId ?? '']?.compound && !isHslWidget(widget) && !isFullLevelsWidget(widget) && !isCurvesWidget(widget))) && (
             <div className="flex flex-col gap-1.5 px-1.5 py-1">
               {/* Auto-tune pill: mechanical-only baseline values for the
                   current op. Renders only when the op has an auto recipe
                   (light / color / kelvin / levels) — silent otherwise. */}
-              <WidgetAutoButton widget={widget} setParam={(k, v) => setParam(k, v)} />
-              {widget.bindings.map((b) => {
+              {visibleBindings.length === widget.bindings.length && (
+                <WidgetAutoButton widget={widget} setParam={(k, v) => setParam(k, v)} />
+              )}
+              {visibleBindings.map((b) => {
                 const eff = effectiveValue(b);
-                const node = widget.nodes.find((n) => n.id === b.target.node_id);
-                const isTouched = node?.layer_id
-                  ? touched.has(touchKey(node.layer_id, node.type, b.target.param_key))
+                const node = widget.nodes.find((n) => n.id === b.target.nodeId);
+                const isTouched = node?.layerId
+                  ? touched.has(touchKey(node.layerId, node.type, b.target.paramKey))
                   : false;
                 // Engine neutral feeds the provenance check so an AI
                 // slider reads VIOLET while still resting at the AI's
@@ -202,11 +299,11 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
                 const neutral = engineNeutralForBinding(b);
                 return (
                   <BindingRow
-                    key={b.param_key}
+                    key={b.paramKey}
                     binding={b}
                     effectiveValue={eff}
                     maskSummaries={masks}
-                    onChange={(value) => setParam(b.param_key, value)}
+                    onChange={(value) => setParam(b.paramKey, value)}
                     provenance={bindingProvenance(
                       eff,
                       b.default,
@@ -226,21 +323,6 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
               pending={refinePending}
             />
           )}
-          <WidgetShellFooter
-            onRefine={() => setRefineOpen((v) => !v)}
-            onWhy={() => setWhyOpen((v) => !v)}
-            onReset={handleReset}
-            onApply={handleApply}
-            applyDisabled={offline}
-            showAiAffordances={showAiAffordances}
-            whyButton={
-              <WhyPopover open={whyOpen} widget={widget} onOpenChange={setWhyOpen}>
-                <button className="inline-flex items-center gap-1 text-[9px] text-text-secondary hover:text-text-primary hover:bg-surface-secondary px-1.5 py-0.5 rounded-[3px]">
-                  <HelpCircle size={10} aria-hidden /> Why?
-                </button>
-              </WhyPopover>
-            }
-          />
         </>
       )}
     </div>

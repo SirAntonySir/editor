@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.schemas._camel import camel_config
 from app.registry.loader import get_registry
 from app.schemas.widget import (
     ControlBinding,
@@ -17,11 +18,18 @@ from app.schemas.widget import (
     WidgetOriginKind,
     WidgetPreview,
 )
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 
 
+class _MissingContext(Exception):
+    """Mapped to missing_context in the envelope by the registry. Raised by
+    the LLM path when analyze_context hasn't run yet."""
+    pass
+
+
 class _Input(BaseModel):
+    model_config = camel_config(extra="forbid")
     intent: str = Field(min_length=1)
     scope: dict
     origin: WidgetOriginKind = "mcp_user_prompt"
@@ -318,9 +326,29 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
     input_schema = _Input
     output_schema = _Output
     permissions = ToolPermissions(requires_image=True, requires_context=False)
+    is_user_action = True
+
+    def history_label(self, input: _Input, output: _Output) -> str:  # noqa: A002
+        intent = (input.intent or "adjustment").strip()
+        # Capitalise first letter for a friendlier label.
+        intent_cap = intent[:1].upper() + intent[1:] if intent else "Adjustment"
+        return f"Proposed {intent_cap}"
 
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         scope = Scope.model_validate(input.scope)
+
+        # Cockpit telemetry: capture the user's natural-language ask so the
+        # admin views can show "what did they actually type". `intent` is
+        # the canonical field; `prompt` is what the palette sent verbatim.
+        from app.services.event_journal import write_event
+        write_event(doc.session_id, "prompt.entered", {
+            "origin": input.origin,
+            "intent": input.intent,
+            "prompt": input.prompt,
+            "scope_kind": scope.root.kind,
+            "forced_ops": list(input.forced_ops) if input.forced_ops else None,
+            "preset_id": input.preset_id,
+        })
 
         # preset_id takes priority over both the toolrail fast-path and the LLM
         # path — it works with any origin including tool_invoked.
@@ -330,9 +358,8 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
         if input.origin == "tool_invoked":
             return self._handle_tool_invoked(doc, input, scope)
 
-        if doc.image_context is None:
-            from app.tools.widgets.propose_widget import _MissingContext
-            raise _MissingContext("call analyze_image first")
+        if doc.get_image_context(DEFAULT_IMAGE_NODE_ID) is None:
+            raise _MissingContext("call prepare_image then analyze_context first")
 
         return await self._handle_llm_path(doc, input, scope)
 
@@ -346,7 +373,16 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
 
         reg = get_registry()
         anthropic = deps.get_anthropic_client()
-        image_context = doc.image_context.model_dump(mode="json")
+        ctx = doc.get_image_context(DEFAULT_IMAGE_NODE_ID)
+        assert ctx is not None  # guarded above
+        # Strip mask_png_base64, paths, and the 256-bin histograms before
+        # handing to Claude — see `image_context_for_llm` docstring.
+        # Without this, every plan + resolve call ships ~28 k tokens of
+        # binary mask data and pre-rendered chart bins (~96 % of the call).
+        from app.services.llm_context import image_context_for_llm
+        image_context = image_context_for_llm(
+            ctx.model_dump(mode="json", by_alias=True),
+        )
 
         plan_result = await asyncio.to_thread(
             anthropic.plan_widget_stack,
@@ -376,19 +412,35 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             }] if fallback_ops else []
 
         # Phase 2: resolve each (entry_index, op) in parallel.
+        # Per-op timeout — without it, a single hung Anthropic call would
+        # keep the surrounding gather (and the per-session write lock the
+        # tool registry holds around this handler) parked forever, which
+        # is the H19 audit deadlock. The timeout falls back to
+        # `anthropic_timeout_s` so the failure mode matches the SDK's
+        # own timeout: a slow op is dropped, the rest of the stack still
+        # resolves, and the lock is released.
+        from app.config import get_app_config
+        op_timeout_s = get_app_config().runtime.anthropic_timeout_s
+
         async def _resolve_one(entry_index: int, op_entry: dict) -> tuple[int, str, dict] | None:
             op_id = op_entry.get("op_id")
             if op_id not in reg.ops:
                 return None
             op = reg.ops[op_id]
             try:
-                params = await asyncio.to_thread(
-                    anthropic.resolve_widget_params,
-                    op=op, intent=input.intent,
-                    rationale=op_entry.get("rationale", ""),
-                    starting_params=op_entry.get("starting_params") or {},
-                    image_context=image_context, session_id=doc.session_id,
+                params = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        anthropic.resolve_widget_params,
+                        op=op, intent=input.intent,
+                        rationale=op_entry.get("rationale", ""),
+                        starting_params=op_entry.get("starting_params") or {},
+                        image_context=image_context, session_id=doc.session_id,
+                    ),
+                    timeout=op_timeout_s,
                 )
+            except asyncio.TimeoutError:
+                print(f"[propose_stack] resolve timed out for {op_id} after {op_timeout_s}s")
+                return None
             except Exception as exc:    # noqa: BLE001
                 print(f"[propose_stack] resolve failed for {op_id}: {exc}")
                 return None
@@ -432,7 +484,7 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             doc.add_widget(widget)
             widgets.append(widget)
 
-        return _Output(widgets=[w.model_dump(mode="json") for w in widgets])
+        return _Output(widgets=[w.model_dump(mode="json", by_alias=True) for w in widgets])
 
     def _fallback_plan(self, intent: str, registry) -> list[dict]:
         """Keyword match intent to a preset, else first preset's ops."""
@@ -494,13 +546,88 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             doc.add_widget(widget)
             widgets.append(widget)
 
-        return _Output(widgets=[w.model_dump(mode="json") for w in widgets])
+        return _Output(widgets=[w.model_dump(mode="json", by_alias=True) for w in widgets])
+
+    def _handle_filter_spawn(
+        self, doc: SessionDocument, input: _Input, scope: Scope,
+    ) -> _Output:
+        """Build a LUT widget without touching the registry.
+
+        Filter/LUT presets are managed client-side via LutRegistry — the
+        backend just produces the widget shell (one lut node + an
+        intensity slider). This is the only forced_ops member that's not
+        a registry op. If filter ever moves into the registry, this
+        carve-out can fold into the normal _handle_tool_invoked path.
+        """
+        widget_id = f"w_{uuid.uuid4().hex[:8]}"
+
+        image_node_layer_ids: list[str] | None = None
+        if scope.root.kind == "image_node":
+            image_node_layer_ids = list(scope.root.layer_ids)
+            layer_id_for_node = (
+                image_node_layer_ids[0] if image_node_layer_ids else input.layer_id
+            )
+        else:
+            layer_id_for_node = input.layer_id
+
+        node_id = f"n_{uuid.uuid4().hex[:6]}"
+        node = WidgetNode(
+            id=node_id,
+            type="lut",
+            params={"intensity": 1.0},
+            scope=scope,
+            inputs=[],
+            widget_id=widget_id,
+            layer_id=layer_id_for_node,
+            layer_ids=image_node_layer_ids,
+        )
+
+        binding = ControlBinding(
+            param_key="intensity",
+            label="Intensity",
+            control_type="slider",
+            control_schema=ControlSchema.model_validate({
+                "control_type": "slider", "min": 0, "max": 1, "step": 0.01,
+            }),
+            value=1.0,
+            default=1.0,
+            target=NodeParamTarget(node_id=node_id, param_key="intensity"),
+        )
+
+        widget = Widget(
+            id=widget_id,
+            intent=input.intent,
+            scope=scope,
+            origin=WidgetOrigin(kind="tool_invoked", prompt=None, parent_widget_id=None),
+            op_id="filter",
+            composed=False,
+            nodes=[node],
+            bindings=[binding],
+            preview=WidgetPreview(kind="none", auto_before_after=False),
+            rejected_attempts=[],
+            status="active",
+            revision=1,
+        )
+        doc.add_widget(widget)
+        return _Output(widgets=[widget.model_dump(mode="json", by_alias=True)])
 
     def _handle_tool_invoked(
         self, doc: SessionDocument, input: _Input, scope: Scope,
     ) -> _Output:
         if not input.forced_ops:
             raise ValueError("tool_invoked origin requires forced_ops")
+
+        # Filter/LUT is intentionally outside the registry (presets live
+        # client-side via LutRegistry). Route the single-op `filter` case
+        # to its own builder. Mixed lists are explicitly rejected.
+        if "filter" in input.forced_ops:
+            if input.forced_ops != ["filter"]:
+                raise ValueError(
+                    "forced_ops with 'filter' must contain only 'filter' — "
+                    "the LUT path is single-op."
+                )
+            return self._handle_filter_spawn(doc, input, scope)
+
         reg = get_registry()
 
         image_node_layer_ids = None
@@ -525,4 +652,4 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             doc.add_widget(widget)
             widgets.append(widget)
 
-        return _Output(widgets=[w.model_dump(mode="json") for w in widgets])
+        return _Output(widgets=[w.model_dump(mode="json", by_alias=True) for w in widgets])

@@ -1,8 +1,10 @@
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import { usePreferencesStore, type InspectorTab } from '@/store/preferences-store';
 import { useEditorStore } from '@/store';
+import { track } from '@/lib/telemetry';
 import { AdjustmentsAccordion } from './adjustments/AdjustmentsAccordion';
 import { InfoTab } from './info/InfoTab';
+import { LayerTab } from './layer/LayerTab';
 import { CropTab } from './crop/CropTab';
 
 // The active inner tab is store-driven (preferences-store.inspectorTab) so other
@@ -19,15 +21,21 @@ export function InspectorPanel() {
       <ToggleGroup.Root
         type="single"
         value={tab}
-        onValueChange={(v) => v && setTab(v as InspectorTab)}
+        onValueChange={(v) => {
+          if (!v) return;
+          if (v !== tab) track('inspector.tab', { from: tab, to: v });
+          setTab(v as InspectorTab);
+        }}
         className="flex-none flex border-b border-separator"
       >
         <TabButton value="adjustments" label="Adjustments" active={tab === 'adjustments'} />
         <TabButton value="info" label="Info" active={tab === 'info'} />
+        <TabButton value="layer" label="Layer" active={tab === 'layer'} />
         <TabButton value="crop" label="Crop" active={tab === 'crop'} disabled={cropDisabled} />
       </ToggleGroup.Root>
       {tab === 'adjustments' && <AdjustmentsAccordion />}
       {tab === 'info' && <InfoTab />}
+      {tab === 'layer' && <LayerTab />}
       {tab === 'crop' && <CropTab />}
     </div>
   );
@@ -50,7 +58,7 @@ function TabButton({
         }`}
       >
         {label}
-        {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-accent" />}
+        {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-[var(--color-accent)]" />}
       </button>
     </ToggleGroup.Item>
   );

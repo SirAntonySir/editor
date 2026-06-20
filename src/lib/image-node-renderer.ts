@@ -18,14 +18,14 @@
 
 import { CanvasRegistry } from './canvas-registry';
 import { PipelineManager } from './pipeline-manager';
-import { applyGeometry, getInternalCanvas, getScratchCanvas, type Crop, type Rotate } from './image-node-geometry';
+import { applyGeometry, getInternalCanvas, getMemoisedScratchCanvas, type Crop, type Rotate } from './image-node-geometry';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { nodeToAdjustment } from './node-to-adjustment';
 import { expandCompoundNodes } from './perceptual-dial/expand-compound';
+import { matchesLayer } from './select-pipeline-nodes';
 import {
   MASK_STYLES,
-  paintFullImageOutline,
   paintMaskFill,
   paintMaskOutline,
   paintSegmentationOverlay,
@@ -100,6 +100,14 @@ export interface RenderImageNodeCompositeArgs {
    * small set of octaves so allocations / FBO resizes happen rarely.
    */
   renderScale?: number;
+  /**
+   * Op-graph nodes to splice into the per-layer pass on top of `opGraph.nodes`.
+   * Used by the suggestion-chip eye toggle: the previewed widget's nodes are
+   * injected here so the renderer applies the AI's proposed values even if the
+   * canonical projection is stale or hadn't reached the snapshot yet. Each
+   * extra node overrides any `opGraph.nodes` entry with the same id.
+   */
+  extraNodes?: OperationNode[];
 }
 
 function clampRenderScale(scale: number | undefined): number {
@@ -107,17 +115,6 @@ function clampRenderScale(scale: number | undefined): number {
   return Math.max(scale, 1 / 64);
 }
 
-/** Draw `source` into `dest` at dest's full dims and return it. */
-function downscaleInto(
-  dest: HTMLCanvasElement,
-  source: HTMLCanvasElement | OffscreenCanvas,
-): HTMLCanvasElement {
-  const dctx = dest.getContext('2d');
-  if (!dctx) return dest;
-  dctx.clearRect(0, 0, dest.width, dest.height);
-  dctx.drawImage(source, 0, 0, dest.width, dest.height);
-  return dest;
-}
 
 /** Scale crop rect from source-pixel units into scaled-internal-pixel units. */
 function scaleCrop(crop: Crop | undefined, scale: number): Crop | undefined {
@@ -194,7 +191,19 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
     for (const b of patch.bindings) params[b.paramKey] = b.value;
     return { ...n, params };
   });
-  const nodes = expandCompoundNodes(compoundMerged);
+  // Splice in preview nodes (suggestion-chip eye toggle). Same-id collisions
+  // are resolved by REPLACING the canonical node with the preview's copy, so
+  // pending widgets whose canonical projection lags behind still light up the
+  // canvas with the AI's proposed params.
+  const baseNodes = (() => {
+    const extras = args.extraNodes;
+    if (!extras || extras.length === 0) return compoundMerged;
+    const overrides = new Map(extras.map((n) => [n.id, n] as const));
+    const merged = compoundMerged.map((n) => overrides.get(n.id) ?? n);
+    for (const ex of extras) if (!merged.some((n) => n.id === ex.id)) merged.push(ex);
+    return merged;
+  })();
+  const nodes = expandCompoundNodes(baseNodes);
 
   for (const layerId of layerIds) {
     const layer = layersById.get(layerId);
@@ -204,9 +213,17 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
 
     if (!source) continue;
 
+    // Broadcast widgets (`n.layerIds` is an array) are routed to the
+    // composite-then-apply pass below. The per-layer pass handles only
+    // single-layer pinned ops (`n.layerId`). For linear scalar adjustments
+    // the two are visually equivalent; non-linear ops (curves, levels) on
+    // multi-layer compositions with non-`source-over` blends will diverge —
+    // revisit if/when multi-photo-layer compositions become a primary use
+    // case. See docs/superpowers/specs/2026-06-17-visibility-driven-adjustments-design.md.
     const layerNodes = nodes.filter(
       (n) =>
-        n.layer_id === layerId
+        matchesLayer(n, layerId)
+        && !Array.isArray(n.layerIds)
         && !hiddenNodeIds.has(n.id)
         && n.type !== 'crop'
         && n.type !== 'rotate',
@@ -230,7 +247,7 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
       // dims. Without this, every shader pass runs at full source resolution
       // even when the visible canvas is tiny — defeating the LOD entirely.
       const pipelineInput = renderScale < 1
-        ? downscaleInto(getScratchCanvas(args.imageNodeId, scaledW, scaledH), source)
+        ? getMemoisedScratchCanvas(args.imageNodeId, source, scaledW, scaledH)
         : source;
       PipelineManager.setSourceCanvas(pipelineInput);
       rendered = PipelineManager.renderSync(adjustments);
@@ -253,7 +270,7 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   const nodeScopeNodes = nodes.filter((n) => {
     if (hiddenNodeIds.has(n.id)) return false;
     if (n.type === 'crop' || n.type === 'rotate') return false;
-    const ids = n.layer_ids;
+    const ids = n.layerIds;
     return Array.isArray(ids) && ids.length > 0 && ids.every((lid) => layerSetForComposite.has(lid));
   });
 
@@ -307,11 +324,11 @@ function paintOverlays({ ctx, canvas, imageNodeId, layerIds }: PaintOverlaysArgs
   const isActiveNode = state.activeImageNodeId === imageNodeId;
   const painterCtx = { ctx, canvasWidth: canvas.width, canvasHeight: canvas.height };
 
-  // Full-image outline: only on the active image node when the active scope
-  // is global.
-  if (isActiveNode && state.activeScope.kind === 'global') {
-    paintFullImageOutline(ctx, canvas.width, canvas.height);
-  }
+  // (Previously: a hardcoded blue rectangle was painted around the active
+  // image node when the scope was global. Removed — the drafting variant
+  // already draws its own accent-coloured selection frame in CSS, and the
+  // painted version baked an off-theme `#0071e3` into the canvas that
+  // re-appeared on every pan/zoom redraw.)
 
   // Active draft mask (SAM preview / highlight_region) — only when its
   // owning layer belongs to this image node. Drawn before the committed
@@ -333,19 +350,18 @@ function paintOverlays({ ctx, canvas, imageNodeId, layerIds }: PaintOverlaysArgs
     }
   }
 
-  // Segmentation hover / selected outlines — `activeScope.kind === 'mask'`
-  // indicates a segment chosen by the user; `hoveredScope` mirrors the
-  // hover preview. Both stay gated to layers in this node.
+  // Segmentation hover / selected outlines — `activeObjectId` indicates a
+  // segment chosen by the user; `hoveredObjectId` mirrors the hover preview.
+  // Both stay gated to layers in this node.
   if (isActiveNode) {
-    if (state.hoveredScope?.kind === 'mask') {
-      const m = maskStore.get(state.hoveredScope.mask_id);
-      const selectedId = state.activeScope.kind === 'mask' ? state.activeScope.mask_id : null;
-      if (m && layerSet.has(m.layerId) && m.id !== selectedId) {
+    if (state.hoveredObjectId !== null) {
+      const m = maskStore.get(state.hoveredObjectId);
+      if (m && layerSet.has(m.layerId) && m.id !== state.activeObjectId) {
         paintSegmentationOverlay(painterCtx, m, 'hover');
       }
     }
-    if (state.activeScope.kind === 'mask') {
-      const m = maskStore.get(state.activeScope.mask_id);
+    if (state.activeObjectId !== null) {
+      const m = maskStore.get(state.activeObjectId);
       if (m && layerSet.has(m.layerId)) {
         paintSegmentationOverlay(painterCtx, m, 'selected');
       }

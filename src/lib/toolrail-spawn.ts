@@ -10,11 +10,13 @@ import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { toast } from '@/components/ui/Toast';
+import { scopeFromSelection } from '@/lib/scope-from-selection';
+import type { Scope } from '@/types/scope';
 
 /**
  * Handle a toolrail click for a tool with a `processingId`.
  *
- * Returns `true` when the click was handled (a `propose_widget` was kicked
+ * Returns `true` when the click was handled (a `proposeStack` was kicked
  * off, the click was gated out, or there's no backend session) and `false`
  * when the tool isn't backed by a processing definition.
  */
@@ -22,32 +24,14 @@ export function spawnToolWidget(toolName: string): boolean {
   const tool = CanvasToolRegistry.get(toolName);
   if (!tool?.processingId) return false;
 
-  // Must have an active ImageNode to know where to tether the new widget.
-  const editor = useEditorStore.getState();
-  const activeImageNodeId = editor.activeImageNodeId;
-  if (!activeImageNodeId) {
-    toast.info('Select an image first.');
-    return true;
-  }
+  const ctx = _resolveSpawnContext();
+  if (!ctx) return true;
 
-  const sid = useBackendState.getState().sessionId;
-  if (!sid) return true;
-
-  // Resolve layer_id: prefer the editor's activeLayerId when it belongs to
-  // the active image node, otherwise fall back to the node's first layer.
-  const node = editor.imageNodes[activeImageNodeId];
-  if (!node) return true;
-  const layerId =
-    editor.activeLayerId && node.layerIds.includes(editor.activeLayerId)
-      ? editor.activeLayerId
-      : node.layerIds[0];
-  if (!layerId) return true;
-
-  void backendTools.proposeStack(sid, {
+  void backendTools.proposeStack(ctx.sid, {
     intent: tool.label ?? tool.processingId,
-    scope: editor.activeScope ?? { kind: 'global' },
+    scope: ctx.scope,
     forced_ops: [tool.processingId],
-    layer_id: layerId,
+    layerId: ctx.layerId,
     origin: 'tool_invoked',
   });
   return true;
@@ -60,7 +44,7 @@ export function spawnToolWidget(toolName: string): boolean {
 function _resolveSpawnContext(): {
   sid: string;
   layerId: string;
-  scope: import('@/types/widget').Scope;
+  scope: Scope;
 } | null {
   const editor = useEditorStore.getState();
   const activeImageNodeId = editor.activeImageNodeId;
@@ -77,7 +61,7 @@ function _resolveSpawnContext(): {
       ? editor.activeLayerId
       : node.layerIds[0];
   if (!layerId) return null;
-  return { sid, layerId, scope: editor.activeScope ?? { kind: 'global' } };
+  return { sid, layerId, scope: scopeFromSelection(editor.activeObjectId) };
 }
 
 /** Spawn a single-op widget by registry op id. Used by Cmd+K when the user
@@ -99,7 +83,7 @@ export function spawnRegistryOp(
     scope: ctx.scope,
     forced_ops: [opId],
     forced_params: params ? { [opId]: params } : undefined,
-    layer_id: ctx.layerId,
+    layerId: ctx.layerId,
     origin: 'tool_invoked',
   });
 }
@@ -114,7 +98,7 @@ export function spawnRegistryPreset(presetId: string, intent?: string): void {
     intent: intent ?? presetId,
     scope: ctx.scope,
     preset_id: presetId,
-    layer_id: ctx.layerId,
+    layerId: ctx.layerId,
     origin: 'tool_invoked',
   });
 }

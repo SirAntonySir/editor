@@ -62,7 +62,7 @@ export async function proposeFromPalette(
       intent: enriched,
       scope,
       prompt: enriched,
-      layer_id: layerId,
+      layerId,
       origin: 'mcp_user_prompt',
     });
     // Each widget in the stack is delivered via SSE widget.created events;

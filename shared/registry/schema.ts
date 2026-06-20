@@ -6,7 +6,7 @@ export const ParamTypeSchema = z.enum([
 
 export const ControlTypeSchema = z.enum([
   'slider', 'swatch', 'hue_wheel', 'curve_editor', 'point_list',
-  'enum_select', 'bool_toggle', 'kelvin_strip',
+  'enum_select', 'bool_toggle', 'kelvin_strip', 'tint_strip',
 ]);
 
 export const PresetSourceSchema = z.enum(['builtin', 'user', 'project']);
@@ -38,8 +38,8 @@ export const OpParamSchema = z.object({
 });
 
 export const OpBindingSchema = z.object({
-  param_key: z.string(),
-  control_type: ControlTypeSchema,
+  paramKey: z.string(),
+  controlType: ControlTypeSchema,
   label: z.string(),
   group: z.string().optional(),
 }).strict();
@@ -86,28 +86,38 @@ export const OpCompoundConfigSchema = z.object({
   }
 });
 
+export const OP_MODULE = ['core', 'experimental', 'preset'] as const;
+export type OpModule = (typeof OP_MODULE)[number];
+
 export const RegistryOpSchema = z.object({
   id: z.string(),
   display_name: z.string(),
   category: z.string().optional(),     // planner grouping hint + Cmd+K section header
   /** Material icon name. Resolved at render time via `createMaterialIcon`. */
   icon: z.string().optional(),
+  /**
+   * Selective-registration knob. The backend loader skips ops whose module
+   * isn't enabled at startup (via `EDITOR_OP_MODULES` env or `modules` arg).
+   * Frontend treats it as informational — registration still happens for
+   * everything in the loaded JSON.
+   */
+  module: z.enum(OP_MODULE).default('core'),
   llm: OpLlmMetadataSchema,
   params: z.record(z.string(), OpParamSchema),
   bindings: z.array(OpBindingSchema),
   engine: OpEngineConfigSchema,
   /**
    * Curated subset of param keys shown by the default toolrail widget.
-   * Defaults to all binding param_keys when absent.
+   * Defaults to all binding paramKeys when absent.
    */
   tool_defaults: z.array(z.string()).optional(),
   compound: OpCompoundConfigSchema.optional(),
 }).strict().superRefine((op, ctx) => {
   for (const b of op.bindings) {
-    if (!(b.param_key in op.params)) {
+    if (!(b.paramKey in op.params)) {
       ctx.addIssue({
         code: 'custom',
-        message: `binding param_key "${b.param_key}" not in params`,
+        message: `binding paramKey "${b.paramKey}" not in params`,
       });
     }
   }

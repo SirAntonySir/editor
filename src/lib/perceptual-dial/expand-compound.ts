@@ -81,7 +81,7 @@ function virtualNode(
   return {
     id: `${source.id}::${adjustmentType}`,
     type: adjustmentType,
-    layer_id: source.layer_id,
+    layerId: source.layerId,
     params,
     inputs: [],
     scope: source.scope,

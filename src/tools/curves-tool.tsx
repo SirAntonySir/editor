@@ -214,6 +214,6 @@ export const CurvesTool: ToolDefinition = {
   category: 'adjust',
   processingId: 'curves',
   onActivate: () => {
-    // activeScope is already set by the canvas click/cycle; nothing extra needed.
+    // activeObjectId is already set by the canvas click/cycle; nothing extra needed.
   },
 };

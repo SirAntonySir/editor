@@ -1,7 +1,6 @@
 from app.tools.registry import BackendToolRegistry
 
 from .add_note import AddNoteTool
-from .analyze_image import AnalyzeImageTool
 from .apply_adjustment import ApplyAdjustmentTool
 from .clear_selection import ClearSelectionTool
 from .create_session import CreateSessionTool
@@ -17,8 +16,16 @@ from .preview_widget import PreviewWidgetTool
 from .select_by_box import SelectByBoxTool
 from .select_by_point import SelectByPointTool
 from .list_fused_tools import ListFusedToolsTool
+from .analyze_context import AnalyzeContextTool
+from .prepare_image import PrepareImageTool
+from .precompute_regions import PrecomputeRegionsTool
 from .select_named_region import SelectNamedRegionTool
+from .suggest_widgets import SuggestWidgetsTool
+from .delete_mask import DeleteMaskTool
+from .propose_mask import ProposeMaskTool
+from .rename_mask import RenameMaskTool
 from .set_image_node_transform import SetImageNodeTransformTool
+from .smart_match_command import SmartMatchCommandTool
 
 
 def register_all_atomic_tools(registry: BackendToolRegistry) -> None:
@@ -37,7 +44,14 @@ def register_all_atomic_tools(registry: BackendToolRegistry) -> None:
     registry.register(HighlightRegionTool())
     registry.register(AddNoteTool())
     registry.register(CreateSessionTool())
-    registry.register(AnalyzeImageTool())
+    registry.register(PrepareImageTool())
+    registry.register(AnalyzeContextTool())
+    registry.register(PrecomputeRegionsTool())
+    registry.register(SuggestWidgetsTool())
     registry.register(ListFusedToolsTool())
     registry.register(PreviewWidgetTool())
     registry.register(SetImageNodeTransformTool())
+    registry.register(ProposeMaskTool())
+    registry.register(DeleteMaskTool())
+    registry.register(RenameMaskTool())
+    registry.register(SmartMatchCommandTool())

@@ -4,6 +4,16 @@ import { useBackendState, getPersistedSessionId } from './backend-state-slice';
 import { useEditorStore } from '@/store';
 import type { SessionStateSnapshot, StateEvent, Widget } from '@/types/widget';
 
+// Module-level mock so that the dynamic `import('@/lib/sse-subscriber')` inside
+// applyEvent's state.gap handler resolves to this factory. Individual tests can
+// override `fetchSnapshot`'s behaviour via `vi.mocked(fetchSnapshot)`.
+vi.mock('@/lib/sse-subscriber', () => ({
+  fetchSnapshot: vi.fn(async () => ({ sessionId: 's_default', revision: 99, widgets: [], masksIndex: [],
+    operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+    imageContext: null,
+  })),
+}));
+
 function makeWidget(id: string, overrides: Partial<Widget> = {}): Widget {
   return {
     id,
@@ -17,19 +27,19 @@ function makeWidget(id: string, overrides: Partial<Widget> = {}): Widget {
     rejected_attempts: [],
     status: 'active',
     revision: 1,
-    created_at: '2026-05-23T00:00:00Z',
-    updated_at: '2026-05-23T00:00:00Z',
+    createdAt: '2026-05-23T00:00:00Z',
+    updatedAt: '2026-05-23T00:00:00Z',
     ...overrides,
   };
 }
 
 function baseSnapshot(): SessionStateSnapshot {
   return {
-    session_id: 's1',
-    image_context: null,
+    sessionId: 's1',
+    imageContext: null,
     widgets: [makeWidget('w_1')],
-    masks_index: [],
-    operation_graph: {
+    masksIndex: [],
+    operationGraph: {
       id: 'projected-x',
       userGoal: 'w_1',
       reasoning: null,
@@ -44,17 +54,15 @@ function baseSnapshot(): SessionStateSnapshot {
 beforeEach(() => useBackendState.getState().reset());
 
 describe('BackendStateSlice', () => {
-  it('reset clears snapshot, optimistic, and acceptedSuggestions', () => {
+  it('reset clears snapshot and optimistic', () => {
     useBackendState.setState({
       snapshot: baseSnapshot(),
       sessionId: 's1',
-      acceptedSuggestions: new Set(['w_x']),
     });
     useBackendState.getState().reset();
     expect(useBackendState.getState().snapshot).toBeNull();
     expect(useBackendState.getState().sessionId).toBeNull();
     expect(useBackendState.getState().optimistic.size).toBe(0);
-    expect(useBackendState.getState().acceptedSuggestions.size).toBe(0);
   });
 
   it('applyEvent widget.created appends a widget and bumps revision', () => {
@@ -78,16 +86,16 @@ describe('BackendStateSlice', () => {
       kind: 'widget.created',
       payload: {
         widget: makeWidget('w_2'),
-        operation_graph: {
+        operationGraph: {
           id: 'projected-y',
-          nodes: [{ id: 'n_new', type: 'basic', layer_id: 'layer-1', params: { exposure: 40 } }],
+          nodes: [{ id: 'n_new', type: 'basic', layerId: 'layer-1', params: { exposure: 40 } }],
         },
       },
       emitted_at: '2026-05-23T00:00:01Z',
     };
     useBackendState.getState().applyEvent(ev);
     const snap = useBackendState.getState().snapshot!;
-    expect(snap.operation_graph.nodes.map((n) => n.id)).toEqual(['n_new']);
+    expect(snap.operationGraph.nodes.map((n) => n.id)).toEqual(['n_new']);
   });
 
   it('applyEvent widget.updated swaps in the embedded operation_graph', () => {
@@ -97,15 +105,15 @@ describe('BackendStateSlice', () => {
       kind: 'widget.updated',
       payload: {
         widget: makeWidget('w_1', { revision: 2 }),
-        operation_graph: {
+        operationGraph: {
           id: 'projected-z',
-          nodes: [{ id: 'n_1', type: 'basic', layer_id: 'layer-1', params: { exposure: 90 } }],
+          nodes: [{ id: 'n_1', type: 'basic', layerId: 'layer-1', params: { exposure: 90 } }],
         },
       },
       emitted_at: '2026-05-23T00:00:02Z',
     } as StateEvent);
     const snap = useBackendState.getState().snapshot!;
-    expect(snap.operation_graph.nodes[0].params.exposure).toBe(90);
+    expect(snap.operationGraph.nodes[0].params.exposure).toBe(90);
   });
 
   it('applyEvent widget.updated replaces in place', () => {
@@ -124,7 +132,7 @@ describe('BackendStateSlice', () => {
     useBackendState.setState({ snapshot: baseSnapshot() });
     useBackendState.getState().applyEvent({
       revision: 2, kind: 'widget.deleted',
-      payload: { widget_id: 'w_1' },
+      payload: { widgetId: 'w_1' },
       emitted_at: '2026-05-23T00:00:01Z',
     });
     const snap = useBackendState.getState().snapshot!;
@@ -146,14 +154,14 @@ describe('BackendStateSlice', () => {
     expect(useBackendState.getState().optimistic.size).toBe(0);
   });
 
-  it('applyEvent widget.accepted adds to acceptedSuggestions set', () => {
+  it('applyEvent widget.accepted removes the widget from the snapshot', () => {
     useBackendState.setState({ snapshot: baseSnapshot() });
     useBackendState.getState().applyEvent({
       revision: 2, kind: 'widget.accepted',
-      payload: { widget_id: 'w_1' },
+      payload: { widgetId: 'w_1' },
       emitted_at: '2026-05-23T00:00:01Z',
     });
-    expect(useBackendState.getState().acceptedSuggestions.has('w_1')).toBe(true);
+    expect(useBackendState.getState().snapshot?.widgets.find((w) => w.id === 'w_1')).toBeUndefined();
   });
 
   it('applyEvent drops same-or-lower revision events defensively', () => {
@@ -162,7 +170,7 @@ describe('BackendStateSlice', () => {
     useBackendState.setState({ snapshot: snap });
     useBackendState.getState().applyEvent({
       revision: 5, kind: 'widget.deleted',
-      payload: { widget_id: 'w_1' },
+      payload: { widgetId: 'w_1' },
       emitted_at: '2026-05-23T00:00:01Z',
     });
     expect(useBackendState.getState().snapshot!.widgets[0].status).toBe('active');
@@ -171,7 +179,7 @@ describe('BackendStateSlice', () => {
   it('widget.accepted removes widget from snapshot (backend now owns adjustment materialization)', () => {
     const widget = makeWidget('w_x', { nodes: [{
       id: 'n1', type: 'kelvin', params: { temperature: 7000 },
-      scope: { kind: 'global' }, inputs: [], widget_id: 'w_x',
+      scope: { kind: 'global' }, inputs: [], widgetId: 'w_x',
     }] });
     useBackendState.setState({
       snapshot: { ...baseSnapshot(), widgets: [widget], revision: 1 },
@@ -179,14 +187,12 @@ describe('BackendStateSlice', () => {
 
     useBackendState.getState().applyEvent({
       revision: 2, kind: 'widget.accepted',
-      payload: { widget_id: 'w_x' },
+      payload: { widgetId: 'w_x' },
       emitted_at: '2026-05-28T00:00:01Z',
     });
 
     // Widget is removed from snapshot.
     expect(useBackendState.getState().snapshot!.widgets.find(w => w.id === 'w_x')).toBeUndefined();
-    // Widget ID is in acceptedSuggestions.
-    expect(useBackendState.getState().acceptedSuggestions.has('w_x')).toBe(true);
   });
 });
 
@@ -212,7 +218,7 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
 
     const w = makeWidget('w_tool', {
       origin: { kind: 'tool_invoked' },
-      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w_tool', layer_id: 'layer-a' }],
+      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widgetId: 'w_tool', layerId: 'layer-a' }],
     });
     fireCreated(w);
 
@@ -236,7 +242,7 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
 
     const w = makeWidget('w_ai', {
       origin: { kind: 'mcp_autonomous' },
-      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w_ai', layer_id: 'layer-a' }],
+      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widgetId: 'w_ai', layerId: 'layer-a' }],
     });
     fireCreated(w);
 
@@ -269,12 +275,151 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
     // No image nodes, no activeImageNodeId.
     const w = makeWidget('w_tool', {
       origin: { kind: 'tool_invoked' },
-      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: 'w_tool', layer_id: 'layer-x' }],
+      nodes: [{ id: 'n1', type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widgetId: 'w_tool', layerId: 'layer-x' }],
     });
     fireCreated(w);
     const editor = useEditorStore.getState();
     expect(editor.widgetNodes[w.id]).toBeUndefined();
     expect(Object.values(editor.tetherEdges)).toEqual([]);
+  });
+
+  it('applyEvent widget.created bridges autonomous origin to useSuggestionsUi.markPending', async () => {
+    const { useSuggestionsUi } = await import('./suggestions-ui-slice');
+    useSuggestionsUi.getState().reset();
+    useEditorStore.getState().resetWorkspace();
+
+    // Seed snapshot at revision 0 so subsequent widget.created events apply.
+    useBackendState.setState({
+      sessionId: 's_1',
+      snapshot: {
+        sessionId: 's_1',
+        revision: 0,
+        imageContext: null,
+        widgets: [],
+        masksIndex: [],
+        operationGraph: { id: 'g_1', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+      } as never,
+      sseStatus: 'open',
+    });
+
+    const fire = (id: string, kind: 'mcp_autonomous' | 'tool_invoked', revision: number) =>
+      useBackendState.getState().applyEvent({
+        revision,
+        kind: 'widget.created',
+        emitted_at: new Date().toISOString(),
+        payload: {
+          widget: makeWidget(id, {
+            origin: { kind, prompt: kind === 'mcp_autonomous' ? null : 'test' },
+            nodes: [{ id: `n_${id}`, type: 'light', params: {}, scope: { kind: 'global' }, inputs: [], widgetId: id }],
+          }),
+          operationGraph: { id: 'g_1', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+        },
+      } as never);
+
+    fire('w_auto_1', 'mcp_autonomous', 1);
+    fire('w_auto_2', 'mcp_autonomous', 2);
+    fire('w_tool', 'tool_invoked', 3);  // must NOT land in pending
+
+    const pending = useSuggestionsUi.getState().pendingSuggestionIds;
+    expect(pending.has('w_auto_1')).toBe(true);
+    expect(pending.has('w_auto_2')).toBe(true);
+    expect(pending.has('w_tool')).toBe(false);
+    expect(pending.size).toBe(2);
+  });
+
+  it('applyEvent widget.created drains side-effects AFTER the immer producer commits', async () => {
+    const { useSuggestionsUi } = await import('./suggestions-ui-slice');
+    useSuggestionsUi.getState().reset();
+
+    useBackendState.setState({
+      sessionId: 's_1',
+      snapshot: {
+        sessionId: 's_1', revision: 0, widgets: [], masksIndex: [],
+        operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+        imageContext: null,
+      } as never,
+      sseStatus: 'open',
+    });
+
+    useBackendState.getState().applyEvent({
+      revision: 1, kind: 'widget.created',
+      emitted_at: new Date().toISOString(),
+      payload: {
+        widget: {
+          id: 'w_auto', intent: '', scope: { kind: 'global' },
+          origin: { kind: 'mcp_autonomous', prompt: null },
+          composed: false, nodes: [], bindings: [],
+          preview: { kind: 'none', auto_before_after: false },
+          rejected_attempts: [], status: 'active', revision: 1,
+          createdAt: '2026-05-23T00:00:00Z',
+          updatedAt: '2026-05-23T00:00:00Z',
+        },
+        operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+      },
+    } as never);
+
+    // After applyEvent returns synchronously: BOTH the immer commit (widget
+    // pushed onto snapshot.widgets) AND the side-effects drain
+    // (useSuggestionsUi.markPending) must be visible. This pins the
+    // drain-after-set ordering of the side-effects queue.
+    const bs = useBackendState.getState();
+    const ui = useSuggestionsUi.getState();
+    expect(bs.snapshot?.widgets.find((w) => w.id === 'w_auto')).toBeDefined();
+    expect(ui.pendingSuggestionIds.has('w_auto')).toBe(true);
+  });
+
+  it('reset clears the cross-store useSuggestionsUi state too', async () => {
+    const { useSuggestionsUi } = await import('./suggestions-ui-slice');
+    useSuggestionsUi.getState().reset();
+    useSuggestionsUi.getState().addAcceptedSuggestion('w_accepted');
+    useSuggestionsUi.getState().markPending(['w_pending']);
+    useSuggestionsUi.getState().setPreview('w_preview', true);
+
+    useBackendState.getState().reset();
+
+    const ui = useSuggestionsUi.getState();
+    expect(ui.acceptedSuggestions.size).toBe(0);
+    expect(ui.pendingSuggestionIds.size).toBe(0);
+    expect(ui.previewingSuggestionIds.size).toBe(0);
+  });
+
+  it('state.gap async refetch is dropped when sessionId changed mid-fetch', async () => {
+    const { fetchSnapshot } = await import('@/lib/sse-subscriber');
+    const fetchMock = vi.mocked(fetchSnapshot);
+    fetchMock.mockResolvedValueOnce({
+      sessionId: 's_old', revision: 5, widgets: [], masksIndex: [],
+      operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+      imageContext: null,
+    } as never);
+
+    useBackendState.setState({
+      sessionId: 's_old',
+      snapshot: {
+        sessionId: 's_old', revision: 1, widgets: [], masksIndex: [],
+        operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+        imageContext: null,
+      } as never,
+      sseStatus: 'open',
+    });
+
+    useBackendState.getState().applyEvent({
+      revision: 2, kind: 'state.gap',
+      emitted_at: new Date().toISOString(), payload: {},
+    } as never);
+
+    // Simulate the user opening a new image AFTER the gap event but BEFORE
+    // the async refetch resolves.
+    useBackendState.getState().setSessionId('s_new');
+
+    // Let the async refetch microtask + macrotask run.
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Spy on setSnapshot to assert the late refetch is dropped without
+    // relying on a coincidental revision check. The refetch should have
+    // called fetchSnapshot but NOT applied the result via setSnapshot.
+    expect(useBackendState.getState().sessionId).toBe('s_new');
+    expect(fetchMock).toHaveBeenCalled();
+    expect(useBackendState.getState().snapshot?.revision).toBe(1);
   });
 });
 
@@ -347,6 +492,52 @@ describe('BackendStateSlice phase events', () => {
     useBackendState.getState().applyEvent(started('update', 1, 7));
     expect(useBackendState.getState().mcpAnalyzeComplete).toBe(false);
     expect(useBackendState.getState().phases!.widget_mint.status).toBe('pending');
+  });
+
+  it('phase.cancelled sets mcpAnalyzeCancelled and clears the cancelling flag', () => {
+    useBackendState.getState().applyEvent(started('update', 1, 1));
+    useBackendState.getState().setCancelling(true);
+    useBackendState.getState().applyEvent({
+      revision: 2, kind: 'phase.cancelled', payload: {}, emitted_at: 'x',
+    } as StateEvent);
+    expect(useBackendState.getState().mcpAnalyzeCancelled).toBe(true);
+    expect(useBackendState.getState().cancelling).toBe(false);
+  });
+
+  it('mcp.usage accumulates input/output tokens across calls', () => {
+    useBackendState.getState().applyEvent(started('update', 1, 1));
+    useBackendState.getState().applyEvent({
+      revision: 2, kind: 'mcp.usage',
+      payload: { call: 'analyze', input_tokens: 100, output_tokens: 20, cache_create: 80, cache_read: 0 },
+      emitted_at: 'x',
+    } as StateEvent);
+    useBackendState.getState().applyEvent({
+      revision: 3, kind: 'mcp.usage',
+      payload: { call: 'panel', input_tokens: 50, output_tokens: 10, cache_create: 0, cache_read: 80 },
+      emitted_at: 'x',
+    } as StateEvent);
+    const u = useBackendState.getState().usage!;
+    expect(u.inputTokens).toBe(150);
+    expect(u.outputTokens).toBe(30);
+    expect(u.cacheCreate).toBe(80);
+    expect(u.cacheRead).toBe(80);
+  });
+
+  it('a new run (phase.started index=1) resets usage and cancellation state', () => {
+    useBackendState.getState().applyEvent(started('update', 1, 1));
+    useBackendState.getState().applyEvent({
+      revision: 2, kind: 'mcp.usage',
+      payload: { call: 'analyze', input_tokens: 100, output_tokens: 20 },
+      emitted_at: 'x',
+    } as StateEvent);
+    useBackendState.getState().applyEvent({
+      revision: 3, kind: 'phase.cancelled', payload: {}, emitted_at: 'x',
+    } as StateEvent);
+    expect(useBackendState.getState().mcpAnalyzeCancelled).toBe(true);
+    // second analyze begins
+    useBackendState.getState().applyEvent(started('update', 1, 4));
+    expect(useBackendState.getState().mcpAnalyzeCancelled).toBe(false);
+    expect(useBackendState.getState().usage).toBeNull();
   });
 });
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback, useState } from 'react';
+import { useEffect, useMemo, useCallback, useState, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -6,7 +6,6 @@ import {
   useReactFlow,
   applyNodeChanges,
   type Node,
-  type Edge,
   type NodeChange,
   type Connection,
 } from '@xyflow/react';
@@ -16,6 +15,8 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 import { editorDocument } from '@/core/document';
 import { ImageNode, type ImageNodeData } from './ImageNode';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import type { NodeProps } from '@xyflow/react';
 import { WidgetNode, type WidgetNodeData } from './WidgetNode';
 import { TetherEdge, type TetherEdgeType } from './TetherEdge';
 import { pickTetherHandles } from './tether-handles';
@@ -23,7 +24,20 @@ import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
 import { InfoNode, type InfoNodeData } from './InfoNode';
 import type { Widget } from '@/types/widget';
 
-const nodeTypes = { image: ImageNode, widget: WidgetNode, info: InfoNode };
+/** Per-node ErrorBoundary so a render throw in one ImageNode doesn't
+ *  unmount the whole React Flow canvas (and with it every sibling node).
+ *  Defined here rather than inside ImageNode itself because a function
+ *  component cannot catch its own render throws — the boundary has to be
+ *  a parent. */
+function ImageNodeWithBoundary(props: NodeProps) {
+  return (
+    <ErrorBoundary label={`image-node:${props.id}`}>
+      <ImageNode {...(props as unknown as Parameters<typeof ImageNode>[0])} />
+    </ErrorBoundary>
+  );
+}
+
+const nodeTypes = { image: ImageNodeWithBoundary, widget: WidgetNode, info: InfoNode };
 const edgeTypes = { tether: TetherEdge };
 
 /**
@@ -57,7 +71,7 @@ function WorkspaceKeyHandler() {
           if (sessionId) {
             // Backend will SSE the deletion back to us. Undoing a backend
             // widget deletion needs backend cooperation and is deferred.
-            void backendTools.delete_widget(sessionId, { widget_id: node.id, suppress_similar: false });
+            void backendTools.delete_widget(sessionId, { widgetId: node.id, suppressSimilar: false });
           }
         }
       }
@@ -130,31 +144,43 @@ export function CanvasWorkspace() {
   }, [imageNodes, layers, documentMeta, addImageNode]);
 
   // Whenever there's at least one image node but none is active, promote the
-  // first to active. This fires for ALL paths an image can arrive through —
-  // freshly auto-created, restored from a saved session, opened via Cmd+O —
-  // not just the auto-create case. The Info tab's live mechanical hook, the
-  // sidebar's Auto buttons, and Cmd+K all gate on `activeImageNodeId`, so a
-  // missing active id is what was leaving the Auto pill perma-disabled.
+  // first to active. This fires ONCE on the first arrival of image-nodes —
+  // freshly auto-created, restored from a saved session, opened via Cmd+O.
+  // It does NOT re-promote on subsequent renders, so an explicit deselect
+  // (clicking blank canvas) sticks and the right sidebar can unmount.
+  const hasAutoPromoted = useRef(false);
   useEffect(() => {
-    if (activeImageNodeId) return;
+    if (hasAutoPromoted.current) return;
+    if (activeImageNodeId) { hasAutoPromoted.current = true; return; }
     const ids = Object.keys(imageNodes);
-    if (ids.length > 0) setActiveImageNode(ids[0]);
+    if (ids.length > 0) {
+      setActiveImageNode(ids[0]);
+      hasAutoPromoted.current = true;
+    }
   }, [imageNodes, activeImageNodeId, setActiveImageNode]);
 
   const storeNodes = useMemo<WorkspaceNode[]>(() => {
-    const imgs: ImageNodeType[] = Object.values(imageNodes).map((n) => ({
-      id: n.id,
-      type: 'image',
-      position: n.position,
-      // Only the header strip drags the node; the canvas body and footer ignore drag.
-      dragHandle: '.workspace-drag-handle',
-      data: {
-        layerIds: n.layerIds,
-        size: n.size,
-        sourceSize: n.sourceSize,
-        name: n.layerIds[0] ?? 'Image',
-      },
-    }));
+    const imgs: ImageNodeType[] = Object.values(imageNodes).map((n) => {
+      // Header title: prefer the first layer's human-readable name (set to
+      // file.name by openImage / addImage). Falls back to the layer id only
+      // if the layer record is missing — which shouldn't happen in practice
+      // but keeps the header populated for resurrected sessions before the
+      // layer-slice rehydrates.
+      const firstLayer = n.layerIds[0] ? layers.find((l) => l.id === n.layerIds[0]) : undefined;
+      return {
+        id: n.id,
+        type: 'image',
+        position: n.position,
+        // Only the header strip drags the node; the canvas body and footer ignore drag.
+        dragHandle: '.workspace-drag-handle',
+        data: {
+          layerIds: n.layerIds,
+          size: n.size,
+          sourceSize: n.sourceSize,
+          name: n.name ?? firstLayer?.name ?? n.layerIds[0] ?? 'Image',
+        },
+      };
+    });
     // Render only widgets that have been tethered. Untethered widgets (e.g.
     // unengaged AI suggestions or Cmd+K palette widgets) live in the
     // Suggestions panel until the user engages them; rendering them at the
@@ -180,7 +206,7 @@ export function CanvasWorkspace() {
       data: { infoNodeId: n.id },
     }));
     return [...imgs, ...widgets, ...infos];
-  }, [imageNodes, widgetNodes, snapshotWidgets, infoNodes]);
+  }, [imageNodes, widgetNodes, snapshotWidgets, infoNodes, layers]);
 
   // Local RF state mirrors the store. React Flow needs to own positions during
   // drag (via onNodesChange) so the visual position follows the cursor without
@@ -195,8 +221,7 @@ export function CanvasWorkspace() {
   }, []);
 
   // Edges are auto-derived from active widgets. Each widget gets one edge to
-  // the image node it belongs to: image_node-scoped widgets target their
-  // `scope.image_node_id`; otherwise we resolve via `nodes[0].layer_id` and
+  // the image node it belongs to: resolve via the first node's layerId and
   // fall back to the active image node.
   const edges = useMemo<TetherEdgeType[]>(() => {
     const out: TetherEdgeType[] = [];
@@ -233,19 +258,10 @@ export function CanvasWorkspace() {
       if (!rfWidget) continue;
 
       let targetId: string | null = null;
-      let scopeKind: 'layer' | 'node' = 'layer';
-      if (w.scope.kind === 'image_node') {
-        if (imageNodes[w.scope.image_node_id]) {
-          targetId = w.scope.image_node_id;
-          scopeKind = 'node';
-        }
-      }
-      if (!targetId) {
-        const layerId = w.nodes[0]?.layer_id;
-        if (layerId) {
-          for (const n of Object.values(imageNodes)) {
-            if (n.layerIds.includes(layerId)) { targetId = n.id; break; }
-          }
+      const layerId = w.nodes[0]?.layerId;
+      if (layerId) {
+        for (const n of Object.values(imageNodes)) {
+          if (n.layerIds.includes(layerId)) { targetId = n.id; break; }
         }
       }
       if (!targetId && activeImageNodeId && imageNodes[activeImageNodeId]) {
@@ -281,7 +297,7 @@ export function CanvasWorkspace() {
         sourceHandle,
         targetHandle,
         type: 'tether',
-        data: { scopeKind },
+        data: { scopeKind: 'layer' as const },
         selectable: false,
       });
     }
@@ -322,24 +338,64 @@ export function CanvasWorkspace() {
     return out;
   }, [snapshotWidgets, imageNodes, widgetNodes, infoNodes, activeImageNodeId, nodes]);
 
+  // Persist every node in `draggedNodes` back to the store. React Flow fires
+  // drag-stop with the full array of nodes that moved — for a single drag it's
+  // the one node; for a multi-select drag (click-and-drag a selected node, or
+  // rubber-band selection drag) it's every node in the selection. Without the
+  // loop only the primary node would persist and the others would snap back on
+  // the next store→local-state sync.
+  const persistDraggedPositions = useCallback((draggedNodes: Node[]) => {
+    for (const n of draggedNodes) {
+      if (n.type === 'image') editorDocument.workspace.setNodePosition(n.id, n.position);
+      else if (n.type === 'widget') editorDocument.workspace.setWidgetPosition(n.id, n.position);
+      else if (n.type === 'info')   editorDocument.workspace.setInfoNodePosition(n.id, n.position);
+    }
+  }, []);
+
   const onNodeDragStop = useCallback(
-    (_: unknown, node: Node) => {
-      // Drag-stop fires once per drag (not per frame), so a single history
-      // entry per drag is what we want.
-      if (node.type === 'image') editorDocument.workspace.setNodePosition(node.id, node.position);
-      else if (node.type === 'widget') editorDocument.workspace.setWidgetPosition(node.id, node.position);
-      else if (node.type === 'info')   editorDocument.workspace.setInfoNodePosition(node.id, node.position);
+    (_: unknown, _node: Node, draggedNodes: Node[]) => {
+      persistDraggedPositions(draggedNodes);
     },
-    [],
+    [persistDraggedPositions],
   );
 
-  // Workspace tracks "the currently active image node" derived from React Flow's
-  // selection event. If exactly one image node is selected, mirror it; otherwise clear.
-  const onSelectionChange = useCallback(
-    ({ nodes }: { nodes: Node[]; edges: Edge[] }) => {
-      const imageSel = nodes.filter((n) => n.type === 'image');
-      setActiveImageNode(imageSel.length === 1 ? imageSel[0].id : null);
+  const onSelectionDragStop = useCallback(
+    (_: unknown, draggedNodes: Node[]) => {
+      persistDraggedPositions(draggedNodes);
     },
+    [persistDraggedPositions],
+  );
+
+  // Active image-node is set by EXPLICIT clicks only: click an image to focus,
+  // click the pane (empty canvas) to clear. Drag-to-move does not change focus
+  // (React Flow's selection state used to drive this and would activate on
+  // drag-start, fighting the user). Clicks outside the React Flow surface
+  // — e.g. inside the right sidebar — don't fire either handler and so leave
+  // the focus untouched, which is what keeps the sidebar mounted while the
+  // user is editing layer properties.
+  const onNodeClick = useCallback(
+    (_: unknown, node: Node) => {
+      if (node.type !== 'image') return;
+      setActiveImageNode(node.id);
+      // Sync activeLayerId to the clicked image-node's first photo layer so
+      // the Adjustments tab targets this image's widgets (it filters via
+      // useLayerWidgets(activeLayerId)). Without this, clicking a different
+      // image leaves activeLayerId stale and slider writes hit the prior
+      // image's widgets. Falls back to the first layerId of any kind if no
+      // image layer exists.
+      const state = useEditorStore.getState();
+      const imageNode = state.imageNodes[node.id];
+      if (!imageNode) return;
+      const photoLayer =
+        imageNode.layerIds.find(
+          (lid) => state.layers.find((l) => l.id === lid)?.type === 'image',
+        ) ?? imageNode.layerIds[0];
+      if (photoLayer) state.setActiveLayer(photoLayer);
+    },
+    [setActiveImageNode],
+  );
+  const onPaneClick = useCallback(
+    () => setActiveImageNode(null),
     [setActiveImageNode],
   );
 
@@ -356,7 +412,9 @@ export function CanvasWorkspace() {
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onNodeDragStop={onNodeDragStop}
-        onSelectionChange={onSelectionChange}
+        onSelectionDragStop={onSelectionDragStop}
+        onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick}
         onConnect={onConnect}
         proOptions={{ hideAttribution: true }}
         minZoom={0.05}

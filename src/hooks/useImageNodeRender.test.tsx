@@ -37,16 +37,16 @@ function widgetWithNode(opts: { id: string; nodeId: string; layerId?: string; ty
     origin: { kind: 'tool_invoked' },
     composed: true,
     nodes: [
-      { id: opts.nodeId, type: opts.type ?? 'basic', params: {}, scope: { kind: 'global' }, inputs: [], widget_id: opts.id, layer_id: opts.layerId },
+      { id: opts.nodeId, type: opts.type ?? 'basic', params: {}, scope: { kind: 'global' }, inputs: [], widgetId: opts.id, layerId: opts.layerId },
     ],
     bindings: [],
-    preview: { kind: 'none', auto_before_after: false },
-    rejected_attempts: [],
+    preview: { kind: 'none', autoBeforeAfter: false },
+    rejectedAttempts: [],
     status: 'active',
     revision: 1,
-    created_at: '',
-    updated_at: '',
-    locked_params: [],
+    createdAt: '',
+    updatedAt: '',
+    lockedParams: [],
   } as Widget;
 }
 
@@ -63,7 +63,7 @@ describe('useImageNodeRender · hiddenNodeIds derivation', () => {
   it('derives hiddenNodeIds as canon:<layer>:<type> when widget node has layer_id', () => {
     const w = widgetWithNode({ id: 'w1', nodeId: 'n_abc', layerId: 'L1', type: 'basic' });
     useBackendState.setState({
-      snapshot: { widgets: [w], operation_graph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, masks_index: [], revision: 1 } as never,
+      snapshot: { widgets: [w], operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, masksIndex: [], revision: 1 } as never,
     });
     useEditorStore.getState().toggleWidgetHidden('w1');
 
@@ -78,7 +78,7 @@ describe('useImageNodeRender · hiddenNodeIds derivation', () => {
   it('falls back to the widget-internal node id when layer_id is undefined', () => {
     const w = widgetWithNode({ id: 'w2', nodeId: 'n_xyz' });
     useBackendState.setState({
-      snapshot: { widgets: [w], operation_graph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, masks_index: [], revision: 1 } as never,
+      snapshot: { widgets: [w], operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, masksIndex: [], revision: 1 } as never,
     });
     useEditorStore.getState().toggleWidgetHidden('w2');
 
@@ -91,7 +91,7 @@ describe('useImageNodeRender · hiddenNodeIds derivation', () => {
   it('does not add any node ids for widgets that are NOT hidden', () => {
     const w = widgetWithNode({ id: 'w3', nodeId: 'n_def', layerId: 'L1', type: 'kelvin' });
     useBackendState.setState({
-      snapshot: { widgets: [w], operation_graph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, masks_index: [], revision: 1 } as never,
+      snapshot: { widgets: [w], operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, masksIndex: [], revision: 1 } as never,
     });
 
     render(<Consumer widgetId="w3" />);
@@ -102,7 +102,7 @@ describe('useImageNodeRender · hiddenNodeIds derivation', () => {
 
   it('also unions hiddenCanonNodeIds directly into the derived set', () => {
     useBackendState.setState({
-      snapshot: { widgets: [], operation_graph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, masks_index: [], revision: 1 } as never,
+      snapshot: { widgets: [], operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, masksIndex: [], revision: 1 } as never,
     });
     useEditorStore.getState().toggleCanonNodeHidden('canon:L9:hsl');
 

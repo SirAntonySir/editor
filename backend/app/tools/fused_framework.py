@@ -58,7 +58,7 @@ def _serialize_for_payload(value: Any) -> Any:
     """JSON-friendly dump of a context attribute. Pydantic models → model_dump,
     lists/tuples → recursive serialise, scalars pass through."""
     if isinstance(value, BaseModel):
-        return value.model_dump(mode="json")
+        return value.model_dump(mode="json", by_alias=True)
     if isinstance(value, (list, tuple)):
         return [_serialize_for_payload(v) for v in value]
     return value
@@ -87,10 +87,20 @@ class FusedToolTemplate(ABC):
         anthropic: Any,
     ) -> ResolvedNumbers:
         """Default resolver: numeric-values-only schema generated from
-        `param_envelope`, prompt payload assembled from `context_inputs` via
-        `getattr` (missing attributes degrade to None). Subclasses override only
-        when they need a non-numeric schema (e.g. curve points) or unusual
-        prompt shaping."""
+        `param_envelope`, prompt payload assembled from `context_inputs`.
+
+        `context_inputs` entries take two shapes:
+          - `"field"`  → flat attr on ctx; emitted as `summary[field] = ctx.field`.
+          - `"container.field"`  → entries of `ctx.container` (a list) sliced to
+            `{label, field, ...}` per entry. Multiple dotted keys sharing the
+            same container are grouped, so the LLM sees one list per container
+            with all the requested fields side-by-side.
+
+        Subclasses override only when they need a non-numeric schema (e.g.
+        curve points) or unusual prompt shaping that isn't expressible via
+        `context_inputs`. Adding a `_RESPONSE_SCHEMA` constant + an override
+        that just reformats `context_inputs` is a code smell — extend the
+        base resolver instead."""
         required_keys = list(self.param_envelope.keys())
         response_schema = {
             "type": "object",
@@ -106,13 +116,10 @@ class FusedToolTemplate(ABC):
                 "reasoning": {"type": "string"},
             },
         }
-        context_summary = {
-            k: _serialize_for_payload(getattr(ctx, k, None))
-            for k in self.context_inputs
-        }
+        context_summary = self._build_context_summary(ctx)
         prompt_payload = {
             "intent": intent,
-            "scope": scope.model_dump(mode="json"),
+            "scope": scope.model_dump(mode="json", by_alias=True),
             "context_summary": context_summary,
             "prior_widget_values": (
                 {b.param_key: b.value for b in prior_widget.bindings}
@@ -130,6 +137,39 @@ class FusedToolTemplate(ABC):
         except Exception as exc:
             raise ResolverError(str(exc)) from exc
         return ResolvedNumbers.model_validate(raw)
+
+    def _build_context_summary(self, ctx: EnrichedImageContext) -> dict[str, Any]:
+        """Assemble the `context_summary` dict from `self.context_inputs`.
+
+        Flat keys: `getattr(ctx, key, None)` → serialise.
+        Dotted keys `container.field`: group by container, look up
+        `ctx.<container>` as a list, emit one dict per entry containing
+        `label` (if present) plus each requested field."""
+        flat: list[str] = []
+        dotted: dict[str, list[str]] = {}  # container → [field, ...]
+        for entry in self.context_inputs:
+            if "." in entry:
+                container, _, field = entry.partition(".")
+                dotted.setdefault(container, []).append(field)
+            else:
+                flat.append(entry)
+
+        summary: dict[str, Any] = {}
+        for k in flat:
+            summary[k] = _serialize_for_payload(getattr(ctx, k, None))
+        for container, fields in dotted.items():
+            entries = getattr(ctx, container, None) or []
+            sliced = []
+            for entry in entries:
+                row: dict[str, Any] = {}
+                label = getattr(entry, "label", None)
+                if label is not None:
+                    row["label"] = label
+                for f in fields:
+                    row[f] = _serialize_for_payload(getattr(entry, f, None))
+                sliced.append(row)
+            summary[container] = sliced
+        return summary
 
 
 def _scope_is_skin_likely(scope: Scope, ctx: EnrichedImageContext | None) -> bool:

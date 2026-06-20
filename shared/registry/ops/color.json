@@ -6,7 +6,7 @@
   "llm": {
     "description": "Global color intensity — saturation and vibrance (vibrance is skin-protected). Hue rotates colors uniformly.",
     "typical_use": "Bumping vivid colors, desaturating for a faded look, shifting overall warmth.",
-    "semantic_tags": ["color", "saturation", "basic"]
+    "semantic_tags": ["color", "saturation", "basic", "vibrance", "vivid", "pop", "punch", "fade", "mute", "desaturate", "hue"]
   },
   "params": {
     "saturation": { "type": "scalar", "range": [-100, 100], "default": 0 },
@@ -14,9 +14,9 @@
     "hue":        { "type": "scalar", "range": [0, 360],    "default": 0, "unit": "deg" }
   },
   "bindings": [
-    { "param_key": "saturation", "control_type": "slider",    "label": "Saturation" },
-    { "param_key": "vibrance",   "control_type": "slider",    "label": "Vibrance" },
-    { "param_key": "hue",        "control_type": "hue_wheel", "label": "Hue" }
+    { "paramKey": "saturation", "controlType": "slider",    "label": "Saturation" },
+    { "paramKey": "vibrance",   "controlType": "slider",    "label": "Vibrance" },
+    { "paramKey": "hue",        "controlType": "hue_wheel", "label": "Hue" }
   ],
   "engine": { "shader": "basic", "render_order": 20, "node_type": "basic" },
   "tool_defaults": ["saturation", "vibrance"]

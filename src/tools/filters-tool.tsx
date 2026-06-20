@@ -8,10 +8,18 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { LutRegistry } from '@/lib/lut-registry';
+import { scopeFromSelection } from '@/lib/scope-from-selection';
 import {
   PRESET_LUTS,
   type LUTData,
 } from '@/lib/lut-parser';
+
+function activeNodeLayerIds(): string[] | undefined {
+  const editor = useEditorStore.getState();
+  const id = editor.activeImageNodeId;
+  if (!id) return undefined;
+  return editor.imageNodes[id]?.layerIds;
+}
 
 export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}) {
   const storeLayerId = useEditorStore((s) => s.activeLayerId);
@@ -74,15 +82,18 @@ export function FiltersPanel({ layerId: layerIdProp }: { layerId?: string } = {}
     const adjustmentId = crypto.randomUUID();
     LutRegistry.register(adjustmentId, lut.size, lut.data);
 
-    // Propose a filter widget — default scope to active selection, fallback Global.
-    // NOTE: filters/LUT remain on propose_widget; the 'filter' op_id is not yet
-    // modeled in the SSoT registry (it uses TOOL_DEFAULTS + LutRegistry instead).
-    const scope = useEditorStore.getState().activeScope ?? { kind: 'global' as const };
-    void backendTools.propose_widget(sid, {
+    // Propose a filter widget via proposeStack with forced_ops=['filter'].
+    // The 'filter' op_id is intentionally outside the SSoT registry —
+    // LUT presets live client-side in LutRegistry. proposeStack carves
+    // it out as a single-op forced spawn (see _handle_filter_spawn).
+    const scope = scopeFromSelection(useEditorStore.getState().activeObjectId);
+    const layerIds = activeNodeLayerIds();
+    void backendTools.proposeStack(sid, {
       intent: `Apply ${lut.title} filter`,
       scope,
-      op_id: 'filter',
-      layer_id: activeLayerId,
+      forced_ops: ['filter'],
+      layerId: activeLayerId,
+      ...(layerIds ? { layerIds } : {}),
       origin: 'tool_invoked',
     });
   }, [activeLayerId]);
@@ -120,6 +131,6 @@ export const FiltersTool: ToolDefinition = {
   category: 'filter',
   processingId: 'filter',
   onActivate: () => {
-    // activeScope is already set by the canvas click/cycle; nothing extra needed.
+    // activeObjectId is already set by the canvas click/cycle; nothing extra needed.
   },
 };

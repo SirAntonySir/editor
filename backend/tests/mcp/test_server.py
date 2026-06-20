@@ -42,7 +42,7 @@ async def test_tools_list_returns_registered_tools() -> None:
         )
         names = {t["name"] for t in r.json()["result"]["tools"]}
         assert "get_image_context" in names
-        assert "propose_widget" in names
+        assert "propose_stack" in names
         # set_widget_param must be REST-only.
         assert "set_widget_param" not in names
 

@@ -22,7 +22,7 @@ export function CropTab() {
 
   const snapshotCropX = useBackendState((s) => {
     if (!activeImageNodeId) return null;
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${activeImageNodeId}:crop`,
     );
     if (!node) return null;
@@ -31,7 +31,7 @@ export function CropTab() {
   });
   const snapshotCropY = useBackendState((s) => {
     if (!activeImageNodeId) return null;
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${activeImageNodeId}:crop`,
     );
     if (!node) return null;
@@ -40,7 +40,7 @@ export function CropTab() {
   });
   const snapshotCropW = useBackendState((s) => {
     if (!activeImageNodeId) return null;
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${activeImageNodeId}:crop`,
     );
     if (!node) return null;
@@ -49,7 +49,7 @@ export function CropTab() {
   });
   const snapshotCropH = useBackendState((s) => {
     if (!activeImageNodeId) return null;
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${activeImageNodeId}:crop`,
     );
     if (!node) return null;
@@ -62,7 +62,7 @@ export function CropTab() {
       : null;
   const snapshotAngle = useBackendState((s) => {
     if (!activeImageNodeId) return 0;
-    const node = s.snapshot?.operation_graph.nodes.find(
+    const node = s.snapshot?.operationGraph.nodes.find(
       (n) => n.id === `transform:${activeImageNodeId}:rotate`,
     );
     if (!node) return 0;
@@ -70,8 +70,12 @@ export function CropTab() {
   });
 
   const imageNode = activeImageNodeId ? imageNodes[activeImageNodeId] : undefined;
-  const sw = imageNode?.size.w ?? 0;
-  const sh = imageNode?.size.h ?? 0;
+  // Crop geometry is expressed in *source pixel* coordinates. After the
+  // figma-scaling split, `size` is the canvas-space display box (e.g. 600px
+  // wide for a 6000px photo) and `sourceSize` is the natural bitmap. Reading
+  // `size` here would clamp the crop rect to the display box.
+  const sw = imageNode?.sourceSize.w ?? 0;
+  const sh = imageNode?.sourceSize.h ?? 0;
 
   const initialCrop: CropRect = snapshotCrop ?? { x: 0, y: 0, w: sw, h: sh };
   const [crop, setCrop] = useState<CropRect>(initialCrop);
@@ -139,8 +143,8 @@ export function CropTab() {
     const startRev = useBackendState.getState().snapshot?.revision ?? 0;
 
     await backendTools.set_image_node_transform(sessionId, {
-      image_node_id: imageNode.id,
-      layer_ids: imageNode.layerIds,
+      imageNodeId: imageNode.id,
+      layerIds: imageNode.layerIds,
       crop,
       rotate: angle !== 0 ? { angle, flip_h: false, flip_v: false } : null,
     });

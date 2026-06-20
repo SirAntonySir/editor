@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from app.schemas._camel import camel_config
 from app.state.document import SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 
@@ -12,6 +13,7 @@ class _UnknownWidget(KeyError):
 
 
 class _Input(BaseModel):
+    model_config = camel_config(extra="forbid")
     widget_id: str
 
 
@@ -31,4 +33,4 @@ class GetWidgetTool(BackendTool[_Input, _Output]):
         w = doc.widgets.get(input.widget_id)
         if w is None:
             raise _UnknownWidget(input.widget_id)
-        return _Output(widget=w.model_dump(mode="json"))
+        return _Output(widget=w.model_dump(mode="json", by_alias=True))

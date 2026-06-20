@@ -6,7 +6,7 @@
   "llm": {
     "description": "Global color intensity — saturation and vibrance (vibrance is skin-protected). Hue rotates colors uniformly.",
     "typical_use": "Bumping vivid colors, desaturating for a faded look, shifting overall warmth.",
-    "semantic_tags": ["color", "saturation", "basic"]
+    "semantic_tags": ["color", "saturation", "basic", "vibrance", "vivid", "pop", "punch", "fade", "mute", "desaturate", "hue"]
   },
   "params": {
     "saturation": { "type": "scalar", "range": [-100, 100], "default": 0 },

@@ -6,7 +6,7 @@
   "llm": {
     "description": "Mid-tone local contrast. Positive sharpens texture; negative softens for hazy look.",
     "typical_use": "Adding punch, or negative-clarity dreamy soften.",
-    "semantic_tags": ["detail", "clarity", "contrast"]
+    "semantic_tags": ["detail", "clarity", "contrast", "punch", "definition", "micro-contrast", "crisp", "midtone", "dreamy", "soften", "haze", "texture"]
   },
   "params": { "amount": { "type": "scalar", "range": [-100, 100], "default": 0 } },
   "bindings": [{ "paramKey": "amount", "controlType": "slider", "label": "Amount" }],

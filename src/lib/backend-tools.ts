@@ -47,6 +47,18 @@ export interface RenameMaskOutput {
   label: string;
 }
 
+/** One pick returned by the palette typing-time matcher. `kind` discriminates
+ *  registry op vs preset; `id` is the registry id the palette executes. */
+export interface SmartMatchPick {
+  kind: 'op' | 'preset';
+  id: string;
+  reason: string;
+}
+
+export interface SmartMatchOutput {
+  picks: SmartMatchPick[];
+}
+
 const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
 export interface ToolEnvelope<T> {
@@ -64,11 +76,13 @@ async function invokeTool<T>(
   name: string,
   sessionId: string,
   input: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<ToolEnvelope<T>> {
   const response = await fetch(`${BASE_URL}/api/tools/${name}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId, input }),
+    signal,
   });
   // 429 = backend rate limiter tripped (e.g. drag flooding set_widget_param).
   // Return a soft-fail envelope instead of throwing so fire-and-forget
@@ -188,6 +202,20 @@ export const backendTools = {
   },
   rename_mask(sessionId: string, input: RenameMaskInput) {
     return invokeTool<RenameMaskOutput>('rename_mask', sessionId, input as unknown as Record<string, unknown>);
+  },
+  /** Palette typing-time matcher — returns 0..3 op/preset ids ranked by
+   *  fit to BOTH the typed query and the current image's context. Fast
+   *  tier (Haiku 4.5) and cache-friendly catalog/context blocks so a
+   *  debounced keystroke costs little. `signal` cancels the request when
+   *  a newer query supersedes it. */
+  smart_match_command(
+    sessionId: string,
+    input: { query: string },
+    signal?: AbortSignal,
+  ) {
+    return invokeTool<SmartMatchOutput>(
+      'smart_match_command', sessionId, input, signal,
+    );
   },
   /** Cancel the in-flight mutate/emit tool task for this session, if any.
    *  Hits the dedicated /session/{sid}/cancel endpoint (not /tools/) since

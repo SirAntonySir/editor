@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildAdjustmentSections,
+  buildPresetSections,
   buildToolCommands,
   filterCommands,
+  filterSections,
   fuzzyScore,
   imageNodeLabel,
   resolveInitialTargetId,
@@ -99,6 +102,61 @@ describe('resolveInitialTargetId', () => {
   });
   it('returns null when there are no nodes', () => {
     expect(resolveInitialTargetId([], null)).toBeNull();
+  });
+});
+
+describe('registry semantic_tags wire into palette aliases', () => {
+  // The op JSONs in shared/registry/ops/*.json carry user-language synonyms
+  // in `llm.semantic_tags` (e.g. kelvin → "warm", weather → "foggy"). The
+  // section builders surface them as `aliases` so the fuzzy scorer's
+  // synonym tier (×10 weight) finds the right op even when the user types
+  // a synonym that isn't in the display name or op id.
+  it('attaches semantic_tags to op palette commands as aliases', () => {
+    const sections = buildAdjustmentSections();
+    const allOps = sections.flatMap((s) => s.commands);
+    const kelvin = allOps.find((c) => c.opId === 'kelvin');
+    expect(kelvin).toBeTruthy();
+    expect(kelvin!.aliases).toEqual(expect.arrayContaining(['warm', 'cool', 'temperature']));
+  });
+
+  it('finds Kelvin when the user types "warm"', () => {
+    const sections = buildAdjustmentSections();
+    const { primary } = filterSections(sections, 'warm');
+    const hit = primary.flatMap((s) => s.commands).find((c) => c.opId === 'kelvin');
+    expect(hit).toBeTruthy();
+  });
+
+  it('finds Weather when the user types "foggy"', () => {
+    const sections = buildAdjustmentSections();
+    const { primary } = filterSections(sections, 'foggy');
+    const hit = primary.flatMap((s) => s.commands).find((c) => c.opId === 'weather');
+    expect(hit).toBeTruthy();
+  });
+
+  it('finds Time of Day when the user types "golden hour"', () => {
+    const sections = buildAdjustmentSections();
+    // The tag is "golden-hour" (one synonym token); prefix-on-tokenless
+    // match still hits via the substring score on the synonym.
+    const { primary } = filterSections(sections, 'golden');
+    const hit = primary.flatMap((s) => s.commands).find((c) => c.opId === 'time-of-day');
+    expect(hit).toBeTruthy();
+  });
+
+  it('finds Grain when the user types "analog"', () => {
+    const sections = buildAdjustmentSections();
+    const { primary } = filterSections(sections, 'analog');
+    const hit = primary.flatMap((s) => s.commands).find((c) => c.opId === 'grain');
+    expect(hit).toBeTruthy();
+  });
+
+  it('attaches semantic_tags to preset palette commands as aliases', () => {
+    // Same wiring on the preset side. We don't assert on a specific preset
+    // because the corpus turns over more often than ops do — just that the
+    // wiring works for at least one preset that ships with semantic_tags.
+    const sections = buildPresetSections();
+    const allPresets = sections.flatMap((s) => s.commands);
+    const withAliases = allPresets.filter((c) => c.aliases && c.aliases.length > 0);
+    expect(withAliases.length).toBeGreaterThan(0);
   });
 });
 

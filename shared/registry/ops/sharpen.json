@@ -6,7 +6,7 @@
   "llm": {
     "description": "Edge sharpening via local contrast enhancement.",
     "typical_use": "Crisp detail on focal subjects.",
-    "semantic_tags": ["detail", "sharpen"]
+    "semantic_tags": ["detail", "sharpen", "crisp", "edge", "focus", "sharpness", "definition", "pop"]
   },
   "params": { "amount": { "type": "scalar", "range": [0, 100], "default": 0 } },
   "bindings": [{ "paramKey": "amount", "controlType": "slider", "label": "Amount" }],

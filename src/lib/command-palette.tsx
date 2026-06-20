@@ -110,6 +110,11 @@ export function buildAdjustmentSections(): PaletteSection[] {
         description: op.llm.description,
         icon: _materialIcon(op.icon, 'tune'),
         opId: id,
+        // Surface the registry's `llm.semantic_tags` as fuzzy-search synonyms
+        // so user-language terms ("warm", "fade", "matte") that aren't in
+        // the display name or id still match. Lives in the synonym tier
+        // (×10 weight) alongside opId — see `_scoreCommand`.
+        aliases: op.llm.semantic_tags.length > 0 ? op.llm.semantic_tags : undefined,
       })),
     });
   }
@@ -141,6 +146,10 @@ export function buildPresetSections(): PaletteSection[] {
         description: preset.description,
         icon: _materialIcon(preset.icon, 'auto_awesome'),
         presetId: id,
+        // Same synonym wiring as ops — surface registry `semantic_tags` for
+        // user-language matches ("vintage", "punchy") that aren't in the
+        // display name or id.
+        aliases: preset.semantic_tags.length > 0 ? preset.semantic_tags : undefined,
       })),
     });
   }

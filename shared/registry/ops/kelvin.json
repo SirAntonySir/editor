@@ -6,7 +6,7 @@
   "llm": {
     "description": "Color temperature and tint — corrects or shifts overall warmth and green/magenta cast.",
     "typical_use": "Fix indoor light cast, warm up a cold image, neutralize a green tint.",
-    "semantic_tags": ["color", "white-balance", "kelvin", "temperature"]
+    "semantic_tags": ["color", "white-balance", "kelvin", "temperature", "wb", "warm", "warmer", "cool", "cooler", "tint", "cast", "blue", "orange", "magenta", "green"]
   },
   "params": {
     "kelvin": { "type": "scalar", "range": [2000, 10000], "default": 6500, "unit": "K", "step": 50 },

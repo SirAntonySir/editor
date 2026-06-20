@@ -6,6 +6,7 @@ import { backendTools } from '@/lib/backend-tools';
 import { useHistoryLog, type HistoryEntry } from '@/hooks/useHistoryLog';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { UI } from '@/config';
+import { track } from '@/lib/telemetry';
 
 function relativeTime(ts: number, now: number): string {
   const secs = Math.max(0, Math.floor((now - ts * 1000) / 1000));
@@ -63,12 +64,16 @@ export function HistoryDropdown() {
   const disabled = !log || log.entries.length === 0;
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (nextOpen) setOpenedAt(Date.now());
+    if (nextOpen) {
+      setOpenedAt(Date.now());
+      track('history.open', { entries: log?.entries.length ?? 0 });
+    }
     setOpen(nextOpen);
   };
 
   const onJump = (index: number) => {
     if (!sessionId) return;
+    track('history.jump', { index, cursor: log?.cursor ?? -1 });
     void backendTools.jumpHistory(sessionId, index);
     setOpen(false);
   };

@@ -6,7 +6,7 @@
   "llm": {
     "description": "Gaussian-like blur radius.",
     "typical_use": "Soft-focus, background blur, dreamy look.",
-    "semantic_tags": ["blur", "soft"]
+    "semantic_tags": ["blur", "soft", "dreamy", "bokeh", "defocus", "smooth", "haze", "out-of-focus"]
   },
   "params": { "radius": { "type": "scalar", "range": [0, 100], "default": 0 } },
   "bindings": [{ "paramKey": "radius", "controlType": "slider", "label": "Radius" }],

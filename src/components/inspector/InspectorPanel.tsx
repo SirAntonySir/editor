@@ -1,6 +1,7 @@
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import { usePreferencesStore, type InspectorTab } from '@/store/preferences-store';
 import { useEditorStore } from '@/store';
+import { track } from '@/lib/telemetry';
 import { AdjustmentsAccordion } from './adjustments/AdjustmentsAccordion';
 import { InfoTab } from './info/InfoTab';
 import { LayerTab } from './layer/LayerTab';
@@ -20,7 +21,11 @@ export function InspectorPanel() {
       <ToggleGroup.Root
         type="single"
         value={tab}
-        onValueChange={(v) => v && setTab(v as InspectorTab)}
+        onValueChange={(v) => {
+          if (!v) return;
+          if (v !== tab) track('inspector.tab', { from: tab, to: v });
+          setTab(v as InspectorTab);
+        }}
         className="flex-none flex border-b border-separator"
       >
         <TabButton value="adjustments" label="Adjustments" active={tab === 'adjustments'} />

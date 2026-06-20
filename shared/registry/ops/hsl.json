@@ -6,7 +6,7 @@
   "llm": {
     "description": "Per-color-band hue, saturation, and luminance. Bands: red, orange, yellow, green, aqua, blue, purple, magenta.",
     "typical_use": "Shifting skin tones, retoning skies, isolating a single color's hue/sat/lum.",
-    "semantic_tags": ["color", "hsl", "selective"]
+    "semantic_tags": ["color", "hsl", "selective", "hue", "saturation", "luminance", "skin", "sky", "shift", "channels", "bands", "retone"]
   },
   "params": {
     "red_hue":     { "type": "scalar", "range": [-100, 100], "default": 0 },

@@ -23,6 +23,17 @@ class RuntimeConfig(BaseModel):
     slider_debounce_ms: int = 300
     toast_dismiss_ms: int = 4000
     status_hold_ms: int = 3000
+    # Palette typing-time smart-match: wait this long after the last
+    # keystroke before firing the backend `smart_match_command` tool. 250 ms
+    # is roughly two beats slower than a comfortable typing rhythm, which
+    # avoids burning an LLM call per keypress without making the
+    # suggestion feel sluggish.
+    smart_match_debounce_ms: int = 250
+    # Don't fire smart-match for queries shorter than this. 4 chars is the
+    # threshold below which the deterministic synonym match nearly always
+    # has a good answer — and below which the LLM would waste tokens
+    # guessing what the user might type next.
+    smart_match_min_chars: int = 4
 
     # --- Session engine limits (P2/P3) ---
     history_max_entries: int = 100

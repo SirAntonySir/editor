@@ -16,23 +16,51 @@ Validation of inbound image bytes is shared with the MCP path via
 must enforce the same MIME + size guards.
 """
 
+import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 
 from app.schemas.image_context import ImageContext
 from app.services import disk_session_io
+from app.services.event_journal import write_event
 from app.services.image_validation import ImageValidationError, validate_image_upload
 from app.services.session_store import SessionNotFound, SessionStore
 from app.state.document import DEFAULT_IMAGE_NODE_ID
 
 from .deps import get_session_store
 
+# Anonymous cohort cookie. Set on the first session create; lets the
+# admin cockpit group multiple sessions from the same browser as one
+# user without storing PII. The value is a random UUID — no link back
+# to a real identity.
+_COHORT_COOKIE = "editor_uid"
+_COHORT_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
+
+
+def _resolve_user_id(request: Request, response: Response) -> str:
+    """Return the existing cohort cookie or mint a fresh one. Sets the
+    cookie on `response` so the browser persists it."""
+    existing = request.cookies.get(_COHORT_COOKIE)
+    if existing:
+        return existing
+    new_uid = uuid.uuid4().hex
+    response.set_cookie(
+        _COHORT_COOKIE,
+        new_uid,
+        max_age=_COHORT_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return new_uid
+
 router = APIRouter()
 
 
 @router.post("/session")
 async def create_session(
+    request: Request,
+    response: Response,
     image: UploadFile = File(...),
     store: SessionStore = Depends(get_session_store),
 ) -> dict[str, str]:
@@ -42,6 +70,17 @@ async def create_session(
     except ImageValidationError as exc:
         raise HTTPException(status_code=exc.http_status, detail=str(exc)) from exc
     sid = store.create(image_bytes=validated.image_bytes, mime_type=validated.mime_type)
+    user_id = _resolve_user_id(request, response)
+    # Emit a synthetic session.created event so the cockpit can pin a
+    # session to its user, browser, and upload bytes-count without
+    # snooping inside the persistence layer.
+    write_event(sid, "session.created", {
+        "user_id": user_id,
+        "user_agent": request.headers.get("user-agent", ""),
+        "bytes": len(validated.image_bytes),
+        "mime_type": validated.mime_type,
+        "filename": image.filename or "",
+    })
     return {"session_id": sid}
 
 

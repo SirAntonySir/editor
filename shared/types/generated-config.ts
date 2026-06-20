@@ -12,6 +12,8 @@ export const RUNTIME = {
   sliderDebounceMs: 300,
   toastDismissMs: 4000,
   statusHoldMs: 3000,
+  smartMatchDebounceMs: 250,
+  smartMatchMinChars: 4,
   historyMaxEntries: 100,
   undoMaxEntries: 100,
   checkpointIntervalS: 5,

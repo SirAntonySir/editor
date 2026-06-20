@@ -6,7 +6,7 @@
   "llm": {
     "description": "1-D dial that re-lights the image across the day arc — dawn, noon, golden hour, blue hour, night. Compiles to coordinated white balance, exposure, contrast, saturation, and vignette.",
     "typical_use": "User says 'make it night', 'golden hour', 'dawn light', 'blue hour', 'sunset'.",
-    "semantic_tags": ["mood", "lighting", "atmosphere", "time"]
+    "semantic_tags": ["mood", "lighting", "atmosphere", "time", "tod", "golden-hour", "blue-hour", "dawn", "dusk", "sunset", "sunrise", "night", "noon", "midday", "morning", "evening", "twilight"]
   },
   "params": {
     "time_of_day.position":      { "type": "scalar", "range": [0, 1],         "default": 0.30, "step": 0.001 },

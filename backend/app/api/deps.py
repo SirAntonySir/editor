@@ -10,6 +10,7 @@ _session_store = SessionStore(ttl_seconds=_settings.session_ttl_seconds)
 _anthropic_client = AnthropicClient(
     api_key=_settings.anthropic_api_key,
     model=_settings.anthropic_model,
+    fast_model=_settings.anthropic_fast_model,
 )
 _sam_client: SamClient | None = None
 _sam_client_lock = threading.Lock()

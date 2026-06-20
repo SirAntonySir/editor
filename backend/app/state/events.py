@@ -56,6 +56,14 @@ class EventBus:
                 self._queues.pop(session_id, None)
 
     def publish(self, session_id: str, event: StateEvent) -> None:
+        # Mirror to the per-session event journal so the admin cockpit
+        # can replay the session offline. Imported lazily to avoid an
+        # import cycle with services → state → events. The journal call
+        # never raises (it logs-and-drops); putting it before the queue
+        # fanout guarantees the record exists even if every subscriber
+        # is overloaded.
+        from app.services.event_journal import write_event
+        write_event(session_id, event.kind, event.payload)
         with self._lock:
             queues = list(self._queues.get(session_id, []))
         for q in queues:

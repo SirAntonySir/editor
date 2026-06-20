@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api import router as api_router
+from .api.admin import router as admin_router
 from .api.deps import get_session_store
 from .config import get_app_config, get_settings
 from .mcp.server import router as mcp_router
@@ -55,6 +56,7 @@ async def lifespan(_app: FastAPI):
         interval's worth of edits — that's what the eager flush_now path
         is reserved for.
     """
+    from .services import process_stats
     from .session import revive
 
     store = get_session_store()
@@ -63,14 +65,19 @@ async def lifespan(_app: FastAPI):
     prune_task = asyncio.create_task(
         _session_prune_loop(store), name="session-pruner",
     )
+    stats_task = asyncio.create_task(
+        process_stats.stats_loop(store), name="process-stats",
+    )
     try:
         yield
     finally:
-        prune_task.cancel()
-        try:
-            await prune_task
-        except asyncio.CancelledError:
-            pass
+        for t in (prune_task, stats_task):
+            t.cancel()
+        for t in (prune_task, stats_task):
+            try:
+                await t
+            except asyncio.CancelledError:
+                pass
         await store.checkpointer.stop()
 
 
@@ -96,6 +103,9 @@ def create_app() -> FastAPI:
     )
     app.include_router(api_router)
     app.include_router(mcp_router)
+    # Admin cockpit — mounted at /admin, gated by a per-route loopback
+    # check (see api/admin.py). Do not tunnel /admin/* publicly.
+    app.include_router(admin_router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

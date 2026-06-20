@@ -6,7 +6,7 @@
   "llm": {
     "description": "1-D dial that ramps emotional tension from serene to aggressive. Coordinates contrast, clarity, shadow crush, vignette closure, and split-tone hue shift. Independent of color temperature.",
     "typical_use": "User says 'make it dramatic', 'serene', 'aggressive', 'calm', 'cinematic', 'intense', 'soft mood'.",
-    "semantic_tags": ["mood", "tension", "atmosphere", "cinematic"]
+    "semantic_tags": ["mood", "tension", "atmosphere", "cinematic", "dramatic", "serene", "calm", "aggressive", "intense", "dreamy", "moody", "somber", "energetic", "soft"]
   },
   "params": {
     "mood.position":             { "type": "scalar", "range": [0, 1],         "default": 0.33, "step": 0.001 },

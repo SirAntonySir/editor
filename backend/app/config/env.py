@@ -13,6 +13,11 @@ class EnvSettings(BaseSettings):
 
     anthropic_api_key: str
     anthropic_model: str = "claude-opus-4-7"
+    # Latency-tier model for typing-time calls (palette smart-match) where
+    # we trade a little quality for ~10x faster round-trip. Read by
+    # AnthropicClient.smart_match — every other call site stays on the
+    # primary `anthropic_model`.
+    anthropic_fast_model: str = "claude-haiku-4-5-20251001"
     host: str = "127.0.0.1"
     port: int = 8787
     # Empty by default so a fresh prod install doesn't accidentally accept

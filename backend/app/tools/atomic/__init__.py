@@ -25,6 +25,7 @@ from .delete_mask import DeleteMaskTool
 from .propose_mask import ProposeMaskTool
 from .rename_mask import RenameMaskTool
 from .set_image_node_transform import SetImageNodeTransformTool
+from .smart_match_command import SmartMatchCommandTool
 
 
 def register_all_atomic_tools(registry: BackendToolRegistry) -> None:
@@ -53,3 +54,4 @@ def register_all_atomic_tools(registry: BackendToolRegistry) -> None:
     registry.register(ProposeMaskTool())
     registry.register(DeleteMaskTool())
     registry.register(RenameMaskTool())
+    registry.register(SmartMatchCommandTool())

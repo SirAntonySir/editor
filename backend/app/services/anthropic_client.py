@@ -431,9 +431,13 @@ _FLESH_BINDING_TOOL = {
 class AnthropicClient:
     """Wrapper around the Anthropic SDK with structured tool use + prompt caching."""
 
-    def __init__(self, api_key: str, model: str) -> None:
+    def __init__(self, api_key: str, model: str, fast_model: str | None = None) -> None:
         self._client = Anthropic(api_key=api_key, timeout=ANTHROPIC_TIMEOUT_S)
         self._model = model
+        # Latency tier — used by smart_match (palette typing-time suggestions).
+        # Falls back to the primary model so call sites work in tests that
+        # construct the client with only `model=`.
+        self._fast_model = fast_model or model
 
     def _messages_create(self, **kwargs):
         """`self._messages_create` with transport-level retries.
@@ -461,7 +465,24 @@ class AnthropicClient:
             except APIStatusError as exc:
                 last_exc = exc
                 if exc.status_code is None or exc.status_code < 500:
-                    # 4xx — caller bug, no point retrying.
+                    # 4xx — caller bug, no point retrying. Log the response
+                    # body so the actual API rejection reason ("model not
+                    # found", "max_tokens too low", etc) is visible — the
+                    # bare exception just shows the status code.
+                    body = getattr(exc, "body", None)
+                    response = getattr(exc, "response", None)
+                    body_text = None
+                    if body is not None:
+                        body_text = str(body)
+                    elif response is not None:
+                        try:
+                            body_text = response.text
+                        except Exception:
+                            body_text = None
+                    logger.error(
+                        "Anthropic %s (4xx) model=%s: %s | body=%s",
+                        exc.status_code, kwargs.get("model"), exc, body_text,
+                    )
                     raise
                 logger.warning(
                     "Anthropic 5xx (attempt %d/3): %s", attempt + 1, exc,
@@ -791,6 +812,112 @@ class AnthropicClient:
                 return block.input.get("chosen_id")
         return None
 
+    # ------------------------------------------------------------------
+    # Palette typing-time smart-match
+    # ------------------------------------------------------------------
+    # Fired from the command palette while the user is typing. Runs on the
+    # latency tier (Haiku 4.5) so we can afford to invoke it on each
+    # debounced keystroke. The system prompt and the op/preset catalog are
+    # marked cache-ephemeral so every call after the first is mostly
+    # cache-hit — only the user's typed query and the (small) image-context
+    # block are fresh per call. Returns up to N picks as
+    # {"picks": [{"kind": "op"|"preset", "id": str, "reason": str}]}.
+
+    _SMART_MATCH_PROMPT = (
+        "You suggest editor commands from a typed query.\n"
+        "INPUT: a short user query (a goal, mood, or look) + the current image's "
+        "context (subjects, lighting, grade character) + a catalog of available "
+        "ops and presets.\n"
+        "OUTPUT: 0–N picks from the catalog, ranked. Each pick is an op or "
+        "preset id that fits BOTH the query AND the image.\n"
+        "Be aggressive about returning nothing when the deterministic palette "
+        "would already find a clear match — the frontend only calls you when "
+        "the literal-string search is sparse. Pick presets over ops when a "
+        "preset captures the intent end-to-end. Keep `reason` under 60 chars."
+    )
+
+    def smart_match(
+        self,
+        *,
+        query: str,
+        image_context: dict | None,
+        ops_catalog: list[dict],
+        presets_catalog: list[dict],
+        max_picks: int = 3,
+        session_id: str | None = None,
+    ) -> list[dict]:
+        """Palette typing-time matcher. Cheap call on the Haiku tier with
+        catalog + context as cache-hit blocks. Returns a list of
+        {kind, id, reason} dicts of length 0..max_picks."""
+        schema = {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["picks"],
+            "properties": {
+                "picks": {
+                    "type": "array",
+                    "minItems": 0,
+                    "maxItems": max_picks,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["kind", "id", "reason"],
+                        "properties": {
+                            "kind": {"type": "string", "enum": ["op", "preset"]},
+                            "id": {"type": "string"},
+                            "reason": {"type": "string", "maxLength": 60},
+                        },
+                    },
+                },
+            },
+        }
+        tool = {
+            "name": "emit_smart_match_picks",
+            "description": "Rank op/preset ids that fit the user's query AND the image.",
+            "input_schema": schema,
+        }
+        # Catalog + image_context are big and stable across queries within
+        # one session — they go into cached blocks. The query is the only
+        # fresh content.
+        catalog_text = (
+            "OPS:\n" + str(ops_catalog) + "\n\nPRESETS:\n" + str(presets_catalog)
+        )
+        context_text = (
+            "IMAGE CONTEXT:\n" + str(image_context) if image_context else "IMAGE CONTEXT: (none)"
+        )
+        response = self._messages_create(
+            model=self._fast_model,
+            max_tokens=MAX_TOKENS_SHORT,  # tight: 3 picks × ~30 tokens
+            system=[{"type": "text", "text": self._SMART_MATCH_PROMPT, "cache_control": {"type": "ephemeral"}}],
+            tools=[tool],
+            tool_choice={"type": "tool", "name": "emit_smart_match_picks"},
+            messages=[
+                {"role": "user", "content": [
+                    {"type": "text", "text": catalog_text, "cache_control": {"type": "ephemeral"}},
+                    {"type": "text", "text": context_text, "cache_control": {"type": "ephemeral"}},
+                    {"type": "text", "text": f"QUERY: {query}"},
+                ]},
+            ],
+        )
+        _log_cache_stats("smart_match", session_id, response)
+        for block in response.content:
+            if getattr(block, "type", None) == "tool_use" and block.name == "emit_smart_match_picks":
+                picks = block.input.get("picks") or []
+                # Defensive cast — Claude occasionally returns a single dict
+                # for a one-item array, or extra keys we can drop.
+                out: list[dict] = []
+                for p in picks:
+                    if not isinstance(p, dict):
+                        continue
+                    kind = p.get("kind")
+                    pid = p.get("id")
+                    reason = p.get("reason", "")
+                    if kind not in ("op", "preset") or not isinstance(pid, str) or not pid:
+                        continue
+                    out.append({"kind": kind, "id": pid, "reason": str(reason)[:60]})
+                return out[:max_picks]
+        return []
+
     def suggest_fused_tools_for_character(
         self,
         *,
@@ -1038,26 +1165,41 @@ a strong prior if provided. Do not include markdown fences."""
             }
             for k, p in op.params.items()
         }
-        user_text = (
+        # Per-op text — the only fresh content in this call. Kept compact.
+        per_op_text = (
             f"OP: {op.id} ({op.llm.description})\n"
             f"PARAM SCHEMA: {params_spec}\n"
             f"INTENT: {intent}\n"
             f"RATIONALE FROM PLANNER: {rationale}\n"
-            f"STARTING PARAMS (priors): {starting_params}\n"
-            f"IMAGE CONTEXT: {image_context}\n\n"
+            f"STARTING PARAMS (priors): {starting_params}\n\n"
             "Return JSON object with one key per param, values within the schema range."
         )
+        # When propose_stack resolves N ops in parallel for one user
+        # prompt, the system prompt and the image_context block are
+        # identical across every call. Send them as cache-ephemeral
+        # blocks so calls 2..N read the cache instead of paying the full
+        # ~k input tokens each time. The previous shape put
+        # "OP-TYPE: {op.id}" inside the system block which gave every
+        # call a different prefix and broke the cache entirely (telemetry
+        # showed cache_read=0 across 7 parallel resolvers for one prompt).
         response = self._messages_create(
             model=self._model,
             max_tokens=MAX_TOKENS_REFINE,
             system=[{
                 "type": "text",
-                "text": self._RESOLVE_SYSTEM_PROMPT + f"\n\nOP-TYPE: {op.id}",
+                "text": self._RESOLVE_SYSTEM_PROMPT,
                 "cache_control": {"type": "ephemeral"},
             }],
             messages=[{
                 "role": "user",
-                "content": [{"type": "text", "text": user_text}],
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"IMAGE CONTEXT: {image_context}",
+                        "cache_control": {"type": "ephemeral"},
+                    },
+                    {"type": "text", "text": per_op_text},
+                ],
             }],
         )
         _log_cache_stats(f"resolve_widget_params/{op.id}", session_id, response)

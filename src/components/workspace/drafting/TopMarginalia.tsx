@@ -2,6 +2,7 @@ import { Eye, MoreHorizontal } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { ReactNode } from 'react';
+import { track } from '@/lib/telemetry';
 
 interface TopMarginaliaProps {
   /** Image-node display name (file basename without extension). */
@@ -119,7 +120,11 @@ export function TopMarginalia({
             ref={compareBtnRef}
             type="button"
             aria-label="Show original (hold)"
-            onPointerDownCapture={(e) => { e.stopPropagation(); onCompareDown(); }}
+            onPointerDownCapture={(e) => {
+              e.stopPropagation();
+              track('compare.hold', { at: Date.now() });
+              onCompareDown();
+            }}
             onPointerUp={onCompareUp}
             onPointerLeave={onCompareUp}
             onPointerCancel={onCompareUp}

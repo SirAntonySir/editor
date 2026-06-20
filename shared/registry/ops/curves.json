@@ -6,7 +6,7 @@
   "llm": {
     "description": "Per-channel tone curves (rgb, red, green, blue), each a list of [x, y] points in 0–255 space. Use for fine-grained contrast and color shaping.",
     "typical_use": "Soft S-curve for contrast, lifted-blacks for fade, color shifts per channel.",
-    "semantic_tags": ["tone", "curves", "contrast", "color"]
+    "semantic_tags": ["tone", "curves", "contrast", "color", "s-curve", "fade", "lift", "crush", "channels", "rgb", "matte"]
   },
   "params": {
     "rgb":   { "type": "curve_points", "default": [[0, 0], [255, 255]], "min_points": 2, "max_points": 16 },

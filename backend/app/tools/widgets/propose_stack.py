@@ -337,6 +337,19 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
     async def handler(self, doc: SessionDocument, input: _Input) -> _Output:  # noqa: A002
         scope = Scope.model_validate(input.scope)
 
+        # Cockpit telemetry: capture the user's natural-language ask so the
+        # admin views can show "what did they actually type". `intent` is
+        # the canonical field; `prompt` is what the palette sent verbatim.
+        from app.services.event_journal import write_event
+        write_event(doc.session_id, "prompt.entered", {
+            "origin": input.origin,
+            "intent": input.intent,
+            "prompt": input.prompt,
+            "scope_kind": scope.root.kind,
+            "forced_ops": list(input.forced_ops) if input.forced_ops else None,
+            "preset_id": input.preset_id,
+        })
+
         # preset_id takes priority over both the toolrail fast-path and the LLM
         # path — it works with any origin including tool_invoked.
         if input.preset_id is not None:
@@ -362,7 +375,14 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
         anthropic = deps.get_anthropic_client()
         ctx = doc.get_image_context(DEFAULT_IMAGE_NODE_ID)
         assert ctx is not None  # guarded above
-        image_context = ctx.model_dump(mode="json", by_alias=True)
+        # Strip mask_png_base64, paths, and the 256-bin histograms before
+        # handing to Claude — see `image_context_for_llm` docstring.
+        # Without this, every plan + resolve call ships ~28 k tokens of
+        # binary mask data and pre-rendered chart bins (~96 % of the call).
+        from app.services.llm_context import image_context_for_llm
+        image_context = image_context_for_llm(
+            ctx.model_dump(mode="json", by_alias=True),
+        )
 
         plan_result = await asyncio.to_thread(
             anthropic.plan_widget_stack,

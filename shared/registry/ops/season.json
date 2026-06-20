@@ -6,7 +6,7 @@
   "llm": {
     "description": "1-D dial that shifts an image across the four seasons via kelvin, vibrance/saturation, per-band HSL (green/orange/blue), and split-tone. Spring/summer push greens and freshness; autumn pushes orange foliage; winter cools and desaturates.",
     "typical_use": "User says 'make it summer', 'autumn vibes', 'wintery', 'spring fresh', 'fall colors', 'seasonal shift'.",
-    "semantic_tags": ["mood", "season", "atmosphere", "color"]
+    "semantic_tags": ["mood", "season", "atmosphere", "color", "spring", "summer", "autumn", "fall", "winter", "snow", "foliage", "fresh", "wintery", "seasonal"]
   },
   "params": {
     "season.position":           { "type": "scalar", "range": [0, 1],         "default": 0.33, "step": 0.001 },

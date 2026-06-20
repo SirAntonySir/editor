@@ -10,6 +10,7 @@ import { useMenuActions } from '@/lib/menu-actions';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { analyseActiveImageLayer, useAiSession } from '@/hooks/useImageContext';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
+import { useSmartMatch } from '@/hooks/useSmartMatch';
 import type { Scope } from '@/types/widget';
 import {
   buildAdjustmentSections,
@@ -112,19 +113,76 @@ export function CommandPalette() {
     [query],
   );
 
+  // ─── Smart match (AI) ──────────────────────────────────────────────
+  // Typing-time LLM matcher that ranks op/preset ids by fit to both the
+  // query AND the current image. Fires only when the deterministic
+  // primary section is sparse — for unambiguous queries ("warm", "fade")
+  // the synonym match already nails it and no LLM call runs.
+  //
+  // Picks come back as {kind, id, reason}. We resolve each id against
+  // `allSections` to recover the matching `PaletteCommand` (icon, opId,
+  // presetId) so the existing `run()` path executes them with no special
+  // case.
+  const commandByRegistryId = useMemo<Map<string, PaletteCommand>>(() => {
+    const m = new Map<string, PaletteCommand>();
+    for (const s of allSections) {
+      for (const c of s.commands) {
+        if (c.kind === 'op' && c.opId) m.set(`op:${c.opId}`, c);
+        else if (c.kind === 'preset' && c.presetId) m.set(`preset:${c.presetId}`, c);
+      }
+    }
+    return m;
+  }, [allSections]);
+  const primaryCount = useMemo(
+    () => primarySections.reduce((n, s) => n + s.commands.length, 0),
+    [primarySections],
+  );
+  // Fire only when the deterministic primary section is sparse — under 3
+  // hits means the synonym match didn't fully cover the query, so the LLM
+  // has room to add value. Above 3, the deterministic side has the user
+  // covered and the AI call would just spend tokens to echo what's there.
+  const smartMatch = useSmartMatch(query, { enabled: primaryCount < 3 });
+  const smartSection = useMemo<PaletteSection | null>(() => {
+    if (smartMatch.picks.length === 0) return null;
+    // Map each pick to its canonical PaletteCommand and dedup against the
+    // primary section so the smart row never echoes a row already shown.
+    const primaryKeys = new Set<string>();
+    for (const s of primarySections) {
+      for (const c of s.commands) {
+        if (c.kind === 'op' && c.opId) primaryKeys.add(`op:${c.opId}`);
+        else if (c.kind === 'preset' && c.presetId) primaryKeys.add(`preset:${c.presetId}`);
+      }
+    }
+    const commands: PaletteCommand[] = [];
+    for (const pick of smartMatch.picks) {
+      const key = `${pick.kind}:${pick.id}`;
+      if (primaryKeys.has(key)) continue;
+      const base = commandByRegistryId.get(key);
+      if (!base) continue;
+      // Overlay the LLM's reason as the row's description so the user sees
+      // *why* the AI surfaced it ("fits warm-shadows mood") rather than
+      // the generic registry description.
+      commands.push({ ...base, description: pick.reason || base.description });
+    }
+    if (commands.length === 0) return null;
+    return { id: 'smart-match', title: 'Smart match · AI', commands };
+  }, [smartMatch.picks, primarySections, commandByRegistryId]);
+
   // Flat command list for arrow navigation. Order mirrors the rendered
-  // layout: primary rows → AI row → secondary (description-only) rows.
+  // layout: primary rows → smart-match rows → AI row → secondary rows.
   const flat = useMemo<PaletteCommand[]>(
     () => {
       const primaryFlat = flattenSections(primarySections);
+      const smartFlat = smartSection ? smartSection.commands : [];
       const secondaryFlat = flattenSections(secondarySections);
       return [
         ...primaryFlat,
+        ...smartFlat,
         ...(aiCommand ? [aiCommand] : []),
         ...secondaryFlat,
       ];
     },
-    [primarySections, secondarySections, aiCommand],
+    [primarySections, smartSection, secondarySections, aiCommand],
   );
 
   const nodeIds = useMemo(() => Object.keys(imageNodes), [imageNodes]);
@@ -335,12 +393,12 @@ export function CommandPalette() {
     }
     return map;
   }, [primarySections]);
-  const primaryCount = useMemo(
-    () => primarySections.reduce((n, s) => n + s.commands.length, 0),
-    [primarySections],
-  );
-  const aiStartIndex = aiCommand ? primaryCount : -1;
-  const secondaryBase = primaryCount + (aiCommand ? 1 : 0);
+  // Smart-match section sits between primary and the AI fallback row, so
+  // it pushes every later row's absolute index by `smartCount`.
+  const smartCount = smartSection ? smartSection.commands.length : 0;
+  const smartStartIndex = smartSection ? primaryCount : -1;
+  const aiStartIndex = aiCommand ? primaryCount + smartCount : -1;
+  const secondaryBase = primaryCount + smartCount + (aiCommand ? 1 : 0);
   const secondaryStartIndices = useMemo(() => {
     const map: number[] = [];
     let cursor = secondaryBase;
@@ -471,6 +529,26 @@ export function CommandPalette() {
                       })}
                     </div>
                   ))}
+                  {smartSection && (
+                    <div key={smartSection.id}>
+                      <SectionHeader
+                        title={smartSection.title}
+                        tone="ai"
+                        loading={smartMatch.loading}
+                      />
+                      {smartSection.commands.map((cmd, cIdx) => {
+                        const absIdx = smartStartIndex + cIdx;
+                        return (
+                          <CommandRow
+                            key={`smart:${cmd.id}`}
+                            command={cmd}
+                            active={absIdx === activeIndex}
+                            onSelect={() => run(cmd)}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
                   {aiCommand && (
                     <>
                       <SectionHeader title="Ask AI" tone="ai" />
@@ -582,7 +660,19 @@ function TargetChip({ label, onCycle }: { label: string; onCycle: () => void }) 
   );
 }
 
-function SectionHeader({ title, tone = 'default' }: { title: string; tone?: 'default' | 'ai' }) {
+function SectionHeader({
+  title,
+  tone = 'default',
+  loading = false,
+}: {
+  title: string;
+  tone?: 'default' | 'ai';
+  /** When true, render a tiny inline spinner after the title — used by the
+   *  Smart match section while its backend call is in flight. Keeps the
+   *  header presence stable so the surrounding layout doesn't jump on
+   *  every debounced fire. */
+  loading?: boolean;
+}) {
   const aiTone = tone === 'ai';
   return (
     <div
@@ -591,6 +681,7 @@ function SectionHeader({ title, tone = 'default' }: { title: string; tone?: 'def
     >
       {aiTone && <Sparkles size={9} className="ai-glow-pulse" />}
       <span>{title}</span>
+      {loading && <Loader2 size={9} className="animate-spin opacity-70" />}
     </div>
   );
 }

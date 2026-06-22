@@ -528,13 +528,12 @@ export function CommandPalette() {
                 }}
               >
                 <Dialog.Title className="sr-only">Command palette</Dialog.Title>
-                {/* Search row — context chips (if any) sit inline just before
-                    the input, in the same flex row, so they feel attached to
-                    the prompt. The row wraps when many chips are attached.
-                    The row gets the violet shimmer when an AI request is in
-                    flight so the user sees the panel itself is doing work. */}
+                {/* Chrome row — mode toggle, search icon, context chips, target.
+                    Sits ABOVE the input so the prompt has a clean line to itself.
+                    Wraps when many chips are attached. The whole row gets the
+                    violet shimmer while AI work is in flight. */}
                 <div
-                  className={`flex items-center gap-2 px-2 py-1.5 border-b border-separator flex-wrap${
+                  className={`flex items-center gap-1 px-2 py-1 border-b border-separator flex-wrap${
                     pending || ask.state.status === 'pending' ? ' ai-shimmer' : ''
                   }`}
                 >
@@ -546,6 +545,17 @@ export function CommandPalette() {
                       onRemove={(id) => setAttachedContext((prev) => prev.filter((c) => c.id !== id))}
                     />
                   )}
+                  <span className="flex-1" />
+                  {targetLabel && (
+                    <TargetChip
+                      label={targetLabel}
+                      thumbLayerId={targetNode?.layerIds[0]}
+                      onCycle={cycleTarget}
+                    />
+                  )}
+                </div>
+                {/* Prompt row — input on its own line, full width. */}
+                <div className="px-2 py-1.5 border-b border-separator">
                   <input
                     autoFocus
                     value={query}
@@ -562,15 +572,8 @@ export function CommandPalette() {
                           : 'Search tools or ask AI…'
                     }
                     disabled={mode === 'agent' && !!pending}
-                    className="flex-1 min-w-[120px] bg-transparent outline-none text-xs text-text-primary placeholder:text-text-secondary disabled:opacity-60"
+                    className="w-full bg-transparent outline-none text-xs text-text-primary placeholder:text-text-secondary disabled:opacity-60"
                   />
-                  {targetLabel && (
-                    <TargetChip
-                      label={targetLabel}
-                      thumbLayerId={targetNode?.layerIds[0]}
-                      onCycle={cycleTarget}
-                    />
-                  )}
                 </div>
 
                 {errorState && (
@@ -727,8 +730,8 @@ function InlineContextChips({
       {items.map((c) => (
         <div
           key={c.id}
-          className="inline-flex items-center gap-1 max-w-full text-[10px]
-            rounded-[3px] px-1.5 py-0.5
+          className="inline-flex items-center gap-0.5 max-w-full text-[10px]
+            rounded-[3px] px-1 py-px leading-tight
             bg-[color-mix(in_srgb,var(--color-ai)_15%,transparent)]
             text-[var(--color-ai)] border border-[color-mix(in_srgb,var(--color-ai)_30%,transparent)]"
           title={`${c.label}: ${c.value}`}
@@ -738,7 +741,7 @@ function InlineContextChips({
           <button
             type="button"
             onClick={() => onRemove(c.id)}
-            className="ml-0.5 text-text-secondary hover:text-text-primary"
+            className="ml-px text-text-secondary hover:text-text-primary"
             aria-label={`Detach ${c.label}`}
           >
             <XIcon size={9} />
@@ -763,8 +766,8 @@ function TargetChip({
       type="button"
       onClick={onCycle}
       title={`Change target (Tab) — currently "${label}"`}
-      className="flex-none flex items-center gap-1.5 max-w-[180px] text-[10px] text-text-secondary
-        bg-surface-secondary px-2 py-1 rounded hover:text-text-primary transition-colors"
+      className="flex-none flex items-center gap-1 max-w-[160px] text-[10px] text-text-secondary
+        bg-surface-secondary px-1.5 py-px rounded hover:text-text-primary transition-colors leading-tight"
     >
       <TargetThumb layerId={thumbLayerId} />
       <span className="truncate min-w-0">{label}</span>
@@ -922,7 +925,7 @@ function ModeToggle({
   onChange: (m: PaletteMode) => void;
 }) {
   return (
-    <div className="inline-flex flex-none items-center rounded-[4px] bg-surface-secondary p-0.5 text-[10px]">
+    <div className="inline-flex flex-none items-center rounded-[3px] bg-surface-secondary p-px text-[10px]">
       <ModeButton
         active={mode === 'agent'}
         onClick={() => onChange('agent')}
@@ -956,7 +959,7 @@ function ModeButton({
       onClick={onClick}
       title={title}
       aria-pressed={active}
-      className={`px-1.5 py-0.5 rounded-[3px] transition-colors ${
+      className={`px-1.5 py-px rounded-[3px] transition-colors leading-tight ${
         active
           ? 'bg-surface text-text-primary'
           : 'text-text-secondary hover:text-text-primary'

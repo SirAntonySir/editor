@@ -18,6 +18,11 @@ class EnvSettings(BaseSettings):
     # AnthropicClient.smart_match — every other call site stays on the
     # primary `anthropic_model`.
     anthropic_fast_model: str = "claude-haiku-4-5-20251001"
+    # Mid-tier model — read by the palette's Ask mode (`ask_about_image`).
+    # Sonnet sits between Haiku's speed and Opus's quality at ~3× Haiku
+    # cost. Q&A doesn't need Opus reasoning but benefits from Sonnet's
+    # better grounded-narrative output over Haiku.
+    anthropic_sonnet_model: str = "claude-sonnet-4-6"
     host: str = "127.0.0.1"
     port: int = 8787
     # Empty by default so a fresh prod install doesn't accidentally accept

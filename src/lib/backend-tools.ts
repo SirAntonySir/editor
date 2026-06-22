@@ -59,6 +59,18 @@ export interface SmartMatchOutput {
   picks: SmartMatchPick[];
 }
 
+/** One chip the user dropped onto Cmd+K (Info-tab pin). Mirrors the
+ *  backend `_AttachedChip` shape. */
+export interface AskAboutImageChip {
+  label: string;
+  value: string;
+  sourceId?: string;
+}
+
+export interface AskAboutImageOutput {
+  markdown: string;
+}
+
 const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
 
 export interface ToolEnvelope<T> {
@@ -215,6 +227,19 @@ export const backendTools = {
   ) {
     return invokeTool<SmartMatchOutput>(
       'smart_match_command', sessionId, input, signal,
+    );
+  },
+  /** Palette Ask-mode entry point — free-form Q&A about the open photo.
+   *  Returns a markdown string grounded in image_context + editor state +
+   *  attached chips. Sonnet tier (mid latency, mid cost). `signal`
+   *  cancels the request when the user fires a new query. */
+  ask_about_image(
+    sessionId: string,
+    input: { query: string; attachedChips?: AskAboutImageChip[] },
+    signal?: AbortSignal,
+  ) {
+    return invokeTool<AskAboutImageOutput>(
+      'ask_about_image', sessionId, input as unknown as Record<string, unknown>, signal,
     );
   },
   /** Cancel the in-flight mutate/emit tool task for this session, if any.

@@ -66,7 +66,10 @@ describe('buildRegionsSections', () => {
     expect(sections[0].commands[0].label).toBe('Subject');
   });
 
-  it('omits AI regions without a maskRef', () => {
+  it('still surfaces AI regions without a maskRef — they ride as context chips, no selection action', () => {
+    // The chip refactor (9bf3b1c) made Region clicks attach a context
+    // chip rather than fire a selection, so a missing maskRef no longer
+    // disqualifies a region — there's no selection to fail.
     useAiSession.setState({
       context: {
         ...EMPTY_CONTEXT,
@@ -74,7 +77,10 @@ describe('buildRegionsSections', () => {
       } as unknown as never,
     });
 
-    expect(buildRegionsSections()).toHaveLength(0);
+    const sections = buildRegionsSections();
+    expect(sections).toHaveLength(1);
+    expect(sections[0].commands[0].label).toBe('Horizon');
+    expect(sections[0].commands[0].kind).toBe('chip');
   });
 
   it('Object wins on duplicate label — only one entry per label', () => {
@@ -111,7 +117,11 @@ describe('buildRegionsSections', () => {
     expect(labels).toEqual(['Apple', 'Zebra']);
   });
 
-  it('Object onSelect calls setActiveObjectId', () => {
+  it('Object rows carry the object mask id as chipSourceId so the palette can attach a chip', () => {
+    // Region selection used to call setActiveObjectId; the chip refactor
+    // (9bf3b1c) moved that side effect out of buildRegionsSections — the
+    // command now just carries the data the palette needs to add a chip
+    // to its input strip. Assert the shape, not a store mutation.
     const maskId = maskStore.register({
       layerId: 'L1', label: 'Sky',
       width: 10, height: 10,
@@ -121,12 +131,12 @@ describe('buildRegionsSections', () => {
 
     const sections = buildRegionsSections();
     const cmd = sections[0].commands[0];
-    cmd.run?.();
-
-    expect(useEditorStore.getState().activeObjectId).toBe(maskId);
+    expect(cmd.kind).toBe('chip');
+    expect(cmd.chipValue).toBe('Sky');
+    expect(cmd.chipSourceId).toBe(`region:object:${maskId}`);
   });
 
-  it('AI region onSelect calls setActiveMask + commitMask', () => {
+  it('AI region rows carry the AI region label in chipSourceId', () => {
     useAiSession.setState({
       context: {
         ...EMPTY_CONTEXT,
@@ -136,10 +146,8 @@ describe('buildRegionsSections', () => {
 
     const sections = buildRegionsSections();
     const cmd = sections[0].commands[0];
-    cmd.run?.();
-
-    const state = useEditorStore.getState();
-    expect(state.committedMaskRef).toBe('ref-bg');
-    expect(state.activeObjectId).toBeNull();
+    expect(cmd.kind).toBe('chip');
+    expect(cmd.chipValue).toBe('Background');
+    expect(cmd.chipSourceId).toBe('region:ai:background');
   });
 });

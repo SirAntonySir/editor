@@ -431,13 +431,23 @@ _FLESH_BINDING_TOOL = {
 class AnthropicClient:
     """Wrapper around the Anthropic SDK with structured tool use + prompt caching."""
 
-    def __init__(self, api_key: str, model: str, fast_model: str | None = None) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        fast_model: str | None = None,
+        sonnet_model: str | None = None,
+    ) -> None:
         self._client = Anthropic(api_key=api_key, timeout=ANTHROPIC_TIMEOUT_S)
         self._model = model
         # Latency tier — used by smart_match (palette typing-time suggestions).
         # Falls back to the primary model so call sites work in tests that
         # construct the client with only `model=`.
         self._fast_model = fast_model or model
+        # Mid tier — used by ask_about_image (palette Ask mode). Sonnet's
+        # grounded narrative beats Haiku for free-form Q&A while sitting
+        # well under Opus pricing. Falls back to the primary model.
+        self._sonnet_model = sonnet_model or model
 
     def _messages_create(self, **kwargs):
         """`self._messages_create` with transport-level retries.
@@ -917,6 +927,69 @@ class AnthropicClient:
                     out.append({"kind": kind, "id": pid, "reason": str(reason)[:60]})
                 return out[:max_picks]
         return []
+
+    _ASK_SYSTEM_PROMPT = (
+        "You answer the user's question about the photo they are editing. "
+        "You see the image plus a structured context block: the image's "
+        "subjects, lighting, mood, regions, the user's current adjustment "
+        "stack, any active mask, and chips the user attached for emphasis. "
+        "Ground every claim in this context — never invent details the "
+        "context doesn't establish. When the question is ambiguous, say "
+        "what is ambiguous instead of guessing.\n\n"
+        "Answer in concise GitHub-flavored Markdown. Use short headings, "
+        "lists, and bold sparingly. Prefer four sentences over four "
+        "paragraphs; the panel is narrow. No preamble (no 'Sure!' / 'Here "
+        "is...'). No closing summary. No code fences unless the user asks "
+        "for code. No links unless the user asks for them."
+    )
+
+    def ask_about_image(
+        self,
+        *,
+        image_bytes: bytes,
+        mime_type: str,
+        query: str,
+        image_context: dict | None,
+        editor_state: dict | None,
+        attached_chips: list[dict] | None,
+        session_id: str | None = None,
+    ) -> str:
+        """Free-form Q&A about the photo — palette Ask mode entry point.
+
+        Returns a markdown string. Runs on the mid tier (Sonnet) — better
+        grounded narrative than Haiku, much cheaper than Opus. The image,
+        slim image_context, editor_state (current widgets + active mask),
+        and the system prompt are cache-ephemeral so repeated questions
+        in one session re-use most of the prefix.
+        """
+        ctx_text = (
+            "IMAGE CONTEXT:\n" + str(image_context) if image_context else "IMAGE CONTEXT: (none)"
+        )
+        editor_text = (
+            "EDITOR STATE:\n" + str(editor_state) if editor_state else "EDITOR STATE: (clean — no active adjustments)"
+        )
+        chips_text = (
+            "ATTACHED CHIPS:\n" + str(attached_chips) if attached_chips else "ATTACHED CHIPS: (none)"
+        )
+        response = self._messages_create(
+            model=self._sonnet_model,
+            max_tokens=MAX_TOKENS_REFINE,
+            system=[{"type": "text", "text": self._ASK_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
+            messages=[
+                {"role": "user", "content": [
+                    self._image_block(image_bytes, mime_type),
+                    {"type": "text", "text": ctx_text, "cache_control": {"type": "ephemeral"}},
+                    {"type": "text", "text": editor_text},
+                    {"type": "text", "text": chips_text},
+                    {"type": "text", "text": f"QUESTION: {query}"},
+                ]},
+            ],
+        )
+        _log_cache_stats("ask_about_image", session_id, response)
+        for block in response.content:
+            if getattr(block, "type", None) == "text":
+                return str(block.text or "").strip()
+        return ""
 
     def suggest_fused_tools_for_character(
         self,

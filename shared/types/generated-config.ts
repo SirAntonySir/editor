@@ -17,7 +17,7 @@ export const RUNTIME = {
   historyMaxEntries: 100,
   undoMaxEntries: 100,
   checkpointIntervalS: 5,
-  diskSessionMaxAgeS: 3600,
+  diskSessionMaxAgeS: 86400,
   diskPruneIntervalS: 600,
   historyCoalesceWindowMs: 2000,
   anthropicTimeoutS: 120.0,

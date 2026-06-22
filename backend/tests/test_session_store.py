@@ -1,8 +1,10 @@
 import asyncio
+import json
+import os
 import time
 import pytest
 
-from app.services.session_store import SessionStore, SessionNotFound
+from app.services.session_store import SessionStore, SessionNotFound, _last_activity_mtime
 
 
 def test_create_and_get() -> None:
@@ -205,3 +207,100 @@ def test_get_document_on_fresh_session_uses_per_node_bytes(tmp_path, monkeypatch
     assert doc.mime_type == "image/jpeg"  # neutral default — never touched
     assert doc.image_bytes_by_node[DEFAULT_IMAGE_NODE_ID] == b"PAYLOAD"
     assert doc.mime_type_by_node[DEFAULT_IMAGE_NODE_ID] == "image/png"
+
+
+def _mk_session_dir(root, sid: str, *, files: dict[str, bytes], mtime_offset: float = 0.0):
+    """Stand up a minimal on-disk session directory at root/sid and stamp
+    each file's mtime to `now - mtime_offset` seconds. Returns the path."""
+    d = root / sid
+    d.mkdir(parents=True, exist_ok=True)
+    now = time.time()
+    for name, payload in files.items():
+        p = d / name
+        p.write_bytes(payload)
+        os.utime(p, (now - mtime_offset, now - mtime_offset))
+    return d
+
+
+def test_prune_disk_uses_last_activity_not_creation(tmp_path, monkeypatch) -> None:
+    """A session whose meta.json says 'created 2h ago' but whose events.jsonl
+    was written 1 minute ago must survive a 1h pruner — the pruner keys off
+    last activity, not creation. Regression guard for the asymmetry that
+    used to wipe an active long-running session."""
+    from app.services import disk_session_io
+    monkeypatch.setattr("app.services.disk_session_io.SESSIONS_DIR", tmp_path)
+
+    # Old creation marker but a freshly-written events.jsonl.
+    d = _mk_session_dir(
+        tmp_path,
+        "active-session",
+        files={
+            "meta.json": json.dumps({"created_at": time.time() - 7200}).encode(),
+            "events.jsonl": b'{"kind":"state.replaced"}\n',
+        },
+    )
+    # Make meta.json look old (2h) while events.jsonl stays fresh.
+    old = time.time() - 7200
+    os.utime(d / "meta.json", (old, old))
+
+    store = SessionStore(ttl_seconds=60)
+    pruned = store.prune_disk(max_age_seconds=3600)
+    assert pruned == 0
+    assert d.exists()
+
+
+def test_prune_disk_deletes_truly_idle_session(tmp_path, monkeypatch) -> None:
+    """A session whose *all* mutating files are older than the cutoff is
+    deleted. Confirms the pruner still does its job for genuinely stale
+    state."""
+    from app.services import disk_session_io
+    monkeypatch.setattr("app.services.disk_session_io.SESSIONS_DIR", tmp_path)
+
+    d = _mk_session_dir(
+        tmp_path,
+        "idle-session",
+        files={
+            "meta.json": b"{}",
+            "events.jsonl": b'{"kind":"state.replaced"}\n',
+            "state.json": b"{}",
+        },
+        mtime_offset=7200,  # 2h ago across the board
+    )
+
+    store = SessionStore(ttl_seconds=60)
+    pruned = store.prune_disk(max_age_seconds=3600)
+    assert pruned == 1
+    assert not d.exists()
+
+
+def test_prune_disk_skips_incomplete_directory(tmp_path, monkeypatch) -> None:
+    """A session directory with none of the canonical mutating files is
+    treated as incomplete and skipped rather than deleted — caller might
+    be mid-write."""
+    from app.services import disk_session_io
+    monkeypatch.setattr("app.services.disk_session_io.SESSIONS_DIR", tmp_path)
+
+    d = tmp_path / "half-baked"
+    d.mkdir()
+    (d / "image.png").write_bytes(b"PNG")  # not in the candidate list
+
+    store = SessionStore(ttl_seconds=60)
+    pruned = store.prune_disk(max_age_seconds=3600)
+    assert pruned == 0
+    assert d.exists()
+
+
+def test_last_activity_mtime_returns_newest(tmp_path) -> None:
+    """_last_activity_mtime picks the newest mtime across the candidate
+    files; missing files don't disqualify the session."""
+    d = tmp_path / "sess"
+    d.mkdir()
+    now = time.time()
+    (d / "meta.json").write_bytes(b"{}")
+    os.utime(d / "meta.json", (now - 3600, now - 3600))
+    (d / "events.jsonl").write_bytes(b'{}\n')
+    os.utime(d / "events.jsonl", (now - 30, now - 30))
+    # state.json absent
+    mtime = _last_activity_mtime(d)
+    assert mtime is not None
+    assert abs(mtime - (now - 30)) < 2  # the newest wins

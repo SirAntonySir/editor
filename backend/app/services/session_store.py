@@ -23,6 +23,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from pathlib import Path
 from threading import Lock as ThreadLock
 from typing import Any, AsyncIterator
 
@@ -244,13 +245,22 @@ class SessionStore:
         return len(stale)
 
     def prune_disk(self, max_age_seconds: float) -> int:
-        """Delete on-disk session directories whose `created_at` is older than
-        `max_age_seconds` (compared against current wall-clock time). Returns
-        the number of sessions pruned. Caller decides when to invoke.
+        """Delete on-disk session directories whose *last activity* is older
+        than `max_age_seconds` (wall-clock). Returns the number of sessions
+        pruned. Caller decides when to invoke.
+
+        "Last activity" is the newest mtime among the session's mutating
+        files (`events.jsonl` — append on every state event; `state.json` —
+        the snapshot checkpoint). Falls back to `meta.json` (a proxy for
+        `created_at`) when neither exists. This mirrors `prune_memory`'s
+        last-touch semantic so the in-memory and on-disk TTLs agree: a
+        long-running session that's still being edited never gets its
+        files wiped out from under it.
 
         Does NOT touch in-memory records — those have their own TTL eviction
-        inside `get()`. Use this for periodic background cleanup of stale disk
-        state (e.g. after the user closes a project).
+        inside `get()` and via `prune_memory`. Use this for periodic
+        background cleanup of stale disk state (e.g. after the user closes
+        a project and walks away).
         """
         if not disk_session_io.SESSIONS_DIR.exists():
             return 0
@@ -259,14 +269,27 @@ class SessionStore:
         for entry in disk_session_io.SESSIONS_DIR.iterdir():
             if not entry.is_dir():
                 continue
-            meta = entry / "meta.json"
-            if not meta.exists():
+            last_activity = _last_activity_mtime(entry)
+            if last_activity is None:
                 continue
-            try:
-                created = float(json.loads(meta.read_text()).get("created_at", 0))
-            except (OSError, json.JSONDecodeError, TypeError, ValueError):
-                continue
-            if (now - created) > max_age_seconds:
+            if (now - last_activity) > max_age_seconds:
                 disk_session_io.delete_session(entry.name)
                 count += 1
         return count
+
+
+def _last_activity_mtime(session_dir: Path) -> float | None:
+    """Return the newest mtime among the session's mutating files, or None
+    if none of them exist (in which case the directory is treated as
+    incomplete and skipped by the pruner)."""
+    candidates = ("events.jsonl", "state.json", "meta.json")
+    newest: float | None = None
+    for name in candidates:
+        p = session_dir / name
+        try:
+            ts = p.stat().st_mtime
+        except OSError:
+            continue
+        if newest is None or ts > newest:
+            newest = ts
+    return newest

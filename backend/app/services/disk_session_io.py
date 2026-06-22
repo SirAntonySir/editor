@@ -28,11 +28,53 @@ class DiskRecord:
     context_json: dict[str, Any] | None
 
 
-SESSIONS_DIR = Path("backend/.sessions")
+# Anchor at the backend package root, NOT cwd. The launch scripts all
+# `cd backend && uvicorn …` (see `npm run dev:backend` / Makefile:admin),
+# so a relative `Path("backend/.sessions")` would resolve to
+# `<repo>/backend/backend/.sessions/` — doubly-nested, and worse, it
+# would silently move under us if some entrypoint launched from a
+# different cwd. parents[2] from `app/services/disk_session_io.py` is
+# `backend/`, regardless of how the process was launched.
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]
+SESSIONS_DIR = _BACKEND_ROOT / ".sessions"
 
 
 def _session_dir(sid: str) -> Path:
     return SESSIONS_DIR / sid
+
+
+def migrate_legacy_sessions_dir() -> int:
+    """Move any sessions found at the historical doubly-nested path
+    (`<backend/>backend/.sessions/`, the cwd-relative artefact of launching
+    uvicorn with `cd backend`) into the canonical SESSIONS_DIR. Returns the
+    number of session directories moved. Safe to call multiple times: it
+    no-ops when the legacy directory is empty or doesn't exist, and it
+    refuses to clobber an existing canonical session of the same id.
+
+    Called once at app startup so users who had data under the legacy
+    path don't lose it after the SESSIONS_DIR anchoring change."""
+    legacy = SESSIONS_DIR / "backend" / ".sessions"
+    try:
+        legacy_resolved = legacy.resolve()
+    except OSError:
+        return 0
+    if legacy_resolved == SESSIONS_DIR.resolve():
+        return 0  # same path on the filesystem — paranoid guard
+    if not legacy.exists() or not legacy.is_dir():
+        return 0
+    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    moved = 0
+    for entry in legacy.iterdir():
+        if not entry.is_dir():
+            continue
+        target = SESSIONS_DIR / entry.name
+        if target.exists():
+            # Don't clobber a canonical session — the user can resolve
+            # the duplicate by hand if they care.
+            continue
+        entry.rename(target)
+        moved += 1
+    return moved
 
 
 _EXT_FOR_MIME = {

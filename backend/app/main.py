@@ -56,8 +56,21 @@ async def lifespan(_app: FastAPI):
         interval's worth of edits — that's what the eager flush_now path
         is reserved for.
     """
-    from .services import process_stats
+    from .services import disk_session_io, process_stats
     from .session import revive
+
+    # One-shot: move any sessions found at the historical doubly-nested
+    # path (`<backend/>backend/.sessions/`, an artefact of relative paths
+    # + cd-into-backend launch scripts) into the canonical SESSIONS_DIR.
+    # No-ops once the migration has run.
+    migrated = disk_session_io.migrate_legacy_sessions_dir()
+    if migrated > 0:
+        import logging
+        logging.getLogger(__name__).warning(
+            "migrated %d session(s) from legacy doubly-nested path into %s; "
+            "the empty `backend/.sessions/` under the legacy parent can be removed by hand",
+            migrated, disk_session_io.SESSIONS_DIR,
+        )
 
     store = get_session_store()
     revive.revive_all(store)

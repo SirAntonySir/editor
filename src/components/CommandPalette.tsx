@@ -900,10 +900,16 @@ function CommandRow({
       type="button"
       onClick={disabled ? undefined : onSelect}
       disabled={disabled}
-      className={`flex w-full items-center gap-2.5 px-2 py-1 text-left transition-colors
+      className={`flex w-full items-center gap-2.5 px-2 py-1 text-left transition-colors border-l-2
         ${active && !disabled ? 'bg-surface-secondary' : 'hover:bg-surface-secondary'}
         ${disabled ? 'opacity-40 cursor-not-allowed' : ''}
-        ${isAi ? 'border-l-2 border-[var(--color-ai)]' : ''}`}
+        ${
+          active && !disabled
+            ? isAi
+              ? 'border-l-[var(--color-ai)]'
+              : 'border-l-[var(--color-accent)]'
+            : 'border-l-transparent'
+        }`}
     >
       <span
         className={`w-4 flex-none flex justify-center ${isAi ? 'text-[var(--color-ai)]' : 'text-text-secondary'}`}

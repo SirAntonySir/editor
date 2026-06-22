@@ -533,7 +533,14 @@ export function CommandPalette() {
                     surfaced the native browser scrollbar which read as a
                     light-grey track in dark mode. The flex-1/min-h-0 outer
                     box gives the Viewport an explicit height. */}
-                <ScrollArea className="flex-1 min-h-0" viewportClassName="py-1">
+                {/* Wrap the ScrollArea in a definite-height container so
+                    Radix's Viewport gets a real height to clip against.
+                    `flex-1 min-h-0` alone leaves the ScrollArea Root as
+                    auto-height inside Dialog.Content — Viewport then has
+                    no overflow to scroll, even though content is bigger.
+                    Same fix shape as HistoryDropdown. */}
+                <div className="flex-1 min-h-0 overflow-hidden">
+                <ScrollArea className="h-full" viewportClassName="py-1">
                   {primarySections.map((section, sIdx) => (
                     <div key={section.id}>
                       <SectionHeader title={section.title} />
@@ -600,6 +607,7 @@ export function CommandPalette() {
                     <div className="px-2 py-1.5 text-xs text-text-secondary">No matches.</div>
                   )}
                 </ScrollArea>
+                </div>
 
                 {/* Footer */}
                 <div className="flex items-center gap-3.5 px-2 py-1 border-t border-separator text-[10px] text-text-secondary">

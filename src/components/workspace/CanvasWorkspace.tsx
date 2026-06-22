@@ -4,6 +4,7 @@ import {
   Background,
   Controls,
   useReactFlow,
+  useNodesInitialized,
   applyNodeChanges,
   type Node,
   type NodeChange,
@@ -109,18 +110,25 @@ function WorkspaceKeyHandler() {
   return null;
 }
 
-/** Fit the viewport to the restored workspace on the first post-reload tick
- *  where nodes are actually present.
+/** Fit the viewport to the restored workspace on the first post-reload
+ *  tick where every rehydrated node has actually been measured by
+ *  ReactFlow.
  *
- *  ReactFlow's `fitView` prop only fires on first mount — and on a reload
- *  that first mount happens with `nodes = []` (the workspace state is still
- *  rehydrating from persistence + the SSE snapshot). By the time the
- *  imageNodes / widgetNodes / infoNodes maps have entries, ReactFlow has
- *  long since settled on its default 100% / centred-on-origin view, and
- *  the user can't see their image. We watch for the 0 → non-zero
- *  transition and fit then, exactly once per mount. */
+ *  ReactFlow's `fitView` prop only fires on first mount, and on a reload
+ *  that first mount runs with `nodes = []` (workspace state is still
+ *  rehydrating from persistence + the SSE snapshot). A plain rAF-after-
+ *  count > 0 was racy: the nodes were *in the array* but ReactFlow hadn't
+ *  yet measured their DOM, so the fit math used zero-width bboxes and
+ *  the viewport landed off-screen. `useNodesInitialized()` flips to true
+ *  once every mounted node has gone through the internal ResizeObserver —
+ *  that's the right signal.
+ *
+ *  Fires exactly once per CanvasWorkspace mount: once we've fit, we
+ *  ignore further node arrivals (a widget showing up later shouldn't
+ *  yank the user's pan/zoom). */
 function WorkspaceAutoFitOnReload() {
   const { fitView } = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
   const imageCount = useEditorStore((s) => Object.keys(s.imageNodes).length);
   const widgetCount = useEditorStore((s) => Object.keys(s.widgetNodes).length);
   const infoCount = useEditorStore((s) => Object.keys(s.infoNodes).length);
@@ -130,15 +138,17 @@ function WorkspaceAutoFitOnReload() {
   useEffect(() => {
     if (hasFit.current) return;
     if (total === 0) return;
-    // rAF defers until after ReactFlow has projected the freshly-arrived
-    // nodes through its internal store — without this the fit math reads
-    // a stale node-size set and the viewport lands off-centre.
+    if (!nodesInitialized) return;
+    // Defer one frame past the initialised signal so any in-flight layout
+    // adjustments (image-node header height, widget shell expansion) have
+    // landed in ReactFlow's internal store before the fit math reads node
+    // bboxes. fitView is async-safe; we don't await it.
     const handle = requestAnimationFrame(() => {
       fitView({ padding: 0.18, duration: 0 });
       hasFit.current = true;
     });
     return () => cancelAnimationFrame(handle);
-  }, [total, fitView]);
+  }, [total, nodesInitialized, fitView]);
 
   return null;
 }

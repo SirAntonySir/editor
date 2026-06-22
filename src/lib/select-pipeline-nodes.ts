@@ -45,18 +45,53 @@ export function toPipelineNode(node: Node): PipelineNode {
  * canon-id key the writer actually uses. The export path silently produced
  * the pre-edit pixels because no patches ever merged.
  */
+/** Parse a canonical optimistic key (`canon:<layerId>:<op>`) into its
+ *  components. Returns null for keys that don't match — those reference
+ *  widget nodes that already exist in the projection (the merge below
+ *  just overlays them via `optimistic.get(n.id)`). */
+function parseCanonKey(key: string): { layerId: string; op: string } | null {
+  if (!key.startsWith('canon:')) return null;
+  const rest = key.slice('canon:'.length);
+  const i = rest.indexOf(':');
+  if (i <= 0 || i === rest.length - 1) return null;
+  return { layerId: rest.slice(0, i), op: rest.slice(i + 1) };
+}
+
+const PHANTOM_NODE_SCOPE = { kind: 'global' } as const;
+
 export function mergeOptimistic(
   nodes: Node[],
   optimistic: Map<string, OptimisticPatch>,
 ): Node[] {
   if (optimistic.size === 0) return nodes;
-  return nodes.map((n) => {
+  const existingIds = new Set(nodes.map((n) => n.id));
+  const merged = nodes.map((n) => {
     const patch = optimistic.get(n.id);
     if (!patch) return n;
     const params = { ...n.params };
     for (const b of patch.bindings) params[b.paramKey] = b.value;
     return { ...n, params };
   });
+  // Phantom canonical nodes: the first inspector edit of a (layer, op) lands
+  // before the SSE roundtrip creates the canonical node. Without these, the
+  // optimistic patch would have no node to overlay and the live preview
+  // would be silent until the debounced backend write returns ~300 ms later.
+  for (const [key, patch] of optimistic) {
+    if (existingIds.has(key)) continue;
+    const canon = parseCanonKey(key);
+    if (!canon) continue;
+    const params: Record<string, unknown> = {};
+    for (const b of patch.bindings) params[b.paramKey] = b.value;
+    merged.push({
+      id: key,
+      type: canon.op,
+      scope: PHANTOM_NODE_SCOPE,
+      params: params as Node['params'],
+      inputs: [],
+      layerId: canon.layerId,
+    });
+  }
+  return merged;
 }
 
 /**

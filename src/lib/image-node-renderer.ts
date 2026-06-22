@@ -137,6 +137,42 @@ function withOptimistic(node: OperationNode, optimistic: Map<string, OptimisticP
   return { ...node, params };
 }
 
+const PHANTOM_NODE_SCOPE = { kind: 'global' } as const;
+
+/** Build phantom canonical nodes for `canon:<layer>:<op>` optimistic keys
+ *  that aren't yet projected in `opGraph.nodes`. Without these, the first
+ *  inspector edit of a (layer, op) — the one that creates canonical via the
+ *  debounced backend write — would have nothing for `withOptimistic` to
+ *  overlay, and the live preview would stay silent until the ~300 ms
+ *  roundtrip lands. */
+function phantomCanonicalNodes(
+  optimistic: Map<string, OptimisticPatch> | undefined,
+  existingIds: Set<string>,
+): OperationNode[] {
+  if (!optimistic || optimistic.size === 0) return [];
+  const out: OperationNode[] = [];
+  for (const [key, patch] of optimistic) {
+    if (existingIds.has(key)) continue;
+    if (!key.startsWith('canon:')) continue;
+    const rest = key.slice('canon:'.length);
+    const i = rest.indexOf(':');
+    if (i <= 0 || i === rest.length - 1) continue;
+    const layerId = rest.slice(0, i);
+    const op = rest.slice(i + 1);
+    const params: Record<string, unknown> = {};
+    for (const b of patch.bindings) params[b.paramKey] = b.value;
+    out.push({
+      id: key,
+      type: op,
+      scope: PHANTOM_NODE_SCOPE,
+      params: params as OperationNode['params'],
+      inputs: [],
+      layerId,
+    });
+  }
+  return out;
+}
+
 function readTransforms(
   opGraph: OperationGraph | undefined,
   imageNodeId: string,
@@ -183,7 +219,8 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   // merge into the compound node's params *before* expansion so live drags
   // on the dial flow through to the virtual nodes' params. Per-node
   // `withOptimistic` below still handles non-compound widget patches.
-  const compoundMerged = (opGraph?.nodes ?? []).map((n) => {
+  const projected = opGraph?.nodes ?? [];
+  const compoundMerged = projected.map((n) => {
     if (n.type !== 'compound') return n;
     const patch = optimistic?.get(n.id);
     if (!patch) return n;
@@ -191,6 +228,12 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
     for (const b of patch.bindings) params[b.paramKey] = b.value;
     return { ...n, params };
   });
+  // Synthesise phantom canonical nodes for in-flight optimistic patches
+  // whose backing canonical node hasn't been projected yet (first inspector
+  // edit of a layer/op — see helper docstring).
+  const projectedIds = new Set(projected.map((n) => n.id));
+  const phantoms = phantomCanonicalNodes(optimistic, projectedIds);
+  if (phantoms.length > 0) compoundMerged.push(...phantoms);
   // Splice in preview nodes (suggestion-chip eye toggle). Same-id collisions
   // are resolved by REPLACING the canonical node with the preview's copy, so
   // pending widgets whose canonical projection lags behind still light up the

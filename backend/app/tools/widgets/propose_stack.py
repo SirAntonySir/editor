@@ -180,6 +180,7 @@ def _build_widget_multi(
     origin: WidgetOrigin,
     layer_id: str,
     image_node_layer_ids: list[str] | None,
+    doc: "SessionDocument | None" = None,
 ) -> Widget:
     """Build a single Widget composed of one or more ops. One WidgetNode per op."""
     if not ops:
@@ -196,9 +197,21 @@ def _build_widget_multi(
         op = reg.ops[op_id]
         node_id = f"n_{uuid.uuid4().hex[:6]}"
 
-        # Merge defaults into params for this op.
+        # Canonical state we may have written from a prior inspector edit on
+        # the same (layer, op). Pin/promote should *preserve* those values
+        # instead of resetting to registry defaults — without this, the user
+        # edits curves in the panel, hits Pin, and watches the canvas snap
+        # back to identity. Precedence: explicit `params` (auto-tune / preset
+        # / LLM resolve) > existing canonical > registry default.
+        canonical_for_op: dict[str, Any] = {}
+        if doc is not None:
+            canonical_for_op = (
+                doc.canonical.get(layer_id, {}).get(op.engine.node_type, {}) or {}
+            )
         full_params = {
-            key: params.get(key, p.default) for key, p in op.params.items()
+            key: params[key] if key in params
+                else canonical_for_op.get(key, p.default)
+            for key, p in op.params.items()
         }
 
         nodes.append(WidgetNode(
@@ -247,6 +260,7 @@ def _build_widget(
     origin: WidgetOrigin, layer_id: str, image_node_layer_ids: list[str] | None,
     exposed_param_keys: set[str] | None = None,
     display_name: str | None = None, category: str | None = None,
+    doc: "SessionDocument | None" = None,
 ) -> Widget:
     """Build a single-op widget.
 
@@ -267,6 +281,7 @@ def _build_widget(
             origin=origin,
             layer_id=layer_id,
             image_node_layer_ids=image_node_layer_ids,
+            doc=doc,
         )
 
     # Param-filtered path (used by preset spawning with per-band exposure).
@@ -275,8 +290,18 @@ def _build_widget(
     widget_id = f"w_{uuid.uuid4().hex[:8]}"
     node_id = f"n_{uuid.uuid4().hex[:6]}"
 
+    # Same precedence as _build_widget_multi: explicit params > existing
+    # canonical > registry default. Keeps presets that re-spawn an already-
+    # edited op from snapping back to identity.
+    canonical_for_op: dict[str, Any] = {}
+    if doc is not None:
+        canonical_for_op = (
+            doc.canonical.get(layer_id, {}).get(op.engine.node_type, {}) or {}
+        )
     full_params = {
-        key: params.get(key, p.default) for key, p in op.params.items()
+        key: params[key] if key in params
+            else canonical_for_op.get(key, p.default)
+        for key, p in op.params.items()
     }
 
     node = WidgetNode(
@@ -491,6 +516,7 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
                 origin=origin,
                 layer_id=input.layer_id,
                 image_node_layer_ids=image_node_layer_ids,
+                doc=doc,
             )
             doc.add_widget(widget)
             widgets.append(widget)
@@ -555,6 +581,7 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
                 layer_id=input.layer_id,
                 image_node_layer_ids=image_node_layer_ids,
                 exposed_param_keys=exposed if exposed else None,
+                doc=doc,
             )
             doc.add_widget(widget)
             widgets.append(widget)
@@ -663,6 +690,7 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
                 op_id=op_id, params=op_params, intent=input.intent, scope=scope,
                 origin=origin, layer_id=input.layer_id,
                 image_node_layer_ids=image_node_layer_ids,
+                doc=doc,
             )
             doc.add_widget(widget)
             widgets.append(widget)

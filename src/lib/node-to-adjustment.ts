@@ -33,9 +33,12 @@ function pointsToCurvePoints255(v: unknown): CurvePoint[] {
   return pts.length >= 2 ? pts : [...DEFAULT_CURVE_POINTS];
 }
 
-/** Returns true when all four registry channel keys are present in params. */
+/** Returns true when any of the four registry channel keys is present in
+ *  params. Canonical only holds the channels the user has actually edited
+ *  — a one-channel edit (e.g. RGB master only) still uses the per-channel
+ *  branch; missing channels default to identity inside the LUT pass. */
 function hasRegistryChannels(params: Record<string, unknown>): boolean {
-  return 'rgb' in params && 'red' in params && 'green' in params && 'blue' in params;
+  return 'rgb' in params || 'red' in params || 'green' in params || 'blue' in params;
 }
 
 /** Map a widget OperationGraph Node into an Adjustment for the WebGL pipeline.
@@ -52,10 +55,11 @@ export function nodeToAdjustment(node: Node): Adjustment {
   if (node.type === 'curves' && hasRegistryChannels(node.params)) {
     // Registry 4-channel shape: params.rgb / red / green / blue each hold
     // a `[[x, y], ...]` array in 0–255 space (as stored by the registry
-    // CurveEditor adapter). This branch wins over the legacy `params.curves`
-    // singleton when both are present — otherwise a stale legacy reset
-    // (which still writes `params.curves`) would shadow every subsequent
-    // per-channel edit from the inspector / canvas curves widget.
+    // CurveEditor adapter). Channels the user hasn't edited yet are absent
+    // from canonical — `pointsToCurvePoints255` returns identity for those,
+    // so a one-channel edit still produces a complete four-LUT pass.
+    // This branch wins over the legacy `params.curves` singleton when both
+    // are present.
     for (const ch of CURVE_CHANNELS) {
       params[ch] = evaluateCubicSpline(pointsToCurvePoints255(node.params[ch]));
     }

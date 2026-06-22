@@ -216,11 +216,22 @@ class SessionDocument(BaseModel):
 
     def _seed_canonical_from_widget(self, widget: Widget) -> None:
         """Write every (layer, op, param) the widget's nodes carry into
-        canonical. Silent (no events) — callers emit a single lifecycle event
-        whose op_graph payload already reflects the seeded canonical."""
+        canonical IF NOT ALREADY PRESENT. Silent (no events) — callers emit a
+        single lifecycle event whose op_graph payload already reflects the
+        seeded canonical.
+
+        Setdefault semantics matter: a pin / promote spawned for an op the
+        user has already edited in the inspector would otherwise overwrite
+        those edits with the registry's identity defaults (the
+        "pin curves → resets to identity" bug). `_build_widget` already
+        prefers existing canonical when constructing the widget, so this is
+        defense-in-depth — a no-op for params already present, a fresh seed
+        for ones that aren't."""
         for node in widget.nodes:
+            ops = self.canonical.setdefault(node.layer_id, {}).setdefault(node.type, {})
             for pkey, pval in node.params.items():
-                set_param_value(self.canonical, node.layer_id, node.type, pkey, pval)
+                if pkey not in ops:
+                    ops[pkey] = pval
 
     def _reset_canonical_from_widget(self, widget: Widget) -> None:
         """Inverse of _seed_canonical_from_widget: clear exactly the param keys

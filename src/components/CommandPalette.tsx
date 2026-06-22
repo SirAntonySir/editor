@@ -13,6 +13,8 @@ import { usePreferencesStore } from '@/store/preferences-store';
 import { analyseActiveImageLayer, useAiSession } from '@/hooks/useImageContext';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
 import { useSmartMatch } from '@/hooks/useSmartMatch';
+import { useAsk } from '@/hooks/useAsk';
+import { CommandPaletteAskView } from './CommandPaletteAskView';
 import type { Scope } from '@/types/widget';
 import {
   buildAdjustmentSections,
@@ -40,11 +42,18 @@ const STATIC_REGISTRY_SECTIONS: PaletteSection[] = [
   ...buildPreferencesSections(),
 ];
 
+type PaletteMode = 'agent' | 'ask';
+
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const [pending, setPending] = useState<string | null>(null);
+  /** Agent mode (default) drives the registry-driven palette. Ask mode swaps
+   *  the results scroll for an LLM-answered markdown view. Toggled by the
+   *  pill in the input row. */
+  const [mode, setMode] = useState<PaletteMode>('agent');
+  const ask = useAsk();
   /** Sub-phase of the AI flow shown in the input placeholder while a
    *  request is in flight: 'analyze' (image context being built) → 'propose'
    *  (LLM stack call). `null` outside the AI path. */
@@ -256,7 +265,18 @@ export function CommandPalette() {
   const [wasOpen, setWasOpen] = useState(open);
   if (wasOpen !== open) {
     setWasOpen(open);
-    if (!open) setAttachedContext([]);
+    if (!open) {
+      setAttachedContext([]);
+      setMode('agent');
+      ask.reset();
+    }
+  }
+  // Drop a previous Ask answer the moment the user toggles back to Agent
+  // (or vice versa) so the body doesn't flash stale state for one frame.
+  const [lastMode, setLastMode] = useState(mode);
+  if (lastMode !== mode) {
+    setLastMode(mode);
+    ask.reset();
   }
 
   // Broadcast open/close so CommandTrigger can hide itself and Framer's
@@ -299,6 +319,26 @@ export function CommandPalette() {
         if (cmd.disabled) return;
         cmd.run();
         setOpen(false);
+        return;
+      }
+      if (cmd.kind === 'chip') {
+        // Attach as a context chip to the input strip and keep the palette
+        // open so the user can pick more chips or type a prompt. Reuses
+        // the same window event the Info-tab chips dispatch — the
+        // listener at the top of this component dedupes by label+value.
+        window.dispatchEvent(
+          new CustomEvent('spawn-palette:open', {
+            detail: {
+              attachContext: [
+                {
+                  label: cmd.description, // e.g. "Region"
+                  value: cmd.chipValue ?? cmd.label,
+                  sourceId: cmd.chipSourceId ?? cmd.id,
+                },
+              ],
+            },
+          }),
+        );
         return;
       }
       if (cmd.kind === 'ai') {
@@ -364,6 +404,21 @@ export function CommandPalette() {
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // Ask mode: Enter submits to the LLM and pins the markdown response
+      // in the body. Arrow keys and Tab keep their Agent-mode semantics
+      // disabled — there's nothing to navigate in Ask mode.
+      if (mode === 'ask') {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const chips = attachedContext.map((c) => ({
+            label: c.label,
+            value: c.value,
+            sourceId: c.sourceId,
+          }));
+          ask.submit(query, chips);
+        }
+        return;
+      }
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setActiveIndex((i) => Math.min(i + 1, flat.length - 1));
@@ -379,7 +434,7 @@ export function CommandPalette() {
         else void run(flat[activeIndex]);
       }
     },
-    [flat, activeIndex, aiCommand, cycleTarget, run],
+    [mode, ask, query, attachedContext, flat, activeIndex, aiCommand, cycleTarget, run],
   );
 
   // Flat index lookup so each rendered section can know which absolute
@@ -480,9 +535,10 @@ export function CommandPalette() {
                     flight so the user sees the panel itself is doing work. */}
                 <div
                   className={`flex items-center gap-2 px-2 py-1.5 border-b border-separator flex-wrap${
-                    pending ? ' ai-shimmer' : ''
+                    pending || ask.state.status === 'pending' ? ' ai-shimmer' : ''
                   }`}
                 >
+                  <ModeToggle mode={mode} onChange={setMode} />
                   {searchIconNode}
                   {attachedContext.length > 0 && (
                     <InlineContextChips
@@ -495,13 +551,17 @@ export function CommandPalette() {
                     value={query}
                     onChange={(e) => { setQuery(e.target.value); setActiveIndex(0); if (errorState) setErrorState(null); }}
                     placeholder={
-                      pending
-                        ? pendingPhase === 'analyze'
-                          ? `Analyzing image first — then "${pending}"…`
-                          : `Sending "${pending}"…`
-                        : 'Search tools or ask AI…'
+                      mode === 'ask'
+                        ? ask.state.status === 'pending'
+                          ? `Answering "${ask.state.query}"…`
+                          : 'Ask anything about this photo…'
+                        : pending
+                          ? pendingPhase === 'analyze'
+                            ? `Analyzing image first — then "${pending}"…`
+                            : `Sending "${pending}"…`
+                          : 'Search tools or ask AI…'
                     }
-                    disabled={!!pending}
+                    disabled={mode === 'agent' && !!pending}
                     className="flex-1 min-w-[120px] bg-transparent outline-none text-xs text-text-primary placeholder:text-text-secondary disabled:opacity-60"
                   />
                   {targetLabel && (
@@ -539,6 +599,9 @@ export function CommandPalette() {
                     auto-height inside Dialog.Content — Viewport then has
                     no overflow to scroll, even though content is bigger.
                     Same fix shape as HistoryDropdown. */}
+                {mode === 'ask' ? (
+                  <CommandPaletteAskView state={ask.state} pendingQueryDraft={query} />
+                ) : (
                 <div className="flex-1 min-h-0 overflow-hidden">
                 <ScrollArea className="h-full" viewportClassName="py-1">
                   {primarySections.map((section, sIdx) => (
@@ -608,12 +671,25 @@ export function CommandPalette() {
                   )}
                 </ScrollArea>
                 </div>
+                )}
 
                 {/* Footer */}
                 <div className="flex items-center gap-3.5 px-2 py-1 border-t border-separator text-[10px] text-text-secondary">
-                  <span>↑↓ navigate</span><span>↵ run</span>
-                  {aiCommand && <span>⌘↵ AI</span>}
-                  <span>⇥ target</span><span>esc close</span>
+                  {mode === 'ask' ? (
+                    <>
+                      <span>↵ ask</span>
+                      <span>⇥ target</span>
+                      <span>esc close</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>↑↓ navigate</span>
+                      <span>↵ run</span>
+                      {aiCommand && <span>⌘↵ AI</span>}
+                      <span>⇥ target</span>
+                      <span>esc close</span>
+                    </>
+                  )}
                 </div>
               </motion.div>
             </Dialog.Content>
@@ -831,6 +907,62 @@ function CommandRow({
       {/* Kbd has `ml-auto` built in, which still pins it right when no
           description is present. */}
       {command.shortcut && <Kbd keys={command.shortcut} />}
+    </button>
+  );
+}
+
+/** Two-position pill that flips the palette between Agent (registry-driven
+ *  command list) and Ask (LLM markdown answer). Sits flush-left in the
+ *  input row so the active mode is the first thing the eye lands on. */
+function ModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: PaletteMode;
+  onChange: (m: PaletteMode) => void;
+}) {
+  return (
+    <div className="inline-flex flex-none items-center rounded-[4px] bg-surface-secondary p-0.5 text-[10px]">
+      <ModeButton
+        active={mode === 'agent'}
+        onClick={() => onChange('agent')}
+        label="Agent"
+        title="Search tools and ask the agent to act"
+      />
+      <ModeButton
+        active={mode === 'ask'}
+        onClick={() => onChange('ask')}
+        label="Ask"
+        title="Get a grounded answer about the photo"
+      />
+    </div>
+  );
+}
+
+function ModeButton({
+  active,
+  onClick,
+  label,
+  title,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  title: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-pressed={active}
+      className={`px-1.5 py-0.5 rounded-[3px] transition-colors ${
+        active
+          ? 'bg-surface text-text-primary'
+          : 'text-text-secondary hover:text-text-primary'
+      }`}
+    >
+      {label}
     </button>
   );
 }

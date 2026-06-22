@@ -13,9 +13,8 @@ import {
 } from '@/store/preferences-store';
 import { maskStore } from '@/core/mask-store';
 import { useAiSession } from '@/hooks/useImageContext';
-import { useEditorStore } from '@/store';
 
-export type PaletteCommandKind = 'op' | 'preset' | 'tool' | 'menu' | 'ai';
+export type PaletteCommandKind = 'op' | 'preset' | 'tool' | 'menu' | 'ai' | 'chip';
 
 export interface PaletteCommand {
   id: string;
@@ -37,6 +36,12 @@ export interface PaletteCommand {
   shortcut?: string[];
   /** Set for kind: 'menu' — dim + suppress click when true. */
   disabled?: boolean;
+  /** Set for kind: 'chip' — value shown next to the chip's label in the
+   *  context strip (e.g. region name, hex). */
+  chipValue?: string;
+  /** Set for kind: 'chip' — stable identifier used to dedupe attached
+   *  chips (`semantic:subject:sky`, `region:objects:sky`, …). */
+  chipSourceId?: string;
 }
 
 export interface PaletteSection {
@@ -410,19 +415,20 @@ export function buildPreferencesSections(): PaletteSection[] {
  * caller can hide the section.
  */
 export function buildRegionsSections(): PaletteSection[] {
-  // Merge: lowercased label → { label, onSelect }
-  const merged = new Map<string, { label: string; onSelect: () => void }>();
+  // Merge: lowercased label → { label, sourceId }. Each region command is
+  // a `chip` — clicking it attaches a Region:<label> chip to the input's
+  // context strip instead of running a selection action. Matches the
+  // Info-tab chip flow so the user can compose a prompt with one or
+  // more regions as grounding without leaving the palette.
+  const merged = new Map<string, { label: string; sourceId: string }>();
 
-  // 1. Committed Objects (persistent, instant selection).
+  // 1. Committed Objects (persistent).
   for (const mask of maskStore.all()) {
     if (!mask.label) continue;
     const key = mask.label.toLowerCase();
-    const maskId = mask.id;
     merged.set(key, {
       label: mask.label,
-      onSelect: () => {
-        useEditorStore.getState().setActiveObjectId(maskId);
-      },
+      sourceId: `region:object:${mask.id}`,
     });
   }
 
@@ -431,27 +437,23 @@ export function buildRegionsSections(): PaletteSection[] {
   for (const r of ctx?.candidateRegions ?? []) {
     const key = r.label.toLowerCase();
     if (merged.has(key)) continue;
-    const { maskRef } = r;
-    if (!maskRef) continue; // Region without a mask can't be selected.
     merged.set(key, {
       label: r.label,
-      onSelect: () => {
-        useEditorStore.getState().setActiveMask(maskRef);
-        useEditorStore.getState().commitMask();
-      },
+      sourceId: `region:ai:${r.label.toLowerCase()}`,
     });
   }
 
   if (merged.size === 0) return [];
 
-  const commands = Array.from(merged.values())
+  const commands: PaletteCommand[] = Array.from(merged.values())
     .sort((a, b) => a.label.localeCompare(b.label))
-    .map(({ label, onSelect }) => ({
-      id: `region:${label.toLowerCase()}`,
-      kind: 'menu' as const,
+    .map(({ label, sourceId }) => ({
+      id: sourceId,
+      kind: 'chip' as const,
       label,
       description: 'Region',
-      run: onSelect,
+      chipValue: label,
+      chipSourceId: sourceId,
     }));
 
   return [{ id: 'regions', title: 'Regions', commands }];

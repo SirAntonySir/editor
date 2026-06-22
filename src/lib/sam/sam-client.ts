@@ -61,8 +61,50 @@ export async function maskPngBase64ToBytes(
   if (!ctx) throw new Error('maskPngBase64ToBytes: no 2d context');
   ctx.drawImage(drawSource, 0, 0);
   const imgData = ctx.getImageData(0, 0, width, height);
-  const out = new Uint8Array(width * height);
-  for (let i = 0; i < out.length; i++) out[i] = imgData.data[i * 4];
+  const out = maskAlphaFromRgba(imgData.data, width * height);
   if (drawSource instanceof ImageBitmap) drawSource.close();
   return { data: out, width, height };
+}
+
+/**
+ * Reduce decoded RGBA pixel bytes to a single-channel mask-alpha array.
+ *
+ * The backend can return a mask in either of two shapes:
+ *   (a) 1-channel grayscale PNG — decodes to RGBA with R=G=B carrying the
+ *       shape and alpha pinned at 255 (object = 255 white, bg = 0 black).
+ *   (b) RGBA where the shape lives in the ALPHA channel over fully-opaque
+ *       white RGB — what SAM / PIL emits when saving with `mode='RGBA'`.
+ *
+ * Reading only red works for (a) but in (b) every red byte is 255 → a
+ * fully-opaque mask → `extractLayerFromMask`'s `destination-in` keeps every
+ * pixel and the "extracted object" is a verbatim copy of the source image.
+ *
+ * Two-pass: first scan determines which channel actually carries variance —
+ * if red is constantly opaque AND alpha varies, the shape is in alpha;
+ * otherwise read red. This handles both shapes without a backend contract
+ * change.
+ */
+export function maskAlphaFromRgba(
+  rgba: Uint8ClampedArray | Uint8Array,
+  pixelCount: number,
+): Uint8Array {
+  let redOpaque = 0;
+  let aMin = 255;
+  let aMax = 0;
+  for (let i = 0; i < pixelCount; i++) {
+    const r = rgba[i * 4];
+    const a = rgba[i * 4 + 3];
+    if (r === 255) redOpaque++;
+    if (a < aMin) aMin = a;
+    if (a > aMax) aMax = a;
+  }
+  // Shape-in-alpha when red is uniformly opaque (>99% to ignore JPEG-ish
+  // anti-alias drift) AND alpha actually varies across the frame. Otherwise
+  // fall back to red, which handles both grayscale-mode and a degenerate
+  // all-foreground alpha frame.
+  const useAlpha = pixelCount > 0 && redOpaque / pixelCount > 0.99 && aMax - aMin > 0;
+  const channelOffset = useAlpha ? 3 : 0;
+  const out = new Uint8Array(pixelCount);
+  for (let i = 0; i < pixelCount; i++) out[i] = rgba[i * 4 + channelOffset];
+  return out;
 }

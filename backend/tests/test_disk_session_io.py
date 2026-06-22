@@ -82,13 +82,17 @@ def test_save_context_creates_dir_when_missing(tmp_path):
 # ----------------------------------------------------------------------
 
 def test_migrate_legacy_sessions_dir_moves_directories(tmp_path, monkeypatch):
-    """When sessions exist at the legacy `<SESSIONS_DIR>/backend/.sessions/`
+    """When sessions exist at the legacy `<backend>/backend/.sessions/`
     path (the cwd-relative artefact of `cd backend && uvicorn ...`), the
     migration moves their directories into the canonical SESSIONS_DIR
-    on startup."""
+    on startup. The legacy path sits next to the canonical SESSIONS_DIR
+    inside the backend root, not nested under it."""
     from app.services import disk_session_io
 
-    monkeypatch.setattr(disk_session_io, "SESSIONS_DIR", tmp_path)
+    canonical = tmp_path / ".sessions"
+    canonical.mkdir()
+    monkeypatch.setattr(disk_session_io, "_BACKEND_ROOT", tmp_path)
+    monkeypatch.setattr(disk_session_io, "SESSIONS_DIR", canonical)
 
     legacy = tmp_path / "backend" / ".sessions"
     legacy.mkdir(parents=True)
@@ -100,8 +104,8 @@ def test_migrate_legacy_sessions_dir_moves_directories(tmp_path, monkeypatch):
     moved = disk_session_io.migrate_legacy_sessions_dir()
 
     assert moved == 2
-    assert (tmp_path / "abc123" / "meta.json").exists()
-    assert (tmp_path / "def456" / "events.jsonl").exists()
+    assert (canonical / "abc123" / "meta.json").exists()
+    assert (canonical / "def456" / "events.jsonl").exists()
     # Legacy entries gone after move.
     assert not (legacy / "abc123").exists()
     assert not (legacy / "def456").exists()
@@ -109,7 +113,10 @@ def test_migrate_legacy_sessions_dir_moves_directories(tmp_path, monkeypatch):
 
 def test_migrate_legacy_sessions_dir_no_legacy_is_noop(tmp_path, monkeypatch):
     from app.services import disk_session_io
-    monkeypatch.setattr(disk_session_io, "SESSIONS_DIR", tmp_path)
+    canonical = tmp_path / ".sessions"
+    canonical.mkdir()
+    monkeypatch.setattr(disk_session_io, "_BACKEND_ROOT", tmp_path)
+    monkeypatch.setattr(disk_session_io, "SESSIONS_DIR", canonical)
     assert disk_session_io.migrate_legacy_sessions_dir() == 0
 
 
@@ -118,11 +125,14 @@ def test_migrate_legacy_sessions_dir_does_not_clobber(tmp_path, monkeypatch):
     location, the legacy entry is left in place (the user can resolve
     the collision by hand). Documents the conservative semantic."""
     from app.services import disk_session_io
-    monkeypatch.setattr(disk_session_io, "SESSIONS_DIR", tmp_path)
+    canonical = tmp_path / ".sessions"
+    canonical.mkdir()
+    monkeypatch.setattr(disk_session_io, "_BACKEND_ROOT", tmp_path)
+    monkeypatch.setattr(disk_session_io, "SESSIONS_DIR", canonical)
 
     # Canonical session present.
-    (tmp_path / "abc123").mkdir()
-    (tmp_path / "abc123" / "meta.json").write_text('{"canonical": true}')
+    (canonical / "abc123").mkdir()
+    (canonical / "abc123" / "meta.json").write_text('{"canonical": true}')
 
     # Legacy session with same id.
     legacy = tmp_path / "backend" / ".sessions" / "abc123"
@@ -133,4 +143,4 @@ def test_migrate_legacy_sessions_dir_does_not_clobber(tmp_path, monkeypatch):
     assert moved == 0
     assert legacy.exists()
     # Canonical content untouched.
-    assert json.loads((tmp_path / "abc123" / "meta.json").read_text()) == {"canonical": True}
+    assert json.loads((canonical / "abc123" / "meta.json").read_text()) == {"canonical": True}

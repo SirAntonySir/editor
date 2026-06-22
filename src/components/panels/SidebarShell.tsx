@@ -25,7 +25,7 @@ export function SidebarShell({
   children,
 }: SidebarShellProps) {
   const isLeft = side === 'left';
-  const borderClass = isLeft ? 'border-r border-separator' : 'border-l border-separator';
+  const borderSide = isLeft ? 'border-r' : 'border-l';
   const tabAlign = isLeft ? 'right-0 translate-x-full' : 'left-0 -translate-x-full';
   const tabRadius = isLeft ? 'rounded-r-md' : 'rounded-l-md';
   const handleEdge = isLeft ? 'right-0' : 'left-0';
@@ -34,6 +34,10 @@ export function SidebarShell({
   const CollapsedChevron = isLeft ? ChevronRight : ChevronLeft;
 
   const [dragging, setDragging] = useState(false);
+  const [hovering, setHovering] = useState(false);
+  // The inner edge is the resize affordance: tint the panel border in the
+  // accent colour while the handle is hovered or being dragged.
+  const edgeActive = dragging || hovering;
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -66,7 +70,8 @@ export function SidebarShell({
 
   return (
     <aside
-      className={`relative flex-none h-full bg-surface ${borderClass} overflow-visible
+      className={`relative flex-none h-full bg-surface ${borderSide}
+        ${edgeActive ? 'border-accent' : 'border-separator'} transition-colors duration-150 overflow-visible
         ${dragging ? 'select-none' : 'transition-[width] duration-200 ease-out'}`}
       style={{ width: collapsed ? 0 : width }}
     >
@@ -88,19 +93,21 @@ export function SidebarShell({
         </AnimatePresence>
       </div>
 
-      {/* Resize handle — 4px hit zone right on the inner edge */}
+      {/* Resize handle — thin invisible hit zone on the inner edge. The visual
+          affordance is the accent-tinted panel border (see edgeActive) plus the
+          resize cursor; no filled bar. */}
       {!collapsed && (
         <div
           onPointerDown={handlePointerDown}
+          onPointerEnter={() => setHovering(true)}
+          onPointerLeave={() => setHovering(false)}
           role="separator"
           aria-orientation="vertical"
           aria-label={`Resize ${side} sidebar`}
           aria-valuenow={width}
           aria-valuemin={minWidth}
           aria-valuemax={maxWidth}
-          className={`absolute ${handleEdge} top-0 bottom-0 w-1 z-20 cursor-ew-resize
-            ${dragging ? 'bg-accent/60' : 'bg-transparent hover:bg-accent/40'}
-            transition-colors duration-150`}
+          className={`absolute ${handleEdge} top-0 bottom-0 w-1 z-20 cursor-ew-resize bg-transparent`}
         />
       )}
 

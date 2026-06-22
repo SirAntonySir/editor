@@ -53,7 +53,7 @@ def migrate_legacy_sessions_dir() -> int:
 
     Called once at app startup so users who had data under the legacy
     path don't lose it after the SESSIONS_DIR anchoring change."""
-    legacy = SESSIONS_DIR / "backend" / ".sessions"
+    legacy = _BACKEND_ROOT / "backend" / ".sessions"
     try:
         legacy_resolved = legacy.resolve()
     except OSError:

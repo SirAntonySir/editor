@@ -109,6 +109,40 @@ function WorkspaceKeyHandler() {
   return null;
 }
 
+/** Fit the viewport to the restored workspace on the first post-reload tick
+ *  where nodes are actually present.
+ *
+ *  ReactFlow's `fitView` prop only fires on first mount — and on a reload
+ *  that first mount happens with `nodes = []` (the workspace state is still
+ *  rehydrating from persistence + the SSE snapshot). By the time the
+ *  imageNodes / widgetNodes / infoNodes maps have entries, ReactFlow has
+ *  long since settled on its default 100% / centred-on-origin view, and
+ *  the user can't see their image. We watch for the 0 → non-zero
+ *  transition and fit then, exactly once per mount. */
+function WorkspaceAutoFitOnReload() {
+  const { fitView } = useReactFlow();
+  const imageCount = useEditorStore((s) => Object.keys(s.imageNodes).length);
+  const widgetCount = useEditorStore((s) => Object.keys(s.widgetNodes).length);
+  const infoCount = useEditorStore((s) => Object.keys(s.infoNodes).length);
+  const total = imageCount + widgetCount + infoCount;
+  const hasFit = useRef(false);
+
+  useEffect(() => {
+    if (hasFit.current) return;
+    if (total === 0) return;
+    // rAF defers until after ReactFlow has projected the freshly-arrived
+    // nodes through its internal store — without this the fit math reads
+    // a stale node-size set and the viewport lands off-centre.
+    const handle = requestAnimationFrame(() => {
+      fitView({ padding: 0.18, duration: 0 });
+      hasFit.current = true;
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [total, fitView]);
+
+  return null;
+}
+
 const EMPTY_WIDGETS: Widget[] = [];
 
 type ImageNodeType = Node<ImageNodeData, 'image'>;
@@ -424,6 +458,7 @@ export function CanvasWorkspace() {
         <Background color="var(--color-separator)" gap={16} size={1} />
         <Controls showInteractive={false} />
         <WorkspaceKeyHandler />
+        <WorkspaceAutoFitOnReload />
       </ReactFlow>
     </div>
   );

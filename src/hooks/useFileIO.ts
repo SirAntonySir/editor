@@ -13,7 +13,12 @@ export function useFileIO() {
   }, []);
 
   const handleClose = useCallback(() => {
-    editorDocument.newDocument();
+    // Full close: clears layers, workspace nodes/edges, pixel data,
+    // history, AND the persisted backend session (incl. its localStorage
+    // entry). `newDocument()` only swaps the document meta — it leaves
+    // imageNodes / widgetNodes on the canvas, which read as ghost items
+    // after the user hits File → Close.
+    editorDocument.closeDocument();
   }, []);
 
   const handleExport = useCallback(

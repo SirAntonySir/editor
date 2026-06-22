@@ -42,6 +42,13 @@ class _Input(BaseModel):
     forced_params: dict[str, dict[str, Any]] | None = None
     preset_id: str | None = None            # unfold a registry preset directly
     prompt: str | None = None
+    # Full layer set of the active image-node. Lets toolrail / pin spawns
+    # broadcast a node-scope widget across every layer in a multi-layer
+    # image-node even when the scope itself is `global` or `mask`-rooted
+    # (those scopes don't carry image-node layer ids). Always optional —
+    # the LLM-driven planner derives image_node_layer_ids from `scope.root`
+    # instead.
+    layer_ids: list[str] | None = None
 
 
 class _Output(BaseModel):
@@ -458,8 +465,12 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
         for entry_index, op_id, params in resolved_flat:
             by_entry.setdefault(entry_index, []).append((op_id, params))
 
+        # Prefer scope-supplied layer ids (image_node-rooted scope), fall back
+        # to the explicit input.layer_ids the client shipped for non-image-node
+        # scopes (toolrail / pin with a global or mask scope).
         image_node_layer_ids = (
-            list(scope.root.layer_ids) if scope.root.kind == "image_node" else None
+            list(scope.root.layer_ids) if scope.root.kind == "image_node"
+            else (list(input.layer_ids) if input.layer_ids else None)
         )
         origin = WidgetOrigin(
             kind=input.origin, prompt=input.prompt or input.intent,
@@ -517,6 +528,8 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
         image_node_layer_ids = None
         if scope.root.kind == "image_node":
             image_node_layer_ids = list(scope.root.layer_ids)
+        elif input.layer_ids:
+            image_node_layer_ids = list(input.layer_ids)
 
         origin = WidgetOrigin(
             kind=input.origin,
@@ -564,11 +577,11 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
         image_node_layer_ids: list[str] | None = None
         if scope.root.kind == "image_node":
             image_node_layer_ids = list(scope.root.layer_ids)
-            layer_id_for_node = (
-                image_node_layer_ids[0] if image_node_layer_ids else input.layer_id
-            )
-        else:
-            layer_id_for_node = input.layer_id
+        elif input.layer_ids:
+            image_node_layer_ids = list(input.layer_ids)
+        layer_id_for_node = (
+            image_node_layer_ids[0] if image_node_layer_ids else input.layer_id
+        )
 
         node_id = f"n_{uuid.uuid4().hex[:6]}"
         node = WidgetNode(
@@ -633,6 +646,8 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
         image_node_layer_ids = None
         if scope.root.kind == "image_node":
             image_node_layer_ids = list(scope.root.layer_ids)
+        elif input.layer_ids:
+            image_node_layer_ids = list(input.layer_ids)
 
         origin = WidgetOrigin(kind="tool_invoked", prompt=None, parent_widget_id=None)
         forced_params = input.forced_params or {}

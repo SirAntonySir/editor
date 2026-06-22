@@ -3,6 +3,8 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Loader2, AlertCircle, Sparkles, ArrowRight, Image as ImageIcon, Command as CommandIcon, X as XIcon } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
+import { ScrollArea } from '@/components/ui/ScrollArea';
+import { pixelStore } from '@/core/pixel-store';
 import { useEditorStore } from '@/store';
 import { spawnRegistryOp, spawnRegistryPreset } from '@/lib/toolrail-spawn';
 import { proposeFromPalette } from '@/lib/palette-actions';
@@ -489,7 +491,11 @@ export function CommandPalette() {
                     className="flex-1 min-w-[120px] bg-transparent outline-none text-xs text-text-primary placeholder:text-text-secondary disabled:opacity-60"
                   />
                   {targetLabel && (
-                    <TargetChip label={targetLabel} onCycle={cycleTarget} />
+                    <TargetChip
+                      label={targetLabel}
+                      thumbLayerId={targetNode?.layerIds[0]}
+                      onCycle={cycleTarget}
+                    />
                   )}
                 </div>
 
@@ -507,12 +513,13 @@ export function CommandPalette() {
                 )}
 
                 {/* Results: registry-driven sections, then the AI command.
-                    Plain overflow-y-auto here — the Radix ScrollArea hides
-                    its track via h-full on a viewport that needs an explicit
-                    parent height to compute, and the dialog's max-h-only
-                    container doesn't give it one (the symptom: rows just
-                    overflow past the dialog bottom instead of scrolling). */}
-                <div className="flex-1 min-h-0 overflow-y-auto py-1.5">
+                    Wrapped in the project's Radix ScrollArea so the overlay
+                    scrollbar renders the same in light + dark mode as the
+                    history dropdown — the previous plain `overflow-y-auto`
+                    surfaced the native browser scrollbar which read as a
+                    light-grey track in dark mode. The flex-1/min-h-0 outer
+                    box gives the Viewport an explicit height. */}
+                <ScrollArea className="flex-1 min-h-0" viewportClassName="py-1.5">
                   {primarySections.map((section, sIdx) => (
                     <div key={section.id}>
                       <SectionHeader title={section.title} />
@@ -578,7 +585,7 @@ export function CommandPalette() {
                   {flat.length === 0 && (
                     <div className="px-3.5 py-3 text-xs text-text-secondary">No matches.</div>
                   )}
-                </div>
+                </ScrollArea>
 
                 {/* Footer */}
                 <div className="flex items-center gap-3.5 px-3.5 py-2 border-t border-separator text-[10px] text-text-secondary">
@@ -644,19 +651,73 @@ function InlineContextChips({
   );
 }
 
-function TargetChip({ label, onCycle }: { label: string; onCycle: () => void }) {
+function TargetChip({
+  label,
+  thumbLayerId,
+  onCycle,
+}: {
+  label: string;
+  thumbLayerId: string | undefined;
+  onCycle: () => void;
+}) {
   return (
     <button
       type="button"
       onClick={onCycle}
       title={`Change target (Tab) — currently "${label}"`}
-      className="flex-none flex items-center gap-1 max-w-[160px] text-[10px] text-text-secondary
+      className="flex-none flex items-center gap-1.5 max-w-[180px] text-[10px] text-text-secondary
         bg-surface-secondary px-2 py-1 rounded hover:text-text-primary transition-colors"
     >
-      <ImageIcon size={10} className="flex-none opacity-70" />
+      <TargetThumb layerId={thumbLayerId} />
       <span className="truncate min-w-0">{label}</span>
       <ArrowRight size={10} className="flex-none opacity-50" />
     </button>
+  );
+}
+
+/** Square thumbnail (16 px) showing the target image-node's first layer. Reads
+ *  the OffscreenCanvas from `pixelStore` once per layerId change and draws a
+ *  cover-cropped scale into a 32 × 32 canvas (1× retina-safe headroom). Falls
+ *  back to a Lucide Image icon when the pixels haven't loaded yet (palette
+ *  opened before image upload) so the chip's row height stays stable. */
+function TargetThumb({ layerId }: { layerId: string | undefined }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [drawn, setDrawn] = useState(false);
+
+  useEffect(() => {
+    setDrawn(false);
+    if (!layerId) return;
+    const source = pixelStore.getSource(layerId);
+    const canvas = canvasRef.current;
+    if (!source || !canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const out = canvas.width;
+    const sw = source.width;
+    const sh = source.height;
+    // Cover crop: take the largest centered square of the source bitmap so
+    // the thumbnail isn't letterboxed inside the 16-px chip.
+    const side = Math.min(sw, sh);
+    const sx = (sw - side) / 2;
+    const sy = (sh - side) / 2;
+    ctx.clearRect(0, 0, out, out);
+    ctx.drawImage(source as unknown as CanvasImageSource, sx, sy, side, side, 0, 0, out, out);
+    setDrawn(true);
+  }, [layerId]);
+
+  return (
+    <span className="relative flex-none inline-flex items-center justify-center w-4 h-4 overflow-hidden rounded-[2px] bg-surface">
+      <canvas
+        ref={canvasRef}
+        width={32}
+        height={32}
+        className={`w-full h-full ${drawn ? 'opacity-100' : 'opacity-0'} transition-opacity`}
+        aria-hidden
+      />
+      {!drawn && (
+        <ImageIcon size={10} className="absolute opacity-70" aria-hidden />
+      )}
+    </span>
   );
 }
 

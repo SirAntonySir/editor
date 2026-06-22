@@ -49,17 +49,20 @@ function hasRegistryChannels(params: Record<string, unknown>): boolean {
 export function nodeToAdjustment(node: Node): Adjustment {
   const params: Record<string, number | Float32Array> = {};
 
-  if (node.type === 'curves' && node.params.curves) {
+  if (node.type === 'curves' && hasRegistryChannels(node.params)) {
+    // Registry 4-channel shape: params.rgb / red / green / blue each hold
+    // a `[[x, y], ...]` array in 0–255 space (as stored by the registry
+    // CurveEditor adapter). This branch wins over the legacy `params.curves`
+    // singleton when both are present — otherwise a stale legacy reset
+    // (which still writes `params.curves`) would shadow every subsequent
+    // per-channel edit from the inspector / canvas curves widget.
+    for (const ch of CURVE_CHANNELS) {
+      params[ch] = evaluateCubicSpline(pointsToCurvePoints255(node.params[ch]));
+    }
+  } else if (node.type === 'curves' && node.params.curves) {
     const curves = node.params.curves as unknown as CurvesValue;
     for (const ch of CURVE_CHANNELS) {
       params[ch] = evaluateCubicSpline(curves[ch] ?? []);
-    }
-  } else if (node.type === 'curves' && hasRegistryChannels(node.params)) {
-    // Registry 4-channel shape: params.rgb / red / green / blue each hold
-    // a `[[x, y], ...]` array in 0–255 space (as stored by the registry
-    // CurveEditor adapter).  Normalise each to 0–1 before evaluating.
-    for (const ch of CURVE_CHANNELS) {
-      params[ch] = evaluateCubicSpline(pointsToCurvePoints255(node.params[ch]));
     }
   } else if (node.type === 'curves' && 'points' in node.params) {
     const masterLut = evaluateCubicSpline(pointsToCurvePoints(node.params.points));

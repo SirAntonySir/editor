@@ -2,10 +2,27 @@ import { ChevronRight, ChevronDown, Pin, Eye, EyeOff, RotateCcw, Wand2 } from 'l
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import type { ProcessingDefinition } from '@/types/processing';
+import type { ControlValue } from '@/types/widget';
 import { loadRegistry } from '@/lib/registry/loader';
 import { backendTools } from '@/lib/backend-tools';
+
+const CURVE_CHANNELS = ['rgb', 'red', 'green', 'blue'] as const;
+const IDENTITY_CURVE_PAIRS: [number, number][] = [[0, 0], [255, 255]];
+
+/** True when a canonical curves param holds the identity ramp
+ *  `[[0, 0], [255, 255]]`. Undefined / missing / shape-mismatched values
+ *  count as identity so the touched badge stays silent for fresh sessions
+ *  and legacy documents that haven't been touched. */
+function isIdentityPairs(v: unknown): boolean {
+  if (v === undefined || v === null) return true;
+  if (!Array.isArray(v) || v.length !== 2) return false;
+  const [a, b] = v as [unknown, unknown];
+  return (
+    Array.isArray(a) && a.length === 2 && a[0] === 0 && a[1] === 0 &&
+    Array.isArray(b) && b.length === 2 && b[0] === 255 && b[1] === 255
+  );
+}
 import { sectionSummary } from './section-summary';
-import { IDENTITY_CURVES, isIdentityCurves, type CurvesValue } from '@/types/curve';
 import { ScalarSectionBody } from './ScalarSectionBody';
 import { RegistryDrivenSectionBody } from './RegistryDrivenSectionBody';
 import { CurvesSectionBody } from './CurvesSectionBody';
@@ -47,14 +64,17 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
         w.nodes.some((n) => n.layerId === layerId),
     ) ?? null;
   });
-  // For curves the section has no scalar params — the touched signal is binary
-  // (curves are at identity, or they're not). Roll that into touchedCount so
-  // the section header gets the same ↺ N reset badge other ops show.
+  // For curves the section has no scalar params — the touched signal is per
+  // channel (rgb/red/green/blue stored as `[[x, y], ...]` pairs in 0–255 space
+  // by the registry adapter). Count any channel whose curve isn't the 2-point
+  // identity ramp [[0, 0], [255, 255]] as touched, so the section header gets
+  // the same ↺ N reset badge other ops show.
   const isCurves = def.adjustmentType === 'curves';
-  const curvesValue = isCurves ? (canonical.curves as CurvesValue | undefined) : undefined;
-  const curvesTouched = isCurves && !isIdentityCurves(curvesValue);
+  const curvesTouchedChannels = isCurves
+    ? CURVE_CHANNELS.filter((ch) => !isIdentityPairs(canonical[ch]))
+    : [];
   const { touchedCount: scalarTouched } = sectionSummary(def.params, canonical);
-  const touchedCount = scalarTouched + (curvesTouched ? 1 : 0);
+  const touchedCount = scalarTouched + curvesTouchedChannels.length;
   const Icon = def.icon;
   const isHsl = def.adjustmentType === 'hsl';
   const promoteDisabled = offline || !layerId;
@@ -94,14 +114,21 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
     if (offline || !layerId || !sessionId) return;
     const baseRevision = useBackendState.getState().snapshot?.revision ?? 0;
     if (isCurves) {
-      // Curves has no scalar params — the canonical node carries a single
-      // structured `curves` value. Reset it to identity in one shot.
-      useBackendState.getState().applyOptimistic(`canon:${layerId}:curves`, {
-        bindings: [{ paramKey: 'curves', value: IDENTITY_CURVES }], baseRevision,
-      });
-      void backendTools.set_param(sessionId, {
-        layerId, op: 'curves', param: 'curves', value: IDENTITY_CURVES,
-      });
+      // Curves stores per-channel `[[x, y], ...]` arrays in 0–255 space —
+      // reset each touched channel back to the identity ramp. Writing a
+      // single legacy `curves` value here used to shadow subsequent
+      // per-channel edits via `nodeToAdjustment`'s branch order; the
+      // per-channel writes keep the canonical shape aligned with the
+      // registry + CurvesSectionBody read path.
+      for (const ch of CURVE_CHANNELS) {
+        useBackendState.getState().applyOptimistic(`canon:${layerId}:curves`, {
+          bindings: [{ paramKey: ch, value: IDENTITY_CURVE_PAIRS as unknown as ControlValue }],
+          baseRevision,
+        });
+        void backendTools.set_param(sessionId, {
+          layerId, op: 'curves', param: ch, value: IDENTITY_CURVE_PAIRS as unknown as ControlValue,
+        });
+      }
       return;
     }
     for (const p of def.params) {

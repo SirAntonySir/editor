@@ -8,6 +8,7 @@ import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 import { FloatingDock } from '@/components/ui/FloatingDock';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { CommandPalette } from '@/components/CommandPalette';
+import { PreferencesDialog } from '@/components/PreferencesDialog';
 import { MenuBar } from '@/components/toolbar/MenuBar';
 import { RightSidebar } from '@/components/panels/RightSidebar';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
@@ -174,6 +175,7 @@ function EditorContent() {
     <div className="relative flex flex-col h-full">
       <KeyboardShortcuts />
       <CommandPalette />
+      <PreferencesDialog />
 
       {/* Menu bar — fixed at top */}
       <div className="relative z-30 flex-none h-[24px] flex items-center px-1 bg-surface border-b border-separator">

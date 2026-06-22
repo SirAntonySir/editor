@@ -97,11 +97,11 @@ function buildShortcuts(): ShortcutEntry[] {
   shortcuts.push({
     key: ',',
     ctrl: true,
-    // Preferences now live inside the command palette (Theme / Accent /
-    // Radius are searchable entries). Cmd+, opens the palette so users land
-    // one keystroke away from any setting.
-    action: () => window.dispatchEvent(new CustomEvent('spawn-palette:open')),
-    label: 'Preferences (in palette)',
+    // Preferences live on their own dialog (theme/accent/radius surface).
+    // Cmd+K still lists the individual settings as searchable rows for
+    // power users; this lands on the dedicated screen.
+    action: () => window.dispatchEvent(new CustomEvent('prefs:open')),
+    label: 'Preferences',
   });
 
   shortcuts.push({

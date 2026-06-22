@@ -360,8 +360,34 @@ const RADIUS_OPTIONS: { scale: RadiusScale; label: string }[] = [
   { scale: 'full',   label: 'Full' },
 ];
 
+/** Applying a preference from the palette also opens the dedicated
+ *  Preferences dialog. The dialog is the home of the *full* preference
+ *  surface — once a user has flipped one preference via Cmd+K, surfacing
+ *  the others is the point. Plain `setX` callers (right-sidebar menus,
+ *  programmatic init) don't go through this helper, so they don't pop the
+ *  dialog. */
+function openPrefs() {
+  window.dispatchEvent(new CustomEvent('prefs:open'));
+}
+
 export function buildPreferencesSections(): PaletteSection[] {
   const sections: PaletteSection[] = [];
+
+  // A first-class "open the dialog" row so the user can land in the
+  // dedicated preferences screen without committing to a value-change.
+  sections.push({
+    id: 'prefs:open',
+    title: 'Preferences',
+    commands: [{
+      id: 'prefs:open',
+      kind: 'menu' as const,
+      label: 'Open Preferences…',
+      description: 'Appearance',
+      icon: Square,
+      aliases: ['preferences', 'settings', 'appearance', 'theme', 'accent', 'radius'],
+      run: openPrefs,
+    }],
+  });
 
   sections.push({
     id: 'prefs:theme',
@@ -373,7 +399,10 @@ export function buildPreferencesSections(): PaletteSection[] {
       description: 'Appearance',
       icon,
       aliases: ['theme', 'appearance', label.toLowerCase()],
-      run: () => usePreferencesStore.getState().setThemeMode(mode),
+      run: () => {
+        usePreferencesStore.getState().setThemeMode(mode);
+        openPrefs();
+      },
     })),
   });
 
@@ -387,7 +416,10 @@ export function buildPreferencesSections(): PaletteSection[] {
       description: 'Appearance',
       icon: _accentIconFor(c.value),
       aliases: ['accent', 'color', 'colour', c.name.toLowerCase()],
-      run: () => usePreferencesStore.getState().setAccentColor(c.value),
+      run: () => {
+        usePreferencesStore.getState().setAccentColor(c.value);
+        openPrefs();
+      },
     })),
   });
 
@@ -401,7 +433,10 @@ export function buildPreferencesSections(): PaletteSection[] {
       description: 'Appearance',
       icon: Square,
       aliases: ['radius', 'corners', 'rounded', label.toLowerCase()],
-      run: () => usePreferencesStore.getState().setRadiusScale(scale),
+      run: () => {
+        usePreferencesStore.getState().setRadiusScale(scale);
+        openPrefs();
+      },
     })),
   });
 

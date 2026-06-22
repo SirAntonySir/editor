@@ -116,9 +116,13 @@ export function useMenuActions(): MenuAction[] {
       shortcut: ['mod', 'shift', 'Z'], disabled: !canRedo, run: () => editorDocument.redo() },
     { id: 'edit:revert', group: 'Edit', label: 'Revert to Original',
       shortcut: ['mod', 'alt', 'R'], disabled: !hasLayers, run: revertToOriginal },
-    // Preferences live inside the palette now — see `buildPreferencesSections`.
-    // The legacy modal entry has been removed; Cmd+, just opens the palette
-    // (`spawn-palette:open`) via the keyboard-shortcut layer.
+    // Preferences screen — dedicated dialog. Palette still surfaces every
+    // individual preference as a searchable row (see
+    // `buildPreferencesSections`); this is the single entry that lands on
+    // the full screen without committing to a value-change.
+    { id: 'edit:preferences', group: 'Edit', label: 'Preferences…',
+      shortcut: ['mod', ','],
+      run: () => window.dispatchEvent(new CustomEvent('prefs:open')) },
 
     // ── Image ───────────────────────────────────────────────────────
     // Auto-tune: deterministic, mechanical-only (no LLM). Each spawns the

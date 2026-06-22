@@ -1,6 +1,6 @@
 import * as Menubar from '@radix-ui/react-menubar';
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { useSyncExternalStore } from 'react';
+import { useSyncExternalStore, type CSSProperties } from 'react';
 import { Undo2, Redo2, RotateCcw } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { useEditorStore } from '@/store';
@@ -30,6 +30,13 @@ import { HistoryDropdown } from './HistoryDropdown';
 
 const menuContentClass =
   'z-50 min-w-[190px] rounded-[var(--radius-panel)] bg-surface border border-border-strong shadow-overlay p-[3px] text-[11px] text-text-primary';
+
+// Space reserved at the window edge so the OS window controls don't overlap the
+// menus. macOS draws the traffic lights top-left (hiddenInset); Windows draws
+// the caption buttons top-right (via titleBarOverlay in electron/main.cjs). The
+// web build reserves nothing. Widths cover the control cluster on a 24px bar.
+const MAC_TRAFFIC_LIGHT_INSET = 76;
+const WIN_CAPTION_INSET = 140;
 
 const menuItemClass =
   'relative flex cursor-default select-none items-center gap-1.5 rounded-[3px] px-2 h-[22px] outline-none text-[11px] data-[highlighted]:bg-accent data-[highlighted]:text-white data-[disabled]:opacity-40 data-[disabled]:pointer-events-none';
@@ -103,35 +110,44 @@ export function MenuBar() {
   const { transformImage } = useImageTransform();
   const { applyZoom, fitOnScreen, zoomIn, zoomOut } = useCanvasZoom();
 
+  const platform = typeof window !== 'undefined' ? window.electron?.platform : undefined;
+  const isMac = platform === 'darwin';
+  const isWin = platform === 'win32';
+  // The whole bar is the window drag region; interactive clusters opt out with
+  // `no-drag`. Reserve space on the side where the OS draws its window controls.
+  const barStyle = {
+    WebkitAppRegion: 'drag',
+    paddingLeft: isMac ? MAC_TRAFFIC_LIGHT_INSET : undefined,
+    paddingRight: isWin ? WIN_CAPTION_INSET : undefined,
+  } as CSSProperties;
+  const noDrag = { WebkitAppRegion: 'no-drag' } as CSSProperties;
+
   return (
-    <>
-      <div className="flex items-center w-full">
-        <Menubar.Root className="flex items-center gap-0 text-sm text-text-primary">
-          <FileMenu onOpen={handleOpen} onAddImage={handleAddImage} onExport={handleExport} onClose={handleClose} />
-          <EditMenu />
-          <ImageMenu transformImage={transformImage} />
-          <LayerMenu />
-          <ViewMenu applyZoom={applyZoom} fitOnScreen={fitOnScreen} zoomIn={zoomIn} zoomOut={zoomOut} />
-          {/* Filters used to live in their own top-level menu; they're now
-              part of Image → Adjustments via the SSoT registry. */}
-          <AiMenu />
-          <HelpMenu />
-        </Menubar.Root>
+    <div className="flex items-center w-full" style={barStyle}>
+      <Menubar.Root style={noDrag} className="flex items-center gap-0 text-sm text-text-primary">
+        <FileMenu onOpen={handleOpen} onAddImage={handleAddImage} onExport={handleExport} onClose={handleClose} />
+        <EditMenu />
+        <ImageMenu transformImage={transformImage} />
+        <LayerMenu />
+        <ViewMenu applyZoom={applyZoom} fitOnScreen={fitOnScreen} zoomIn={zoomIn} zoomOut={zoomOut} />
+        {/* Filters used to live in their own top-level menu; they're now
+            part of Image → Adjustments via the SSoT registry. */}
+        <AiMenu />
+        <HelpMenu />
+      </Menubar.Root>
 
-        {/* Spacer */}
-        <div className="flex-1" />
+      {/* Spacer (stays draggable) */}
+      <div className="flex-1" />
 
-        {/* Backend connection status */}
+      {/* Right-side controls — opt out of the drag region so they stay clickable */}
+      <div className="flex items-center" style={noDrag}>
         <BackendStatusBadge />
         <div className="w-px h-3 bg-separator mx-1.5" />
-
-        {/* Undo / Redo */}
         <UndoRedoButtons />
-
         {/* Mode switcher disabled — only Develop remained, made redundant. */}
         {/* <ModeSwitcherButtons /> */}
       </div>
-    </>
+    </div>
   );
 }
 

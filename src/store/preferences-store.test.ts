@@ -37,10 +37,30 @@ describe('migratePreferences', () => {
     expect((after as { themeMode: string }).themeMode).toBe('dark');
   });
 
-  it('is a no-op when visualStyle is absent', () => {
-    const before = { themeMode: 'light', accentColor: '#0071e3' };
-    const after = migratePreferences(before, 0);
-    expect(after).toEqual({ themeMode: 'light', accentColor: '#0071e3' });
+  it('is a no-op when visualStyle is absent and accent already matches a current colour', () => {
+    // Pick an accent that isn't the migration trigger (#0071e3) so this
+    // case still exercises the unchanged-passthrough branch.
+    const before = { themeMode: 'light', accentColor: '#ef4444' };
+    const after = migratePreferences(before, 1);
+    expect(after).toEqual({ themeMode: 'light', accentColor: '#ef4444' });
+  });
+
+  it('lifts the v1 default Blue accent to LMU Green on v1 → v2', () => {
+    // Anyone whose persisted state holds the old default rides forward to
+    // the new brand colour. An explicit non-default choice (handled in the
+    // case above) is preserved.
+    const before = { themeMode: 'system', accentColor: '#0071e3' };
+    const after = migratePreferences(before, 1);
+    expect(after).toEqual({ themeMode: 'system', accentColor: '#00883a' });
+  });
+
+  it('does not touch the accent when the persisted state is already v2+', () => {
+    // Re-running the migrator over v2 state must be idempotent — the
+    // accent stays whatever the user has it on, even if it happens to be
+    // the old default (they explicitly chose it post-migration).
+    const before = { themeMode: 'system', accentColor: '#0071e3' };
+    const after = migratePreferences(before, 2);
+    expect(after).toEqual({ themeMode: 'system', accentColor: '#0071e3' });
   });
 
   it('handles null/non-object state safely', () => {

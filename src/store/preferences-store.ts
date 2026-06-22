@@ -10,6 +10,10 @@ export interface AccentColor {
 }
 
 export const ACCENT_COLORS: AccentColor[] = [
+  // LMU-Grün — the corporate accent of Ludwig-Maximilians-Universität
+  // München. Default for the thesis build; sits first so it's the swatch
+  // the user lands on in the Preferences dialog without scanning.
+  { name: 'LMU Green', value: '#00883a', hover: '#007530' },
   { name: 'Blue', value: '#0071e3', hover: '#0077ed' },
   { name: 'Purple', value: '#8b5cf6', hover: '#7c3aed' },
   { name: 'Pink', value: '#ec4899', hover: '#db2777' },
@@ -63,10 +67,19 @@ function clampSidebarWidth(w: number): number {
   return Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Math.round(w)));
 }
 
-export function migratePreferences(state: unknown, _version: number): unknown {
+export function migratePreferences(state: unknown, version: number): unknown {
   if (typeof state !== 'object' || state === null) return state;
   const next: Record<string, unknown> = { ...(state as Record<string, unknown>) };
   if ('visualStyle' in next) delete next.visualStyle;
+  // v1 → v2: default accent changed from generic Blue (#0071e3) to LMU
+  // Green (#00883a). Lift anyone still on the OLD default to the NEW
+  // default; users who explicitly picked any other colour keep their
+  // choice. We can't distinguish "never set, persisted the default" from
+  // "actively chose blue" — accepting that trade-off so the thesis build
+  // ships its brand colour to existing users.
+  if (version < 2 && next.accentColor === '#0071e3') {
+    next.accentColor = '#00883a';
+  }
   return next;
 }
 
@@ -74,7 +87,8 @@ export const usePreferencesStore = create<PreferencesState>()(
   persist(
     (set) => ({
       themeMode: 'system',
-      accentColor: '#0071e3',
+      // LMU-Grün — see ACCENT_COLORS above.
+      accentColor: '#00883a',
       radiusScale: 'medium',
       rightSidebarCollapsed: false,
       rightSidebarWidth: 264,
@@ -96,7 +110,7 @@ export const usePreferencesStore = create<PreferencesState>()(
     }),
     {
       name: 'editor-preferences',
-      version: 1,
+      version: 2,
       migrate: migratePreferences,
       partialize: (state) => ({
         themeMode: state.themeMode,

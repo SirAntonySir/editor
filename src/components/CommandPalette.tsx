@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Loader2, AlertCircle, Sparkles, ArrowRight, Image as ImageIcon, Command as CommandIcon, X as XIcon } from 'lucide-react';
+import { Search, Loader2, AlertCircle, Sparkles, ArrowRight, Image as ImageIcon, Command as CommandIcon, X as XIcon, MapPin } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { pixelStore } from '@/core/pixel-store';
@@ -495,15 +495,21 @@ export function CommandPalette() {
 
   // Icon for the input row: previews the active row so the user sees
   // exactly what Enter will fire. Spinner overrides everything while an
-  // AI request is in-flight.
+  // AI request is in-flight. When the user hasn't typed anything yet
+  // (idle), keep the plain Search glyph regardless of what's highlighted —
+  // an icon-mirror with nothing typed reads as "this is preselected"
+  // when really it's just "first row by default".
   const activeCmd: PaletteCommand | undefined = flat[activeIndex];
   const ActiveIcon = activeCmd?.icon;
+  const isIdle = query.trim().length === 0;
   const searchIconNode = pending ? (
     <Loader2 size={14} className="text-[var(--color-ai)] animate-spin" />
+  ) : isIdle ? (
+    <Search size={14} className="text-text-secondary" />
   ) : activeCmd?.kind === 'ai' ? (
     <Sparkles size={14} className="text-[var(--color-ai)] ai-glow-pulse" />
   ) : activeCmd?.kind === 'chip' ? (
-    <Sparkles size={14} className="text-[var(--color-ai)]" />
+    <MapPin size={14} className="text-[var(--color-ai)]" />
   ) : ActiveIcon ? (
     <ActiveIcon size={14} className="text-text-secondary" />
   ) : (
@@ -893,6 +899,7 @@ function CommandRow({
   const Icon = command.icon;
   const isAi = command.kind === 'ai';
   const isMenu = command.kind === 'menu';
+  const isChip = command.kind === 'chip';
   const disabled = !!command.disabled;
   const ref = useRef<HTMLButtonElement>(null);
   // Keep the keyboard-active row inside the scroll viewport. `block: 'nearest'`
@@ -919,10 +926,14 @@ function CommandRow({
         }`}
     >
       <span
-        className={`w-4 flex-none flex justify-center ${isAi ? 'text-[var(--color-ai)]' : 'text-text-secondary'}`}
+        className={`w-4 flex-none flex justify-center ${isAi || isChip ? 'text-[var(--color-ai)]' : 'text-text-secondary'}`}
       >
         {isAi ? (
           <Sparkles size={14} className="ai-glow-pulse" />
+        ) : isChip ? (
+          // Region / Object chip — same MapPin used in the input row's
+          // active-row preview when a chip is highlighted.
+          <MapPin size={13} />
         ) : isMenu ? (
           // Generic command glyph for menu actions so the column doesn't
           // sit empty next to every File/Edit/View row.

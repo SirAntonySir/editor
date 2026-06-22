@@ -196,6 +196,28 @@ export function CommandPalette() {
     [primarySections, smartSection, secondarySections, aiCommand],
   );
 
+  // Best-match preview: when the user types, highlight the first concrete
+  // command (op / preset / tool / menu) so Enter picks the best fuzzy
+  // match. Only fall back to the AI row when nothing else matched. The
+  // previous behaviour highlighted whatever sat at index 0, which was the
+  // AI row whenever the deterministic scorer returned nothing.
+  const defaultActiveIndex = useMemo<number>(() => {
+    const idx = flat.findIndex(
+      (c) => c.kind === 'op' || c.kind === 'preset' || c.kind === 'tool' || c.kind === 'menu',
+    );
+    return idx === -1 ? 0 : idx;
+  }, [flat]);
+  // Drive activeIndex from defaultActiveIndex whenever flat changes — same
+  // canonical previous-prop pattern used elsewhere in this file. The user
+  // can still arrow-navigate freely after that; the reset only fires when
+  // the underlying command list changes shape.
+  const [lastFlatKey, setLastFlatKey] = useState<string>('');
+  const flatKey = flat.map((c) => c.id).join('|');
+  if (lastFlatKey !== flatKey) {
+    setLastFlatKey(flatKey);
+    setActiveIndex(defaultActiveIndex);
+  }
+
   const nodeIds = useMemo(() => Object.keys(imageNodes), [imageNodes]);
   const targetNode = activeImageNodeId ? imageNodes[activeImageNodeId] : undefined;
   const targetLabel = targetNode ? imageNodeLabel(targetNode, layers) : '';
@@ -245,8 +267,10 @@ export function CommandPalette() {
         return merged;
       });
       if (!open) {
-        setQuery('');
-        setActiveIndex(0);
+        // Preserve query + chips across opens — they only reset on
+        // successful submit or when the user clears them by hand. The
+        // pending state DOES get cleared here so a stale "Sending …" from
+        // a previous flight doesn't show on a fresh open.
         setPending(null);
         setPendingPhase(null);
         setErrorState(null);
@@ -257,20 +281,19 @@ export function CommandPalette() {
     return () => window.removeEventListener('spawn-palette:open', onOpen);
   }, [setActiveImageNode, open]);
 
-  // Clear attached context whenever the palette closes — opening it from
-  // scratch (plain Cmd+K) should never inherit a stale attachment. Done
-  // synchronously during render via the canonical previous-prop pattern
-  // (https://react.dev/learn/you-might-not-need-an-effect#resetting-all-state-when-a-prop-changes)
-  // rather than an effect with setState.
-  const [wasOpen, setWasOpen] = useState(open);
-  if (wasOpen !== open) {
-    setWasOpen(open);
-    if (!open) {
-      setAttachedContext([]);
-      setMode('agent');
-      ask.reset();
-    }
-  }
+  // Palette state (query, chips, mode, ask answer) persists across
+  // close → open cycles so the user can hide the palette to glance at
+  // something on canvas, then reopen and pick up where they left off.
+  // The state resets only on (a) a successful submit (see `resetPalette`
+  // calls inside `run`) or (b) the user clearing the input / detaching
+  // chips by hand.
+  const resetPalette = useCallback(() => {
+    setQuery('');
+    setActiveIndex(0);
+    setAttachedContext([]);
+    setMode('agent');
+    ask.reset();
+  }, [ask]);
   // Drop a previous Ask answer the moment the user toggles back to Agent
   // (or vice versa) so the body doesn't flash stale state for one frame.
   const [lastMode, setLastMode] = useState(mode);
@@ -307,17 +330,20 @@ export function CommandPalette() {
       if (!cmd) return;
       if (cmd.kind === 'op' && cmd.opId) {
         spawnRegistryOp(cmd.opId, cmd.label);
+        resetPalette();
         setOpen(false);
         return;
       }
       if (cmd.kind === 'preset' && cmd.presetId) {
         spawnRegistryPreset(cmd.presetId, cmd.label);
+        resetPalette();
         setOpen(false);
         return;
       }
       if (cmd.kind === 'menu' && cmd.run) {
         if (cmd.disabled) return;
         cmd.run();
+        resetPalette();
         setOpen(false);
         return;
       }
@@ -387,6 +413,7 @@ export function CommandPalette() {
         if (result.ok) {
           setPending(null);
           setPendingPhase(null);
+          resetPalette();
           setOpen(false);
         } else {
           setPending(null);
@@ -399,7 +426,7 @@ export function CommandPalette() {
         }
       }
     },
-    [query, pending, attachedContext],
+    [query, pending, attachedContext, resetPalette],
   );
 
   const onKeyDown = useCallback(
@@ -528,17 +555,15 @@ export function CommandPalette() {
                 }}
               >
                 <Dialog.Title className="sr-only">Command palette</Dialog.Title>
-                {/* Chrome row — mode toggle, search icon, context chips, target.
-                    Sits ABOVE the input so the prompt has a clean line to itself.
-                    Wraps when many chips are attached. The whole row gets the
-                    violet shimmer while AI work is in flight. */}
+                {/* Chrome row — mode toggle, context chips, target. No
+                    separator below: it visually fuses with the input row
+                    so they read as one composite header. */}
                 <div
-                  className={`flex items-center gap-1 px-2 py-1 border-b border-separator flex-wrap${
+                  className={`flex items-center gap-1 px-2 py-1 flex-wrap${
                     pending || ask.state.status === 'pending' ? ' ai-shimmer' : ''
                   }`}
                 >
                   <ModeToggle mode={mode} onChange={setMode} />
-                  {searchIconNode}
                   {attachedContext.length > 0 && (
                     <InlineContextChips
                       items={attachedContext}
@@ -554,12 +579,13 @@ export function CommandPalette() {
                     />
                   )}
                 </div>
-                {/* Prompt row — input on its own line, full width. */}
-                <div className="px-2 py-1.5 border-b border-separator">
+                {/* Prompt row — search icon + input on their own line. */}
+                <div className="flex items-center gap-2 px-2 py-1.5 border-b border-separator">
+                  {searchIconNode}
                   <input
                     autoFocus
                     value={query}
-                    onChange={(e) => { setQuery(e.target.value); setActiveIndex(0); if (errorState) setErrorState(null); }}
+                    onChange={(e) => { setQuery(e.target.value); if (errorState) setErrorState(null); }}
                     placeholder={
                       mode === 'ask'
                         ? ask.state.status === 'pending'
@@ -572,7 +598,7 @@ export function CommandPalette() {
                           : 'Search tools or ask AI…'
                     }
                     disabled={mode === 'agent' && !!pending}
-                    className="w-full bg-transparent outline-none text-xs text-text-primary placeholder:text-text-secondary disabled:opacity-60"
+                    className="flex-1 min-w-0 bg-transparent outline-none text-xs text-text-primary placeholder:text-text-secondary disabled:opacity-60"
                   />
                 </div>
 

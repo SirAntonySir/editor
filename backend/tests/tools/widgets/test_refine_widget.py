@@ -103,3 +103,29 @@ def test_refine_adds_a_binding(client) -> None:
     assert body["ok"] is True
     keys = [b["paramKey"] for b in body["output"]["widget"]["bindings"]]
     assert "skin_protect" in keys
+
+
+def test_refine_preserves_layer_id_on_appended_nodes(client) -> None:
+    """Composition refine appends LLM-fleshed nodes. Those nodes don't carry
+    layer anchoring info, so without explicit stamping they end up with the
+    WidgetNode default ("legacy") and the frontend's tether snaps the widget
+    away from its current image. Regression guard."""
+    sid, wid = _setup(client)
+    doc = deps.get_session_store().get_document(sid)
+    w = doc.widgets[wid]
+    prior_layer_id = w.nodes[0].layer_id
+    body = client.post(
+        "/api/tools/refine_widget",
+        json={"session_id": sid, "input": {
+            "widget_id": wid,
+            "edits": [],
+            "additions": [{"request": "add a skin-protect toggle"}],
+        }},
+    ).json()
+    assert body["ok"] is True
+    out_nodes = body["output"]["widget"]["nodes"]
+    # Every node — original + newly fleshed — must share the same anchor.
+    for n in out_nodes:
+        assert n["layerId"] == prior_layer_id, (
+            f"node {n['id']!r} has layer_id={n['layerId']!r}, expected {prior_layer_id!r}"
+        )

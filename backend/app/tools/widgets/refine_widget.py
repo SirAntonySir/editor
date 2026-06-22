@@ -92,7 +92,23 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
 
         composition_changed = bool(to_remove) or bool(new_bindings)
 
+        # Anchor info to preserve across the refine — the prior widget's
+        # primary layer_id and layer_ids define which image-node the
+        # frontend's workspace-tether resolves this widget to. Without
+        # carrying these through, run_fused_tool returns nodes with the
+        # WidgetNode "legacy" default and the widget visibly demounts
+        # from its current image to the active one (or to nowhere).
+        anchor_layer_id = w.nodes[0].layer_id if w.nodes else "legacy"
+        anchor_layer_ids = w.nodes[0].layer_ids if w.nodes else None
+
         if composition_changed:
+            # Stamp the prior anchor onto each freshly-fleshed node so the
+            # tether stays put — the LLM-fleshed nodes don't carry
+            # layer-anchor info.
+            for n in new_nodes:
+                n.layer_id = anchor_layer_id
+                if anchor_layer_ids is not None:
+                    n.layer_ids = anchor_layer_ids
             w.composed = True
             w.bindings = kept_bindings + new_bindings
             w.nodes = w.nodes + new_nodes
@@ -112,5 +128,14 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
         )
         new_widget.id = w.id
         new_widget.revision = w.revision + 1
+        # Preserve the prior anchoring. The fused template rebuilds the
+        # widget from scratch (new nodes, new scope), which would otherwise
+        # snap it back to the default layer / global scope and detach the
+        # frontend tether from the current image-node.
+        new_widget.scope = w.scope
+        for n in new_widget.nodes:
+            n.layer_id = anchor_layer_id
+            if anchor_layer_ids is not None:
+                n.layer_ids = anchor_layer_ids
         doc.update_widget(new_widget)
         return _Output(widget=new_widget.model_dump(mode="json", by_alias=True))

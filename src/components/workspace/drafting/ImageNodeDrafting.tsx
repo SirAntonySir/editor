@@ -2,12 +2,12 @@ import { useState, useMemo } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Handle, Position } from '@xyflow/react';
-import { Sparkles } from 'lucide-react';
+import { MessageSquare, Sparkles } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
-import { analyseImageLayer } from '@/hooks/useImageContext';
+import { analyseImageLayer, useAiSession } from '@/hooks/useImageContext';
 import { backendTools } from '@/lib/backend-tools';
 import { editorDocument } from '@/core/document';
 import { toast } from '@/components/ui/Toast';
@@ -66,6 +66,27 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   const [compareHeld, setCompareHeld] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const setImageNodeName = useEditorStore((s) => s.setImageNodeName);
+  // Right-click "Analyze with AI" hides once this node has been analysed —
+  // the AI menu does the same via its `analysedIds.includes(id)` check.
+  const isAnalysed = useAiSession((s) => s.analysedImageNodeIds.includes(id));
+
+  function handleAskAboutThis() {
+    // Open the palette directly in Ask mode. The image-node's first layer
+    // name rides as an attached context chip so the LLM call grounds on
+    // "this image" rather than the active selection at palette-open time.
+    const node = useEditorStore.getState().imageNodes[id];
+    const firstLayerId = node?.layerIds[0];
+    const firstLayer = firstLayerId
+      ? useEditorStore.getState().layers.find((l) => l.id === firstLayerId)
+      : undefined;
+    const label = node?.name ?? firstLayer?.name ?? 'this image';
+    window.dispatchEvent(new CustomEvent('spawn-palette:open', {
+      detail: {
+        mode: 'ask',
+        attachContext: [{ label: 'Image', value: label, sourceId: `imageNode:${id}` }],
+      },
+    }));
+  }
 
   // --- Effective rotate / crop -----------------
   // The image-node display box needs to follow the WebGL pipeline's effective
@@ -200,13 +221,24 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   const itemClassDim = 'px-2 py-1 text-[10px] rounded-sm cursor-not-allowed outline-none text-text-secondary opacity-60';
   const renderMenuItems = (Item: typeof DropdownMenu.Item | typeof ContextMenu.Item) => (
     <>
+      {!isAnalysed && (
+        <Item
+          className={itemClass}
+          onSelect={() => void analyseImageLayer(id)}
+        >
+          <span className="flex items-center gap-1.5">
+            <Sparkles size={11} className="text-[var(--color-ai)]" />
+            <span>Analyze with AI</span>
+          </span>
+        </Item>
+      )}
       <Item
         className={itemClass}
-        onSelect={() => void analyseImageLayer(id)}
+        onSelect={handleAskAboutThis}
       >
         <span className="flex items-center gap-1.5">
-          <Sparkles size={11} className="text-[var(--color-ai)]" />
-          <span>Analyze with AI</span>
+          <MessageSquare size={11} className="text-[var(--color-ai)]" />
+          <span>Ask about this image</span>
         </span>
       </Item>
       <div className="my-1 h-px bg-separator" />

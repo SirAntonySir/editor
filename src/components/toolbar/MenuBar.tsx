@@ -488,6 +488,26 @@ function AiMenu() {
   const hasLayers = layers.length > 0;
   const analysing = status === 'uploading' || status === 'analysing';
 
+  /** Open the command palette in Ask mode. Attaches the named image-node
+   *  as a context chip when one is given so the LLM grounds on a
+   *  specific image; otherwise opens Ask with no chip and the user
+   *  can type a freeform question. */
+  function openAsk(imageNodeId?: string) {
+    const node = imageNodeId ? imageNodes[imageNodeId] : undefined;
+    const attachContext = node
+      ? [{
+          label: 'Image',
+          value: node.name
+            ?? layers.find((l) => l.id === node.layerIds[0])?.name
+            ?? imageNodeId!,
+          sourceId: `imageNode:${imageNodeId}`,
+        }]
+      : [];
+    window.dispatchEvent(new CustomEvent('spawn-palette:open', {
+      detail: { mode: 'ask', attachContext },
+    }));
+  }
+
   const nodeIds = Object.keys(imageNodes);
 
   // Human-readable name for an image-node: node.name → first layer's name → id.
@@ -523,6 +543,12 @@ function AiMenu() {
             >
               {onlyId ? labelFor(onlyId) : 'Analyze image'}
             </Item>
+            <Item
+              onSelect={() => openAsk(onlyId ?? undefined)}
+              disabled={!hasLayers || !onlyId}
+            >
+              Ask about the image…
+            </Item>
             <Sep />
             <SuggestionHistorySubmenu />
           </Menubar.Content>
@@ -550,6 +576,19 @@ function AiMenu() {
                 aria-hidden
               />
               {labelFor(activeImageNodeId)}
+            </Item>
+          )}
+          {/* Ask shortcut row mirrors the Analyze row above so both the
+              "what" (analyze) and the "ask" affordances are one click
+              from the menu's first action. Targets the active image so
+              the LLM grounds on the same node the active row analyses. */}
+          {activeImageNodeId && imageNodes[activeImageNodeId] && (
+            <Item
+              onSelect={() => openAsk(activeImageNodeId)}
+              disabled={!hasLayers}
+            >
+              <span className="inline-block w-1.5 h-1.5 mr-2" aria-hidden />
+              Ask about the active image…
             </Item>
           )}
           {/* Submenu listing all image-nodes so the user can target any one. */}

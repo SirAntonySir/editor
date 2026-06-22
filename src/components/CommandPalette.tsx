@@ -244,7 +244,14 @@ export function CommandPalette() {
       // Pull any context items the dispatcher attached. When the palette
       // is already open and the user fires another "Ask AI" from a chip
       // menu, we *append* to the existing set instead of replacing.
-      const detail = (e as CustomEvent<{ attachContext?: Array<Omit<AttachedContextItem, 'id'>> }>).detail;
+      const detail = (e as CustomEvent<{
+        attachContext?: Array<Omit<AttachedContextItem, 'id'>>;
+        mode?: PaletteMode;
+      }>).detail;
+      // Honour an explicit mode in the open event — image-node right-click
+      // and the AI menu's "Ask about the image" both open the palette
+      // directly in Ask mode. Plain Cmd+K omits this and stays in Agent.
+      if (detail?.mode) setMode(detail.mode);
       const incoming: AttachedContextItem[] = (detail?.attachContext ?? []).map((c, i) => ({
         id: `attach-${Date.now().toString(36)}-${i}`,
         label: c.label,

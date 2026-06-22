@@ -457,6 +457,20 @@ export function CommandPalette() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.28, ease: [0.2, 0, 0, 1] }}
+                // Wheel-anywhere-in-palette → scroll the results viewport.
+                // Browsers send the wheel event to the element under the
+                // cursor; with the cursor on the input row (where it sits when
+                // the palette opens), the viewport never sees it and the user
+                // perceives "mouse wheel doesn't work". Forward the deltaY to
+                // the Radix viewport when the event originated outside it.
+                onWheel={(e) => {
+                  const viewport = e.currentTarget.querySelector(
+                    '[data-radix-scroll-area-viewport]',
+                  ) as HTMLElement | null;
+                  if (!viewport) return;
+                  if (viewport.contains(e.target as Node)) return; // already inside — Radix handles it
+                  viewport.scrollBy({ top: e.deltaY });
+                }}
               >
                 <Dialog.Title className="sr-only">Command palette</Dialog.Title>
                 {/* Search row — context chips (if any) sit inline just before

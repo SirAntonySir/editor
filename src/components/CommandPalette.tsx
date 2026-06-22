@@ -493,12 +493,19 @@ export function CommandPalette() {
     return map;
   }, [secondarySections, secondaryBase]);
 
-  // Icon for the search bar: shifts to a violet Sparkles when the user has
-  // typed something (it's now an AI prompt), to a spinner when in-flight.
+  // Icon for the input row: previews the active row so the user sees
+  // exactly what Enter will fire. Spinner overrides everything while an
+  // AI request is in-flight.
+  const activeCmd: PaletteCommand | undefined = flat[activeIndex];
+  const ActiveIcon = activeCmd?.icon;
   const searchIconNode = pending ? (
     <Loader2 size={14} className="text-[var(--color-ai)] animate-spin" />
-  ) : query.trim() ? (
+  ) : activeCmd?.kind === 'ai' ? (
     <Sparkles size={14} className="text-[var(--color-ai)] ai-glow-pulse" />
+  ) : activeCmd?.kind === 'chip' ? (
+    <Sparkles size={14} className="text-[var(--color-ai)]" />
+  ) : ActiveIcon ? (
+    <ActiveIcon size={14} className="text-text-secondary" />
   ) : (
     <Search size={14} className="text-text-secondary" />
   );
@@ -931,14 +938,30 @@ function CommandRow({
       >
         {command.label}
       </span>
-      {/* Description sits flush right — short category tags ("Appearance",
-          "Send as a prompt") read as a right-rail label rather than getting
-          lost between the label and the shortcut chip. */}
-      {command.description && (
+      {/* Right rail. Chip commands preview the chip they'd attach (same
+          styling as the inline strip in the input row) so the user sees
+          exactly what's about to land. Other commands fall back to the
+          plain description text. */}
+      {command.kind === 'chip' ? (
+        <span
+          className="ml-auto flex-none inline-flex items-center gap-0.5 max-w-[60%] text-[10px]
+            rounded-[3px] px-1 py-px leading-tight
+            bg-[color-mix(in_srgb,var(--color-ai)_15%,transparent)]
+            text-[var(--color-ai)] border border-[color-mix(in_srgb,var(--color-ai)_30%,transparent)]"
+          aria-hidden
+        >
+          <span className="text-[var(--color-ai)]/80 uppercase tracking-wide">
+            {command.description}
+          </span>
+          <span className="text-text-primary truncate max-w-[120px]">
+            {command.chipValue ?? command.label}
+          </span>
+        </span>
+      ) : command.description ? (
         <span className="ml-auto flex-none text-[10px] text-text-secondary truncate max-w-[50%] text-right">
           {command.description}
         </span>
-      )}
+      ) : null}
       {/* Kbd has `ml-auto` built in, which still pins it right when no
           description is present. */}
       {command.shortcut && <Kbd keys={command.shortcut} />}

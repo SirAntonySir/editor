@@ -24,9 +24,11 @@ function persistCanvasSource(layerId: string, canvas: OffscreenCanvas): void {
 
 /**
  * Compute the inclusive pixel bbox of the white (255) region in a mask.
- * Returns null when the mask is empty.
+ * Returns null when the mask is empty. Exported so the SAM-commit flow
+ * can match a freshly-painted mask against AI-named regions by bbox
+ * overlap (auto-naming).
  */
-function computeMaskBbox(
+export function computeMaskBbox(
   data: Uint8Array, width: number, height: number,
 ): { minX: number; minY: number; maxX: number; maxY: number } | null {
   let minX = width;

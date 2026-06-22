@@ -509,8 +509,16 @@ export function CommandPalette() {
   const activeCmd: PaletteCommand | undefined = flat[activeIndex];
   const ActiveIcon = activeCmd?.icon;
   const isIdle = query.trim().length === 0;
-  const searchIconNode = pending ? (
+  // Ask mode shows a markdown answer instead of the result list, so the
+  // icon-mirror has no rows to mirror — pin to a stable Sparkles glyph
+  // for the whole Ask session (or the spinner while a request is in
+  // flight). Without this the icon would still flip as `flat` updates
+  // even though no list is visible.
+  const askPending = ask.state.status === 'pending';
+  const searchIconNode = pending || askPending ? (
     <Loader2 size={14} className="text-[var(--color-ai)] animate-spin" />
+  ) : mode === 'ask' ? (
+    <Sparkles size={14} className="text-[var(--color-ai)] ai-glow-pulse" />
   ) : isIdle ? (
     <Search size={14} className="text-text-secondary" />
   ) : activeCmd?.kind === 'ai' ? (

@@ -6,7 +6,9 @@ import { useEditorStore } from '@/store';
 import { backendTools } from '@/lib/backend-tools';
 import { maskStore } from '@/core/mask-store';
 import { maskToPngBase64 } from '@/lib/segmentation/mask-png';
+import { matchRegionLabelByBbox } from '@/lib/match-region-by-bbox';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
+import { useAiSession } from '@/hooks/useImageContext';
 import { Kbd } from '@/components/ui/kbd';
 import { toast } from '@/components/ui/Toast';
 import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
@@ -75,7 +77,13 @@ export function SegmentHitLayer({
     if (!c?.mask || !sessionId) return;
     const pngBase64 = await maskToPngBase64(c.mask);
     const hasNegativePoint = c.points.some((p) => p.label === 0);
-    const autoName = c.label ?? `Object ${existingObjects.length + 1}`;
+    // Auto-name: if the user has run AI analysis, see if the mask's bbox
+    // overlaps any AI-named region. Inheriting "pasta dish" is far more
+    // useful than "Object 3". Explicit label (Select Inverted etc.) and
+    // existing labels still win — this is the default-name path only.
+    const aiRegions = useAiSession.getState().context?.candidateRegions;
+    const regionLabel = matchRegionLabelByBbox(c.mask, aiRegions);
+    const autoName = c.label ?? regionLabel ?? `Object ${existingObjects.length + 1}`;
     const origin = c.origin ?? (hasNegativePoint ? 'client_refinement' : 'client_new');
     const env = await backendTools.propose_mask(sessionId, {
       imageNodeId,

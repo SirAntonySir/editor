@@ -465,7 +465,7 @@ export function CommandPalette() {
                     The row gets the violet shimmer when an AI request is in
                     flight so the user sees the panel itself is doing work. */}
                 <div
-                  className={`flex items-center gap-2 px-3.5 py-3 border-b border-separator flex-wrap${
+                  className={`flex items-center gap-2 px-2 py-1.5 border-b border-separator flex-wrap${
                     pending ? ' ai-shimmer' : ''
                   }`}
                 >
@@ -500,7 +500,7 @@ export function CommandPalette() {
                 </div>
 
                 {errorState && (
-                  <div className="flex items-start gap-2 px-3.5 py-2 border-b border-separator bg-[color-mix(in_srgb,var(--color-danger,#e5484d)_8%,transparent)]">
+                  <div className="flex items-start gap-2 px-2 py-1 border-b border-separator bg-[color-mix(in_srgb,var(--color-danger,#e5484d)_8%,transparent)]">
                     <AlertCircle size={12} className="mt-[2px] flex-none text-[var(--color-danger,#e5484d)]" />
                     <div className="flex-1 min-w-0">
                       <div className="text-[11px] text-text-primary">{errorState.message}</div>
@@ -519,7 +519,7 @@ export function CommandPalette() {
                     surfaced the native browser scrollbar which read as a
                     light-grey track in dark mode. The flex-1/min-h-0 outer
                     box gives the Viewport an explicit height. */}
-                <ScrollArea className="flex-1 min-h-0" viewportClassName="py-1.5">
+                <ScrollArea className="flex-1 min-h-0" viewportClassName="py-1">
                   {primarySections.map((section, sIdx) => (
                     <div key={section.id}>
                       <SectionHeader title={section.title} />
@@ -583,12 +583,12 @@ export function CommandPalette() {
                     </div>
                   ))}
                   {flat.length === 0 && (
-                    <div className="px-3.5 py-3 text-xs text-text-secondary">No matches.</div>
+                    <div className="px-2 py-1.5 text-xs text-text-secondary">No matches.</div>
                   )}
                 </ScrollArea>
 
                 {/* Footer */}
-                <div className="flex items-center gap-3.5 px-3.5 py-2 border-t border-separator text-[10px] text-text-secondary">
+                <div className="flex items-center gap-3.5 px-2 py-1 border-t border-separator text-[10px] text-text-secondary">
                   <span>↑↓ navigate</span><span>↵ run</span>
                   {aiCommand && <span>⌘↵ AI</span>}
                   <span>⇥ target</span><span>esc close</span>
@@ -737,7 +737,7 @@ function SectionHeader({
   const aiTone = tone === 'ai';
   return (
     <div
-      className={`flex items-center gap-1.5 text-[9px] uppercase tracking-wide px-3.5 py-0.5 mt-0.5
+      className={`flex items-center gap-1.5 text-[9px] uppercase tracking-wide px-2 py-0.5 mt-0.5
         ${aiTone ? 'text-[var(--color-ai)]' : 'text-text-secondary'}`}
     >
       {aiTone && <Sparkles size={9} className="ai-glow-pulse" />}
@@ -773,7 +773,7 @@ function CommandRow({
       type="button"
       onClick={disabled ? undefined : onSelect}
       disabled={disabled}
-      className={`flex w-full items-center gap-2.5 px-3.5 py-1.5 text-left transition-colors
+      className={`flex w-full items-center gap-2.5 px-2 py-1 text-left transition-colors
         ${active && !disabled ? 'bg-surface-secondary' : 'hover:bg-surface-secondary'}
         ${disabled ? 'opacity-40 cursor-not-allowed' : ''}
         ${isAi ? 'border-l-2 border-[var(--color-ai)]' : ''}`}

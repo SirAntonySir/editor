@@ -10,7 +10,6 @@ import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
 import { analyseImageLayer, useAiSession } from '@/hooks/useImageContext';
 import { backendTools } from '@/lib/backend-tools';
 import { editorDocument } from '@/core/document';
-import { toast } from '@/components/ui/Toast';
 import {
   convertObjectToLayerMask,
   extractObjectToImageNode,
@@ -18,6 +17,7 @@ import {
   startObjectRename,
 } from '@/lib/segmentation/object-actions';
 import { exportImageNode, rejoinSourceImage } from '@/lib/image-node-actions';
+import { duplicateActiveImageNode } from '@/lib/duplicate-image-node';
 import { computeEffectiveSize, type Crop } from '@/lib/image-node-geometry';
 import { ImageNodeBody } from '../ImageNodeBody';
 import { SegmentHitLayer } from '../SegmentHitLayer';
@@ -310,7 +310,13 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
       </Item>
       <Item
         className={itemClass}
-        onSelect={() => toast.info('Duplicate — not yet wired (workspace clone op pending).')}
+        onSelect={() => {
+          // Promote this image-node to active so the shared duplicate
+          // helper (also bound to Cmd+D) operates on it instead of
+          // whatever was selected at right-click time.
+          useEditorStore.getState().setActiveImageNode(id);
+          void duplicateActiveImageNode();
+        }}
       >
         Duplicate
       </Item>

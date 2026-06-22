@@ -1,8 +1,34 @@
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, protocol, net } = require('electron');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 
 const isDev = !app.isPackaged;
 const DEV_URL = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173';
+const DIST_DIR = path.join(__dirname, '..', 'dist');
+
+// The packaged renderer is served from app://bundle/ instead of file://. A
+// real (privileged, secure) origin is required so absolute asset paths resolve
+// and the renderer's fetch() works — onnxruntime-web fetches its WASM from
+// "/ort/" and the SAM models from "/models/…", both of which file:// blocks.
+// Must be declared before app `ready`.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'app',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+  },
+]);
+
+/** Map app://bundle/<path> → dist/<path>, defaulting to index.html. Confined to
+ *  DIST_DIR so a crafted path can't escape the bundle. */
+function handleAppProtocol(request) {
+  const { pathname } = new URL(request.url);
+  const rel = decodeURIComponent(pathname).replace(/^\/+/, '') || 'index.html';
+  const resolved = path.join(DIST_DIR, rel);
+  if (resolved !== DIST_DIR && !resolved.startsWith(DIST_DIR + path.sep)) {
+    return new Response('Forbidden', { status: 403 });
+  }
+  return net.fetch(pathToFileURL(resolved).toString());
+}
 
 function createWindow() {
   const isMac = process.platform === 'darwin';
@@ -38,11 +64,14 @@ function createWindow() {
     win.loadURL(DEV_URL);
     win.webContents.openDevTools({ mode: 'detach' });
   } else {
-    win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+    win.loadURL('app://bundle/index.html');
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  protocol.handle('app', handleAppProtocol);
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

@@ -28,6 +28,12 @@ function ortStaticPassthrough() {
 }
 
 export default defineConfig({
+  // Absolute base ("/…"): the dev server and the packaged app both serve the
+  // renderer from an origin root — Vite dev at http://localhost, and the
+  // Electron build via the custom `app://bundle/` protocol (see electron/
+  // main.cjs). Absolute asset/model/wasm paths ("/assets/…", "/ort/",
+  // "/models/…") therefore resolve correctly in both.
+  base: '/',
   plugins: [react(), tailwindcss(), ortStaticPassthrough()],
   resolve: {
     alias: {

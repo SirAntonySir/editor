@@ -4,6 +4,8 @@ import { usePreferencesStore } from '@/store/preferences-store';
 import { useAiSession, analyseActiveImageLayer } from '@/hooks/useImageContext';
 import { revertToOriginal } from '@/lib/revert';
 import { openImageFromPicker, addImageFromPicker } from '@/lib/open-file';
+import { pasteImageFromClipboard } from '@/lib/paste-image';
+import { duplicateActiveImageNode } from '@/lib/duplicate-image-node';
 import { editorDocument } from '@/core/document';
 import { useBackendState } from '@/store/backend-state-slice';
 
@@ -92,6 +94,27 @@ function buildShortcuts(): ShortcutEntry[] {
     alt: true,
     action: () => revertToOriginal(),
     label: 'Revert to Original',
+  });
+
+  // Cmd+V — paste an image from the clipboard as a new image-node. Gated
+  // on document + SSE open by the helper. Input/textarea focus already
+  // short-circuits in the dispatcher above, so normal text paste in the
+  // palette / rename input is untouched.
+  shortcuts.push({
+    key: 'v',
+    ctrl: true,
+    action: () => { void pasteImageFromClipboard(); },
+    label: 'Paste image',
+  });
+
+  // Cmd+D — duplicate the active image-node. Browser default for Cmd+D
+  // (bookmark this page) is preventDefault'd by the dispatcher; in
+  // Electron we own the chord outright.
+  shortcuts.push({
+    key: 'd',
+    ctrl: true,
+    action: () => { void duplicateActiveImageNode(); },
+    label: 'Duplicate image',
   });
 
   shortcuts.push({

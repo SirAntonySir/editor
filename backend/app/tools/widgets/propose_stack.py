@@ -68,7 +68,10 @@ def _control_schema_for(op_id: str, param_key: str) -> ControlSchema:
     ct = binding.control_type
     payload: dict = {"control_type": ct}
 
-    if ct in ("slider", "kelvin_strip") and param.type == "scalar":
+    if ct in ("slider", "kelvin_strip", "tint_strip") and param.type == "scalar":
+        # tint_strip shares slider/kelvin_strip's schema (min/max/step required;
+        # unit optional). Without this branch white-balance widgets fail
+        # ControlSchema validation on the tint binding and never spawn.
         assert param.range is not None
         payload["min"], payload["max"] = param.range
         payload["step"] = param.step if param.step is not None else 1

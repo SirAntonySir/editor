@@ -125,6 +125,13 @@ function EditorContent() {
   const layers = useEditorStore((s) => s.layers);
   const toolDef = getActiveTool();
 
+  // macOS draws the `hiddenInset` traffic lights in a 28px-tall title-bar
+  // region with the lights vertically centred. Match that height so the
+  // menu text (vertically centred in the bar) lines up with the lights.
+  // Windows/Linux keep 24px to match the titleBarOverlay height in main.cjs.
+  const isMac = typeof window !== 'undefined' && window.electron?.platform === 'darwin';
+  const barHeight = isMac ? 28 : 24;
+
   // ⌘K toggles the CommandPalette — opens when closed (gated on SSE) and
   // closes when already open. ESC still closes via Dialog.Root's built-in
   // handler. We track open state from the palette's broadcast events to
@@ -177,8 +184,12 @@ function EditorContent() {
       <CommandPalette />
       <PreferencesDialog />
 
-      {/* Menu bar — fixed at top */}
-      <div className="relative z-30 flex-none h-[24px] flex items-center px-1 bg-surface border-b border-separator">
+      {/* Menu bar — fixed at top. Height tracks the OS title-bar region so the
+          menu text vertically centres on the macOS traffic lights. */}
+      <div
+        className="relative z-30 flex-none flex items-center px-1 bg-surface border-b border-separator"
+        style={{ height: barHeight }}
+      >
         <MenuBar />
       </div>
 

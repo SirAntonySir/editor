@@ -35,6 +35,10 @@ describe('editorDocument.addImage', () => {
         width: number; height: number;
         constructor(w: number, h: number) { this.width = w; this.height = h; }
         getContext() { return { drawImage: () => {} }; }
+        // The upload path (downscale-for-upload) calls convertToBlob; stub it
+        // so this test is self-contained rather than depending on a global
+        // polyfill happening to be installed by another test file first.
+        async convertToBlob() { return new Blob([], { type: 'image/jpeg' }); }
       },
     );
     // Stub fetch so the best-effort backend POST doesn't hit the network.
@@ -114,12 +118,17 @@ describe('editorDocument.addImage', () => {
 
   it('fires a best-effort POST to /api/session/:sid/images', async () => {
     await editorDocument.addImage(jpegFile());
-    const calls = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls;
-    const uploadCall = calls.find(
-      (c) => typeof c[0] === 'string' && (c[0] as string).includes('/api/session/sid-123/images'),
-    );
-    expect(uploadCall).toBeDefined();
-    expect((uploadCall![1] as RequestInit).method).toBe('POST');
+    // The upload is fire-and-forget (addImage does not await it), so poll the
+    // mock until the /images POST lands rather than reading synchronously —
+    // otherwise the assertion races the upload's await chain.
+    await vi.waitFor(() => {
+      const calls = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls;
+      const uploadCall = calls.find(
+        (c) => typeof c[0] === 'string' && (c[0] as string).includes('/api/session/sid-123/images'),
+      );
+      expect(uploadCall).toBeDefined();
+      expect((uploadCall![1] as RequestInit).method).toBe('POST');
+    });
   });
 
   it('still creates the workspace node when no backend session exists', async () => {
@@ -209,6 +218,10 @@ describe('addImage — burst toast', () => {
         width: number; height: number;
         constructor(w: number, h: number) { this.width = w; this.height = h; }
         getContext() { return { drawImage: () => {} }; }
+        // The upload path (downscale-for-upload) calls convertToBlob; stub it
+        // so this test is self-contained rather than depending on a global
+        // polyfill happening to be installed by another test file first.
+        async convertToBlob() { return new Blob([], { type: 'image/jpeg' }); }
       },
     );
     vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));

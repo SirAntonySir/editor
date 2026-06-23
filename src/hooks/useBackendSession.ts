@@ -11,16 +11,30 @@ import type { PersistedEditorState } from '@/core/editor-state-persistence';
 
 import { BACKEND_BASE_URL as BASE_URL } from '@/lib/backend-url';
 
+type ProbeResult = 'alive' | 'gone' | 'unreachable';
+
 /**
- * Probe whether a backend session is still alive. Returns true if the
- * GET /api/state/{sid} endpoint responds with a 2xx status.
+ * Probe a persisted backend session. Distinguishes three cases so the caller
+ * never destroys a session over a transient outage:
+ *   - 'alive'       — 2xx, reattach.
+ *   - 'gone'        — 404, the backend authoritatively says the session no
+ *                     longer exists; safe to wipe local state and start fresh.
+ *   - 'unreachable' — network error or 5xx (backend down / restarting / blip);
+ *                     we CANNOT tell if the session is gone, so the caller must
+ *                     keep localStorage + IndexedDB intact and try again later.
+ *
+ * The old version collapsed 'gone' and 'unreachable' into a single false, which
+ * meant a backend restart (or any network hiccup) wiped the user's session +
+ * cached pixels — the canvas then couldn't remount on reload.
  */
-async function probeSession(sid: string): Promise<boolean> {
+async function probeSession(sid: string): Promise<ProbeResult> {
   try {
     const r = await fetch(`${BASE_URL}/api/state/${sid}`);
-    return r.ok;
+    if (r.ok) return 'alive';
+    if (r.status === 404) return 'gone';
+    return 'unreachable';
   } catch {
-    return false;
+    return 'unreachable';
   }
 }
 
@@ -153,14 +167,25 @@ export function useBackendSession(): void {
         return;
       }
 
-      const alive = await probeSession(persisted);
+      const probe = await probeSession(persisted);
       if (cancelled) return;
 
-      if (!alive) {
-        // Backend has restarted or session evicted — start fresh.
-        console.info('[backend-session] persisted session', persisted, 'is gone; starting fresh');
+      if (probe === 'gone') {
+        // Backend authoritatively returned 404 — the session is truly evicted.
+        // Only now is it safe to drop the cached pixels + persisted id.
+        console.info('[backend-session] persisted session', persisted, 'is gone (404); starting fresh');
         await deletePrefix(persisted);
         reset();
+        return;
+      }
+
+      if (probe === 'unreachable') {
+        // Backend down / restarting / network blip. We can't tell if the
+        // session survived, so DON'T wipe — keep localStorage + IndexedDB so a
+        // later reload reattaches once the backend is back. Leave the store
+        // session id unset for now; the canvas stays on its last-rendered
+        // state and a reload re-probes.
+        console.warn('[backend-session] backend unreachable; keeping persisted session', persisted, '— reload once it is back');
         return;
       }
 

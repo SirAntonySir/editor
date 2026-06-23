@@ -19,6 +19,11 @@ import {
   type RadiusScale,
   type ThemeMode,
 } from '@/store/preferences-store';
+import {
+  BACKEND_BASE_URL,
+  getBackendUrlOverride,
+  setBackendUrlOverride,
+} from '@/lib/backend-url';
 
 const THEME_OPTIONS: { mode: ThemeMode; label: string }[] = [
   { mode: 'light',  label: 'Light' },
@@ -136,6 +141,8 @@ export function PreferencesDialog() {
                       ))}
                     </PillRow>
                   </Section>
+
+                  <BackendSection />
                 </div>
 
                 <div className="flex items-center justify-end px-4 py-2 border-t border-separator text-[10px] text-text-secondary">
@@ -155,6 +162,73 @@ export function PreferencesDialog() {
  *  event name string. */
 export function openPreferencesDialog() {
   window.dispatchEvent(new CustomEvent('prefs:open'));
+}
+
+/** Backend URL override. Persisted to localStorage; a reload is required to
+ *  re-establish the session + SSE stream, so Save reloads the app. */
+function BackendSection() {
+  const saved = getBackendUrlOverride();
+  const [draft, setDraft] = useState(saved);
+  const trimmed = draft.trim();
+  const dirty = trimmed !== saved;
+
+  const save = () => {
+    if (!dirty) return;
+    setBackendUrlOverride(trimmed);
+    window.location.reload();
+  };
+  const reset = () => {
+    setBackendUrlOverride('');
+    window.location.reload();
+  };
+
+  return (
+    <Section label="Backend URL">
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') save();
+            }}
+            placeholder={BACKEND_BASE_URL}
+            spellCheck={false}
+            autoComplete="off"
+            autoCapitalize="off"
+            className="flex-1 min-w-0 rounded-[5px] bg-surface-secondary border border-separator
+              px-2 py-1 text-[11px] text-text-primary placeholder:text-text-secondary
+              outline-none focus:border-[var(--color-accent)]"
+          />
+          <button
+            type="button"
+            onClick={save}
+            disabled={!dirty}
+            className="px-2.5 py-1 rounded-[5px] text-[11px] bg-accent text-white whitespace-nowrap
+              transition-opacity disabled:opacity-40"
+          >
+            Save & reload
+          </button>
+          {saved && (
+            <button
+              type="button"
+              onClick={reset}
+              className="px-2.5 py-1 rounded-[5px] text-[11px] text-text-secondary
+                hover:text-text-primary transition-colors"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <div className="text-[10px] text-text-secondary">
+          {saved
+            ? 'Overriding the build default. Reset to fall back to the bundled URL.'
+            : `Currently using ${BACKEND_BASE_URL}. Saving reloads the app.`}
+        </div>
+      </div>
+    </Section>
+  );
 }
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {

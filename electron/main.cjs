@@ -1,10 +1,28 @@
 const { app, BrowserWindow, shell, protocol, net } = require('electron');
 const path = require('node:path');
+const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
 
 const isDev = !app.isPackaged;
 const DEV_URL = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173';
 const DIST_DIR = path.join(__dirname, '..', 'dist');
+
+/** Resolve the backend base URL the renderer should talk to, at launch time so a
+ *  single packaged build can target any tunnel without rebuilding. Order:
+ *    1. BACKEND_URL env var (launch from a terminal with it set)
+ *    2. backend-url.txt in userData (survives double-click launches)
+ *    3. '' → renderer falls back to its baked VITE_AI_BACKEND_URL / localhost. */
+function resolveBackendUrl() {
+  if (process.env.BACKEND_URL) return process.env.BACKEND_URL.trim();
+  try {
+    const override = path.join(app.getPath('userData'), 'backend-url.txt');
+    const txt = fs.readFileSync(override, 'utf8').trim();
+    if (txt) return txt;
+  } catch {
+    /* no override file — fall through */
+  }
+  return '';
+}
 
 // The packaged renderer is served from app://bundle/ instead of file://. A
 // real (privileged, secure) origin is required so absolute asset paths resolve
@@ -52,6 +70,9 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Hand the resolved backend URL to the sandboxed preload via argv —
+      // process.env isn't reliably available there, but additionalArguments is.
+      additionalArguments: [`--backend-url=${resolveBackendUrl()}`],
     },
   });
 

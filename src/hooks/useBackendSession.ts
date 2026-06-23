@@ -9,7 +9,7 @@ import { restorePixelSources } from '@/core/restore-pixel-sources';
 import { useEditorStore } from '@/store';
 import type { PersistedEditorState } from '@/core/editor-state-persistence';
 
-const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
+import { BACKEND_BASE_URL as BASE_URL } from '@/lib/backend-url';
 
 /**
  * Probe whether a backend session is still alive. Returns true if the

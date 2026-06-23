@@ -9,33 +9,24 @@
 // fine.
 
 import { useBackendState } from '@/store/backend-state-slice';
-
-const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
+import { BACKEND_BASE_URL as BASE_URL } from '@/lib/backend-url';
 
 export function track(name: string, props: Record<string, unknown> = {}): void {
   // Read sessionId at call time — telemetry may fire before SSE opens
   // or after a session ends; both cases drop silently.
   const sessionId = useBackendState.getState().sessionId;
   if (!sessionId) return;
-  // navigator.sendBeacon survives page unload, the most likely loss
-  // window for UI telemetry. Falls back to fetch in environments where
-  // it's unavailable.
-  const body = JSON.stringify({ name, props });
-  try {
-    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
-      const blob = new Blob([body], { type: 'application/json' });
-      navigator.sendBeacon(`${BASE_URL}/api/telemetry/${sessionId}/event`, blob);
-      return;
-    }
-  } catch {
-    // sendBeacon throws on some Safari versions when payload is too large.
-    // Fall through to fetch.
-  }
+  // fetch + keepalive survives page unload (the main loss window for UI
+  // telemetry) just like sendBeacon would — but unlike sendBeacon it lets us
+  // omit credentials. sendBeacon always sends credentials-include, which a
+  // cross-origin (tunneled) backend with allow_credentials=false rejects at
+  // the CORS preflight. Telemetry events are tiny, well under keepalive's 64KB.
   void fetch(`${BASE_URL}/api/telemetry/${sessionId}/event`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body,
+    body: JSON.stringify({ name, props }),
     keepalive: true,
+    credentials: 'omit',
   }).catch(() => {
     // Silently drop — telemetry must not crash the editor.
   });

@@ -9,7 +9,7 @@ import { maskStore } from '@/core/mask-store';
 import { maskPngBase64ToBytes } from '@/lib/sam/sam-client';
 import type { ImageContext, RegionPolygon } from '@/types/image-context';
 
-const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
+import { BACKEND_BASE_URL as BASE_URL } from '@/lib/backend-url';
 
 type UploadSource = ImageBitmap | HTMLCanvasElement | OffscreenCanvas;
 

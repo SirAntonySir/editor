@@ -18,11 +18,12 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { useAiSession } from '@/hooks/useImageContext';
 import { clearInternalCanvasCache } from '@/lib/image-node-geometry';
+import { downscaleForUpload } from '@/lib/downscale-for-upload';
 import { parseImageMetadata } from '@/lib/image-metadata';
 import { backendTools } from '@/lib/backend-tools';
 import { toast } from '@/components/ui/Toast';
 
-const BACKEND_BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
+import { BACKEND_BASE_URL } from '@/lib/backend-url';
 
 const DEBOUNCE_MS = 2000;
 
@@ -314,16 +315,25 @@ async function addImage(file: File): Promise<void> {
   if (sid) void putSource(sid, layerId, file);
 
   // Best-effort backend upload — fire-and-forget. Mismatch in ids is a known
-  // gap for this slice; the revival ticket will reconcile.
+  // gap for this slice; the revival ticket will reconcile. Downscale first like
+  // the initial-load path (useImageContext): the backend only needs a context
+  // copy and enforces MAX_IMAGE_BYTES (2MB), so uploading a raw full-res image
+  // here would 413. Full resolution stays in the local pixelStore for editing.
   if (sid) {
-    const fd = new FormData();
-    fd.append('image', file);
-    void fetch(`${BACKEND_BASE_URL}/api/session/${sid}/images`, {
-      method: 'POST',
-      body: fd,
-    }).catch((err) => {
-      console.warn('[addImage] backend upload failed:', err);
-    });
+    void (async () => {
+      try {
+        const blob = await downscaleForUpload(offscreen);
+        const fd = new FormData();
+        fd.append('image', blob, 'image.jpg');
+        const resp = await fetch(`${BACKEND_BASE_URL}/api/session/${sid}/images`, {
+          method: 'POST',
+          body: fd,
+        });
+        if (!resp.ok) throw new Error(`${resp.status} ${await resp.text()}`);
+      } catch (err) {
+        console.warn('[addImage] backend upload failed:', err);
+      }
+    })();
   }
 
   if (store) {

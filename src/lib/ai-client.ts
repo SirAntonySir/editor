@@ -1,6 +1,6 @@
 import type { ImageContext } from '@/types/image-context';
 
-const BASE_URL = import.meta.env.VITE_AI_BACKEND_URL ?? 'http://127.0.0.1:8787';
+import { BACKEND_BASE_URL as BASE_URL } from '@/lib/backend-url';
 
 /** Read `response.text()` exactly once and JSON-parse if it looks like
  *  JSON. Response bodies can only be consumed once; without this helper

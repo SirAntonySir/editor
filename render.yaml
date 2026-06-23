@@ -10,7 +10,7 @@ services:
     runtime: docker
     branch: main
     dockerfilePath: backend/Dockerfile
-    dockerContext: backend
+    dockerContext: .          # repo root — image needs both backend/ and shared/
     plan: starter            # 512MB, always-on. Bump to `standard` (2GB) for headroom.
     region: frankfurt        # closest Render region to Munich
     numInstances: 1          # in-memory state — do NOT scale past 1

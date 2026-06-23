@@ -1,0 +1,24 @@
+# Build context is the repo root (backend image needs backend/ + shared/).
+# Keep everything else out so the context stays small. The Dockerfile only
+# COPYs backend/pyproject.toml, backend/app, and shared/.
+.git
+node_modules
+dist
+release
+.vite
+**/__pycache__
+**/*.pyc
+**/.venv
+backend/.sessions
+backend/.pytest_cache
+*.log
+
+# Secrets / env — never bake into the image
+.env
+.env.*
+backend/.env
+backend/.env.*
+
+# Frontend-only assets not needed by the backend image
+public/models
+public/ort

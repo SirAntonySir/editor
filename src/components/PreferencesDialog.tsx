@@ -23,6 +23,8 @@ import {
   BACKEND_BASE_URL,
   getBackendUrlOverride,
   setBackendUrlOverride,
+  getBackendToken,
+  setBackendToken,
 } from '@/lib/backend-url';
 
 const THEME_OPTIONS: { mode: ThemeMode; label: string }[] = [
@@ -164,32 +166,41 @@ export function openPreferencesDialog() {
   window.dispatchEvent(new CustomEvent('prefs:open'));
 }
 
-/** Backend URL override. Persisted to localStorage; a reload is required to
- *  re-establish the session + SSE stream, so Save reloads the app. */
+/** Backend URL + shared-secret token. Both persist to localStorage; a reload is
+ *  required to re-establish the session + SSE stream against the new host/token,
+ *  so Save reloads the app. The token is only needed when the backend enforces
+ *  one (a public deploy); leave it blank for local / Tailscale. */
 function BackendSection() {
-  const saved = getBackendUrlOverride();
-  const [draft, setDraft] = useState(saved);
-  const trimmed = draft.trim();
-  const dirty = trimmed !== saved;
+  const savedUrl = getBackendUrlOverride();
+  const savedToken = getBackendToken();
+  const [urlDraft, setUrlDraft] = useState(savedUrl);
+  const [tokenDraft, setTokenDraft] = useState(savedToken);
+
+  const urlTrimmed = urlDraft.trim();
+  const tokenTrimmed = tokenDraft.trim();
+  const dirty = urlTrimmed !== savedUrl || tokenTrimmed !== savedToken;
+  const hasOverride = Boolean(savedUrl || savedToken);
 
   const save = () => {
     if (!dirty) return;
-    setBackendUrlOverride(trimmed);
+    setBackendUrlOverride(urlTrimmed);
+    setBackendToken(tokenTrimmed);
     window.location.reload();
   };
   const reset = () => {
     setBackendUrlOverride('');
+    setBackendToken('');
     window.location.reload();
   };
 
   return (
-    <Section label="Backend URL">
+    <Section label="Backend">
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
           <input
             type="text"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            value={urlDraft}
+            onChange={(e) => setUrlDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') save();
             }}
@@ -197,6 +208,7 @@ function BackendSection() {
             spellCheck={false}
             autoComplete="off"
             autoCapitalize="off"
+            aria-label="Backend URL"
             className="flex-1 min-w-0 rounded-[5px] bg-surface-secondary border border-separator
               px-2 py-1 text-[11px] text-text-primary placeholder:text-text-secondary
               outline-none focus:border-[var(--color-accent)]"
@@ -210,7 +222,7 @@ function BackendSection() {
           >
             Save & reload
           </button>
-          {saved && (
+          {hasOverride && (
             <button
               type="button"
               onClick={reset}
@@ -221,9 +233,25 @@ function BackendSection() {
             </button>
           )}
         </div>
+        <input
+          type="password"
+          value={tokenDraft}
+          onChange={(e) => setTokenDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') save();
+          }}
+          placeholder="Access token (only if the backend requires one)"
+          spellCheck={false}
+          autoComplete="off"
+          autoCapitalize="off"
+          aria-label="Backend access token"
+          className="w-full min-w-0 rounded-[5px] bg-surface-secondary border border-separator
+            px-2 py-1 text-[11px] text-text-primary placeholder:text-text-secondary
+            outline-none focus:border-[var(--color-accent)]"
+        />
         <div className="text-[10px] text-text-secondary">
-          {saved
-            ? 'Overriding the build default. Reset to fall back to the bundled URL.'
+          {hasOverride
+            ? 'Overriding the build defaults. Reset to fall back to the bundled values.'
             : `Currently using ${BACKEND_BASE_URL}. Saving reloads the app.`}
         </div>
       </div>

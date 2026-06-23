@@ -29,6 +29,11 @@ class EnvSettings(BaseSettings):
     # `http://localhost:5173` requests from a co-located dev server. For
     # local development, set ALLOWED_ORIGINS in .env (see .env.example).
     allowed_origins: str = ""
+    # Shared-secret gate. Empty = auth disabled (local / Tailscale). When set
+    # (e.g. on a public Render deploy), every request except /health and CORS
+    # preflight must present this token via `Authorization: Bearer <token>` or
+    # a `?token=<token>` query param (the latter for the header-less SSE stream).
+    backend_auth_token: str = ""
     session_ttl_seconds: int = 1800
     max_image_bytes: int = 2 * 1024 * 1024
     sam_checkpoint_path: str | None = None

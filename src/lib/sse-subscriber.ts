@@ -2,7 +2,7 @@ import type { StateEvent, SessionStateSnapshot } from '@/types/widget';
 import { useBackendState } from '@/store/backend-state-slice';
 import { RUNTIME } from '@/config';
 
-import { BACKEND_BASE_URL as BASE_URL } from '@/lib/backend-url';
+import { BACKEND_BASE_URL as BASE_URL, getBackendToken } from '@/lib/backend-url';
 
 export function parseSseLine(line: string): StateEvent | null {
   if (!line.startsWith('data: ')) return null;
@@ -49,7 +49,11 @@ export function openSseSubscription(sessionId: string): SseHandle {
   // the backend emits a synthetic `state.gap` event; the backend-state
   // slice reacts by calling fetchSnapshot() above.
   state.setSseStatus('connecting');
-  const source = new EventSource(`${BASE_URL}/api/state/${sessionId}/events`);
+  // EventSource can't send an Authorization header, so the shared-secret token
+  // (when configured) rides as a query param; the backend accepts either.
+  const token = getBackendToken();
+  const eventsUrl = `${BASE_URL}/api/state/${sessionId}/events${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  const source = new EventSource(eventsUrl);
 
   source.onopen = () => {
     state.setSseStatus('open');

@@ -41,6 +41,31 @@ export function setBackendUrlOverride(url: string): void {
   }
 }
 
+const TOKEN_KEY = 'editor-backend-token';
+
+/** Shared-secret token for the backend, or '' if none. Order: user override
+ *  (Preferences, localStorage) → VITE_BACKEND_TOKEN (build-time) → ''. */
+export function getBackendToken(): string {
+  try {
+    const stored = (localStorage.getItem(TOKEN_KEY) ?? '').trim();
+    if (stored) return stored;
+  } catch {
+    /* storage unavailable */
+  }
+  return (import.meta.env.VITE_BACKEND_TOKEN || '').trim();
+}
+
+/** Persist (empty string clears) the user's backend token. Caller reloads. */
+export function setBackendToken(token: string): void {
+  const value = token.trim();
+  try {
+    if (value) localStorage.setItem(TOKEN_KEY, value);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 export const DEFAULT_BACKEND_URL = 'http://127.0.0.1:8787';
 
 const ELECTRON_URL =

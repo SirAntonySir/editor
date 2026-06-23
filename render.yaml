@@ -1,0 +1,27 @@
+# Render Blueprint — backend only. The frontend deploys to Vercel (see vercel.json).
+#
+# IMPORTANT: this service is STATEFUL — sessions and the SSE event bus live in
+# process memory (app/api/deps.py singletons). It MUST run as a single,
+# always-on instance. Never enable autoscaling and never use the Free plan
+# (Free spins down on idle, which wipes every active session + SSE stream).
+services:
+  - type: web
+    name: editor-backend
+    runtime: docker
+    branch: main
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: starter            # 512MB, always-on. Bump to `standard` (2GB) for headroom.
+    region: frankfurt        # closest Render region to Munich
+    numInstances: 1          # in-memory state — do NOT scale past 1
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false          # set in the Render dashboard (secret)
+      - key: BACKEND_AUTH_TOKEN
+        generateValue: true  # Render mints a strong shared secret; read it in the dashboard
+      - key: ALLOWED_ORIGINS
+        sync: false          # e.g. https://<your-app>.vercel.app,app://bundle
+      - key: ANTHROPIC_MODEL
+        value: claude-opus-4-7

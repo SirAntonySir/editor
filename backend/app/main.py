@@ -4,6 +4,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from .api import router as api_router
 from .api.admin import router as admin_router
@@ -107,6 +110,27 @@ def create_app() -> FastAPI:
             "No ALLOWED_ORIGINS configured — CORS will reject all cross-origin requests. "
             "Set ALLOWED_ORIGINS=http://localhost:5173 for local dev."
         )
+    # Shared-secret gate. Added BEFORE CORS so CORS stays the outermost
+    # middleware — it still answers preflight and tags the 401 with CORS
+    # headers. No-op (not even installed) when no token is configured, so
+    # local / Tailscale runs are unaffected.
+    if settings.backend_auth_token:
+        token = settings.backend_auth_token
+
+        async def _require_token(request: Request, call_next):
+            if request.method != "OPTIONS" and request.url.path != "/health":
+                authz = request.headers.get("authorization", "")
+                provided = (
+                    authz[len("Bearer ") :]
+                    if authz.startswith("Bearer ")
+                    else request.query_params.get("token")
+                )
+                if provided != token:
+                    return JSONResponse({"detail": "unauthorized"}, status_code=401)
+            return await call_next(request)
+
+        app.add_middleware(BaseHTTPMiddleware, dispatch=_require_token)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,

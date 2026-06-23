@@ -339,6 +339,7 @@ export interface ResolvedNumbers {
   };
 }
 export interface SessionStateSnapshot {
+  aiAccess: boolean;
   imageContext: EnrichedImageContext | null;
   masksIndex: {
     [k: string]: unknown;
@@ -801,7 +802,8 @@ export interface StateEvent {
     | "image_node_transform.updated"
     | "mcp.usage"
     | "history.applied"
-    | "state.gap";
+    | "state.gap"
+    | "session.ai_access";
   payload: {
     [k: string]: unknown;
   };

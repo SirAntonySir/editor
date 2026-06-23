@@ -463,6 +463,10 @@ StateEventKind = Literal[
     # log was pruned past the client's Last-Event-ID. Frontend refetches
     # the full snapshot.
     "state.gap",
+    # Study-design AI_access flip from the admin cockpit. Payload
+    # {"ai_access": bool}; lets the running app toggle AI surfaces live
+    # without a reload.
+    "session.ai_access",
 ]
 
 

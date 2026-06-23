@@ -250,6 +250,18 @@ export const useBackendState = create<BackendState>()(
             }
             return;
           }
+          case 'session.ai_access': {
+            // Admin flipped the study-condition flag. Patch it onto the live
+            // snapshot so the AI surfaces toggle without a reload. Handled
+            // before the snapshot guard for the same reason as context.updated:
+            // it can race the initial REST snapshot fetch.
+            const next = (payload as { ai_access?: boolean }).ai_access;
+            if (typeof next === 'boolean' && s.snapshot) {
+              s.snapshot.aiAccess = next;
+              s.snapshot.revision = ev.revision;
+            }
+            return;
+          }
           case 'history.applied': {
             // Backend undo/redo/revert landed. Payload carries the full
             // restored projection so we can swap snapshot state in one
@@ -292,6 +304,7 @@ export const useBackendState = create<BackendState>()(
                 masksIndex: [],
                 operationGraph: { id: '', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
                 imageContext: partial as never,
+                aiAccess: true,
               } as never;
             }
             return;
@@ -309,7 +322,11 @@ export const useBackendState = create<BackendState>()(
             // Bridge into the FE-only suggestions UI slice for autonomous
             // suggestions — deferred to a side-effect so the cross-store
             // call observes a settled `useSuggestionsUi`.
-            if (w.origin.kind === 'mcp_autonomous') {
+            // Study control condition (AI_access=false): never surface
+            // autonomous suggestions as pending chips. Defensive — in control
+            // no analyze runs, so none are minted, but this guards any that
+            // arrive via replay on a session whose flag was flipped mid-run.
+            if (w.origin.kind === 'mcp_autonomous' && (s.snapshot?.aiAccess ?? true)) {
               sideEffects.push(() => {
                 const existing = useSuggestionsUi.getState().pendingSuggestionIds;
                 useSuggestionsUi.getState().markPending([...existing, w.id]);

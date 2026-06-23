@@ -3,7 +3,7 @@
 Layout per session:
     backend/.sessions/<sid>/
         image.<ext>     — raw uploaded bytes
-        meta.json       — { mime_type, created_at }
+        meta.json       — { mime_type, created_at, ai_access }
         context.json    — full ImageContext (or absent if not yet analysed)
 
 This module is intentionally pure: it doesn't know about SessionStore,
@@ -26,6 +26,11 @@ class DiskRecord:
     mime_type: str
     created_at: float
     context_json: dict[str, Any] | None
+    # Study-design session constant. True = AI features available; False =
+    # control condition (analysis / command-palette AI / suggestions hidden).
+    # Defaults True so sessions persisted before this field existed read as
+    # "AI on" — the pre-existing behaviour.
+    ai_access: bool = True
 
 
 # Anchor at the backend package root, NOT cwd. The launch scripts all
@@ -88,15 +93,42 @@ def _ext_for(mime: str) -> str:
     return _EXT_FOR_MIME.get(mime, "bin")
 
 
-def save_session(sid: str, image_bytes: bytes, mime_type: str, created_at: float) -> None:
+def save_session(
+    sid: str,
+    image_bytes: bytes,
+    mime_type: str,
+    created_at: float,
+    ai_access: bool = True,
+) -> None:
     """Write a new session's image + meta to disk. Idempotent — overwrites
     any existing files at the same path."""
     d = _session_dir(sid)
     d.mkdir(parents=True, exist_ok=True)
     (d / f"image.{_ext_for(mime_type)}").write_bytes(image_bytes)
     (d / "meta.json").write_text(
-        json.dumps({"mime_type": mime_type, "created_at": created_at}),
+        json.dumps({
+            "mime_type": mime_type,
+            "created_at": created_at,
+            "ai_access": ai_access,
+        }),
     )
+
+
+def save_ai_access(sid: str, ai_access: bool) -> None:
+    """Flip the `ai_access` flag in an existing session's meta.json, preserving
+    mime_type / created_at. No-op (creates nothing) when the session dir or
+    meta.json is missing — the admin setter only targets sessions that exist."""
+    meta_path = _session_dir(sid) / "meta.json"
+    if not meta_path.exists():
+        return
+    try:
+        meta = json.loads(meta_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return
+    if not isinstance(meta, dict):
+        return
+    meta["ai_access"] = ai_access
+    meta_path.write_text(json.dumps(meta))
 
 
 def write_image(sid: str, image_node_id: str, image_bytes: bytes, mime_type: str) -> None:
@@ -199,6 +231,7 @@ def load_session(sid: str) -> DiskRecord | None:
         mime_type=mime,
         created_at=float(meta.get("created_at", time.time())),
         context_json=context,
+        ai_access=bool(meta.get("ai_access", True)),
     )
 
 

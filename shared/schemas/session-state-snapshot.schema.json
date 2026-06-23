@@ -2303,6 +2303,11 @@
   },
   "additionalProperties": false,
   "properties": {
+    "aiAccess": {
+      "default": true,
+      "title": "Aiaccess",
+      "type": "boolean"
+    },
     "imageContext": {
       "anyOf": [
         {

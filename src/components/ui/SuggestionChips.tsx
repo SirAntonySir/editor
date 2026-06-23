@@ -5,6 +5,7 @@ import * as Popover from '@radix-ui/react-popover';
 import { useReactFlow } from '@xyflow/react';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
+import { useAiAccess } from '@/lib/ai-access';
 import { backendTools } from '@/lib/backend-tools';
 import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
 import type { Widget } from '@/types/widget';
@@ -23,8 +24,12 @@ import { UI } from '@/config';
  * + canvas); denied widgets are gone.
  */
 export function SuggestionChips() {
+  const aiAccess = useAiAccess();
   const pendingIds = useSuggestionsUi((s) => s.pendingSuggestionIds);
   const widgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
+
+  // Study control condition: no autonomous suggestion chips at all.
+  if (!aiAccess) return null;
 
   const pending: Widget[] = [];
   for (const w of widgets) {

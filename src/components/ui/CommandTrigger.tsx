@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useAiAccess } from '@/lib/ai-access';
 
 /** Floating command bar at the bottom-center of the canvas. Styled like a search
  *  input; clicking it (or pressing ⌘K) opens the command palette. Disabled when
@@ -14,6 +15,7 @@ import { useBackendState } from '@/store/backend-state-slice';
  *  carries the shared id at any time. */
 export function CommandTrigger() {
   const sseStatus = useBackendState((s) => s.sseStatus);
+  const aiAccess = useAiAccess();
   const disabled = sseStatus !== 'open';
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -53,7 +55,7 @@ export function CommandTrigger() {
               : 'text-text-secondary hover:text-text-primary cursor-text'}`}
         >
           <Plus size={15} className="shrink-0" />
-          <span className="flex-1 text-left">Search tools or ask AI…</span>
+          <span className="flex-1 text-left">{aiAccess ? 'Search tools or ask AI…' : 'Search tools…'}</span>
           <Kbd keys={['mod', 'K']} />
         </motion.button>
       )}

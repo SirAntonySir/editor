@@ -1707,6 +1707,10 @@
     "SessionStateSnapshot": {
       "additionalProperties": false,
       "properties": {
+        "aiAccess": {
+          "default": true,
+          "type": "boolean"
+        },
         "imageContext": {
           "anyOf": [
             {
@@ -1740,6 +1744,7 @@
         }
       },
       "required": [
+        "aiAccess",
         "imageContext",
         "masksIndex",
         "operationGraph",
@@ -1813,7 +1818,8 @@
             "image_node_transform.updated",
             "mcp.usage",
             "history.applied",
-            "state.gap"
+            "state.gap",
+            "session.ai_access"
           ],
           "type": "string"
         },

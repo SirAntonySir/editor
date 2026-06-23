@@ -65,7 +65,10 @@ async def state_snapshot(sid: str) -> SessionStateSnapshot:
     wire serialisation runs in the response renderer."""
     try:
         async with _store().with_document_lock(sid) as doc:
-            return compute_snapshot(doc)
+            # ai_access lives on the SessionRecord (mirrors meta.json), not the
+            # document — read it while holding the lock so it can't race a flip.
+            ai_access = _store().get(sid).ai_access
+            return compute_snapshot(doc, ai_access=ai_access)
     except SessionNotFound:
         raise HTTPException(status_code=404, detail="unknown or expired session")
 
@@ -263,4 +266,13 @@ async def state_events(
         finally:
             bus.unsubscribe(sid, queue)
 
-    return EventSourceResponse(gen())
+    resp = EventSourceResponse(gen())
+    # Defeat intermediary response buffering that otherwise holds back
+    # incremental SSE events (the symptom: initial snapshot loads via fetch but
+    # live widget.created/updated events never arrive through a tunnel/CDN).
+    # sse_starlette already sets X-Accel-Buffering: no (nginx); `no-transform`
+    # is the directive Cloudflare honors to stop it buffering/compressing the
+    # stream.
+    resp.headers["Cache-Control"] = "no-cache, no-transform"
+    resp.headers["X-Accel-Buffering"] = "no"
+    return resp

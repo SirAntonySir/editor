@@ -17,6 +17,7 @@ import { useMemo } from 'react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useAiSession, analyseActiveImageLayer } from '@/hooks/useImageContext';
+import { useAiAccess } from '@/lib/ai-access';
 import { useFileIO } from '@/hooks/useFileIO';
 import { useCanvasZoom } from '@/hooks/useCanvasZoom';
 import { useImageTransform } from '@/hooks/useImageTransform';
@@ -87,6 +88,8 @@ export function useMenuActions(): MenuAction[] {
   // Mechanical snapshot drives the Auto Light/Color/Tone/Contrast actions.
   // When null (no canvas published yet) the auto entries render disabled.
   const mech = useLiveMechanicalContext();
+  // Study control condition drops the AI group (Analyze) from the palette.
+  const aiAccess = useAiAccess();
 
   return useMemo<MenuAction[]>(() => [
     // ── File ────────────────────────────────────────────────────────
@@ -158,15 +161,19 @@ export function useMenuActions(): MenuAction[] {
     { id: 'view:50',        group: 'View', label: '50%',            run: () => applyZoom(0.5) },
 
     // ── AI ──────────────────────────────────────────────────────────
-    { id: 'ai:analyze', group: 'AI',
+    // Omitted entirely in the study control condition (AI_access=false).
+    ...(aiAccess ? [{
+      id: 'ai:analyze', group: 'AI' as const,
       label: hasContext ? 'Re-analyze image' : 'Analyze image',
       aliases: ['get context', 'analyze with ai', 'reanalyze', 'image context'],
       shortcut: ['mod', 'alt', 'A'],
       disabled: !hasLayers || analysing,
-      run: () => { void analyseActiveImageLayer(); } },
+      run: () => { void analyseActiveImageLayer(); },
+    }] : []),
   ], [
     handleOpen, handleAddImage, handleClose, handleExport,
     applyZoom, fitOnScreen, zoomIn, zoomOut,
     transformImage, hasLayers, canUndo, canRedo, hasContext, analysing, mech, sseOpen,
+    aiAccess,
   ]);
 }

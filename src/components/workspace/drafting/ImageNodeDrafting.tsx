@@ -8,6 +8,7 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
 import { analyseImageLayer, useAiSession } from '@/hooks/useImageContext';
+import { useAiAccess } from '@/lib/ai-access';
 import { backendTools } from '@/lib/backend-tools';
 import { editorDocument } from '@/core/document';
 import {
@@ -69,6 +70,8 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   // Right-click "Analyze with AI" hides once this node has been analysed —
   // the AI menu does the same via its `analysedIds.includes(id)` check.
   const isAnalysed = useAiSession((s) => s.analysedImageNodeIds.includes(id));
+  // Study control condition hides the node's AI context-menu items.
+  const aiAccess = useAiAccess();
 
   function handleAskAboutThis() {
     // Open the palette directly in Ask mode. The image-node's first layer
@@ -221,27 +224,32 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   const itemClassDim = 'px-2 py-1 text-[10px] rounded-sm cursor-not-allowed outline-none text-text-secondary opacity-60';
   const renderMenuItems = (Item: typeof DropdownMenu.Item | typeof ContextMenu.Item) => (
     <>
-      {!isAnalysed && (
-        <Item
-          className={itemClass}
-          onSelect={() => void analyseImageLayer(id)}
-        >
-          <span className="flex items-center gap-1.5">
-            <Sparkles size={11} className="text-[var(--color-ai)]" />
-            <span>Analyze with AI</span>
-          </span>
-        </Item>
+      {/* AI items — hidden in the study control condition (AI_access=false). */}
+      {aiAccess && (
+        <>
+          {!isAnalysed && (
+            <Item
+              className={itemClass}
+              onSelect={() => void analyseImageLayer(id)}
+            >
+              <span className="flex items-center gap-1.5">
+                <Sparkles size={11} className="text-[var(--color-ai)]" />
+                <span>Analyze with AI</span>
+              </span>
+            </Item>
+          )}
+          <Item
+            className={itemClass}
+            onSelect={handleAskAboutThis}
+          >
+            <span className="flex items-center gap-1.5">
+              <MessageSquare size={11} className="text-[var(--color-ai)]" />
+              <span>Ask about this image</span>
+            </span>
+          </Item>
+          <div className="my-1 h-px bg-separator" />
+        </>
       )}
-      <Item
-        className={itemClass}
-        onSelect={handleAskAboutThis}
-      >
-        <span className="flex items-center gap-1.5">
-          <MessageSquare size={11} className="text-[var(--color-ai)]" />
-          <span>Ask about this image</span>
-        </span>
-      </Item>
-      <div className="my-1 h-px bg-separator" />
       {selectedObject && (
         <>
           <div className="px-2 pt-1 pb-0.5 text-[9px] uppercase tracking-wide text-text-secondary">

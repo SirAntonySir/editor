@@ -268,7 +268,8 @@ def test_state_event_kinds() -> None:
     expected = {
         "widget.created", "widget.updated", "widget.deleted",
         "widget.accepted", "widget.restored",
-        "mask.created", "selection.changed",
+        "mask.created", "mask.deleted", "mask.renamed",
+        "selection.changed",
         "context.updated", "dismissal.added",
         "note.created",
         "phase.started", "phase.progress", "phase.completed", "phase.cancelled",
@@ -281,5 +282,7 @@ def test_state_event_kinds() -> None:
         # P3 undo/redo/revert restoration carries the full snapshot
         # summary so the frontend can swap state in one shot.
         "history.applied",
+        # Study-design AI_access flip from the admin cockpit.
+        "session.ai_access",
     }
     assert set(StateEventKind.__args__) == expected

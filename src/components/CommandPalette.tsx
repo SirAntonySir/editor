@@ -14,6 +14,7 @@ import { analyseActiveImageLayer, useAiSession } from '@/hooks/useImageContext';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
 import { useSmartMatch } from '@/hooks/useSmartMatch';
 import { useAsk } from '@/hooks/useAsk';
+import { useAiAccess } from '@/lib/ai-access';
 import { CommandPaletteAskView } from './CommandPaletteAskView';
 import type { Scope } from '@/types/widget';
 import {
@@ -53,6 +54,10 @@ export function CommandPalette() {
    *  the results scroll for an LLM-answered markdown view. Toggled by the
    *  pill in the input row. */
   const [mode, setMode] = useState<PaletteMode>('agent');
+  // Study control condition: strip the palette's AI affordances (Ask mode,
+  // "send as a prompt" row, smart-match) but keep the static op/preset/menu
+  // search so both study conditions share a keyboard search surface.
+  const aiAccess = useAiAccess();
   const ask = useAsk();
   /** Sub-phase of the AI flow shown in the input placeholder while a
    *  request is in flight: 'analyze' (image context being built) → 'propose'
@@ -113,7 +118,7 @@ export function CommandPalette() {
     [allSections, query],
   );
   const aiCommand = useMemo<PaletteCommand | null>(
-    () => (query.trim()
+    () => (query.trim() && aiAccess
       ? {
           id: 'ai',
           kind: 'ai',
@@ -121,7 +126,7 @@ export function CommandPalette() {
           description: 'Send as a prompt',
         }
       : null),
-    [query],
+    [query, aiAccess],
   );
 
   // ─── Smart match (AI) ──────────────────────────────────────────────
@@ -152,7 +157,7 @@ export function CommandPalette() {
   // hits means the synonym match didn't fully cover the query, so the LLM
   // has room to add value. Above 3, the deterministic side has the user
   // covered and the AI call would just spend tokens to echo what's there.
-  const smartMatch = useSmartMatch(query, { enabled: primaryCount < 3 });
+  const smartMatch = useSmartMatch(query, { enabled: aiAccess && primaryCount < 3 });
   const smartSection = useMemo<PaletteSection | null>(() => {
     if (smartMatch.picks.length === 0) return null;
     // Map each pick to its canonical PaletteCommand and dedup against the
@@ -308,6 +313,9 @@ export function CommandPalette() {
     setLastMode(mode);
     ask.reset();
   }
+  // Control condition has no Ask mode — if the flag flips to false while the
+  // palette sits in Ask (e.g. admin toggle mid-session), snap back to Agent.
+  if (!aiAccess && mode === 'ask') setMode('agent');
 
   // Broadcast open/close so CommandTrigger can hide itself and Framer's
   // shared-layout morph (layoutId="command-palette-shell") has only one
@@ -591,7 +599,7 @@ export function CommandPalette() {
                     pending || ask.state.status === 'pending' ? ' ai-shimmer' : ''
                   }`}
                 >
-                  <ModeToggle mode={mode} onChange={setMode} />
+                  {aiAccess && <ModeToggle mode={mode} onChange={setMode} />}
                   {attachedContext.length > 0 && (
                     <InlineContextChips
                       items={attachedContext}
@@ -623,7 +631,7 @@ export function CommandPalette() {
                           ? pendingPhase === 'analyze'
                             ? `Analyzing image first — then "${pending}"…`
                             : `Sending "${pending}"…`
-                          : 'Search tools or ask AI…'
+                          : aiAccess ? 'Search tools or ask AI…' : 'Search tools…'
                     }
                     disabled={mode === 'agent' && !!pending}
                     className="flex-1 min-w-0 bg-transparent outline-none text-xs text-text-primary placeholder:text-text-secondary disabled:opacity-60"

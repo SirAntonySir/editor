@@ -15,6 +15,7 @@ import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { useCanvasZoom } from '@/hooks/useCanvasZoom';
 import { useImageTransform } from '@/hooks/useImageTransform';
 import { UI } from '@/config';
+import { useAiAccess } from '@/lib/ai-access';
 import { spawnRegistryOp } from '@/lib/toolrail-spawn';
 import { loadRegistry } from '@/lib/registry/loader';
 import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';
@@ -35,7 +36,7 @@ const menuContentClass =
 // menus. macOS draws the traffic lights top-left (hiddenInset); Windows draws
 // the caption buttons top-right (via titleBarOverlay in electron/main.cjs). The
 // web build reserves nothing. Widths cover the control cluster on a 24px bar.
-const MAC_TRAFFIC_LIGHT_INSET = 76;
+const MAC_TRAFFIC_LIGHT_INSET = 64;
 const WIN_CAPTION_INSET = 140;
 
 const menuItemClass =
@@ -109,6 +110,8 @@ export function MenuBar() {
   const { handleOpen, handleAddImage, handleClose, handleExport } = useFileIO();
   const { transformImage } = useImageTransform();
   const { applyZoom, fitOnScreen, zoomIn, zoomOut } = useCanvasZoom();
+  // Study control condition hides the AI menu entirely (see useAiAccess).
+  const aiAccess = useAiAccess();
 
   const platform = typeof window !== 'undefined' ? window.electron?.platform : undefined;
   const isMac = platform === 'darwin';
@@ -132,7 +135,7 @@ export function MenuBar() {
         <ViewMenu applyZoom={applyZoom} fitOnScreen={fitOnScreen} zoomIn={zoomIn} zoomOut={zoomOut} />
         {/* Filters used to live in their own top-level menu; they're now
             part of Image → Adjustments via the SSoT registry. */}
-        <AiMenu />
+        {aiAccess && <AiMenu />}
         <HelpMenu />
       </Menubar.Root>
 

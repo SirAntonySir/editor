@@ -8,6 +8,7 @@ import { pasteImageFromClipboard } from '@/lib/paste-image';
 import { duplicateActiveImageNode } from '@/lib/duplicate-image-node';
 import { editorDocument } from '@/core/document';
 import { useBackendState } from '@/store/backend-state-slice';
+import { getAiAccess } from '@/lib/ai-access';
 
 const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent);
 
@@ -144,6 +145,9 @@ function buildShortcuts(): ShortcutEntry[] {
     ctrl: true,
     alt: true,
     action: () => {
+      // Study control condition: analysis is disabled along with the rest of
+      // the AI surfaces (the AI menu that shows this shortcut is hidden too).
+      if (!getAiAccess()) return;
       const layers = useEditorStore.getState().layers;
       if (layers.length === 0) return;
       const status = useAiSession.getState().status;

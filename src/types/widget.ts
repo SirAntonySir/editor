@@ -245,6 +245,11 @@ export interface SessionStateSnapshot {
   masksIndex: MaskSummary[];
   operationGraph: OperationGraph;
   revision: number;
+  /** Study-design session constant. True = AI features available; false =
+   *  control condition (analysis / command-palette AI / suggestions hidden).
+   *  Set per-session via the admin cockpit. Optional on the wire for forward
+   *  compat — readers default to true (see `useAiAccess` / `getAiAccess`). */
+  aiAccess?: boolean;
 }
 
 export type StateEventKind =
@@ -265,7 +270,8 @@ export type StateEventKind =
   | 'phase.cancelled'
   | 'mcp.usage'
   | 'state.gap'
-  | 'history.applied';
+  | 'history.applied'
+  | 'session.ai_access';
 
 export interface StateEvent {
   revision: number;

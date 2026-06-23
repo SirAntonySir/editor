@@ -28,7 +28,8 @@
         "image_node_transform.updated",
         "mcp.usage",
         "history.applied",
-        "state.gap"
+        "state.gap",
+        "session.ai_access"
       ],
       "title": "Kind",
       "type": "string"

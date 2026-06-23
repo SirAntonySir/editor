@@ -19,9 +19,13 @@ class SessionStateSnapshot(BaseModel):
     masks_index: list[dict]
     operation_graph: OperationGraph
     revision: int
+    # Study-design session constant (serialised as `aiAccess`). True = AI
+    # features available; False = control condition. Owned by the SessionRecord
+    # / on-disk meta.json, not the document — passed in by compute_snapshot.
+    ai_access: bool = True
 
 
-def compute_snapshot(doc: SessionDocument) -> SessionStateSnapshot:
+def compute_snapshot(doc: SessionDocument, *, ai_access: bool = True) -> SessionStateSnapshot:
     ctx = doc.get_image_context(DEFAULT_IMAGE_NODE_ID)
     return SessionStateSnapshot(
         session_id=doc.session_id,
@@ -35,4 +39,5 @@ def compute_snapshot(doc: SessionDocument) -> SessionStateSnapshot:
         ],
         operation_graph=project_to_graph(doc),
         revision=doc.revision,
+        ai_access=ai_access,
     )

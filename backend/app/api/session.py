@@ -22,7 +22,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 
 from app.schemas.image_context import ImageContext
-from app.services import disk_session_io
+from app.services import cohort_store, disk_session_io
 from app.services.event_journal import write_event
 from app.services.image_validation import ImageValidationError, validate_image_upload
 from app.services.session_store import SessionNotFound, SessionStore
@@ -69,8 +69,17 @@ async def create_session(
         validated = validate_image_upload(data, image.content_type)
     except ImageValidationError as exc:
         raise HTTPException(status_code=exc.http_status, detail=str(exc)) from exc
-    sid = store.create(image_bytes=validated.image_bytes, mime_type=validated.mime_type)
+    # Resolve the cohort (participant) identity BEFORE creating the session so
+    # the new session inherits the participant's study condition. Each reload /
+    # new image-open mints a fresh session; cohort inheritance is what makes the
+    # admin-set AI_access stick across all of them.
     user_id = _resolve_user_id(request, response)
+    ai_access = cohort_store.get_cohort_ai_access(user_id)
+    sid = store.create(
+        image_bytes=validated.image_bytes,
+        mime_type=validated.mime_type,
+        ai_access=ai_access,
+    )
     # Emit a synthetic session.created event so the cockpit can pin a
     # session to its user, browser, and upload bytes-count without
     # snooping inside the persistence layer.

@@ -126,6 +126,7 @@ def _hydrate_into_store(
         created_at=now,
         last_seen=now,
         context=disk.context_json,
+        ai_access=disk.ai_access,
         document=doc,
     )
     # Direct insertion — we want to skip the on-demand lazy hydration since

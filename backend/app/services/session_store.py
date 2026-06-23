@@ -79,6 +79,9 @@ class SessionRecord:
     created_at: float
     last_seen: float
     context: dict[str, Any] | None = None
+    # Study-design session constant — see DiskRecord.ai_access. Mirrors the
+    # on-disk meta.json flag; surfaced to the frontend via compute_snapshot.
+    ai_access: bool = True
     document: "SessionDocument | None" = None  # lazily created
     history_engine: "Any" = None  # lazily created HistoryEngine
     # Per-session document write lock. asyncio.Lock (not threading.Lock):
@@ -114,7 +117,7 @@ class SessionStore:
     def _is_expired(self, record: SessionRecord) -> bool:
         return (time.monotonic() - record.last_seen) > self._ttl
 
-    def create(self, image_bytes: bytes, mime_type: str) -> str:
+    def create(self, image_bytes: bytes, mime_type: str, ai_access: bool = True) -> str:
         sid = uuid.uuid4().hex
         now = time.monotonic()
         with self._lock:
@@ -123,10 +126,12 @@ class SessionStore:
                 mime_type=mime_type,
                 created_at=now,
                 last_seen=now,
+                ai_access=ai_access,
             )
         # Persist immediately so the session survives a restart even before
-        # any analyze runs.
-        disk_session_io.save_session(sid, image_bytes, mime_type, created_at=now)
+        # any analyze runs. ai_access is stamped from the caller's cohort
+        # default (see api/session.py) so the study condition is inherited.
+        disk_session_io.save_session(sid, image_bytes, mime_type, created_at=now, ai_access=ai_access)
         return sid
 
     def get(self, sid: str) -> SessionRecord:
@@ -145,6 +150,7 @@ class SessionStore:
                     created_at=now,
                     last_seen=now,
                     context=disk.context_json,
+                    ai_access=disk.ai_access,
                 )
                 self._records[sid] = record
             record.last_seen = time.monotonic()
@@ -157,6 +163,15 @@ class SessionStore:
         record = self.get(sid)
         record.context = context
         disk_session_io.save_context(sid, context)
+
+    def set_ai_access(self, sid: str, ai_access: bool) -> None:
+        """Set the study-design AI_access flag on a session (in-memory record +
+        on-disk meta.json). Raises SessionNotFound via get() if the session is
+        gone. The admin cockpit calls this; the value reaches the frontend on
+        the next snapshot fetch (and live via the session.ai_access event)."""
+        record = self.get(sid)
+        record.ai_access = ai_access
+        disk_session_io.save_ai_access(sid, ai_access)
 
     def get_document(self, sid: str) -> "SessionDocument":
         record = self.get(sid)

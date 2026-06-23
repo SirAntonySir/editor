@@ -29,12 +29,13 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
+from pydantic import BaseModel
 
-from app.services import disk_session_io, process_stats
-from app.services.event_journal import read_events
-from app.services.session_store import SessionStore
+from app.services import cohort_store, disk_session_io, process_stats
+from app.services.event_journal import read_events, write_event
+from app.services.session_store import SessionNotFound, SessionStore
 
-from .deps import get_session_store
+from .deps import get_event_bus, get_session_store
 
 router = APIRouter(prefix="/admin")
 
@@ -133,14 +134,16 @@ def _summarize_session(sid: str) -> dict[str, Any]:
         "cache_read_tokens": 0,
         "duration_s": 0.0,
         "last_event_ts": None,
+        "ai_access": True,
     }
-    # meta.json carries created_at wall-clock + mime + size.
+    # meta.json carries created_at wall-clock + mime + size + ai_access.
     meta_path = disk_session_io.SESSIONS_DIR / sid / "meta.json"
     if meta_path.exists():
         try:
             meta = json.loads(meta_path.read_text())
             summary["created_at"] = meta.get("created_at")
             summary["mime_type"] = meta.get("mime_type")
+            summary["ai_access"] = bool(meta.get("ai_access", True))
         except (OSError, json.JSONDecodeError):
             pass
 
@@ -247,6 +250,48 @@ def session_detail(
         "summary": summary,
         "events": events,
         "live_memory": live_mem,
+    })
+
+
+class _AiAccessBody(BaseModel):
+    ai_access: bool
+
+
+@router.post("/sessions/{sid}/ai-access", dependencies=[Depends(_require_loopback)])
+async def set_session_ai_access(
+    sid: str,
+    body: _AiAccessBody,
+    store: SessionStore = Depends(get_session_store),
+) -> JSONResponse:
+    """Flip the study-design AI_access flag on a session.
+
+    Does two things:
+    1. Sets the participant's COHORT default (keyed by the session's user_id),
+       so every future session that browser mints — each reload / new image
+       starts a fresh one — inherits the condition. This is what makes the
+       toggle stick across reloads.
+    2. Flips the CURRENT session live: persists to the in-memory record +
+       meta.json, journals the change for the timeline, and emits a live
+       `session.ai_access` event so a connected client toggles its AI surfaces
+       without a reload. Mirrors api/state.py's history-apply pattern.
+    """
+    # Cohort first so it's stamped even if the live session is already gone.
+    user_id = _summarize_session(sid).get("user_id")
+    cohort_store.set_cohort_ai_access(user_id, body.ai_access)
+    try:
+        store.set_ai_access(sid, body.ai_access)
+        async with store.with_document_lock(sid) as doc:
+            ev = doc._emit("session.ai_access", {"ai_access": body.ai_access})
+            get_event_bus().publish(sid, ev)
+            doc._published_idx = len(doc.history)
+            store.checkpointer.mark_dirty(doc)
+    except SessionNotFound:
+        raise HTTPException(status_code=404, detail="session not found")
+    write_event(sid, "admin.ai_access", {"ai_access": body.ai_access})
+    return JSONResponse({
+        "session_id": sid,
+        "ai_access": body.ai_access,
+        "user_id": user_id,
     })
 
 
@@ -630,7 +675,20 @@ async function sessionDetail(sid) {
       ⬇ export this session (json)
     </a>
   </h2>`;
-  html += '<div style="display:flex; gap:20px; align-items:flex-start;">';
+
+  // Study-condition switch — flips the session's AI_access constant. AI ON =
+  // analysis / command-palette AI / suggestions available; AI OFF = control.
+  const aiOn = s.ai_access !== false;
+  html += `<div style="margin:0 0 16px; display:flex; align-items:center; gap:10px; font-size:12px;">
+    <span style="color:var(--text-mute);">AI_access (study condition):</span>
+    <button id="ai-access-toggle" data-on="${aiOn ? '1' : '0'}"
+      style="cursor:pointer; border:1px solid var(--border); border-radius:6px; padding:4px 12px;
+             font-size:11px; font-weight:600; letter-spacing:0.3px;
+             background:${aiOn ? 'var(--accent)' : 'transparent'}; color:${aiOn ? '#fff' : 'var(--text-mute)'};">
+      ${aiOn ? 'AI ON' : 'AI OFF · control'}
+    </button>
+    <span style="color:var(--text-mute); font-size:10px;">applies to this participant — survives reloads &amp; new sessions</span>
+  </div>`;
 
   // Left: image + summary
   html += '<div style="flex:0 0 340px;">';
@@ -684,6 +742,29 @@ async function sessionDetail(sid) {
 
   html += '</div>';
   app.innerHTML = html;
+
+  // Wire the AI_access toggle: POST the flipped value, then re-render so the
+  // button reflects the new state (and the timeline shows the admin.ai_access
+  // event on next load).
+  const toggleBtn = document.getElementById('ai-access-toggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', async () => {
+      const cur = toggleBtn.getAttribute('data-on') === '1';
+      toggleBtn.disabled = true;
+      try {
+        const r = await fetch('/admin/sessions/' + encodeURIComponent(sid) + '/ai-access', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ai_access: !cur }),
+        });
+        if (!r.ok) throw new Error('toggle failed: ' + r.status);
+        sessionDetail(sid).catch(showError);
+      } catch (e) {
+        toggleBtn.disabled = false;
+        showError(e);
+      }
+    });
+  }
 }
 
 function route() {

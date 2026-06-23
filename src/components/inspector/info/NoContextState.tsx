@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Loader2, Sparkles } from 'lucide-react';
+import { Loader2, Sparkles, Info } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { analyseActiveImageLayer } from '@/hooks/useImageContext';
+import { useAiAccess } from '@/lib/ai-access';
 
 interface Props {
   /** True once analyze has been kicked off but no context delta has arrived
@@ -19,6 +20,7 @@ interface Props {
  */
 export function NoContextState({ analyzing }: Props) {
   const hasImage = useEditorStore((s) => s.layers.some((l) => l.type === 'image'));
+  const aiAccess = useAiAccess();
   const [busy, setBusy] = useState(false);
 
   const inFlight = busy || analyzing;
@@ -57,33 +59,46 @@ export function NoContextState({ analyzing }: Props) {
         aria-hidden
       />
       {/* Hero content. No card chrome — just text on the backdrop.
-          `pointer-events-auto` opts the controls back in. */}
+          `pointer-events-auto` opts the controls back in. In the study control
+          condition (AI_access=false) the AI CTA is replaced by a neutral note —
+          no analyze affordance is offered. */}
       <div className="relative pointer-events-auto flex flex-col items-center gap-2.5 px-4 pt-8 pb-4 text-center">
-        <Sparkles size={28} className="text-ai ai-glow-pulse" aria-hidden />
-        <h2 className="text-[13px] font-semibold text-text-primary">
-          Analyze this image
-        </h2>
-        <p className="text-[11px] leading-snug text-text-secondary max-w-[220px]">
-          Let AI read this image — semantic regions, histograms, palette, and
-          suggested adjustments — sections will fill in as data arrives.
-        </p>
-        <button
-          type="button"
-          onClick={run}
-          disabled={disabled}
-          className="mt-1 inline-flex items-center gap-1.5 rounded-[var(--radius-button)]
-            px-3.5 py-1.5 text-[11px] font-medium text-white
-            bg-ai hover:brightness-110 transition disabled:cursor-not-allowed disabled:opacity-50
-            shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-ai)_35%,transparent),0_0_12px_2px_color-mix(in_srgb,var(--color-ai)_28%,transparent)]"
-        >
-          {inFlight ? (
-            <Loader2 size={12} className="animate-spin" aria-hidden />
-          ) : (
-            <Sparkles size={12} aria-hidden />
-          )}
-          {inFlight ? 'Analyzing…' : 'Analyze with AI'}
-        </button>
-        {hint && <span className="text-[10px] text-text-secondary">{hint}</span>}
+        {aiAccess ? (
+          <>
+            <Sparkles size={28} className="text-ai ai-glow-pulse" aria-hidden />
+            <h2 className="text-[13px] font-semibold text-text-primary">
+              Analyze this image
+            </h2>
+            <p className="text-[11px] leading-snug text-text-secondary max-w-[220px]">
+              Let AI read this image — semantic regions, histograms, palette, and
+              suggested adjustments — sections will fill in as data arrives.
+            </p>
+            <button
+              type="button"
+              onClick={run}
+              disabled={disabled}
+              className="mt-1 inline-flex items-center gap-1.5 rounded-[var(--radius-button)]
+                px-3.5 py-1.5 text-[11px] font-medium text-white
+                bg-ai hover:brightness-110 transition disabled:cursor-not-allowed disabled:opacity-50
+                shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-ai)_35%,transparent),0_0_12px_2px_color-mix(in_srgb,var(--color-ai)_28%,transparent)]"
+            >
+              {inFlight ? (
+                <Loader2 size={12} className="animate-spin" aria-hidden />
+              ) : (
+                <Sparkles size={12} aria-hidden />
+              )}
+              {inFlight ? 'Analyzing…' : 'Analyze with AI'}
+            </button>
+            {hint && <span className="text-[10px] text-text-secondary">{hint}</span>}
+          </>
+        ) : (
+          <>
+            <Info size={24} className="text-text-secondary" aria-hidden />
+            <p className="text-[11px] leading-snug text-text-secondary max-w-[220px]">
+              Use the toolbar and Image&nbsp;→&nbsp;Adjustments to edit this photo.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

@@ -85,7 +85,8 @@ export interface ControlBinding {
     | "point_list"
     | "enum_select"
     | "bool_toggle"
-    | "kelvin_strip";
+    | "kelvin_strip"
+    | "tint_strip";
   default:
     | number
     | string

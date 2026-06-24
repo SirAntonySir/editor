@@ -19,6 +19,7 @@ from app.schemas.widget import (
     HueWheelSchema,
     ImageNodeScope,
     KelvinStripSchema,
+    TintStripSchema,
     MaskRecord,
     MaskScope,
     MaskThumbnailSchema,
@@ -154,7 +155,7 @@ def test_control_type_set() -> None:
         "before_after_toggle", "histogram_marker", "text",
         # Registry-vocab additions.
         "swatch", "hue_wheel", "curve_editor", "point_list",
-        "enum_select", "bool_toggle", "kelvin_strip",
+        "enum_select", "bool_toggle", "kelvin_strip", "tint_strip",
     }
     assert set(ControlType.__args__) == expected
 
@@ -170,7 +171,7 @@ def test_control_type_matches_union_members() -> None:
         BeforeAfterToggleSchema, HistogramMarkerSchema, TextSchema,
         # Registry-vocab schemas.
         SwatchSchema, HueWheelSchema, CurveEditorSchema, PointListSchema,
-        EnumSelectSchema, BoolToggleSchema, KelvinStripSchema,
+        EnumSelectSchema, BoolToggleSchema, KelvinStripSchema, TintStripSchema,
     ]
     # Each control_type field is Literal["..."] with a single value — pull it out.
     union_literals = {s.model_fields["control_type"].annotation.__args__[0] for s in schemas}

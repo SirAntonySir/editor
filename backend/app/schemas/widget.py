@@ -74,7 +74,7 @@ ControlType = Literal[
     "before_after_toggle", "histogram_marker", "text",
     # Registry-vocab additions (aligned with CONTROL_TYPE in registry/schema.py).
     "swatch", "hue_wheel", "curve_editor", "point_list",
-    "enum_select", "bool_toggle", "kelvin_strip",
+    "enum_select", "bool_toggle", "kelvin_strip", "tint_strip",
 ]
 
 

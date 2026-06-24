@@ -67,8 +67,10 @@ void main() {
 
   color *= multiplier;
 
-  // Tint (shift green-magenta axis)
-  color.g += u_tint * 0.1;
+  // Tint (shift green-magenta axis). Positive tint → MAGENTA (less green),
+  // negative → green/teal, matching the slider's gradient (teal left, magenta
+  // right) and the Lightroom convention. Hence subtract: +tint removes green.
+  color.g -= u_tint * 0.1;
 
   vec4 adjusted = vec4(clamp(color, 0.0, 1.0), texel.a);
   fragColor = applyMask(texel, adjusted, v_texCoord);

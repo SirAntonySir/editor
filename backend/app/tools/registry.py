@@ -16,6 +16,39 @@ from app.tools.base import BackendTool
 _BOOTSTRAP_TOOLS = {"create_session"}
 
 
+def _compute_affected_widget_ids(before, after, parsed) -> list[str]:
+    """Which widgets a user-action mutation touched, for per-widget history
+    tagging. Two sources, in priority order:
+
+      1. A `widget_id` on the parsed tool input (set_widget_param, refine_widget,
+         accept/delete/restore_widget) — the authoritative target.
+      2. A before/after diff of widget node params — catches tools that mutate
+         widgets without naming one on input (widget creation, fused expansion)
+         and any widget whose params changed as a side effect.
+
+    `before`/`after` are app.session.history.Snapshot instances. Order is
+    stable: the input's widget_id (if any) first, then diffed ids in iteration
+    order, de-duplicated."""
+    ids: list[str] = []
+    seen: set[str] = set()
+
+    wid = getattr(parsed, "widget_id", None)
+    if isinstance(wid, str) and wid:
+        ids.append(wid)
+        seen.add(wid)
+
+    all_ids = set(before.widgets) | set(after.widgets)
+    bparams = before.extract_widget_params(list(all_ids))
+    aparams = after.extract_widget_params(list(all_ids))
+    for w in all_ids:
+        if w in seen:
+            continue
+        if bparams.get(w) != aparams.get(w):
+            ids.append(w)
+            seen.add(w)
+    return ids
+
+
 def _err(code: str, message: str, retryable: bool = False, recovery_hint: str | None = None) -> ToolResponseEnvelope:
     return ToolResponseEnvelope(
         ok=False,
@@ -167,10 +200,14 @@ class BackendToolRegistry:
                     from app.session.history import Snapshot
                     after = Snapshot.capture(doc)
                     cfg = get_app_config().runtime
+                    affected = _compute_affected_widget_ids(history_before, after, parsed)
                     self._store.get_history(session_id).push(
                         label=tool.history_label(parsed, output),
                         before=history_before,
                         after=after,
+                        affected_widget_ids=affected,
+                        widget_params_before=history_before.extract_widget_params(affected),
+                        widget_params_after=after.extract_widget_params(affected),
                         coalesce_key=tool.coalesce_key(parsed),
                         coalesce_window_s=cfg.history_coalesce_window_ms / 1000.0,
                     )

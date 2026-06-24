@@ -16,6 +16,7 @@ import { LevelsWidgetBody, isFullLevelsWidget } from './LevelsWidgetBody';
 import { CurvesWidgetBody, isCurvesWidget } from './CurvesWidgetBody';
 import { CompoundWidgetBody } from './CompoundWidgetBody';
 import { WidgetAutoButton } from './WidgetAutoButton';
+import { WidgetHistoryStepper } from './WidgetHistoryStepper';
 import { loadRegistry } from '@/lib/registry/loader';
 import { maskMatchesImageNode } from '@/lib/mask-filters';
 
@@ -252,6 +253,10 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
       />
       {isExpanded && (
         <>
+          {/* Per-widget history stepper — ‹ n/N › walks this widget's timeline,
+              restoring each step (synced to global history). Renders nothing
+              until the widget has history. */}
+          <WidgetHistoryStepper widgetId={widget.id} />
           {/* Inline reasoning banner removed — the footer's "Why?" button
               already exposes the same string in a popover. */}
           {/* When a single-param pin filter is active, fall through to the

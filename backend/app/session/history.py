@@ -88,6 +88,31 @@ class Snapshot(BaseModel):
             },
         )
 
+    def extract_widget_params(
+        self, widget_ids: list[str]
+    ) -> dict[str, dict[str, dict[str, Any]]]:
+        """Project this snapshot's widget params to `{widget_id → {node_id →
+        {param_key → value}}}` for the requested widgets. Unknown widget ids
+        are skipped (a widget that didn't exist at this revision contributes
+        nothing). Used to tag history entries so a per-widget timeline can
+        render param deltas and a restore can re-apply a past param set.
+
+        `widgets` holds `model_dump(mode="python")` dicts (see `capture`), so
+        we walk dict form; we also tolerate live model objects defensively."""
+        out: dict[str, dict[str, dict[str, Any]]] = {}
+        for wid in widget_ids:
+            w = self.widgets.get(wid)
+            if w is None:
+                continue
+            nodes = w["nodes"] if isinstance(w, dict) else w.nodes
+            node_map: dict[str, dict[str, Any]] = {}
+            for node in nodes:
+                nid = node["id"] if isinstance(node, dict) else node.id
+                params = node["params"] if isinstance(node, dict) else node.params
+                node_map[nid] = dict(params)
+            out[wid] = node_map
+        return out
+
 
 def _deep_copy_jsonable(obj: Any) -> Any:
     """Recursive copy for the canonical/transforms dicts. They contain only
@@ -112,6 +137,19 @@ class HistoryEntry(BaseModel):
     # the configured window, the engine updates this entry's `after`
     # instead of pushing a new slot. None means this entry never coalesces.
     coalesce_key: str | None = None
+    # Per-widget tagging for the per-widget history feature. `affected_widget_ids`
+    # lists the widgets this entry mutated; `widget_params_*` carry those widgets'
+    # node params at the before/after boundary (`{widget_id → {node_id →
+    # {param → value}}}`) so the widget-scoped timeline can render deltas and a
+    # restore can re-apply a past param set as a new forward action.
+    affected_widget_ids: list[str] = Field(default_factory=list)
+    widget_params_before: dict[str, dict[str, dict[str, Any]]] = Field(default_factory=dict)
+    widget_params_after: dict[str, dict[str, dict[str, Any]]] = Field(default_factory=dict)
+    # True for entries created by a per-widget restore. They still belong to the
+    # global stack (undoable, shown in the global history), but the per-widget
+    # timeline excludes them so the stepper walks the original adjustments
+    # rather than its own restore trail.
+    is_restore: bool = False
 
 
 class HistoryEngine:
@@ -152,6 +190,18 @@ class HistoryEngine:
     def can_redo(self) -> bool:
         return self._cursor < len(self._entries) - 1
 
+    def widget_timeline(self, widget_id: str) -> list[HistoryEntry]:
+        """Project the global stack to the entries that touched `widget_id`, in
+        chronological order. Restore-generated entries are excluded so the
+        per-widget timeline shows the original adjustments, not the trail of
+        restores stepping through them produced. The caller derives which entry
+        is "current" by matching the widget's live params (a restore appends a
+        new entry but lands the widget back on an existing entry's state)."""
+        return [
+            e for e in self._entries
+            if widget_id in e.affected_widget_ids and not e.is_restore
+        ]
+
     # ---------------- mutation ----------------
 
     def push(
@@ -160,6 +210,10 @@ class HistoryEngine:
         before: Snapshot,
         after: Snapshot,
         *,
+        affected_widget_ids: list[str] | None = None,
+        widget_params_before: dict[str, dict[str, dict[str, Any]]] | None = None,
+        widget_params_after: dict[str, dict[str, dict[str, Any]]] | None = None,
+        is_restore: bool = False,
         coalesce_key: str | None = None,
         coalesce_window_s: float = 0.0,
     ) -> HistoryEntry:
@@ -177,6 +231,9 @@ class HistoryEngine:
         user has hit undo, the next push starts a fresh branch (the
         cursor moves forward by one), and that's a discrete action.
         """
+        affected_widget_ids = affected_widget_ids or []
+        widget_params_before = widget_params_before or {}
+        widget_params_after = widget_params_after or {}
         now = time.time()
         if (
             coalesce_key is not None
@@ -189,6 +246,12 @@ class HistoryEngine:
             tip = self._entries[self._cursor]
             tip.after = after
             tip.ts = now
+            # Carry the latest after-params; union the affected-id set so a
+            # coalesced run still names every widget it touched.
+            tip.widget_params_after = widget_params_after
+            for wid in affected_widget_ids:
+                if wid not in tip.affected_widget_ids:
+                    tip.affected_widget_ids.append(wid)
             return tip
 
         self._entries = self._entries[: self._cursor + 1]
@@ -199,6 +262,10 @@ class HistoryEngine:
             before=before,
             after=after,
             coalesce_key=coalesce_key,
+            affected_widget_ids=affected_widget_ids,
+            widget_params_before=widget_params_before,
+            widget_params_after=widget_params_after,
+            is_restore=is_restore,
         )
         self._entries.append(entry)
         self._cursor = len(self._entries) - 1

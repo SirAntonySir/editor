@@ -311,4 +311,67 @@ export const backendTools = {
     }
     return (await response.json()) as { revision: number; applied: string };
   },
+
+  /** Per-widget history: the slice of the global undo stack that touched
+   *  `widgetId`, with that widget's param snapshots inlined for delta
+   *  rendering. Returns null when the session is unknown (HTTP 404). */
+  async widgetHistory(
+    sessionId: string,
+    widgetId: string,
+  ): Promise<{
+    entries: {
+      id: string;
+      ts: number;
+      label: string;
+      params_before: Record<string, Record<string, unknown>>;
+      params_after: Record<string, Record<string, unknown>>;
+    }[];
+    current_entry_id: string | null;
+    can_restore: boolean;
+  } | null> {
+    const response = await fetch(
+      `${BASE_URL}/api/state/${sessionId}/widget-history/${widgetId}`,
+    );
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      throw new Error(
+        `/api/state/${sessionId}/widget-history/${widgetId} → ${response.status} ${await response.text()}`,
+      );
+    }
+    return (await response.json()) as {
+      entries: {
+        id: string;
+        ts: number;
+        label: string;
+        params_before: Record<string, Record<string, unknown>>;
+        params_after: Record<string, Record<string, unknown>>;
+      }[];
+      current_entry_id: string | null;
+      can_restore: boolean;
+    };
+  },
+
+  /** Restore one widget's params from a past history entry, re-applied as a
+   *  NEW forward mutation (so it shows in the global history and is itself
+   *  undoable). Returns null on 404 (unknown session / entry / widget). */
+  async restoreWidgetToRevision(
+    sessionId: string,
+    widgetId: string,
+    entryId: string,
+  ): Promise<{ revision: number; applied: string } | null> {
+    const response = await fetch(
+      `${BASE_URL}/api/state/${sessionId}/restore-widget/${widgetId}/${entryId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+      },
+    );
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      throw new Error(
+        `/api/state/${sessionId}/restore-widget/${widgetId}/${entryId} → ${response.status} ${await response.text()}`,
+      );
+    }
+    return (await response.json()) as { revision: number; applied: string };
+  },
 };

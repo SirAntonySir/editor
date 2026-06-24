@@ -18,10 +18,11 @@ interface WidgetNodeProps {
 export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
   const chromeVisible = useChromeVisible();
 
-  // Anchor edge handles to the visual centre of the shell header so tethers
-  // connect at the header band. Two source handles (left + right) let edges
-  // exit on the side facing the connected image node.
-  const headerY = '10px';
+  // Anchor the left/right edge handles to the node's vertical centre so
+  // tethers connect at the middle of the side, matching the image node (whose
+  // handles use React Flow's centered default) rather than pinning to the
+  // header band.
+  const sideY = '50%';
 
   // Measure the WidgetShell's natural CSS box so the bottom + right source
   // handles can anchor at its actual extent. Widgets now live in canvas space
@@ -65,13 +66,13 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
         type="source"
         position={Position.Left}
         id="tether-out-left"
-        style={{ top: headerY, left: 0, opacity: 0 }}
+        style={{ top: sideY, left: 0, opacity: 0 }}
       />
       <Handle
         type="source"
         position={Position.Right}
         id="tether-out-right"
-        style={{ top: headerY, left: `${naturalSize.w}px`, opacity: 0 }}
+        style={{ top: sideY, left: `${naturalSize.w}px`, opacity: 0 }}
       />
       {chromeVisible ? (
         <div ref={innerRef}>

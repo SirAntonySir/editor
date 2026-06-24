@@ -17,6 +17,7 @@ import { useImageTransform } from '@/hooks/useImageTransform';
 import { UI } from '@/config';
 import { useAiAccess } from '@/lib/ai-access';
 import { spawnRegistryOp } from '@/lib/toolrail-spawn';
+import { openPreferencesDialog } from '@/components/PreferencesDialog';
 import { loadRegistry } from '@/lib/registry/loader';
 import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';
 import { autoLight, autoColor, autoTone, autoContrast } from '@/lib/auto-tune';
@@ -240,7 +241,7 @@ function EditMenu() {
             Deselect
           </Item>
           <Sep />
-          <Item keys={['mod', ',']} onSelect={() => window.dispatchEvent(new CustomEvent('spawn-palette:open'))}>
+          <Item keys={['mod', ',']} onSelect={() => openPreferencesDialog()}>
             Preferences...
           </Item>
         </Menubar.Content>

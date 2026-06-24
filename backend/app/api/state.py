@@ -153,6 +153,109 @@ async def state_history(sid: str) -> dict:
     }
 
 
+@router.get("/state/{sid}/widget-history/{widget_id}")
+async def state_widget_history(sid: str, widget_id: str) -> dict:
+    """Per-widget history: the slice of the global undo stack that touched
+    `widget_id`, with that widget's param snapshots inlined so the client can
+    render deltas. `current_entry_id` is the entry that matches the live
+    cursor (lets the timeline mark "current" without the global cursor math)."""
+    try:
+        history = _store().get_history(sid)
+        doc = _store().get_document(sid)
+    except SessionNotFound:
+        raise HTTPException(status_code=404, detail="unknown or expired session")
+    entries = history.widget_timeline(widget_id)
+
+    # "Current" = the latest timeline entry whose stored after-params match the
+    # widget's live params. Robust to restores (which append a new entry but
+    # land the widget on an existing entry's state) — so the stepper points at
+    # the state the widget is actually in, not the cursor tip.
+    w = doc.widgets.get(widget_id)
+    live = {n.id: dict(n.params) for n in w.nodes} if w is not None else {}
+    current: str | None = None
+    for e in entries:
+        if e.widget_params_after.get(widget_id, {}) == live:
+            current = e.id
+
+    return {
+        "entries": [
+            {
+                "id": e.id,
+                "ts": e.ts,
+                "label": e.label,
+                "params_before": e.widget_params_before.get(widget_id, {}),
+                "params_after": e.widget_params_after.get(widget_id, {}),
+            }
+            for e in entries
+        ],
+        "current_entry_id": current,
+        "can_restore": True,
+    }
+
+
+@router.post("/state/{sid}/restore-widget/{widget_id}/{entry_id}")
+async def state_restore_widget(sid: str, widget_id: str, entry_id: str) -> dict:
+    """Restore one widget's params from a past history entry, re-applied as a
+    NEW forward mutation. The restore lands as a fresh history entry (so it
+    shows in the global history and is itself undoable) rather than rewinding
+    the whole session. Nodes/params that no longer exist on the live widget
+    are skipped defensively."""
+    store = _store()
+    bus = _bus()
+    try:
+        history = store.get_history(sid)
+    except SessionNotFound:
+        raise HTTPException(status_code=404, detail="unknown or expired session")
+    entry = next((e for e in history.entries if e.id == entry_id), None)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="history entry not found")
+    target_params = entry.widget_params_after.get(widget_id)
+    if target_params is None:
+        raise HTTPException(status_code=404, detail=f"widget {widget_id} not in history entry")
+
+    from app.config import get_app_config
+    from app.session.history import Snapshot
+
+    async with store.with_document_lock(sid) as doc:
+        w = doc.widgets.get(widget_id)
+        if w is None:
+            raise HTTPException(status_code=404, detail=f"widget {widget_id} not found")
+        before = Snapshot.capture(doc)
+        for node in w.nodes:
+            stored = target_params.get(node.id)
+            if not stored:
+                continue  # node added/removed since — skip defensively
+            for pkey, pval in stored.items():
+                node.params[pkey] = pval
+                doc.set_param(node.layer_id, node.type, pkey, pval)
+            for b in w.bindings:
+                if b.target.node_id == node.id and b.param_key in stored:
+                    b.value = stored[b.param_key]
+        w.revision += 1
+        doc.update_widget(w)
+        after = Snapshot.capture(doc)
+        history.push(
+            label=f"Restored {w.intent} to earlier state",
+            before=before,
+            after=after,
+            affected_widget_ids=[widget_id],
+            widget_params_before=before.extract_widget_params([widget_id]),
+            widget_params_after=after.extract_widget_params([widget_id]),
+            is_restore=True,
+        )
+        # Publish the canonical.updated / widget.updated events emitted above.
+        # _event_sink is None outside the registry tool path, so they only
+        # appended to doc.history — mirror _flush_history_to_bus here.
+        for ev in doc.history[doc._published_idx:]:
+            bus.publish(sid, ev)
+        doc._published_idx = len(doc.history)
+        doc.prune_history(get_app_config().runtime.history_max_entries)
+        doc.gc_dismissed_widgets()
+        store.checkpointer.mark_dirty(doc)
+        revision = doc.revision
+    return {"revision": revision, "applied": "restore_widget_params"}
+
+
 @router.post("/state/{sid}/jump/{target_cursor}")
 async def state_jump(sid: str, target_cursor: int) -> dict:
     """Seek the history cursor to `target_cursor`. -1 = pre-history baseline.

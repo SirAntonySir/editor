@@ -7,15 +7,7 @@ import { useHistoryLog, type HistoryEntry } from '@/hooks/useHistoryLog';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { UI } from '@/config';
 import { track } from '@/lib/telemetry';
-
-function relativeTime(ts: number, now: number): string {
-  const secs = Math.max(0, Math.floor((now - ts * 1000) / 1000));
-  if (secs < 60) return `${secs}s`;
-  const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  return `${hrs}h`;
-}
+import { relativeTime } from '@/lib/relative-time';
 
 interface RowProps {
   entry: HistoryEntry;

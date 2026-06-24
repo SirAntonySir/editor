@@ -162,7 +162,6 @@ export function CropPreview({
         className="absolute pointer-events-none border border-accent"
         style={{
           left: rectLeftPx, top: rectTopPx, width: rectWPx, height: rectHPx,
-          boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)',
         }}
       >
         {(['tl', 'tr', 'bl', 'br'] as const).map((corner) => (

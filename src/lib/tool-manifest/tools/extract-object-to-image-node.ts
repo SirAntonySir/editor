@@ -3,7 +3,6 @@ import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
 import { extractObjectToImageNode } from '@/lib/segmentation/object-actions';
-import { ackSchema } from '../shared-schemas';
 import type { ToolManifest } from '../types';
 
 const input = z.object({
@@ -11,13 +10,21 @@ const input = z.object({
   imageNodeId: z.string().optional().describe('Source image-node. Defaults to the Object\'s recorded owner.'),
 });
 
-export const extractObjectToImageNodeTool: ToolManifest<typeof input, typeof ackSchema> = {
+const output = z.object({
+  ok: z.boolean(),
+  image_node_id: z.string().optional().describe('The new image node carrying the cutout.'),
+  layer_ids: z.array(z.string()).optional().describe('Layer ids of the new node (pass to propose_adjustment_widgets).'),
+  message: z.string().optional(),
+});
+
+export const extractObjectToImageNodeTool: ToolManifest<typeof input, typeof output> = {
   name: 'extract_object_to_image_node',
   kind: 'mutate',
   description:
-    'Bake the masked region of the Object into a new image-node placed next to the source. The new node carries a single image layer with the cutout pixels.',
+    'Bake the masked region of the Object into a new image-node placed next to the source. '
+    + 'Returns the new image_node_id + layer_ids — pass them to propose_adjustment_widgets to edit it.',
   inputSchema: input,
-  outputSchema: ackSchema,
+  outputSchema: output,
   handler: ({ maskId, imageNodeId }) => {
     if (!maskStore.has(maskId)) {
       return { ok: false, message: `No Object with id "${maskId}".` };
@@ -27,7 +34,10 @@ export const extractObjectToImageNodeTool: ToolManifest<typeof input, typeof ack
     if (!sourceImageNodeId) {
       return { ok: false, message: 'Could not resolve source image-node for the Object.' };
     }
-    extractObjectToImageNode(maskId, sourceImageNodeId);
-    return { ok: true, message: `Extracted Object "${maskId}" to a new image-node.` };
+    const extracted = extractObjectToImageNode(maskId, sourceImageNodeId);
+    if (!extracted) {
+      return { ok: false, message: `Could not extract Object "${maskId}".` };
+    }
+    return { ok: true, image_node_id: extracted.imageNodeId, layer_ids: [extracted.layerId] };
   },
 };

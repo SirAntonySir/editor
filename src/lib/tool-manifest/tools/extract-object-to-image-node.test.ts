@@ -31,10 +31,13 @@ describe('extract_object_to_image_node handler', () => {
       data: new Uint8Array(100), source: 'sam-point', createdAt: 0,
     });
     objectOwnership.set(maskId, 'node-A');
+    (extractObjectToImageNode as ReturnType<typeof vi.fn>).mockReturnValue({
+      imageNodeId: 'in-3', layerId: 'layer-uuid',
+    });
 
     const result = extractObjectToImageNodeTool.handler({ maskId });
 
-    expect(result.ok).toBe(true);
+    expect(result).toMatchObject({ ok: true, image_node_id: 'in-3', layer_ids: ['layer-uuid'] });
     expect(extractObjectToImageNode).toHaveBeenCalledWith(maskId, 'node-A');
   });
 
@@ -46,11 +49,27 @@ describe('extract_object_to_image_node handler', () => {
     });
     // Ownership points to node-A, but explicit arg overrides.
     objectOwnership.set(maskId, 'node-A');
+    (extractObjectToImageNode as ReturnType<typeof vi.fn>).mockReturnValue({
+      imageNodeId: 'in-9', layerId: 'l9',
+    });
 
     const result = extractObjectToImageNodeTool.handler({ maskId, imageNodeId: 'node-B' });
 
     expect(result.ok).toBe(true);
     expect(extractObjectToImageNode).toHaveBeenCalledWith(maskId, 'node-B');
+  });
+
+  it('returns ok: false when the extract is a no-op (null)', () => {
+    const maskId = maskStore.register({
+      layerId: 'L1',
+      width: 10, height: 10,
+      data: new Uint8Array(100), source: 'sam-point', createdAt: 0,
+    });
+    objectOwnership.set(maskId, 'node-A');
+    (extractObjectToImageNode as ReturnType<typeof vi.fn>).mockReturnValue(null);
+
+    const result = extractObjectToImageNodeTool.handler({ maskId });
+    expect(result.ok).toBe(false);
   });
 
   it('returns ok: false when mask does not exist', () => {

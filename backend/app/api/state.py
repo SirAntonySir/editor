@@ -5,6 +5,7 @@ import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Header, HTTPException
+from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from app.api import deps
@@ -57,6 +58,14 @@ def _bus() -> EventBus:
     return deps.get_event_bus()
 
 
+class _ToolResultBody(BaseModel):
+    request_id: str
+    ok: bool
+    output: dict | None = None
+    error: str | None = None
+    denied: bool = False
+
+
 @router.get("/state/{sid}", response_model=SessionStateSnapshot, response_model_by_alias=True)
 async def state_snapshot(sid: str) -> SessionStateSnapshot:
     """Compute a snapshot under the per-session write lock so a mutating
@@ -71,6 +80,25 @@ async def state_snapshot(sid: str) -> SessionStateSnapshot:
             return compute_snapshot(doc, ai_access=ai_access)
     except SessionNotFound:
         raise HTTPException(status_code=404, detail="unknown or expired session")
+
+
+@router.post("/state/{sid}/tool_result")
+async def state_tool_result(sid: str, body: _ToolResultBody) -> dict:
+    """Resolve a pending backend→client tool call. The frontend POSTs here
+    after running (or denying) an LlmToolRegistry tool requested via a
+    client.tool_request event. Returns {resolved: bool} — False when the
+    request_id is unknown (already resolved, timed out, or never existed)."""
+    store = _store()
+    try:
+        store.touch(sid)
+    except SessionNotFound:
+        raise HTTPException(status_code=404, detail="unknown or expired session")
+    resolved = store.resolve_client_request(
+        sid,
+        body.request_id,
+        {"ok": body.ok, "output": body.output, "error": body.error, "denied": body.denied},
+    )
+    return {"resolved": resolved}
 
 
 async def _apply_history_snapshot(sid: str, snap, action: str) -> dict:

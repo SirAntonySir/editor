@@ -11,7 +11,9 @@ services:
     branch: main
     dockerfilePath: backend/Dockerfile
     dockerContext: .          # repo root — image needs both backend/ and shared/
-    plan: starter            # 512MB, always-on. Bump to `standard` (2GB) for headroom.
+    plan: standard           # 2GB, always-on. 16-bit RAW develop peaks ~300MB+
+                             # per request and OOM'd the 512MB `starter` tier
+                             # (mid-response OOM → client ERR_HTTP2_PROTOCOL_ERROR).
     region: frankfurt        # closest Render region to Munich
     numInstances: 1          # in-memory state — do NOT scale past 1
     healthCheckPath: /health

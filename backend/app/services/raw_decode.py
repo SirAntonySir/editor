@@ -121,11 +121,15 @@ def develop_raw_to_png16(data: bytes, *, max_dim: int = 8192) -> bytes:
             rgb, (round(w * scale), round(h * scale)), interpolation=cv2.INTER_AREA
         )
 
-    bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    # Rebind to the BGR result so the (full-size, ~w*h*3*2 bytes) RGB source is
+    # freed immediately instead of living alongside the BGR copy through the
+    # encode. On a 24MP RAW that's ~144 MB reclaimed before imencode runs —
+    # the headroom that keeps peak heap well under the instance limit.
+    rgb = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
     # Compression 6 trades a little CPU for a much smaller payload than the
     # default (level 1) — a 24MP 16-bit PNG is tens of MB either way, but this
     # meaningfully cuts the transfer + in-memory File size.
-    ok, buf = cv2.imencode(".png", bgr, [cv2.IMWRITE_PNG_COMPRESSION, 6])
+    ok, buf = cv2.imencode(".png", rgb, [cv2.IMWRITE_PNG_COMPRESSION, 6])
     if not ok:
         raise RawDecodeError("failed to encode 16-bit PNG")
     return np.asarray(buf).tobytes()

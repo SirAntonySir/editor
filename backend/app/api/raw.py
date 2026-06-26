@@ -10,6 +10,12 @@ from app.services.raw_decode import (
 
 router = APIRouter()
 
+# Reject absurd uploads before decoding. A 16-bit demosaic allocates
+# width*height*3*2 bytes plus copies; an unbounded RAW could exhaust the
+# instance and reset the connection (manifests as a client HTTP/2 protocol
+# error). 200 MB comfortably covers even medium-format RAW while capping peak.
+_MAX_RAW_BYTES = 200 * 1024 * 1024
+
 
 @router.post("/raw/develop")
 async def raw_develop(image: UploadFile = File(...), depth: int = 8) -> Response:
@@ -23,9 +29,15 @@ async def raw_develop(image: UploadFile = File(...), depth: int = 8) -> Response
     - `depth=16`: 16-bit sRGB PNG (always demosaiced) for the high-bit-depth
       pipeline. Larger + slower.
 
-    415 when the bytes aren't a readable RAW.
+    413 when the upload exceeds the size cap; 415 when the bytes aren't a
+    readable RAW.
     """
     data = await image.read()
+    if len(data) > _MAX_RAW_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"RAW too large: {len(data)} bytes (max {_MAX_RAW_BYTES}).",
+        )
     try:
         if depth == 16:
             return Response(content=develop_raw_to_png16(data), media_type="image/png")

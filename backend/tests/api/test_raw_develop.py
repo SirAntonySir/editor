@@ -51,3 +51,17 @@ def test_develop_rejects_non_raw_with_415():
         files={"image": ("not.dng", b"plainly not a raw file", "image/x-adobe-dng")},
     )
     assert r.status_code == 415
+
+
+def test_develop_rejects_oversize_upload_with_413(monkeypatch):
+    # Lower the cap so the test doesn't need a 200 MB payload. The guard runs
+    # before any decode, so the bytes need not be a real RAW.
+    import app.api.raw as raw_api
+
+    monkeypatch.setattr(raw_api, "_MAX_RAW_BYTES", 8)
+    client = _client()
+    r = client.post(
+        "/api/raw/develop",
+        files={"image": ("big.dng", b"0123456789", "image/x-adobe-dng")},
+    )
+    assert r.status_code == 413

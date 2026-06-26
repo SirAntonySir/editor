@@ -65,6 +65,30 @@ describe('extractObjectToImageNode', () => {
     // Regression guard: must not be blown up to the full-node default (600).
     expect(newNode!.size.w).not.toBe(600);
   });
+
+  it('returns the new image-node id and baked layer id', () => {
+    const editor = useEditorStore.getState();
+    const srcId = editor.addImageNode(['srcLayer'], { x: 0, y: 0 }, { w: 100, h: 100 });
+    const maskRef = maskStore.register({
+      layerId: 'srcLayer',
+      width: 4,
+      height: 4,
+      data: new Uint8Array(16).fill(255),
+      source: 'sam-point',
+      createdAt: 0,
+    });
+    vi.spyOn(pixelStore, 'getSource').mockReturnValue(
+      { width: 40, height: 40 } as unknown as OffscreenCanvas,
+    );
+
+    const result = extractObjectToImageNode(maskRef, srcId);
+
+    expect(result).not.toBeNull();
+    expect(typeof result!.imageNodeId).toBe('string');
+    expect(typeof result!.layerId).toBe('string');
+    // The new node is set active, so its id matches activeImageNodeId.
+    expect(result!.imageNodeId).toBe(useEditorStore.getState().activeImageNodeId);
+  });
 });
 
 // ─── selectInvertedObject ────────────────────────────────────────────────────

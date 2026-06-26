@@ -107,15 +107,18 @@ export function convertObjectToLayerMask(
 
 /** Bake the masked pixels into a new layer and place it on a new ImageNode
  *  positioned right-adjacent to the source. */
-export function extractObjectToImageNode(maskId: string, sourceImageNodeId: string): void {
+export function extractObjectToImageNode(
+  maskId: string,
+  sourceImageNodeId: string,
+): { imageNodeId: string; layerId: string } | null {
   const mask = maskStore.get(maskId);
   if (!mask) {
     toast.info('Extract: mask no longer exists.');
-    return;
+    return null;
   }
   const editor = useEditorStore.getState();
   const srcNode = editor.imageNodes[sourceImageNodeId];
-  if (!srcNode) return;
+  if (!srcNode) return null;
   // AI-proposed masks carry a synthetic `layerId: 'ai-proposed'` sentinel
   // (set in useBackendSession.rehydrateMaskBytes) rather than a real layer
   // id. Resolve the real source layer from the image node when the mask's
@@ -129,7 +132,7 @@ export function extractObjectToImageNode(maskId: string, sourceImageNodeId: stri
         : srcNode.layerIds[0]);
   if (!sourceLayerId) {
     toast.info('Extract: no source layer available on this image node.');
-    return;
+    return null;
   }
   try {
     const newLayerId = extractLayerFromMask({
@@ -158,8 +161,10 @@ export function extractObjectToImageNode(maskId: string, sourceImageNodeId: stri
       srcNode.sourceSize.w > 0 ? srcNode.size.w / srcNode.sourceSize.w : 1;
     editor.setImageNodeDisplayWidth(newNodeId, sourceSize.w * srcScale);
     editor.setActiveImageNode(newNodeId);
+    return { imageNodeId: newNodeId, layerId: newLayerId };
   } catch (err) {
     toast.info(`Extract failed: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
   }
 }
 

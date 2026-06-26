@@ -467,6 +467,10 @@ StateEventKind = Literal[
     # {"ai_access": bool}; lets the running app toggle AI surfaces live
     # without a reload.
     "session.ai_access",
+    # Plan 1 — backend asks the client to run an LlmToolRegistry tool by name.
+    # Payload: {request_id, name, input, kind}. Transient control event —
+    # published via EventBus.publish only, NEVER appended to doc.history.
+    "client.tool_request",
 ]
 
 

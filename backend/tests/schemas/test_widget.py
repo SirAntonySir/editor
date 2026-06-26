@@ -285,5 +285,7 @@ def test_state_event_kinds() -> None:
         "history.applied",
         # Study-design AI_access flip from the admin cockpit.
         "session.ai_access",
+        # Plan 1 — backend asks the client to run an LlmToolRegistry tool.
+        "client.tool_request",
     }
     assert set(StateEventKind.__args__) == expected

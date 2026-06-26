@@ -271,7 +271,8 @@ export type StateEventKind =
   | 'mcp.usage'
   | 'state.gap'
   | 'history.applied'
-  | 'session.ai_access';
+  | 'session.ai_access'
+  | 'client.tool_request';
 
 export interface StateEvent {
   revision: number;

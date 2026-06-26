@@ -29,7 +29,8 @@
         "mcp.usage",
         "history.applied",
         "state.gap",
-        "session.ai_access"
+        "session.ai_access",
+        "client.tool_request"
       ],
       "title": "Kind",
       "type": "string"

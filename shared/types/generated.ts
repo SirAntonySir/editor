@@ -804,7 +804,8 @@ export interface StateEvent {
     | "mcp.usage"
     | "history.applied"
     | "state.gap"
-    | "session.ai_access";
+    | "session.ai_access"
+    | "client.tool_request";
   payload: {
     [k: string]: unknown;
   };

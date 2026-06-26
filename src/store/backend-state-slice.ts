@@ -14,6 +14,9 @@ import { tetherWorkspaceWidget } from '@/lib/workspace-tether';
 import { useEditorStore } from '@/store';
 import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
+import { LlmToolRegistry } from '@/lib/tool-manifest/llm-tool-registry';
+import { backendTools } from '@/lib/backend-tools';
+import { useClientToolApproval } from '@/store/client-tool-approval-slice';
 
 // Required so immer can produce drafts of Map<WidgetId, OptimisticPatch>.
 enableMapSet();
@@ -259,6 +262,19 @@ export const useBackendState = create<BackendState>()(
             if (typeof next === 'boolean' && s.snapshot) {
               s.snapshot.aiAccess = next;
               s.snapshot.revision = ev.revision;
+            }
+            return;
+          }
+          case 'client.tool_request': {
+            // Backend asked us to run an LlmToolRegistry tool. Defer to a
+            // side-effect so the reducer stays pure; runClientTool decides
+            // (via the local registry's kind) whether to auto-run or gate.
+            const p = payload as {
+              request_id?: string; name?: string; input?: Record<string, unknown>;
+            };
+            if (p.request_id && p.name) {
+              const req = { requestId: p.request_id, name: p.name, input: p.input ?? {} };
+              sideEffects.push(() => { void runClientTool(req); });
             }
             return;
           }
@@ -587,5 +603,34 @@ async function registerMaskFromPng(
     maskStore.injectWithId(mask);
   } catch (err) {
     console.warn('[mask.created] decode failed for', maskId, err);
+  }
+}
+
+/** Execute a backend-requested client tool. The kind is resolved from the LOCAL
+ *  registry (authoritative), NOT the event payload, and defaults to 'mutate'
+ *  when unknown — so approval gating can never be bypassed. `query`/`emit`
+ *  tools run immediately and post their result; `mutate` tools are enqueued for
+ *  the user's allow/deny decision (resolved later by ClientToolApproval). */
+export async function runClientTool(req: {
+  requestId: string;
+  name: string;
+  input: Record<string, unknown>;
+}): Promise<void> {
+  const kind = LlmToolRegistry.getKind(req.name) ?? 'mutate';
+  if (kind === 'mutate') {
+    useClientToolApproval.getState().enqueue({
+      requestId: req.requestId, name: req.name, input: req.input,
+    });
+    return;
+  }
+  const sid = useBackendState.getState().sessionId;
+  if (!sid) return;
+  try {
+    const output = await LlmToolRegistry.invoke(req.name, req.input);
+    await backendTools.postToolResult(sid, { requestId: req.requestId, ok: true, output });
+  } catch (err) {
+    await backendTools.postToolResult(sid, {
+      requestId: req.requestId, ok: false, error: err instanceof Error ? err.message : String(err),
+    });
   }
 }

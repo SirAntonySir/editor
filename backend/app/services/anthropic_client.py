@@ -505,6 +505,18 @@ class AnthropicClient:
             f"Anthropic transport failed after 3 attempts: {last_exc}",
         ) from last_exc
 
+    def agent_message(self, system: str, messages: list, tools: list):
+        """One turn of the agent tool-use loop (see app/tools/agent_loop.py).
+        Returns the raw Anthropic response — the caller inspects
+        `.stop_reason` and the `.content` tool_use blocks."""
+        return self._messages_create(
+            model=self._model,
+            max_tokens=MAX_TOKENS_COMPOSE,
+            system=system,
+            messages=messages,
+            tools=tools,
+        )
+
     @staticmethod
     def _cap_image(image_bytes: bytes, mime_type: str) -> tuple[bytes, str]:
         """Downscale to MAX_VISION_DIM on the long edge if larger, re-encoding as

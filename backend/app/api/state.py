@@ -134,6 +134,19 @@ async def state_agent_turn(sid: str, body: _AgentTurnBody) -> dict:
     anthropic = deps.get_anthropic_client()
     registry = deps.get_tool_registry()
 
+    # Give the LLM the image context (regions, tones, problems) so it acts
+    # instead of replying in prose. Same source propose_stack uses; stripped of
+    # mask bytes / histogram bins via image_context_for_llm.
+    image_context = None
+    try:
+        doc = store.get_document(sid)
+        ctx = doc.get_image_context(DEFAULT_IMAGE_NODE_ID)
+        if ctx is not None:
+            from app.services.llm_context import image_context_for_llm
+            image_context = image_context_for_llm(ctx.model_dump(mode="json", by_alias=True))
+    except Exception:
+        image_context = None  # context is a best-effort prompt aid, never fatal
+
     async def propose_fn(target_image_node_id: str, intent: str) -> dict:
         return await dispatch_propose_adjustment(
             registry, sid, target_image_node_id=target_image_node_id,
@@ -148,6 +161,7 @@ async def state_agent_turn(sid: str, body: _AgentTurnBody) -> dict:
         sid=sid, intent=body.intent, attached_objects=body.attached_objects,
         client_tools=body.client_tools, node_layers=node_layers,
         propose_fn=propose_fn, client_tool_fn=client_tool_fn,
+        image_context=image_context,
     )
 
 

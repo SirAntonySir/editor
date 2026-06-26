@@ -32,11 +32,9 @@ async def dispatch_propose_adjustment(
         {"intent": intent, "scope": scope, "origin": "mcp_user_prompt", "prompt": intent},
     )
     if not envelope.ok:
-        message = ""
-        if isinstance(envelope.error, dict):
-            message = envelope.error.get("message", "")
+        message = envelope.error.message if envelope.error is not None else ""
         return {"ok": False, "error": message or "propose_stack failed"}
-    widgets = (envelope.data or {}).get("widgets", []) if isinstance(envelope.data, dict) else []
+    widgets = (envelope.output or {}).get("widgets", [])
     return {"ok": True, "widget_count": len(widgets)}
 
 
@@ -62,11 +60,18 @@ PROPOSE_ADJUSTMENT_TOOL = {
 }
 
 
-def _build_system(attached_objects: list[str]) -> str:
+def _build_system(attached_objects: list[str], node_ids: list[str]) -> str:
+    targets = ", ".join(node_ids) if node_ids else "the active image node"
     base = (
-        "You are an editing agent for a photo editor. Use the provided tools to "
-        "fulfil the user's request. Call propose_adjustment_widgets to apply "
-        "adjustments to an image node. Stop when the request is satisfied."
+        "You are an editing agent for a photo editor. The user gives an editing "
+        "request; you fulfil it by CALLING TOOLS, not by replying in prose.\n\n"
+        "To apply any tonal/colour adjustment (contrast, warmth, exposure, mood, "
+        "etc.) you MUST call propose_adjustment_widgets with target_image_node_id "
+        f"set to an existing node id ({targets}) and a short intent describing the "
+        "change. To put an object on its own layer first, call "
+        "extract_object_to_image_node, then propose_adjustment_widgets on the "
+        "image_node_id it returns. Do not stop until you have called at least one "
+        "tool that satisfies the request."
     )
     if attached_objects:
         base += (
@@ -92,6 +97,7 @@ async def run_agent_turn(
     node_layers: dict[str, list[str]],
     propose_fn,
     client_tool_fn,
+    image_context: dict | None = None,
     max_tool_calls: int = 10,
 ) -> dict[str, Any]:
     """Run the multi-turn Anthropic tool-use loop. Holds NO write-lock.
@@ -100,9 +106,12 @@ async def run_agent_turn(
     - propose_fn(target_image_node_id, intent) -> dict  (dispatch to propose_stack)
     - client_tool_fn(name, input) -> dict               (Plan 1 round-trip)
     """
-    system = _build_system(attached_objects)
+    system = _build_system(attached_objects, list(node_layers.keys()))
     tools = [*client_tools, PROPOSE_ADJUSTMENT_TOOL]
-    messages: list[dict[str, Any]] = [{"role": "user", "content": intent}]
+    opening = intent
+    if image_context:
+        opening = f"Image context:\n{_json(image_context)}\n\nRequest: {intent}"
+    messages: list[dict[str, Any]] = [{"role": "user", "content": opening}]
     tool_calls = 0
 
     while tool_calls < max_tool_calls:

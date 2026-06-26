@@ -18,7 +18,7 @@ export function ClientToolApproval() {
       {pending.map((req) => (
         <div
           key={req.requestId}
-          className="overlay flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-text-primary"
+          className="overlay pointer-events-auto flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-text-primary"
         >
           <span className="text-[var(--color-ai)]">{describeTool(req.name)}</span>
           <button
@@ -43,11 +43,14 @@ export function ClientToolApproval() {
   );
 }
 
-/** Human-readable label for a tool request. Kept terse for the dock chip. */
+/** Human-readable label for a tool approval. Phrased as "Allow to …" so the
+ *  chip reads as a permission grant rather than a raw tool name. */
 function describeTool(name: string): string {
-  if (name === 'extract_object_to_image_node') return 'Extract object to a new image node?';
-  if (name === 'convert_object_to_layer_mask') return 'Convert object to a layer mask?';
-  return `Run ${name}?`;
+  if (name === 'select_object') return 'Allow to select object';
+  if (name === 'extract_object_to_image_node') return 'Allow to extract object to a new image node';
+  if (name === 'convert_object_to_layer_mask') return 'Allow to convert object to a layer mask';
+  // Fallback: humanise the snake_case tool name → "Allow to select object".
+  return `Allow to ${name.replace(/_/g, ' ')}`;
 }
 
 async function resolveApproval(

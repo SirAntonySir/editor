@@ -280,7 +280,10 @@ export const backendTools = {
    *  may call client tools (via client.tool_request) and propose_adjustment_widgets. */
   async agentTurn(
     sessionId: string,
-    body: { intent: string; attached_objects: string[]; client_tools: unknown[] },
+    body: {
+      intent: string; attached_objects: string[]; client_tools: unknown[];
+      active_node: { image_node_id: string; layer_ids: string[] } | null;
+    },
   ): Promise<{ ok: boolean; toolCalls: number }> {
     const response = await fetch(`${BASE_URL}/api/state/${sessionId}/agent_turn`, {
       method: 'POST',

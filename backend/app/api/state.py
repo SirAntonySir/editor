@@ -65,6 +65,7 @@ class _AgentTurnBody(BaseModel):
     intent: str
     attached_objects: list[str] = []
     client_tools: list[dict] = []
+    active_node: dict | None = None
 
 
 class _ToolResultBody(BaseModel):
@@ -122,9 +123,13 @@ async def state_agent_turn(sid: str, body: _AgentTurnBody) -> dict:
         store.touch(sid)  # 404 if the session is unknown; no lock held into the loop.
     except SessionNotFound:
         raise HTTPException(status_code=404, detail="unknown or expired session")
-    # Plan-2 stand-in: target the default image node. Plan 3 replaces this with
-    # real per-node layer ids and adds extract-created nodes (see CARE POINT).
-    node_layers = {DEFAULT_IMAGE_NODE_ID: [DEFAULT_IMAGE_NODE_ID]}
+    # Seed node_layers from the active node the frontend sent (real layer ids);
+    # extracted nodes are threaded in by the loop. Falls back to the default
+    # node when none was supplied (e.g. empty canvas).
+    if body.active_node and body.active_node.get("image_node_id"):
+        node_layers = {body.active_node["image_node_id"]: list(body.active_node.get("layer_ids", []))}
+    else:
+        node_layers = {DEFAULT_IMAGE_NODE_ID: [DEFAULT_IMAGE_NODE_ID]}
 
     anthropic = deps.get_anthropic_client()
     registry = deps.get_tool_registry()

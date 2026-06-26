@@ -26,6 +26,28 @@ def test_agent_turn_runs_loop_and_returns_count():
     assert resp.json() == {"ok": True, "tool_calls": 2}
 
 
+def test_agent_turn_seeds_node_layers_from_active_node():
+    client = TestClient(app)
+    store = deps.get_session_store()
+    sid = store.create(image_bytes=b"x", mime_type="image/jpeg")
+    captured = {}
+
+    async def fake_run_agent_turn(**kwargs):
+        captured["node_layers"] = kwargs["node_layers"]
+        return {"ok": True, "tool_calls": 0}
+
+    with patch("app.api.state.run_agent_turn", fake_run_agent_turn):
+        resp = client.post(
+            f"/api/state/{sid}/agent_turn",
+            json={
+                "intent": "x", "attached_objects": [], "client_tools": [],
+                "active_node": {"image_node_id": "in-2", "layer_ids": ["l-a", "l-b"]},
+            },
+        )
+    assert resp.status_code == 200
+    assert captured["node_layers"] == {"in-2": ["l-a", "l-b"]}
+
+
 def test_agent_turn_unknown_session_404():
     client = TestClient(app)
     resp = client.post(

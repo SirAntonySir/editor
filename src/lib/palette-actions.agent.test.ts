@@ -25,4 +25,14 @@ describe('runAgentTurn', () => {
     expect(body.attached_objects).toEqual(['mask_sky']);
     expect(body.client_tools.map((t: { name: string }) => t.name)).toEqual(AGENT_LOOP_TOOLS);
   });
+
+  it('includes the active node id + layer ids', async () => {
+    const { useEditorStore } = await import('@/store');
+    const nodeId = useEditorStore.getState().addImageNode(['l-1', 'l-2']);
+    useEditorStore.getState().setActiveImageNode(nodeId);
+    await runAgentTurn('x', []);
+    const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.at(-1)!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.active_node).toEqual({ image_node_id: nodeId, layer_ids: ['l-1', 'l-2'] });
+  });
 });

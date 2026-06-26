@@ -255,6 +255,27 @@ export const backendTools = {
     return (await response.json()) as { cancelled: boolean };
   },
 
+  /** Reply to a backend client.tool_request: POST the result (or denial) of an
+   *  LlmToolRegistry tool so the awaiting agent loop unblocks. */
+  async postToolResult(
+    sessionId: string,
+    result: { requestId: string; ok: boolean; output?: unknown; error?: string; denied?: boolean },
+  ): Promise<{ resolved: boolean }> {
+    const response = await fetch(`${BASE_URL}/api/state/${sessionId}/tool_result`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        request_id: result.requestId,
+        ok: result.ok,
+        output: result.output ?? null,
+        error: result.error ?? null,
+        denied: result.denied ?? false,
+      }),
+    });
+    if (!response.ok) throw new Error(`tool_result POST failed: ${response.status}`);
+    return response.json() as Promise<{ resolved: boolean }>;
+  },
+
   /** Backend snapshot-based history. Each returns null when the backend
    *  has nothing on its stack (HTTP 409) so the caller can fall back to
    *  the frontend's workspace history. Any other failure throws. */

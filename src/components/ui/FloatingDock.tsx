@@ -3,6 +3,7 @@ import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
 import { SuggestionChips } from '@/components/ui/SuggestionChips';
+import { ClientToolApproval } from '@/components/ui/ClientToolApproval';
 import { CommandTrigger } from '@/components/ui/CommandTrigger';
 
 /**
@@ -30,6 +31,7 @@ export function FloatingDock() {
       transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }}
     >
       <BackendStatusBar />
+      <ClientToolApproval />
       <SuggestionChips />
       <CommandTrigger />
     </motion.div>

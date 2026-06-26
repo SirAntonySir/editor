@@ -36,3 +36,17 @@ export function serializeManifest(manifest: ToolManifest): AnthropicToolDescript
 export function serializeAllManifests(): AnthropicToolDescription[] {
   return LlmToolRegistry.getAll().map(serializeManifest);
 }
+
+/**
+ * Serialise only the named tools, in the given order — the curated set the
+ * agent loop exposes to the LLM (spec §3.F). Names not currently registered
+ * are skipped (so a deferred tool simply doesn't appear).
+ */
+export function serializeForAgentLoop(allowed: string[]): AnthropicToolDescription[] {
+  const out: AnthropicToolDescription[] = [];
+  for (const name of allowed) {
+    const manifest = LlmToolRegistry.get(name);
+    if (manifest) out.push(serializeManifest(manifest));
+  }
+  return out;
+}

@@ -19,7 +19,7 @@ const LightToolStub: ToolDefinition = {
 };
 import { toast } from '@/components/ui/Toast';
 import { spawnRegistryOp, spawnRegistryPreset } from '@/lib/toolrail-spawn';
-import { proposeFromPalette } from '@/lib/palette-actions';
+import { runAgentTurn } from '@/lib/palette-actions.agent';
 import { useAiSession, analyseActiveImageLayer } from '@/hooks/useImageContext';
 
 vi.mock('@/lib/toolrail-spawn', () => ({
@@ -30,7 +30,10 @@ vi.mock('@/lib/toolrail-spawn', () => ({
   spawnRegistryPreset: vi.fn(),
   spawnToolWidget:     vi.fn(() => true),
 }));
-vi.mock('@/lib/palette-actions', () => ({ proposeFromPalette: vi.fn().mockResolvedValue({ ok: true }) }));
+vi.mock('@/lib/palette-actions.agent', () => ({
+  runAgentTurn: vi.fn().mockResolvedValue({ ok: true, toolCalls: 1 }),
+  AGENT_LOOP_TOOLS: [],
+}));
 
 // CommandPalette now auto-runs analyze when AI is invoked without context.
 // We mock the analyzer so test runs don't hit the network; tests that
@@ -120,7 +123,7 @@ describe('CommandPalette execution', () => {
     expect(spawnRegistryPreset).toHaveBeenCalledWith('golden_hour', expect.any(String));
   });
 
-  it('Cmd+Enter sends the query to the AI with global scope when an image node is active but no object', async () => {
+  it('Cmd+Enter runs the agent turn with no object ids when no chips are attached', async () => {
     const nodeId = useEditorStore.getState().addImageNode(['l1']);
     useEditorStore.getState().setActiveImageNode(nodeId);
     // Pre-populate AI context so the auto-analyze branch is skipped.
@@ -130,18 +133,13 @@ describe('CommandPalette execution', () => {
     const input = screen.getByPlaceholderText(/search tools/i);
     await userEvent.type(input, 'make it warmer');
     await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
-    // proposeFromPalette now accepts an optional third arg for attached
-    // context items (from the chip-menu / context-attachment strip). An
-    // empty array is sent when no chips were attached.
-    expect(proposeFromPalette).toHaveBeenCalledWith(
-      'make it warmer',
-      { kind: 'global' },
-      [],
-    );
+    // The agent loop derives targets itself; with no attached chips the object
+    // id list is empty.
+    expect(runAgentTurn).toHaveBeenCalledWith('make it warmer', []);
     expect(analyseActiveImageLayer).not.toHaveBeenCalled();
   });
 
-  it('Cmd+Enter forwards a mask scope when one is active (user-selected scope wins)', async () => {
+  it('Cmd+Enter no longer forwards activeObjectId — the agent derives targets from chips', async () => {
     const nodeId = useEditorStore.getState().addImageNode(['l1']);
     useEditorStore.getState().setActiveImageNode(nodeId);
     useEditorStore.getState().setActiveObjectId('m1');
@@ -151,12 +149,12 @@ describe('CommandPalette execution', () => {
     const input = screen.getByPlaceholderText(/search tools/i);
     await userEvent.type(input, 'make it warmer');
     await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
-    expect(proposeFromPalette).toHaveBeenCalledWith(
-      'make it warmer', { kind: 'mask', mask_id: 'm1' }, [],
-    );
+    // activeObjectId 'm1' is NOT passed — only attached object chips become
+    // attached_objects, and none were attached here.
+    expect(runAgentTurn).toHaveBeenCalledWith('make it warmer', []);
   });
 
-  it('Cmd+Enter without context auto-runs analyze before sending to the AI', async () => {
+  it('Cmd+Enter without context auto-runs analyze before running the agent turn', async () => {
     const nodeId = useEditorStore.getState().addImageNode(['l1']);
     useEditorStore.getState().setActiveImageNode(nodeId);
     // Set a context AFTER analyze "resolves" so the guard inside the AI run
@@ -171,11 +169,7 @@ describe('CommandPalette execution', () => {
     await userEvent.type(input, 'make it warmer');
     await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
     await waitFor(() => expect(analyseActiveImageLayer).toHaveBeenCalled());
-    await waitFor(() => expect(proposeFromPalette).toHaveBeenCalledWith(
-      'make it warmer',
-      { kind: 'global' },
-      [],
-    ));
+    await waitFor(() => expect(runAgentTurn).toHaveBeenCalledWith('make it warmer', []));
   });
 });
 

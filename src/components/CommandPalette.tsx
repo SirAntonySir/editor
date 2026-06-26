@@ -7,7 +7,8 @@ import { ScrollArea } from '@/components/ui/ScrollArea';
 import { pixelStore } from '@/core/pixel-store';
 import { useEditorStore } from '@/store';
 import { spawnRegistryOp, spawnRegistryPreset } from '@/lib/toolrail-spawn';
-import { proposeFromPalette } from '@/lib/palette-actions';
+import { runAgentTurn } from '@/lib/palette-actions.agent';
+import { extractAttachedObjectIds } from './CommandPalette.agent-helpers';
 import { useMenuActions } from '@/lib/menu-actions';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { analyseActiveImageLayer, useAiSession } from '@/hooks/useImageContext';
@@ -16,7 +17,6 @@ import { useSmartMatch } from '@/hooks/useSmartMatch';
 import { useAsk } from '@/hooks/useAsk';
 import { useAiAccess } from '@/lib/ai-access';
 import { CommandPaletteAskView } from './CommandPaletteAskView';
-import type { Scope } from '@/types/widget';
 import {
   buildAdjustmentSections,
   buildPresetSections,
@@ -384,13 +384,8 @@ export function CommandPalette() {
       }
       if (cmd.kind === 'ai') {
         if (pending) return; // already in flight — ignore double-submit
-        // Forward an explicit mask scope when one is set; otherwise fall back
-        // to plain global — image-node selection lives in activeImageNodeId.
-        const state = useEditorStore.getState();
-        const oid = state.activeObjectId;
-        const scope: Scope = oid !== null
-          ? { kind: 'mask', mask_id: oid }
-          : { kind: 'global' };
+        // The agent loop derives its own targets: object chips ride along as
+        // `attached_objects`; adjustments land on the active image node.
         const submitted = query.trim();
         setPending(submitted);
         setErrorState(null);
@@ -422,10 +417,13 @@ export function CommandPalette() {
           }
         }
 
-        const result = await proposeFromPalette(submitted, scope, attachedContext);
-        // If the user ESC'd while the request was in flight, the dialog
-        // unmounts and the setStates below short-circuit harmlessly.
-        if (result.ok) {
+        // Agentic turn: the backend runs a multi-turn loop that may call client
+        // tools (extract/select, gated by approval) and propose_adjustment_widgets.
+        // Object chips ride along as structured `attached_objects`. If the user
+        // ESC'd mid-flight, the dialog unmounts and these setStates no-op.
+        const objectIds = extractAttachedObjectIds(attachedContext);
+        const turn = await runAgentTurn(submitted, objectIds);
+        if (turn.ok) {
           setPending(null);
           setPendingPhase(null);
           resetPalette();
@@ -433,11 +431,7 @@ export function CommandPalette() {
         } else {
           setPending(null);
           setPendingPhase(null);
-          setErrorState({
-            code: result.error.code,
-            message: result.error.message,
-            hint: result.error.recovery_hint,
-          });
+          setErrorState({ message: 'The agent could not complete that request.' });
         }
       }
     },

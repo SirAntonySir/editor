@@ -276,6 +276,22 @@ export const backendTools = {
     return response.json() as Promise<{ resolved: boolean }>;
   },
 
+  /** Start an agentic turn: the backend runs a multi-turn Anthropic loop that
+   *  may call client tools (via client.tool_request) and propose_adjustment_widgets. */
+  async agentTurn(
+    sessionId: string,
+    body: { intent: string; attached_objects: string[]; client_tools: unknown[] },
+  ): Promise<{ ok: boolean; toolCalls: number }> {
+    const response = await fetch(`${BASE_URL}/api/state/${sessionId}/agent_turn`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Error(`agent_turn failed: ${response.status}`);
+    const json = (await response.json()) as { ok: boolean; tool_calls: number };
+    return { ok: json.ok, toolCalls: json.tool_calls };
+  },
+
   /** Backend snapshot-based history. Each returns null when the backend
    *  has nothing on its stack (HTTP 409) so the caller can fall back to
    *  the frontend's workspace history. Any other failure throws. */

@@ -107,6 +107,10 @@ class SessionStore:
         # task.cancel(). One slot is enough because the registry serialises
         # mutate calls behind the per-session write_lock.
         self._active_tasks: dict[str, asyncio.Task] = {}
+        # Pending backend→client tool-call Futures, keyed sid → request_id →
+        # Future. The agent loop awaits the Future; POST /tool_result resolves
+        # it. Guarded by self._lock (never held across an await).
+        self._pending_client_calls: dict[str, dict[str, asyncio.Future]] = {}
         # Owned by the store so the registry, lifespan hooks, and tests share
         # one checkpointer instance. Imported lazily — Checkpointer pulls in
         # app.session, which imports app.config, which we don't want at the
@@ -226,18 +230,57 @@ class SessionStore:
             self._active_tasks.pop(sid, None)
 
     def cancel_task(self, sid: str) -> bool:
-        """Cancel the in-flight tool task for this session, if any.
-        Returns True when a task was cancelled, False otherwise.
+        """Cancel the in-flight tool task for this session, if any, AND reject
+        every pending backend→client tool call so a blocked agent loop unblocks.
+        Returns True when an asyncio.Task was cancelled, False otherwise.
 
         Note: a synchronous Anthropic SDK call (which is what dominates analyze
         runtime) is NOT preemptible; cancellation lands at the next await,
         typically the next inter-phase asyncio.gather/sleep."""
+        self.cancel_client_requests(sid)
         with self._lock:
             task = self._active_tasks.get(sid)
         if task is None or task.done():
             return False
         task.cancel()
         return True
+
+    # ---------------- backend→client tool-call correlation ----------------
+
+    def new_client_request(self, sid: str) -> tuple[str, asyncio.Future]:
+        """Register a pending backend→client tool call. Returns (request_id,
+        future). The agent loop awaits `future`; the POST /tool_result endpoint
+        (or cancel) resolves it."""
+        request_id = uuid.uuid4().hex
+        fut: asyncio.Future = asyncio.get_event_loop().create_future()
+        with self._lock:
+            self._pending_client_calls.setdefault(sid, {})[request_id] = fut
+        return request_id, fut
+
+    def resolve_client_request(self, sid: str, request_id: str, result: dict) -> bool:
+        """Resolve a pending client tool call with `result`. Returns True if a
+        pending (not-yet-done) Future was found and set, False otherwise.
+        One-shot: the entry is removed so a duplicate POST is a no-op."""
+        with self._lock:
+            bucket = self._pending_client_calls.get(sid)
+            fut = bucket.pop(request_id, None) if bucket else None
+        if fut is None or fut.done():
+            return False
+        fut.set_result(result)
+        return True
+
+    def cancel_client_requests(self, sid: str) -> int:
+        """Resolve every pending client tool call for `sid` as a denial. Called
+        when a session is cancelled / disconnected so the agent loop unblocks.
+        Returns the number cancelled."""
+        with self._lock:
+            bucket = self._pending_client_calls.pop(sid, {})
+        count = 0
+        for fut in bucket.values():
+            if not fut.done():
+                fut.set_result({"ok": False, "denied": True, "error": "cancelled"})
+                count += 1
+        return count
 
     def prune_memory(self, max_age_seconds: float) -> int:
         """Drop in-memory session records whose `last_seen` is older than

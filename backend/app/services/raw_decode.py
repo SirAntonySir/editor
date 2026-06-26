@@ -6,13 +6,15 @@ web-native formats), so RAW files are developed here, server-side, via LibRaw
 normal image path.
 
 Strategy (cheap → expensive):
-  1. **Embedded preview** — virtually every RAW embeds a full-size JPEG. If
-     present we use it: no demosaic, near-instant. This is the MVP path.
-  2. **Demosaic fallback** — no usable preview ⇒ `postprocess()` debayers the
-     sensor mosaic into 8-bit sRGB.
+  1. **Embedded preview** — most RAWs embed a JPEG preview. We use it ONLY when
+     it's near full sensor resolution (Canon/Nikon embed full-size previews;
+     Sony embeds a small ~1616×1080 one). Near-instant, no demosaic.
+  2. **Demosaic** — no usable (large enough) preview ⇒ `postprocess()` debayers
+     the sensor mosaic into 8-bit sRGB at full resolution.
 
-Output is always re-encoded to a size-clamped JPEG so callers get a uniform
-result regardless of which path produced it.
+The preview must clear `_PREVIEW_MIN_FRACTION` of the sensor's long edge or we
+demosaic instead — otherwise a 24 MP RAW would silently open as a 1.7 MP
+thumbnail. Output is re-encoded to a (large) size-clamped JPEG.
 
 Note: the 8-bit JPEG output discards RAW's 12–16-bit latitude — fine for
 "open and view/edit like a JPEG", not for true highlight/shadow recovery
@@ -35,6 +37,11 @@ RAW_EXTENSIONS = frozenset({
 })
 
 
+# Use an embedded preview only if its long edge is at least this fraction of
+# the sensor's long edge — otherwise demosaic for full resolution.
+_PREVIEW_MIN_FRACTION = 0.8
+
+
 class RawDecodeError(ValueError):
     """Raised when bytes can't be read as a camera-RAW image. Transport layers
     translate this to a 4xx (unsupported media)."""
@@ -48,13 +55,14 @@ def is_raw_filename(name: str) -> bool:
     return name[dot:].lower() in RAW_EXTENSIONS
 
 
-def develop_raw_to_jpeg(data: bytes, *, max_dim: int = 2048, quality: int = 90) -> bytes:
+def develop_raw_to_jpeg(data: bytes, *, max_dim: int = 8192, quality: int = 92) -> bytes:
     """Develop RAW `data` into a JPEG byte string.
 
-    Prefers the embedded preview; falls back to a full demosaic. The result is
-    converted to RGB, downscaled so its longest side is ≤ `max_dim`, and
-    JPEG-encoded at `quality`. Raises `RawDecodeError` if `data` isn't a
-    readable RAW.
+    Uses the embedded preview when it's near full sensor resolution, else
+    demosaics at full resolution. The result is converted to RGB, downscaled
+    only if its longest side exceeds `max_dim` (default high, so typical
+    cameras keep full resolution), and JPEG-encoded at `quality`. Raises
+    `RawDecodeError` if `data` isn't a readable RAW.
     """
     # Imported lazily so the rest of the backend doesn't pay the LibRaw import
     # cost unless a RAW actually arrives.
@@ -62,7 +70,12 @@ def develop_raw_to_jpeg(data: bytes, *, max_dim: int = 2048, quality: int = 90) 
 
     try:
         with rawpy.imread(io.BytesIO(data)) as raw:
-            img = _embedded_preview(raw) or _demosaic(raw)
+            sensor_long = max(raw.sizes.width, raw.sizes.height)
+            preview = _embedded_preview(raw)
+            if preview is not None and max(preview.size) >= _PREVIEW_MIN_FRACTION * sensor_long:
+                img = preview
+            else:
+                img = _demosaic(raw)
             # Force pixel materialisation while `raw` is still open (Image.open
             # on the embedded preview is lazy), then detach to RGB.
             img = img.convert("RGB")

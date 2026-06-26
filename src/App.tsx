@@ -19,6 +19,7 @@ import { registerAllToolManifests } from '@/lib/tool-manifest';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore, applyPreferences } from '@/store/preferences-store';
 import { editorDocument } from '@/core/document';
+import { openImageFromPicker } from '@/lib/open-file';
 import { initLayerLifecycle } from '@/core/layer-lifecycle';
 import { initEditorStatePersistence } from '@/core/editor-state-persistence';
 import { CurvesTool } from '@/tools/curves-tool';
@@ -165,17 +166,10 @@ function EditorContent() {
     };
   }, []);
 
+  // Empty-state uploader. Routes through the shared picker so RAW files are
+  // selectable (explicit-extension accept) and developed to JPEG before open.
   const handleFileOpen = useCallback(() => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (file) {
-        await editorDocument.openImage(file);
-      }
-    };
-    input.click();
+    openImageFromPicker();
   }, []);
 
   return (

@@ -2,7 +2,13 @@ import { editorDocument } from '@/core/document';
 import { toast } from '@/components/ui/Toast';
 import { developRawFile, isRawFile, RAW_ACCEPT } from './raw-image';
 
-const ACCEPT = `image/*,${RAW_ACCEPT}`;
+// Explicit extensions, NO `image/*` wildcard: macOS (Chromium/Electron) greys
+// out any file whose MIME isn't image/* when the wildcard is present — which
+// includes camera RAW (.arw/.nef/… have no image MIME) even when the extension
+// is also listed. Listing extensions explicitly keeps every format selectable.
+const WEB_IMAGE_ACCEPT =
+  '.jpg,.jpeg,.png,.webp,.gif,.bmp,.avif,.heic,.heif,.tif,.tiff,.ico,.svg';
+const ACCEPT = `${WEB_IMAGE_ACCEPT},${RAW_ACCEPT}`;
 
 /**
  * Resolve a picked file to something `createImageBitmap` can decode. Web-native

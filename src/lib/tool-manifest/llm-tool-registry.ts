@@ -34,6 +34,13 @@ class LlmToolRegistryImpl {
     return this.getAll().filter((m) => m.kind === kind);
   }
 
+  /** The manifest's declared kind, or undefined if the tool is unknown. The
+   *  SSE handler uses this as the AUTHORITATIVE kind (not the event payload)
+   *  so approval gating can't be bypassed by a malformed request. */
+  getKind(name: string): ToolKind | undefined {
+    return this.manifests.get(name)?.kind;
+  }
+
   /**
    * Validate the raw input against the manifest's input schema and run the
    * handler. Throws if the manifest is missing or if input fails validation.

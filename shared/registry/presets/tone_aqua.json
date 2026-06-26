@@ -3,7 +3,7 @@
   "display_name": "Adjust aqua tones",
   "category": "color",
   "source": "builtin",
-  "description": "Shift the aqua colour family in HSL space \u2014 covers aqua, cyan, teal-leaning, teal. Tunes hue / saturation / luminance for that band only.",
+  "description": "Shift the aqua colour family in HSL space — covers aqua, cyan, teal-leaning, teal. Tunes hue / saturation / luminance for that band only.",
   "typical_use": "User says 'aqua tones are off', 'too much aqua', 'desaturate the aquas', or names any synonym above.",
   "semantic_tags": [
     "aqua",
@@ -14,9 +14,9 @@
     {
       "op_id": "hsl",
       "params": {
-        "aqua_hue": 0.0,
-        "aqua_sat": 0.0,
-        "aqua_lum": 0.0
+        "aqua_hue": -5,
+        "aqua_sat": 16,
+        "aqua_lum": 4
       }
     }
   ]

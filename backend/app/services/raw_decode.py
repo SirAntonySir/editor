@@ -92,6 +92,45 @@ def develop_raw_to_jpeg(data: bytes, *, max_dim: int = 8192, quality: int = 92) 
     return out.getvalue()
 
 
+def develop_raw_to_png16(data: bytes, *, max_dim: int = 8192) -> bytes:
+    """Develop RAW `data` into a **16-bit** sRGB PNG byte string.
+
+    Always demosaics at full depth (`output_bps=16`) — embedded previews are
+    8-bit JPEGs, so they're never used here. Output is sRGB-gamma-encoded (same
+    domain as the 8-bit JPEG path, just 16-bit precision), so the editor's
+    gamma-domain pipeline can consume it unchanged. Downscaled in 16-bit only
+    if the long edge exceeds `max_dim`. Raises `RawDecodeError` for non-RAW.
+
+    Encoded with OpenCV — Pillow can't write 16-bit RGB PNG. `cv2` wants BGR.
+    """
+    import cv2
+    import numpy as np
+    import rawpy
+
+    try:
+        with rawpy.imread(io.BytesIO(data)) as raw:
+            rgb = raw.postprocess(use_camera_wb=True, output_bps=16, no_auto_bright=False)
+    except Exception as exc:  # rawpy raises LibRaw* errors for non-RAW input
+        raise RawDecodeError(f"not a readable RAW image: {exc}") from exc
+
+    h, w = rgb.shape[:2]
+    longest = max(h, w)
+    if longest > max_dim:
+        scale = max_dim / longest
+        rgb = cv2.resize(
+            rgb, (round(w * scale), round(h * scale)), interpolation=cv2.INTER_AREA
+        )
+
+    bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    # Compression 6 trades a little CPU for a much smaller payload than the
+    # default (level 1) — a 24MP 16-bit PNG is tens of MB either way, but this
+    # meaningfully cuts the transfer + in-memory File size.
+    ok, buf = cv2.imencode(".png", bgr, [cv2.IMWRITE_PNG_COMPRESSION, 6])
+    if not ok:
+        raise RawDecodeError("failed to encode 16-bit PNG")
+    return np.asarray(buf).tobytes()
+
+
 def _embedded_preview(raw) -> Image.Image | None:
     """Return the RAW's embedded preview as a PIL image, or None when absent."""
     import rawpy

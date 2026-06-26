@@ -31,7 +31,7 @@ void main() {
   float n = mix(fine, coarse, u_roughness) * 2.0 - 1.0;   // -1..1
 
   float offset = n * u_amount * 0.5;                       // ±0.5 max
-  vec3 grained = clamp(c + vec3(offset), 0.0, 1.0);
+  vec3 grained = c + vec3(offset);
   vec4 adjusted = vec4(grained, texel.a);
   fragColor = applyMask(texel, adjusted, v_texCoord);
 }

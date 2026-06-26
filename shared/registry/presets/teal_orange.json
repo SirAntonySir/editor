@@ -3,7 +3,7 @@
   "display_name": "Teal & orange",
   "category": "color",
   "source": "builtin",
-  "description": "Teal-and-orange cinematic grade \u2014 curve approximation plus selective saturation boost.",
+  "description": "Teal-and-orange cinematic grade — curve approximation plus selective saturation boost.",
   "typical_use": "Use when the user wants a teal-orange colour grade or cinematic look.",
   "semantic_tags": [
     "mood",
@@ -12,9 +12,19 @@
   ],
   "ops": [
     {
+      "op_id": "splitTone",
+      "params": {
+        "shadow_hue": 195,
+        "shadow_sat": 35,
+        "highlight_hue": 30,
+        "highlight_sat": 30,
+        "balance": 0
+      }
+    },
+    {
       "op_id": "color",
       "params": {
-        "saturation": 0.0
+        "saturation": 12
       }
     }
   ]

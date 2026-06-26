@@ -116,26 +116,60 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
             doc.update_widget(w)
             return _Output(widget=w.model_dump(mode="json", by_alias=True))
 
-        # No composition change → re-tune numbers via the fused template.
+        # No composition change → re-tune numbers from the instruction.
         if w.op_id is None:
             return _Output(widget=w.model_dump(mode="json", by_alias=True))
+
         templates = {t.id: t for t in all_fused_templates()}
-        template = templates[w.op_id]
-        new_widget = await run_fused_tool(
-            template, intent=w.intent, scope=w.scope,
-            ctx=doc.get_image_context(DEFAULT_IMAGE_NODE_ID), prior=w, instruction=input.instruction,
-            anthropic=anthropic, origin=w.origin,
+        template = templates.get(w.op_id)
+        if template is not None:
+            # Fused widget → re-resolve the whole template with the instruction.
+            new_widget = await run_fused_tool(
+                template, intent=w.intent, scope=w.scope,
+                ctx=doc.get_image_context(DEFAULT_IMAGE_NODE_ID), prior=w, instruction=input.instruction,
+                anthropic=anthropic, origin=w.origin,
+            )
+            new_widget.id = w.id
+            new_widget.revision = w.revision + 1
+            # Preserve the prior anchoring. The fused template rebuilds the
+            # widget from scratch (new nodes, new scope), which would otherwise
+            # snap it back to the default layer / global scope and detach the
+            # frontend tether from the current image-node.
+            new_widget.scope = w.scope
+            for n in new_widget.nodes:
+                n.layer_id = anchor_layer_id
+                if anchor_layer_ids is not None:
+                    n.layer_ids = anchor_layer_ids
+            doc.update_widget(new_widget)
+            return _Output(widget=new_widget.model_dump(mode="json", by_alias=True))
+
+        # Single registry-op widget (kelvin / light / color / curves / …): there
+        # is no fused template to re-run, so re-tune the op's params directly
+        # from the instruction via the param resolver, then write them back
+        # through the widget's node + bindings + canonical so the image updates
+        # live and the sliders track. (Without this branch instruction-only
+        # refine of a registry-op widget KeyError'd on `templates[op_id]`.)
+        from app.registry.loader import get_registry
+        op = get_registry().ops.get(w.op_id)
+        node = w.nodes[0] if w.nodes else None
+        if op is None or node is None or not input.instruction:
+            return _Output(widget=w.model_dump(mode="json", by_alias=True))
+
+        ctx = doc.get_image_context(DEFAULT_IMAGE_NODE_ID)
+        resolved = anthropic.resolve_widget_params(
+            op=op,
+            intent=w.intent,
+            rationale=input.instruction,
+            starting_params=dict(node.params),
+            image_context=ctx.model_dump(mode="json") if ctx is not None else {},
+            session_id=doc.session_id,
         )
-        new_widget.id = w.id
-        new_widget.revision = w.revision + 1
-        # Preserve the prior anchoring. The fused template rebuilds the
-        # widget from scratch (new nodes, new scope), which would otherwise
-        # snap it back to the default layer / global scope and detach the
-        # frontend tether from the current image-node.
-        new_widget.scope = w.scope
-        for n in new_widget.nodes:
-            n.layer_id = anchor_layer_id
-            if anchor_layer_ids is not None:
-                n.layer_ids = anchor_layer_ids
-        doc.update_widget(new_widget)
-        return _Output(widget=new_widget.model_dump(mode="json", by_alias=True))
+        for key, value in resolved.items():
+            node.params[key] = value
+            doc.set_param(node.layer_id, node.type, key, value)
+            binding = next((b for b in w.bindings if b.param_key == key), None)
+            if binding is not None:
+                binding.value = value
+        w.revision += 1
+        doc.update_widget(w)
+        return _Output(widget=w.model_dump(mode="json", by_alias=True))

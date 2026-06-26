@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Loader2, AlertCircle, Sparkles, ArrowRight, Image as ImageIcon, Command as CommandIcon, X as XIcon, MapPin } from 'lucide-react';
+import { Search, Loader2, AlertCircle, Sparkles, ArrowRight, Image as ImageIcon, Command as CommandIcon, X as XIcon, SquareDashed } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { pixelStore } from '@/core/pixel-store';
 import { useEditorStore } from '@/store';
+import { maskStore } from '@/core/mask-store';
 import { spawnRegistryOp, spawnRegistryPreset } from '@/lib/toolrail-spawn';
 import { runAgentTurn } from '@/lib/palette-actions.agent';
-import { extractAttachedObjectIds } from './CommandPalette.agent-helpers';
+import { PromptEditor, type PromptEditorHandle } from '@/components/ui/PromptEditor';
+import { RegionSuggestions } from './RegionSuggestions';
+import { rankRegions, type SuggestRegion } from '@/lib/region-suggest';
+import { docToPlainText, serializePromptDoc, type PromptDoc } from '@/lib/prompt-doc';
 import { useMenuActions } from '@/lib/menu-actions';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { analyseActiveImageLayer, useAiSession } from '@/hooks/useImageContext';
@@ -47,7 +51,19 @@ type PaletteMode = 'agent' | 'ask';
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
+  /** The prompt is a segment doc so region references can live inline as
+   *  atomic chips. `query` (the plain-text projection) drives the command-list
+   *  filter, smart-match and AI row exactly as before. */
+  const [doc, setDoc] = useState<PromptDoc>([]);
+  const query = useMemo(() => docToPlainText(doc), [doc]);
+  const editorRef = useRef<PromptEditorHandle>(null);
+  /** Caret-anchored region picker state: the ranked matches, the highlighted
+   *  row, and the caret rect to anchor under. `regions: []` means closed. */
+  const [suggest, setSuggest] = useState<{
+    regions: SuggestRegion[];
+    index: number;
+    anchor: DOMRect | null;
+  }>({ regions: [], index: 0, anchor: null });
   const [activeIndex, setActiveIndex] = useState(0);
   const [pending, setPending] = useState<string | null>(null);
   /** Agent mode (default) drives the registry-driven palette. Ask mode swaps
@@ -81,7 +97,25 @@ export function CommandPalette() {
   // objectOwnership is a custom external store — snapshot() returns a version
   // int that increments on every mutation, giving useSyncExternalStore a
   // stable snapshot to compare via Object.is.
-  useSyncExternalStore(objectOwnership.subscribe, objectOwnership.snapshot);
+  const ownershipVersion = useSyncExternalStore(objectOwnership.subscribe, objectOwnership.snapshot);
+  // `buildRegionsSections` reads `maskStore` for object names; subscribe to it
+  // so the Regions list stays fresh on add / remove / rename (a label change is
+  // otherwise invisible to React — see the bug where a renamed object still
+  // showed its old name here).
+  const maskVersion = useSyncExternalStore(maskStore.subscribe, maskStore.getVersion);
+
+  // Flat region list (committed objects + AI-proposed regions) for the inline
+  // caret picker. Reuses the same merge `buildRegionsSections` performs, so the
+  // dropdown and the "Regions" list stay in sync. Recomputes when masks or AI
+  // context change.
+  const regionList = useMemo<SuggestRegion[]>(
+    () =>
+      buildRegionsSections()
+        .flatMap((s) => s.commands)
+        .map((c) => ({ label: c.label, sourceId: c.chipSourceId ?? c.id })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [aiContext, ownershipVersion, maskVersion],
+  );
 
   // Right-sidebar geometry — used to keep the palette centered over the
   // canvas column rather than the full viewport. RightSidebar unmounts when
@@ -105,7 +139,7 @@ export function CommandPalette() {
       ...buildMenuActionSections(menuActions),
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [menuActions, aiContext],
+    [menuActions, aiContext, ownershipVersion, maskVersion],
   );
 
   // Filter sections by query. Result is partitioned: `primary` holds rows
@@ -300,7 +334,9 @@ export function CommandPalette() {
   // calls inside `run`) or (b) the user clearing the input / detaching
   // chips by hand.
   const resetPalette = useCallback(() => {
-    setQuery('');
+    setDoc([]);
+    editorRef.current?.clear();
+    setSuggest({ regions: [], index: 0, anchor: null });
     setActiveIndex(0);
     setAttachedContext([]);
     setMode('agent');
@@ -340,6 +376,34 @@ export function CommandPalette() {
     if (next) setActiveImageNode(next);
   }, [nodeIds, activeImageNodeId, setActiveImageNode]);
 
+  // Caret moved in the editor — rank regions against the word under it and
+  // (re)position the picker. An empty ranking closes the dropdown.
+  const handleCaretWord = useCallback(
+    (word: string, rect: DOMRect | null) => {
+      const ranked = rankRegions(regionList, word);
+      setSuggest({ regions: ranked, index: 0, anchor: rect });
+    },
+    [regionList],
+  );
+
+  const closeSuggest = useCallback(
+    () => setSuggest({ regions: [], index: 0, anchor: null }),
+    [],
+  );
+
+  // Accept a region: drop it as an inline chip at the caret and close the
+  // picker. Attaching a chip is just a reference in the prompt — it must NOT
+  // segment or spin up an image node here. That's the AI's decision, made when
+  // the prompt is submitted (Enter → agent turn). Used by the keyboard accept,
+  // the dropdown, and the Regions chip strip.
+  const acceptSuggestion = useCallback(
+    (region: SuggestRegion) => {
+      editorRef.current?.insertChipAtCaret({ label: region.label, sourceId: region.sourceId });
+      closeSuggest();
+    },
+    [closeSuggest],
+  );
+
   const run = useCallback(
     async (cmd: PaletteCommand | undefined) => {
       if (!cmd) return;
@@ -363,30 +427,23 @@ export function CommandPalette() {
         return;
       }
       if (cmd.kind === 'chip') {
-        // Attach as a context chip to the input strip and keep the palette
-        // open so the user can pick more chips or type a prompt. Reuses
-        // the same window event the Info-tab chips dispatch — the
-        // listener at the top of this component dedupes by label+value.
-        window.dispatchEvent(
-          new CustomEvent('spawn-palette:open', {
-            detail: {
-              attachContext: [
-                {
-                  label: cmd.description, // e.g. "Region"
-                  value: cmd.chipValue ?? cmd.label,
-                  sourceId: cmd.chipSourceId ?? cmd.id,
-                },
-              ],
-            },
-          }),
-        );
+        // Drop the region inline at the caret (or end of the prompt) and keep
+        // the palette open so the user can keep composing. This is the
+        // fallback path to the inline caret picker — same insertion target.
+        acceptSuggestion({
+          label: cmd.chipValue ?? cmd.label,
+          sourceId: cmd.chipSourceId ?? cmd.id,
+        });
         return;
       }
       if (cmd.kind === 'ai') {
         if (pending) return; // already in flight — ignore double-submit
         // The agent loop derives its own targets: object chips ride along as
         // `attached_objects`; adjustments land on the active image node.
-        const submitted = query.trim();
+        // Inline chips contribute their label to `intent` and their id to
+        // `attachedObjects`; tray chips fold in too.
+        const { intent: submitted, attachedObjects } = serializePromptDoc(doc, attachedContext);
+        if (!submitted) return;
         setPending(submitted);
         setErrorState(null);
 
@@ -399,7 +456,10 @@ export function CommandPalette() {
         if (!aiSession.context) {
           setPendingPhase('analyze');
           try {
-            await analyseActiveImageLayer();
+            // Analysis-only: skip the autonomous widget suggestions here — the
+            // user's prompt (the agent turn below) is what should drive
+            // proposals, not the implicit analyze that precedes it.
+            await analyseActiveImageLayer({ suggest: false });
           } catch (err) {
             setPending(null);
             setPendingPhase(null);
@@ -421,8 +481,7 @@ export function CommandPalette() {
         // tools (extract/select, gated by approval) and propose_adjustment_widgets.
         // Object chips ride along as structured `attached_objects`. If the user
         // ESC'd mid-flight, the dialog unmounts and these setStates no-op.
-        const objectIds = extractAttachedObjectIds(attachedContext);
-        const turn = await runAgentTurn(submitted, objectIds);
+        const turn = await runAgentTurn(submitted, attachedObjects);
         if (turn.ok) {
           setPending(null);
           setPendingPhase(null);
@@ -435,23 +494,54 @@ export function CommandPalette() {
         }
       }
     },
-    [query, pending, attachedContext, resetPalette],
+    [doc, pending, attachedContext, resetPalette, acceptSuggestion],
   );
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // Region picker has precedence over everything while it's open: it owns
+      // the navigation keys so the command list / target-cycle don't also fire.
+      if (suggest.regions.length > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setSuggest((s) => ({ ...s, index: Math.min(s.index + 1, s.regions.length - 1) }));
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setSuggest((s) => ({ ...s, index: Math.max(s.index - 1, 0) }));
+          return;
+        }
+        if (e.key === 'Enter' || e.key === 'Tab') {
+          e.preventDefault();
+          acceptSuggestion(suggest.regions[suggest.index]);
+          return;
+        }
+        if (e.key === 'Escape') {
+          // Stop the native event before it reaches Radix's document-level
+          // escape handler, so dismissing the picker doesn't close the dialog.
+          e.preventDefault();
+          e.stopPropagation();
+          e.nativeEvent.stopImmediatePropagation();
+          closeSuggest();
+          return;
+        }
+      }
       // Ask mode: Enter submits to the LLM and pins the markdown response
       // in the body. Arrow keys and Tab keep their Agent-mode semantics
       // disabled — there's nothing to navigate in Ask mode.
       if (mode === 'ask') {
         if (e.key === 'Enter') {
           e.preventDefault();
-          const chips = attachedContext.map((c) => ({
+          const docChips = doc
+            .filter((s): s is Extract<PromptDoc[number], { kind: 'chip' }> => s.kind === 'chip')
+            .map((s) => ({ label: 'Region', value: s.label, sourceId: s.sourceId }));
+          const trayChips = attachedContext.map((c) => ({
             label: c.label,
             value: c.value,
             sourceId: c.sourceId,
           }));
-          ask.submit(query, chips);
+          ask.submit(query, [...docChips, ...trayChips]);
         }
         return;
       }
@@ -470,7 +560,21 @@ export function CommandPalette() {
         else void run(flat[activeIndex]);
       }
     },
-    [mode, ask, query, attachedContext, flat, activeIndex, aiCommand, cycleTarget, run],
+    [
+      mode,
+      ask,
+      query,
+      doc,
+      attachedContext,
+      flat,
+      activeIndex,
+      aiCommand,
+      cycleTarget,
+      run,
+      suggest,
+      acceptSuggestion,
+      closeSuggest,
+    ],
   );
 
   // Flat index lookup so each rendered section can know which absolute
@@ -526,7 +630,7 @@ export function CommandPalette() {
   ) : activeCmd?.kind === 'ai' ? (
     <Sparkles size={14} className="text-[var(--color-ai)] ai-glow-pulse" />
   ) : activeCmd?.kind === 'chip' ? (
-    <MapPin size={14} className="text-[var(--color-ai)]" />
+    <SquareDashed size={14} className="text-[var(--color-ai)]" />
   ) : ActiveIcon ? (
     <ActiveIcon size={14} className="text-text-secondary" />
   ) : (
@@ -585,37 +689,37 @@ export function CommandPalette() {
                 }}
               >
                 <Dialog.Title className="sr-only">Command palette</Dialog.Title>
-                {/* Chrome row — mode toggle, context chips, target. No
-                    separator below: it visually fuses with the input row
-                    so they read as one composite header. */}
-                <div
-                  className={`flex items-center gap-1 px-2 py-1 flex-wrap${
-                    pending || ask.state.status === 'pending' ? ' ai-shimmer' : ''
-                  }`}
-                >
-                  {aiAccess && <ModeToggle mode={mode} onChange={setMode} />}
-                  {attachedContext.length > 0 && (
-                    <InlineContextChips
-                      items={attachedContext}
-                      onRemove={(id) => setAttachedContext((prev) => prev.filter((c) => c.id !== id))}
-                    />
-                  )}
-                  <span className="flex-1" />
-                  {targetLabel && (
-                    <TargetChip
-                      label={targetLabel}
-                      thumbLayerId={targetNode?.layerIds[0]}
-                      onCycle={cycleTarget}
-                    />
-                  )}
-                </div>
-                {/* Prompt row — search icon + input on their own line. */}
+                {/* Chrome row — mode toggle + context chips only. Renders only
+                    when it has content so an empty padded strip never shows.
+                    The target chip now lives on the input row below. No
+                    separator: it visually fuses with the input row. */}
+                {(aiAccess || attachedContext.length > 0) && (
+                  <div
+                    className={`flex items-center gap-1 px-2 py-1 flex-wrap${
+                      pending || ask.state.status === 'pending' ? ' ai-shimmer' : ''
+                    }`}
+                  >
+                    {aiAccess && <ModeToggle mode={mode} onChange={setMode} />}
+                    {attachedContext.length > 0 && (
+                      <InlineContextChips
+                        items={attachedContext}
+                        onRemove={(id) => setAttachedContext((prev) => prev.filter((c) => c.id !== id))}
+                      />
+                    )}
+                  </div>
+                )}
+                {/* Prompt row — search icon + inline-chip editor + target chip
+                    on one line. Region references become atomic chips inside
+                    the prompt as the user types (fuzzy, accepted Tab/Enter).
+                    The target chip sits flush-right on this same row. */}
                 <div className="flex items-center gap-2 px-2 py-1.5 border-b border-separator">
                   {searchIconNode}
-                  <input
-                    autoFocus
-                    value={query}
-                    onChange={(e) => { setQuery(e.target.value); if (errorState) setErrorState(null); }}
+                  <PromptEditor
+                    ref={editorRef}
+                    initialDoc={doc}
+                    onChange={(d) => { setDoc(d); if (errorState) setErrorState(null); }}
+                    onCaretWordChange={handleCaretWord}
+                    disabled={mode === 'agent' && !!pending}
                     placeholder={
                       mode === 'ask'
                         ? ask.state.status === 'pending'
@@ -627,10 +731,22 @@ export function CommandPalette() {
                             : `Sending "${pending}"…`
                           : aiAccess ? 'Search tools or ask AI…' : 'Search tools…'
                     }
-                    disabled={mode === 'agent' && !!pending}
-                    className="flex-1 min-w-0 bg-transparent outline-none text-xs text-text-primary placeholder:text-text-secondary disabled:opacity-60"
                   />
+                  {targetLabel && (
+                    <TargetChip
+                      label={targetLabel}
+                      thumbLayerId={targetNode?.layerIds[0]}
+                      onCycle={cycleTarget}
+                    />
+                  )}
                 </div>
+                <RegionSuggestions
+                  regions={suggest.regions}
+                  activeIndex={suggest.index}
+                  anchorRect={suggest.anchor}
+                  onSelect={acceptSuggestion}
+                  onHover={(i) => setSuggest((s) => ({ ...s, index: i }))}
+                />
 
                 {errorState && (
                   <div className="flex items-start gap-2 px-2 py-1 border-b border-separator bg-[color-mix(in_srgb,var(--color-danger,#e5484d)_8%,transparent)]">
@@ -663,22 +779,32 @@ export function CommandPalette() {
                 ) : (
                 <div className="flex-1 min-h-0 overflow-hidden">
                 <ScrollArea className="h-full" viewportClassName="py-1">
-                  {primarySections.map((section, sIdx) => (
-                    <div key={section.id}>
-                      <SectionHeader title={section.title} />
-                      {section.commands.map((cmd, cIdx) => {
-                        const absIdx = primaryStartIndices[sIdx] + cIdx;
-                        return (
-                          <CommandRow
-                            key={cmd.id}
-                            command={cmd}
-                            active={absIdx === activeIndex}
-                            onSelect={() => run(cmd)}
-                          />
-                        );
-                      })}
-                    </div>
-                  ))}
+                  {primarySections.map((section, sIdx) =>
+                    section.id === 'regions' ? (
+                      <RegionChipStrip
+                        key={section.id}
+                        commands={section.commands}
+                        startIndex={primaryStartIndices[sIdx]}
+                        activeIndex={activeIndex}
+                        onSelect={run}
+                      />
+                    ) : (
+                      <div key={section.id}>
+                        <SectionHeader title={section.title} />
+                        {section.commands.map((cmd, cIdx) => {
+                          const absIdx = primaryStartIndices[sIdx] + cIdx;
+                          return (
+                            <CommandRow
+                              key={cmd.id}
+                              command={cmd}
+                              active={absIdx === activeIndex}
+                              onSelect={() => run(cmd)}
+                            />
+                          );
+                        })}
+                      </div>
+                    ),
+                  )}
                   {smartSection && (
                     <div key={smartSection.id}>
                       <SectionHeader
@@ -709,7 +835,16 @@ export function CommandPalette() {
                       />
                     </>
                   )}
-                  {secondarySections.map((section, sIdx) => (
+                  {secondarySections.map((section, sIdx) =>
+                    section.id === 'regions' ? (
+                      <RegionChipStrip
+                        key={`sec:${section.id}`}
+                        commands={section.commands}
+                        startIndex={secondaryStartIndices[sIdx]}
+                        activeIndex={activeIndex}
+                        onSelect={run}
+                      />
+                    ) : (
                     <div key={`sec:${section.id}`}>
                       <SectionHeader title={section.title} />
                       {section.commands.map((cmd, cIdx) => {
@@ -724,7 +859,8 @@ export function CommandPalette() {
                         );
                       })}
                     </div>
-                  ))}
+                    ),
+                  )}
                   {flat.length === 0 && (
                     <div className="px-2 py-1.5 text-xs text-text-secondary">No matches.</div>
                   )}
@@ -878,6 +1014,47 @@ function TargetThumb({ layerId }: { layerId: string | undefined }) {
   );
 }
 
+/**
+ * Regions section, rendered as a single horizontal scroll strip of chips
+ * (instead of a vertical list + "Regions" header). A leading SquareDashed icon
+ * marks the strip; each chip stays keyboard-navigable via `activeIndex` so
+ * up/down + Enter still work alongside clicking.
+ */
+function RegionChipStrip({
+  commands,
+  startIndex,
+  activeIndex,
+  onSelect,
+}: {
+  commands: PaletteCommand[];
+  startIndex: number;
+  activeIndex: number;
+  onSelect: (cmd: PaletteCommand) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 px-2 py-1.5 overflow-x-auto">
+      <SquareDashed size={13} className="flex-none text-text-secondary" aria-hidden />
+      {commands.map((cmd, i) => {
+        const active = startIndex + i === activeIndex;
+        return (
+          <button
+            key={cmd.id}
+            type="button"
+            onClick={() => onSelect(cmd)}
+            className={`flex-none inline-flex items-center text-[11px] rounded-[3px] px-1.5 py-0.5 border transition-colors ${
+              active
+                ? 'bg-[color-mix(in_srgb,var(--color-ai)_15%,transparent)] border-[color-mix(in_srgb,var(--color-ai)_40%,transparent)] text-[var(--color-ai)]'
+                : 'bg-surface-secondary border-separator text-text-primary hover:border-[var(--color-ai)]'
+            }`}
+          >
+            <span className="truncate max-w-[140px]">{cmd.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function SectionHeader({
   title,
   tone = 'default',
@@ -948,9 +1125,9 @@ function CommandRow({
         {isAi ? (
           <Sparkles size={14} className="ai-glow-pulse" />
         ) : isChip ? (
-          // Region / Object chip — same MapPin used in the input row's
+          // Region / Object chip — same SquareDashed used in the input row's
           // active-row preview when a chip is highlighted.
-          <MapPin size={13} />
+          <SquareDashed size={13} />
         ) : isMenu ? (
           // Generic command glyph for menu actions so the column doesn't
           // sit empty next to every File/Edit/View row.

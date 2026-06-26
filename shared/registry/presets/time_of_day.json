@@ -3,7 +3,7 @@
   "display_name": "Time of Day",
   "category": "look",
   "source": "builtin",
-  "description": "A 1-D dial that re-lights the image across the day arc \u2014 dawn, noon, golden hour, blue hour, night. Compiles to a coordinated bundle of white balance, exposure, contrast, saturation, and vignette. The user can drag the dial or convert to manual widgets.",
+  "description": "A 1-D dial that re-lights the image across the day arc — dawn, noon, golden hour, blue hour, night. Compiles to a coordinated bundle of white balance, exposure, contrast, saturation, and vignette. The user can drag the dial or convert to manual widgets.",
   "typical_use": "User says 'make it night', 'golden hour', 'dawn light', 'blue hour', 'sunset', 'overcast morning', 'late afternoon glow', or otherwise describes a time of day. Prefer this over individual atmosphere templates (GoldenHour, BlueHour) when the user's framing is a *time* rather than a specific look.",
   "semantic_tags": [
     "day",
@@ -15,29 +15,29 @@
     {
       "op_id": "kelvin",
       "params": {
-        "kelvin": 7000.0
+        "kelvin": 7000
       }
     },
     {
       "op_id": "light",
       "params": {
-        "exposure": 0.0,
-        "contrast": 0.0,
-        "highlights": 0.0,
-        "shadows": 0.0
+        "exposure": 5,
+        "contrast": 8,
+        "highlights": -10,
+        "shadows": 8
       }
     },
     {
       "op_id": "color",
       "params": {
-        "vibrance": 0.0
+        "vibrance": 10
       }
     },
     {
       "op_id": "hsl",
       "params": {
-        "orange_sat": 0.0,
-        "blue_sat": 0.0
+        "orange_sat": 12,
+        "blue_sat": -5
       }
     }
   ]

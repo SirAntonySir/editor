@@ -49,7 +49,7 @@ export function MetadataSection() {
 
   // ─── File chips ───────────────────────────────────────────────────
   const fileChips: Chip[] = [];
-  pushChip(fileChips, 'file:format', 'Format', formatFormatTag(documentMeta.mimeType));
+  pushChip(fileChips, 'file:format', 'Format', documentMeta.format ?? formatFormatTag(documentMeta.mimeType));
   pushChip(fileChips, 'file:size',   'Size',   formatFileSize(documentMeta.fileSize));
 
   const captureDate = formatCapturedAt(exif?.capturedAt);

@@ -3,7 +3,7 @@
   "display_name": "Adjust orange tones",
   "category": "color",
   "source": "builtin",
-  "description": "Shift the orange colour family in HSL space \u2014 covers orange, oranges, amber, ginger, peach. Tunes hue / saturation / luminance for that band only.",
+  "description": "Shift the orange colour family in HSL space — covers orange, oranges, amber, ginger, peach. Tunes hue / saturation / luminance for that band only.",
   "typical_use": "User says 'orange tones are off', 'too much orange', 'desaturate the oranges', or names any synonym above.",
   "semantic_tags": [
     "mood",
@@ -14,9 +14,9 @@
     {
       "op_id": "hsl",
       "params": {
-        "orange_hue": 0.0,
-        "orange_sat": 0.0,
-        "orange_lum": 0.0
+        "orange_hue": 4,
+        "orange_sat": 12,
+        "orange_lum": 4
       }
     }
   ]

@@ -12,6 +12,7 @@ from PIL import Image
 from app.services.raw_decode import (
     RawDecodeError,
     develop_raw_to_jpeg,
+    develop_raw_to_png16,
     is_raw_filename,
 )
 
@@ -53,3 +54,29 @@ def test_develop_rejects_a_plain_jpeg():
     Image.new("RGB", (32, 32), (10, 20, 30)).save(buf, format="JPEG")
     with pytest.raises(RawDecodeError):
         develop_raw_to_jpeg(buf.getvalue())
+
+
+# ---------------- 16-bit PNG develop (Tier 1) ----------------
+
+
+def test_develop_png16_is_16bit_rgb():
+    import cv2
+    import numpy as np
+    out = develop_raw_to_png16(FIXTURE.read_bytes())
+    arr = cv2.imdecode(np.frombuffer(out, np.uint8), cv2.IMREAD_UNCHANGED)
+    assert arr is not None
+    assert arr.dtype == np.uint16          # 16-bit, not truncated to 8
+    assert arr.shape == (192, 192, 3)      # full-res, 3-channel
+
+
+def test_develop_png16_clamps_to_max_dim():
+    import cv2
+    import numpy as np
+    out = develop_raw_to_png16(FIXTURE.read_bytes(), max_dim=64)
+    arr = cv2.imdecode(np.frombuffer(out, np.uint8), cv2.IMREAD_UNCHANGED)
+    assert max(arr.shape[:2]) == 64
+
+
+def test_develop_png16_rejects_non_raw():
+    with pytest.raises(RawDecodeError):
+        develop_raw_to_png16(b"not a raw image at all")

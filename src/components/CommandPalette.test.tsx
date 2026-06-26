@@ -21,6 +21,15 @@ import { toast } from '@/components/ui/Toast';
 import { spawnRegistryOp, spawnRegistryPreset } from '@/lib/toolrail-spawn';
 import { runAgentTurn } from '@/lib/palette-actions.agent';
 import { useAiSession, analyseActiveImageLayer } from '@/hooks/useImageContext';
+import { maskStore } from '@/core/mask-store';
+import { objectOwnership } from '@/lib/segmentation/object-ownership';
+import { extractObjectToImageNode } from '@/lib/segmentation/object-actions';
+
+vi.mock('@/lib/segmentation/object-actions', () => ({
+  // Accepting a region always separates it; we spy the extraction so the
+  // test doesn't bake pixels / touch the canvas registry.
+  extractObjectToImageNode: vi.fn(() => ({ imageNodeId: 'n2', layerId: 'l2' })),
+}));
 
 vi.mock('@/lib/toolrail-spawn', () => ({
   // CommandPalette routes registry-driven picks through these helpers;
@@ -57,6 +66,8 @@ beforeEach(() => {
   useEditorStore.getState().clearSelection?.();
   useBackendState.getState().reset();
   useBackendState.setState({ sseStatus: 'open' });
+  maskStore.clear();
+  objectOwnership._resetForTests();
   vi.clearAllMocks();
 });
 afterEach(() => cleanup());
@@ -67,14 +78,14 @@ describe('CommandPalette open + gating', () => {
     render(<CommandPalette />);
     open();
     expect(spy).not.toHaveBeenCalled();
-    expect(screen.getByPlaceholderText(/search tools/i)).toBeDefined();
+    expect(screen.getByRole('textbox')).toBeDefined();
   });
 
   it('opens and lists adjustment tools when an image node exists', () => {
     useEditorStore.getState().addImageNode(['l1']);
     render(<CommandPalette />);
     open();
-    expect(screen.getByPlaceholderText(/search tools/i)).toBeDefined();
+    expect(screen.getByRole('textbox')).toBeDefined();
     expect(screen.getByText('Light')).toBeDefined();
     expect(screen.getByText('Curves')).toBeDefined();
   });
@@ -83,7 +94,7 @@ describe('CommandPalette open + gating', () => {
     useEditorStore.getState().addImageNode(['l1']);
     render(<CommandPalette />);
     open();
-    await userEvent.type(screen.getByPlaceholderText(/search tools/i), 'cur');
+    await userEvent.type(screen.getByRole('textbox'), 'cur');
     // "Curves" must appear as a primary (label/id) match.
     expect(screen.getByText('Curves')).toBeDefined();
     // "Light" now legitimately appears in the secondary section — its
@@ -99,10 +110,10 @@ describe('CommandPalette execution', () => {
     useEditorStore.getState().addImageNode(['l1']);
     render(<CommandPalette />);
     open();
-    await userEvent.type(screen.getByPlaceholderText(/search tools/i), 'light{Enter}');
+    await userEvent.type(screen.getByRole('textbox'), 'light{Enter}');
     // Registry-driven path: spawnRegistryOp receives the op id + label.
     expect(spawnRegistryOp).toHaveBeenCalledWith('light', expect.any(String));
-    await waitFor(() => expect(screen.queryByPlaceholderText(/search tools/i)).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
   });
 
   it('clicking an op row spawns it', async () => {
@@ -130,7 +141,7 @@ describe('CommandPalette execution', () => {
     useAiSession.setState({ context: { subjects: [], lighting: 'flat', dominantTones: [], mood: '', candidateRegions: [], modelName: '', modelVersion: '', generatedAt: '' } as unknown as never });
     render(<CommandPalette />);
     open();
-    const input = screen.getByPlaceholderText(/search tools/i);
+    const input = screen.getByRole('textbox');
     await userEvent.type(input, 'make it warmer');
     await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
     // The agent loop derives targets itself; with no attached chips the object
@@ -146,7 +157,7 @@ describe('CommandPalette execution', () => {
     useAiSession.setState({ context: { subjects: [], lighting: 'flat', dominantTones: [], mood: '', candidateRegions: [], modelName: '', modelVersion: '', generatedAt: '' } as unknown as never });
     render(<CommandPalette />);
     open();
-    const input = screen.getByPlaceholderText(/search tools/i);
+    const input = screen.getByRole('textbox');
     await userEvent.type(input, 'make it warmer');
     await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
     // activeObjectId 'm1' is NOT passed — only attached object chips become
@@ -165,11 +176,58 @@ describe('CommandPalette execution', () => {
     });
     render(<CommandPalette />);
     open();
-    const input = screen.getByPlaceholderText(/search tools/i);
+    const input = screen.getByRole('textbox');
     await userEvent.type(input, 'make it warmer');
     await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
     await waitFor(() => expect(analyseActiveImageLayer).toHaveBeenCalled());
     await waitFor(() => expect(runAgentTurn).toHaveBeenCalledWith('make it warmer', []));
+  });
+
+  it('accepting a region only attaches a chip — it does NOT segment / spin up a node', async () => {
+    const nodeId = useEditorStore.getState().addImageNode(['l1']);
+    useEditorStore.getState().setActiveImageNode(nodeId);
+    // A committed object labelled "person" so the Regions section lists it.
+    maskStore.injectWithId({
+      id: 'm1',
+      layerId: 'l1',
+      label: 'person',
+      width: 1,
+      height: 1,
+      data: new Uint8Array([0]),
+      source: 'sam-point',
+      createdAt: 0,
+    });
+    objectOwnership.set('m1', nodeId);
+    render(<CommandPalette />);
+    open();
+    await userEvent.click(screen.getAllByText('person')[0]);
+    // Attaching a chip is a prompt reference only; extraction is the AI's
+    // decision at submit time, never a side effect of clicking the chip.
+    expect(extractObjectToImageNode).not.toHaveBeenCalled();
+  });
+
+  it('reflects a renamed object label in the Regions list', async () => {
+    const nodeId = useEditorStore.getState().addImageNode(['l1']);
+    useEditorStore.getState().setActiveImageNode(nodeId);
+    maskStore.injectWithId({
+      id: 'm1',
+      layerId: 'l1',
+      label: 'person',
+      width: 1,
+      height: 1,
+      data: new Uint8Array([0]),
+      source: 'sam-point',
+      createdAt: 0,
+    });
+    objectOwnership.set('m1', nodeId);
+    render(<CommandPalette />);
+    open();
+    expect(screen.getAllByText('person').length).toBeGreaterThan(0);
+
+    // Rename through the reactive maskStore → the Regions list updates live.
+    await act(async () => { maskStore.setLabel('m1', 'climber'); });
+    expect(screen.getByText('climber')).toBeInTheDocument();
+    expect(screen.queryByText('person')).not.toBeInTheDocument();
   });
 });
 
@@ -192,7 +250,7 @@ describe('CommandPalette — inline context chips', () => {
     expect(detachBtn).toBeDefined();
 
     // The input field is still present and focusable.
-    expect(screen.getByPlaceholderText(/search tools/i)).toBeDefined();
+    expect(screen.getByRole('textbox')).toBeDefined();
 
     // Clicking × removes the chip.
     await userEvent.click(detachBtn);

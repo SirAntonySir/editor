@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Handle, Position } from '@xyflow/react';
-import { Combine, MessageSquare, ScanSearch, Sparkles } from 'lucide-react';
+import { Combine, Info, MessageSquare, ScanSearch, Sparkles } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { usePreferencesStore } from '@/store/preferences-store';
@@ -11,6 +11,8 @@ import { analyseImageLayer, useAiSession } from '@/hooks/useImageContext';
 import { useAiAccess } from '@/lib/ai-access';
 import { backendTools } from '@/lib/backend-tools';
 import { editorDocument } from '@/core/document';
+import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
+import { toast } from '@/components/ui/Toast';
 import {
   convertObjectToLayerMask,
   extractObjectToImageNode,
@@ -20,6 +22,7 @@ import {
 import { exportImageNode, rejoinSourceImage } from '@/lib/image-node-actions';
 import { duplicateActiveImageNode } from '@/lib/duplicate-image-node';
 import { computeEffectiveSize, type Crop } from '@/lib/image-node-geometry';
+import { ScrollArea } from '@/components/ui/ScrollArea';
 import { ImageNodeBody } from '../ImageNodeBody';
 import { SegmentHitLayer } from '../SegmentHitLayer';
 import { ImageNodeObjectsLayer } from '../ImageNodeObjectsLayer';
@@ -39,6 +42,8 @@ interface ImageNodeDraftingProps {
   };
   selected: boolean;
 }
+
+const EMPTY_WIDGETS: import('@/types/widget').Widget[] = [];
 
 const LEFT_MARGIN = 120;
 const RIGHT_MARGIN = 120;
@@ -183,15 +188,31 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
     (s) => s.imageNodes[id]?.sourceImageNodeId,
   );
 
+  // "Rejoin source image" un-does an extract by merging this node back into its
+  // source — only valid once the user's edits here are APPLIED. Gate on any
+  // engaged active widget (pending AI suggestions don't count as the user's
+  // changes) targeting this node's layers.
+  const snapshotWidgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
+  const pendingSuggestionIds = useSuggestionsUi((s) => s.pendingSuggestionIds);
+  const hasUnappliedChanges = useMemo(
+    () =>
+      snapshotWidgets.some(
+        (w) =>
+          w.status === 'active' &&
+          !pendingSuggestionIds.has(w.id) &&
+          w.nodes.some((n) => n.layerId != null && data.layerIds.includes(n.layerId)),
+      ),
+    [snapshotWidgets, pendingSuggestionIds, data.layerIds],
+  );
+
   // Default is 'layers' — no auto-flip to objects when a segmented mask
   // exists. The user opts in explicitly via the menu.
   const currentMode: 'layers' | 'objects' = imageNodeMode ?? 'layers';
   const objectsActive = currentMode === 'objects';
 
   const mime = documentMeta?.mimeType ?? '';
-  const formatLabel = mime.startsWith('image/')
-    ? mime.slice('image/'.length).toUpperCase()
-    : 'IMG';
+  const formatLabel = documentMeta?.format
+    ?? (mime.startsWith('image/') ? mime.slice('image/'.length).toUpperCase() : 'IMG');
 
   const fileSize = documentMeta?.fileSize ? formatBytes(documentMeta.fileSize) : null;
 
@@ -270,6 +291,20 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
       )}
       <Item
         className={itemClass}
+        onSelect={() => {
+          // Promote this node to active so the Info tab reads THIS image's
+          // context (it keys off activeImageNodeId), then reveal the tab.
+          useEditorStore.getState().setActiveImageNode(id);
+          usePreferencesStore.getState().showImageContext();
+        }}
+      >
+        <span className="flex items-center gap-1.5">
+          <Info size={11} className="text-text-secondary" />
+          <span>See info</span>
+        </span>
+      </Item>
+      <Item
+        className={itemClass}
         onSelect={() => setImageNodeMode(id, objectsActive ? 'layers' : 'objects')}
       >
         <span className="flex items-center gap-1.5">
@@ -278,7 +313,16 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
         </span>
       </Item>
       {sourceImageNodeId && (
-        <Item className={itemClass} onSelect={() => { rejoinSourceImage(id); }}>
+        <Item
+          className={itemClass}
+          onSelect={() => {
+            if (hasUnappliedChanges) {
+              toast.info('Apply or dismiss your changes before rejoining the source image.');
+              return;
+            }
+            rejoinSourceImage(id);
+          }}
+        >
           <span className="flex items-center gap-1.5">
             <Combine size={11} className="text-text-secondary" />
             <span>Rejoin source image</span>
@@ -451,8 +495,10 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
               </div>
             </ContextMenu.Trigger>
             <ContextMenu.Portal>
-              <ContextMenu.Content className="overlay p-1 min-w-[160px] z-50">
-                {renderMenuItems(ContextMenu.Item)}
+              <ContextMenu.Content className="overlay min-w-[160px] z-50">
+                <ScrollArea viewportClassName="p-1 max-h-[var(--radix-context-menu-content-available-height)]">
+                  {renderMenuItems(ContextMenu.Item)}
+                </ScrollArea>
               </ContextMenu.Content>
             </ContextMenu.Portal>
           </ContextMenu.Root>

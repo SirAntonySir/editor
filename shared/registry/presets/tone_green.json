@@ -3,7 +3,7 @@
   "display_name": "Adjust green tones",
   "category": "color",
   "source": "builtin",
-  "description": "Shift the green colour family in HSL space \u2014 covers green, greens, greenish, lime, olive. Tunes hue / saturation / luminance for that band only.",
+  "description": "Shift the green colour family in HSL space — covers green, greens, greenish, lime, olive. Tunes hue / saturation / luminance for that band only.",
   "typical_use": "User says 'green tones are off', 'too much green', 'desaturate the greens', or names any synonym above.",
   "semantic_tags": [
     "green",
@@ -14,9 +14,9 @@
     {
       "op_id": "hsl",
       "params": {
-        "green_hue": 0.0,
-        "green_sat": 0.0,
-        "green_lum": 0.0
+        "green_hue": 6,
+        "green_sat": 14,
+        "green_lum": 3
       }
     }
   ]

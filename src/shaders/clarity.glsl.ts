@@ -35,7 +35,7 @@ void main() {
   // Luminance-only high-pass: scalar delta, added equally to R, G, B.
   float detail = dot(texel.rgb - blurred, LUMA709);
   vec3 result = texel.rgb + vec3(detail) * u_amount;
-  vec4 adjusted = vec4(clamp(result, 0.0, 1.0), texel.a);
+  vec4 adjusted = vec4(result, texel.a);
   fragColor = applyMask(texel, adjusted, v_texCoord);
 }
 `;

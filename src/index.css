@@ -117,6 +117,19 @@ html, body, #root {
   box-shadow: var(--overlay-shadow, var(--shadow-overlay));
 }
 
+/* Frosted-glass overlay — translucent surface + backdrop blur. Reserved for
+ * chrome that floats directly over image content, where the flat opaque
+ * `.overlay` loses contrast against arbitrary photo pixels (e.g. the segment
+ * refine hint pill). The blur derives from `--color-surface`, so it tracks
+ * the light/dark theme automatically. The rest of the app stays flat. */
+.glass-overlay {
+  background: color-mix(in srgb, var(--color-surface) 62%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--color-border-strong) 55%, transparent);
+  box-shadow: var(--shadow-overlay);
+}
+
 /* Running snake border: a violet conic-gradient "head" sweeps clockwise
  * along the pill's edge. We register --ai-snake-angle as a real <angle>
  * via @property so the conic gradient can be tweened (without @property,
@@ -350,3 +363,13 @@ html, body, #root {
 /* The default "Ukraine flag" run in Leaflet 1.9's attribution is busy in a
  * sidebar this small — hide it; the OSM credit stays. */
 .leaflet-attribution-flag { display: none !important; }
+
+/* PromptEditor — contenteditable placeholder. contenteditable has no native
+ * placeholder, so render one via the data attribute when the editor is empty.
+ * `:empty` holds only while the editor has no child nodes (we clear to no
+ * children rather than leaving a stray <br>). */
+.prompt-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-text-secondary);
+  pointer-events: none;
+}

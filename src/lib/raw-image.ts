@@ -31,14 +31,17 @@ export function isRawFile(file: File): boolean {
  * (see backend-auth.ts). Throws on failure; the caller surfaces a toast.
  */
 export async function developRawFile(file: File): Promise<File> {
+  // depth=16 → a 16-bit sRGB PNG. The open path decodes its high-bit data for
+  // the float pipeline AND derives the 8-bit canvas (via createImageBitmap) for
+  // every existing reader, so this stays compatible if the float path is off.
   const fd = new FormData();
   fd.append('image', file, file.name);
-  const res = await fetch(`${BACKEND_BASE_URL}/api/raw/develop`, { method: 'POST', body: fd });
+  const res = await fetch(`${BACKEND_BASE_URL}/api/raw/develop?depth=16`, { method: 'POST', body: fd });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     throw new Error(`RAW develop failed: ${res.status} ${detail}`);
   }
   const blob = await res.blob();
-  const jpegName = `${file.name.replace(/\.[^.]+$/, '')}.jpg`;
-  return new File([blob], jpegName, { type: 'image/jpeg' });
+  const pngName = `${file.name.replace(/\.[^.]+$/, '')}.png`;
+  return new File([blob], pngName, { type: 'image/png' });
 }

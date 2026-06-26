@@ -20,8 +20,8 @@
     {
       "op_id": "kelvin",
       "params": {
-        "kelvin": 6500,
-        "tint": 0.0
+        "kelvin": 7800,
+        "tint": 15
       }
     }
   ]

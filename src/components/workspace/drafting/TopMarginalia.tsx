@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { ReactNode } from 'react';
 import { track } from '@/lib/telemetry';
+import { ScrollArea } from '@/components/ui/ScrollArea';
 
 interface TopMarginaliaProps {
   /** Image-node display name (file basename without extension). */
@@ -146,11 +147,13 @@ export function TopMarginalia({
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
               <DropdownMenu.Content
-                className="overlay p-1 min-w-[160px] z-50"
+                className="overlay min-w-[160px] z-50"
                 sideOffset={4}
                 align="end"
               >
-                {renderMenuItems(DropdownMenu.Item)}
+                <ScrollArea viewportClassName="p-1 max-h-[var(--radix-dropdown-menu-content-available-height)]">
+                  {renderMenuItems(DropdownMenu.Item)}
+                </ScrollArea>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu.Root>

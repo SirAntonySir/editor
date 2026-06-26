@@ -15,6 +15,7 @@ vi.mock('@xyflow/react', () => ({
 import { useImageNodeRender } from './useImageNodeRender';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import type { Widget } from '@/types/widget';
 
 afterEach(cleanup);
@@ -29,7 +30,7 @@ function Consumer({ widgetId: _widgetId }: { widgetId: string }) {
   return <canvas ref={canvasRef} data-testid="c" />;
 }
 
-function widgetWithNode(opts: { id: string; nodeId: string; layerId?: string; type?: string }): Widget {
+function widgetWithNode(opts: { id: string; nodeId: string; layerId?: string; type?: string; params?: Record<string, number> }): Widget {
   return {
     id: opts.id,
     intent: 'x',
@@ -37,7 +38,7 @@ function widgetWithNode(opts: { id: string; nodeId: string; layerId?: string; ty
     origin: { kind: 'tool_invoked' },
     composed: true,
     nodes: [
-      { id: opts.nodeId, type: opts.type ?? 'basic', params: {}, scope: { kind: 'global' }, inputs: [], widgetId: opts.id, layerId: opts.layerId },
+      { id: opts.nodeId, type: opts.type ?? 'basic', params: opts.params ?? {}, scope: { kind: 'global' }, inputs: [], widgetId: opts.id, layerId: opts.layerId },
     ],
     bindings: [],
     preview: { kind: 'none', autoBeforeAfter: false },
@@ -58,6 +59,7 @@ describe('useImageNodeRender · hiddenNodeIds derivation', () => {
     const cids = Array.from(useEditorStore.getState().hiddenCanonNodeIds);
     for (const id of cids) useEditorStore.getState().toggleCanonNodeHidden(id);
     useBackendState.setState({ snapshot: null });
+    useSuggestionsUi.getState().reset();
   });
 
   it('derives hiddenNodeIds as canon:<layer>:<type> when widget node has layer_id', () => {
@@ -98,6 +100,48 @@ describe('useImageNodeRender · hiddenNodeIds derivation', () => {
 
     const lastArgs = renderImageNodeCompositeMock.mock.calls.slice(-1)[0][0] as { hiddenNodeIds: Set<string> };
     expect(lastArgs.hiddenNodeIds.size).toBe(0);
+  });
+
+  it('does not hide a shared canon id that another pending widget is previewing', () => {
+    // Two pending suggestions on the SAME (layer, op-type) → one canon id.
+    const w1 = widgetWithNode({ id: 's1', nodeId: 'n1', layerId: 'L1', type: 'basic', params: { exposure: 0.5 } });
+    const w2 = widgetWithNode({ id: 's2', nodeId: 'n2', layerId: 'L1', type: 'basic', params: { contrast: 0.3 } });
+    useBackendState.setState({
+      snapshot: { widgets: [w1, w2], operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, masksIndex: [], revision: 1 } as never,
+    });
+    useSuggestionsUi.getState().markPending(['s1', 's2']);
+    useSuggestionsUi.getState().setPreview('s1', true); // preview s1, not s2
+
+    render(<Consumer widgetId="s1" />);
+
+    const lastArgs = renderImageNodeCompositeMock.mock.calls.slice(-1)[0][0] as {
+      hiddenNodeIds: Set<string>;
+      extraNodes?: { id: string; params: Record<string, number> }[];
+    };
+    // s2 is pending-silenced and would hide canon:L1:basic — but s1 previews it.
+    expect(lastArgs.hiddenNodeIds.has('canon:L1:basic')).toBe(false);
+    // The preview node carries s1's params only (s2's contrast excluded).
+    const extra = lastArgs.extraNodes?.find((n) => n.id === 'canon:L1:basic');
+    expect(extra?.params).toEqual({ exposure: 0.5 });
+  });
+
+  it('merges params of multiple previewing widgets that share a canon id', () => {
+    const w1 = widgetWithNode({ id: 's1', nodeId: 'n1', layerId: 'L1', type: 'basic', params: { exposure: 0.5 } });
+    const w2 = widgetWithNode({ id: 's2', nodeId: 'n2', layerId: 'L1', type: 'basic', params: { contrast: 0.3 } });
+    useBackendState.setState({
+      snapshot: { widgets: [w1, w2], operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} }, masksIndex: [], revision: 1 } as never,
+    });
+    useSuggestionsUi.getState().markPending(['s1', 's2']);
+    useSuggestionsUi.getState().setPreview('s1', true);
+    useSuggestionsUi.getState().setPreview('s2', true);
+
+    render(<Consumer widgetId="s1" />);
+
+    const lastArgs = renderImageNodeCompositeMock.mock.calls.slice(-1)[0][0] as {
+      extraNodes?: { id: string; params: Record<string, number> }[];
+    };
+    const extra = lastArgs.extraNodes?.find((n) => n.id === 'canon:L1:basic');
+    expect(extra?.params).toEqual({ exposure: 0.5, contrast: 0.3 });
   });
 
   it('also unions hiddenCanonNodeIds directly into the derived set', () => {

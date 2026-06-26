@@ -142,6 +142,15 @@ export interface WorkspaceSlice {
    * is removed. Clears `activeImageNodeId` if it matched.
    */
   removeImageNode: (id: string) => void;
+  /**
+   * Re-derive the private node-id counter from the ids currently in the store
+   * so freshly minted ids can't collide with existing ones. Call after any
+   * bulk restore (session reload, history undo/redo) that repopulates
+   * `imageNodes`/`infoNodes` without carrying `_nextNodeSeq` — otherwise the
+   * counter resets to 1 and the next `addImageNode` overwrites a restored node
+   * (e.g. Extract-to-Image-Node clobbering the source node after a reload).
+   */
+  resyncNodeSeq: () => void;
   setNodePosition: (id: string, position: Point) => void;
   /** Creates the entry if it does not yet exist. */
   setWidgetPosition: (id: string, position: Point) => void;
@@ -304,6 +313,21 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
         state.previousImageNodeId = null;
       }
       delete state.imageNodeMode[id];
+    }),
+
+  resyncNodeSeq: () =>
+    set((state) => {
+      // `in-<n>` (image nodes) and `info-<n>` (info nodes) share this counter.
+      let maxSeq = 0;
+      const scan = (ids: string[]) => {
+        for (const id of ids) {
+          const m = /-(\d+)$/.exec(id);
+          if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
+        }
+      };
+      scan(Object.keys(state.imageNodes));
+      scan(Object.keys(state.infoNodes));
+      state._nextNodeSeq = Math.max(state._nextNodeSeq, maxSeq + 1);
     }),
 
   setNodePosition: (id, position) =>

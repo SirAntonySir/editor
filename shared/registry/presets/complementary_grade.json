@@ -3,7 +3,7 @@
   "display_name": "Complementary grade",
   "category": "color",
   "source": "builtin",
-  "description": "Push the classic orange\u2194blue complementary pair in HSL \u2014 warms reds and oranges, cools blues and aquas. Drives a teal-and-orange axis without committing to the full LUT.",
+  "description": "Push the classic orange↔blue complementary pair in HSL — warms reds and oranges, cools blues and aquas. Drives a teal-and-orange axis without committing to the full LUT.",
   "typical_use": "User says 'complementary grade', 'orange and blue', 'warm-cool split', 'cinematic colour split'.",
   "semantic_tags": [
     "complementary",
@@ -14,10 +14,10 @@
     {
       "op_id": "hsl",
       "params": {
-        "orange_hue": 0.0,
-        "orange_sat": 10.0,
-        "blue_hue": 0.0,
-        "blue_sat": 10.0
+        "orange_hue": 6,
+        "orange_sat": 12,
+        "blue_hue": -6,
+        "blue_sat": 12
       }
     }
   ]

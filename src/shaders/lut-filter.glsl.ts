@@ -20,6 +20,6 @@ void main() {
   // Blend based on intensity
   vec3 result = mix(original, filtered, u_intensity);
 
-  fragColor = vec4(clamp(result, 0.0, 1.0), texel.a);
+  fragColor = vec4(result, texel.a);
 }
 `;

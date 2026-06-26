@@ -3,7 +3,7 @@
   "display_name": "Balance exposure",
   "category": "tone",
   "source": "builtin",
-  "description": "Balances tonal range \u2014 lift shadows, recover highlights, set white/black points.",
+  "description": "Balances tonal range — lift shadows, recover highlights, set white/black points.",
   "typical_use": "Use when the user wants to balance exposure, recover clipped areas, or improve tonal range.",
   "semantic_tags": [
     "balance",
@@ -14,10 +14,10 @@
     {
       "op_id": "light",
       "params": {
-        "shadows": 0.0,
-        "highlights": 0.0,
-        "whites": 0.0,
-        "blacks": 0.0
+        "shadows": 30,
+        "highlights": -25,
+        "whites": 10,
+        "blacks": -10
       }
     }
   ]

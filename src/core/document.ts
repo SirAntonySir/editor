@@ -12,6 +12,8 @@ import type {
 import type { EditorState } from '@/store';
 import type { InfoNodeContent, InfoNodeState, Point, Size, TetherEdgeState } from '@/types/workspace';
 import { pixelStore } from './pixel-store';
+import { hiBitStore } from './hibit-store';
+import { isPng16, decodePng16 } from '@/lib/png16';
 import * as history from './history';
 import { putSource } from './pixel-source-store';
 import { useBackendState } from '@/store/backend-state-slice';
@@ -129,6 +131,10 @@ function restoreState(snapshot: SerializableState): void {
     infoNodes: snapshot.infoNodes ?? {},
     activeImageNodeId: snapshot.activeImageNodeId,
   });
+  // `_nextNodeSeq` isn't part of the serialized history snapshot; re-derive it
+  // from the restored node ids so a post-undo addImageNode can't mint a
+  // colliding id and clobber a restored node.
+  store.getState().resyncNodeSeq();
 }
 
 function markDirty(): void {
@@ -150,6 +156,7 @@ function dispose(): void {
 
 function newDocument(): void {
   pixelStore.clear();
+  hiBitStore.clear();
   history.clear();
   const meta: DocumentMeta = {
     id: crypto.randomUUID(),
@@ -183,6 +190,7 @@ function newDocument(): void {
  */
 function closeDocument(): void {
   pixelStore.clear();
+  hiBitStore.clear();
   history.clear();
   // Drops session id from in-memory state + localStorage and clears snapshot,
   // so the info tab's image_context, regions, and AI suggestions all reset.
@@ -201,7 +209,34 @@ function closeDocument(): void {
   }
 }
 
-async function openImage(file: File): Promise<void> {
+/**
+ * Original-source identity for a file whose decoded bytes differ from what the
+ * user opened — e.g. a camera RAW developed to a PNG internally. Lets the
+ * editor present it as the RAW (name / format / size) instead of the transport.
+ */
+export interface SourceMeta {
+  name: string;
+  format: string;
+  fileSize: number;
+}
+
+/**
+ * If `file` is a 16-bit PNG (the RAW develop path produces these), decode its
+ * high-bit pixels and register them in the hi-bit store for this layer, so the
+ * float pipeline can read them. Best-effort: any failure leaves the layer on
+ * the normal 8-bit canvas — no regression.
+ */
+async function maybeRegisterHiBit(layerId: string, file: File): Promise<void> {
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (!isPng16(bytes)) return;
+    hiBitStore.register(layerId, decodePng16(bytes));
+  } catch (err) {
+    console.warn('[hibit] 16-bit decode failed, staying 8-bit:', err);
+  }
+}
+
+async function openImage(file: File, source?: SourceMeta): Promise<void> {
   const bitmap = await createImageBitmap(file);
   const offscreen = new OffscreenCanvas(bitmap.width, bitmap.height);
   const ctx = offscreen.getContext('2d');
@@ -214,14 +249,20 @@ async function openImage(file: File): Promise<void> {
 
   // Reset state
   pixelStore.clear();
+  hiBitStore.clear();
   history.clear();
 
   const layerId = crypto.randomUUID();
   pixelStore.register(layerId, offscreen);
+  await maybeRegisterHiBit(layerId, file);
 
+  // Display identity: a developed RAW carries `source` (its original .ARW name
+  // / format / size) so the editor presents it as the RAW, not the internal
+  // PNG transport. Falls back to the file's own fields otherwise.
+  const displayName = source?.name ?? file.name;
   const meta: DocumentMeta = {
     id: crypto.randomUUID(),
-    name: file.name.replace(/\.[^.]+$/, ''),
+    name: displayName.replace(/\.[^.]+$/, ''),
     createdAt: Date.now(),
     modifiedAt: Date.now(),
     width: bitmap.width,
@@ -230,7 +271,8 @@ async function openImage(file: File): Promise<void> {
     // without re-reading the blob. Empty `file.type` falls back to undefined
     // (some sources like clipboard paste leave it blank).
     mimeType: file.type || undefined,
-    fileSize: file.size,
+    format: source?.format,
+    fileSize: source?.fileSize ?? file.size,
     metadata,
   };
 
@@ -240,7 +282,7 @@ async function openImage(file: File): Promise<void> {
         {
           id: layerId,
           type: 'image',
-          name: file.name,
+          name: displayName,
           visible: true,
           opacity: 1,
           blendMode: 'normal',
@@ -300,7 +342,7 @@ async function openImage(file: File): Promise<void> {
  * this slice we accept that the two ids may not match — revival will
  * reconcile.
  */
-async function addImage(file: File): Promise<void> {
+async function addImage(file: File, source?: SourceMeta): Promise<void> {
   const bitmap = await createImageBitmap(file);
   const offscreen = new OffscreenCanvas(bitmap.width, bitmap.height);
   const ctx = offscreen.getContext('2d');
@@ -308,6 +350,7 @@ async function addImage(file: File): Promise<void> {
 
   const layerId = crypto.randomUUID();
   pixelStore.register(layerId, offscreen);
+  await maybeRegisterHiBit(layerId, file);
 
   const sid = useBackendState.getState().sessionId;
 
@@ -358,7 +401,7 @@ async function addImage(file: File): Promise<void> {
         {
           id: layerId,
           type: 'image',
-          name: file.name,
+          name: source?.name ?? file.name,
           visible: true,
           opacity: 1,
           blendMode: 'normal',

@@ -348,7 +348,7 @@ export function SegmentHitLayer({
         <div
           data-testid="segment-candidate-hint"
           data-state={candidate.mask ? 'ready' : 'pending'}
-          className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-1 rounded-[4px] bg-surface text-text-primary text-[10px] leading-none border border-separator shadow-sm whitespace-nowrap flex items-center gap-1.5"
+          className="glass-overlay pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-1 rounded-[4px] text-text-primary text-[10px] leading-none whitespace-nowrap flex items-center gap-1.5"
         >
           {candidate.mask ? (
             <>

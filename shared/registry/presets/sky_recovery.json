@@ -3,7 +3,7 @@
   "display_name": "Recover sky",
   "category": "look",
   "source": "builtin",
-  "description": "Recovers blown-out sky detail \u2014 pulls highlights/whites with a curve refinement.",
+  "description": "Recovers blown-out sky detail — pulls highlights/whites with a curve refinement.",
   "typical_use": "Use when the user wants to recover sky detail, reduce overexposed sky, or balance sky and foreground.",
   "semantic_tags": [
     "mood",
@@ -14,14 +14,14 @@
     {
       "op_id": "light",
       "params": {
-        "highlights": 0.0,
-        "whites": 0.0
+        "highlights": -35,
+        "whites": -15
       }
     },
     {
       "op_id": "color",
       "params": {
-        "saturation": 0.0
+        "saturation": 15
       }
     }
   ]

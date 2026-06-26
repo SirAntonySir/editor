@@ -19,6 +19,11 @@ export interface DocumentMeta {
   /** Source file MIME type (e.g. "image/jpeg"). Drives the File chip in the
    *  Info tab. Captured at openImage from the File object. */
   mimeType?: string;
+  /** Display format label override (e.g. "ARW", "RAW"). Set when the on-disk
+   *  source differs from the decoded bytes — a camera RAW is developed to a
+   *  PNG internally, but should still read as its RAW format. Preferred over
+   *  the `mimeType`-derived label. */
+  format?: string;
   /** Source file size in bytes. Pure informational — never used for any
    *  pipeline decision. */
   fileSize?: number;

@@ -18,6 +18,7 @@
 
 import { CanvasRegistry } from './canvas-registry';
 import { PipelineManager } from './pipeline-manager';
+import { hiBitStore } from '@/core/hibit-store';
 import { applyGeometry, getInternalCanvas, getMemoisedScratchCanvas, type Crop, type Rotate } from './image-node-geometry';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
@@ -284,6 +285,28 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
       // into the scaled internal canvas, so feeding the full-res source here
       // is fine (the GPU downsample is cheap and one-shot).
       rendered = source;
+    } else if (
+      layerIds.length === 1 &&
+      hiBitStore.has(layerId) &&
+      PipelineManager.supportsFloat()
+    ) {
+      // High-bit-depth (RAW-16) single-layer path. Edit in float (RGBA16F) so a
+      // value an adjustment pushes past 1.0 survives for the next to pull back
+      // (highlight/shadow recovery) instead of clipping at 8-bit. The LOD
+      // target matches the 8-bit path's scaled dims; getDownscaled box-filters
+      // the 16-bit source (and returns full-res when not downscaling).
+      const tw = renderScale < 1 ? scaledW : source.width;
+      const th = renderScale < 1 ? scaledH : source.height;
+      const hi = hiBitStore.getDownscaled(layerId, tw, th);
+      if (hi && PipelineManager.setHiBitSource(hi)) {
+        rendered = PipelineManager.renderSync(adjustments);
+      } else {
+        const pipelineInput = renderScale < 1
+          ? getMemoisedScratchCanvas(args.imageNodeId, source, scaledW, scaledH)
+          : source;
+        PipelineManager.setSourceCanvas(pipelineInput);
+        rendered = PipelineManager.renderSync(adjustments);
+      }
     } else {
       // Downscale the source bitmap into a scratch canvas first so the WebGL
       // pipeline allocates FBOs at `scaledW × scaledH` instead of full source

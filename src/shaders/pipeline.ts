@@ -16,6 +16,7 @@ import { blendFragment } from './blend.glsl.ts';
 import { LutRegistry } from '@/lib/lut-registry';
 import { maskStore } from '@/core/mask-store';
 import type { Adjustment, BlendMode } from '@/types/adjustment';
+import type { HiBitImage } from '@/lib/png16';
 import { engineUniformValue } from '@/engine/registry';
 
 interface FBO {
@@ -75,6 +76,13 @@ export class WebGLPipeline {
   private shaders: Map<string, ShaderPass> = new Map();
   private blendProgram: WebGLProgram;
   private sourceTexture: WebGLTexture | null = null;
+  /** Float pipeline state. `floatSupported` is set once at init from
+   *  EXT_color_buffer_float; `floatMode` flips per source (true after
+   *  setHiBitSource, false after setSource); `fboFloat` tracks the FBO
+   *  textures' current internal format so format switches re-allocate. */
+  private floatSupported = false;
+  private floatMode = false;
+  private fboFloat = false;
   /** Identity for the source bound to `sourceTexture`. Lets `setSource`
    *  skip the GPU upload when the caller passes the same canvas/bitmap
    *  again (common: only an adjustment param moved). */
@@ -100,6 +108,12 @@ export class WebGLPipeline {
     });
     if (!gl) throw new Error('WebGL2 not supported');
     this.gl = gl;
+
+    // Float render targets (RGBA16F) for the high-bit-depth path. Enabling
+    // this extension is what makes RGBA16F FBOs color-renderable; 16F linear
+    // filtering is core in WebGL2. Absent ⇒ the hi-bit path stays off and RAW
+    // renders 8-bit (no regression).
+    this.floatSupported = gl.getExtension('EXT_color_buffer_float') !== null;
 
     this.fboA = this.createFBO(1, 1);
     this.fboB = this.createFBO(1, 1);
@@ -135,18 +149,44 @@ export class WebGLPipeline {
     return { framebuffer, texture };
   }
 
+  /** Internal format for the ping-pong FBO textures, by precision mode.
+   *  RGBA16F (half-float) in float mode → headroom + ~11-bit precision;
+   *  RGBA8 otherwise (the unchanged 8-bit path). */
+  private fboFormat(): { internal: number; format: number; type: number } {
+    const { gl } = this;
+    if (this.floatMode && this.floatSupported) {
+      return { internal: gl.RGBA16F, format: gl.RGBA, type: gl.HALF_FLOAT };
+    }
+    return { internal: gl.RGBA, format: gl.RGBA, type: gl.UNSIGNED_BYTE };
+  }
+
   private resizeFBOs(width: number, height: number): void {
     const { gl } = this;
+    const { internal, format, type } = this.fboFormat();
     // Resize textures in place. Recreating the FBO + texture pair every
     // zoom-octave cost 10–50 ms at 4K because gl.createTexture allocates
     // GPU storage; texImage2D reuses the existing storage handle.
     for (const fbo of [this.fboA, this.fboB, this.fboC, this.fboD]) {
       gl.bindTexture(gl.TEXTURE_2D, fbo.texture);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      gl.texImage2D(gl.TEXTURE_2D, 0, internal, width, height, 0, format, type, null);
     }
+    this.fboFloat = this.floatMode && this.floatSupported;
     this.outputCanvas.width = width;
     this.outputCanvas.height = height;
     gl.viewport(0, 0, width, height);
+  }
+
+  /** Re-allocate the FBO textures when the precision mode changed but the size
+   *  didn't (e.g. switching from a float RAW layer to an 8-bit layer of the
+   *  same dimensions). */
+  private ensureFBOFormat(): void {
+    const want = this.floatMode && this.floatSupported;
+    if (this.fboFloat === want) return;
+    if (this.width > 0 && this.height > 0) {
+      this.resizeFBOs(this.width, this.height);
+    } else {
+      this.fboFloat = want;
+    }
   }
 
   private deleteFBO(fbo: FBO): void {
@@ -457,6 +497,9 @@ export class WebGLPipeline {
   ): void {
     const { gl } = this;
 
+    // 8-bit source ⇒ leave float mode; FBOs revert to RGBA8.
+    this.floatMode = false;
+
     const w = source.width;
     const h = source.height;
 
@@ -464,6 +507,8 @@ export class WebGLPipeline {
       this.width = w;
       this.height = h;
       this.resizeFBOs(w, h);
+    } else {
+      this.ensureFBOFormat();
     }
 
     if (this.sourceTexture === null) {
@@ -480,6 +525,68 @@ export class WebGLPipeline {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source as TexImageSource);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     this.sourceIdentity = source as unknown as object;
+  }
+
+  /** Whether the high-bit-depth (RGBA16F) path is available on this GPU. */
+  supportsFloat(): boolean {
+    return this.floatSupported;
+  }
+
+  /**
+   * Upload an RGBA-16 image as a float (RGBA16F) source and switch the pipeline
+   * into float mode, so the adjustment chain carries headroom (>1.0 survives
+   * between passes) and ~11-bit precision before the final 8-bit present.
+   * Returns false when float isn't supported — the caller should fall back to
+   * the 8-bit `setSource` path.
+   *
+   * `UNPACK_FLIP_Y_WEBGL` is ignored for typed-array uploads, so we flip rows
+   * during the uint16→float32 normalise to match the 8-bit canvas orientation.
+   */
+  setHiBitSource(img: HiBitImage, dirty = true): boolean {
+    const { gl } = this;
+    if (!this.floatSupported) return false;
+
+    this.floatMode = true;
+    const w = img.width;
+    const h = img.height;
+    if (w !== this.width || h !== this.height) {
+      this.width = w;
+      this.height = h;
+      this.resizeFBOs(w, h);
+    } else {
+      this.ensureFBOFormat();
+    }
+
+    if (!dirty && this.sourceIdentity === (img as unknown as object) && this.sourceTexture) {
+      return true;
+    }
+
+    // Normalise uint16 (0..65535) → float (0..1), flipping vertically.
+    const src = img.data;
+    const f = new Float32Array(w * h * 4);
+    const inv = 1 / 65535;
+    for (let y = 0; y < h; y++) {
+      const sy = h - 1 - y;
+      for (let x = 0; x < w; x++) {
+        const si = (sy * w + x) * 4;
+        const di = (y * w + x) * 4;
+        f[di] = src[si] * inv;
+        f[di + 1] = src[si + 1] * inv;
+        f[di + 2] = src[si + 2] * inv;
+        f[di + 3] = src[si + 3] * inv;
+      }
+    }
+
+    if (this.sourceTexture === null) this.sourceTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.sourceTexture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    // Upload FLOAT data into an RGBA16F texture (driver narrows to half).
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.FLOAT, f);
+    this.sourceIdentity = img as unknown as object;
+    return true;
   }
 
   render(adjustments: Adjustment[]): HTMLCanvasElement {

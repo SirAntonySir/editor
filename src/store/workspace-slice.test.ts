@@ -378,4 +378,52 @@ describe('workspace-slice', () => {
       expect(useEditorStore.getState().imageNodeMode[id]).toBeUndefined();
     });
   });
+
+  describe('resyncNodeSeq (reload id-collision guard)', () => {
+    // Repro for the reload bug: on reload, imageNodes are restored from IDB but
+    // `_nextNodeSeq` is NOT persisted, so it resets to 1. The next addImageNode
+    // (e.g. from Extract-to-Image-Node) then mints `in-1` again and OVERWRITES
+    // the restored source node. resyncNodeSeq derives the counter from existing
+    // node ids so new ids never collide with restored ones.
+    it('keeps addImageNode from overwriting a restored node after a reset counter', () => {
+      // Simulate a post-reload store: a restored node `in-1` with the counter
+      // back at its reset default.
+      useEditorStore.setState({
+        imageNodes: {
+          'in-1': {
+            id: 'in-1',
+            layerIds: ['source-layer'],
+            position: { x: 0, y: 0 },
+            sourceSize: { w: 788, h: 709 },
+            size: { w: 600, h: 540 },
+          },
+        },
+        _nextNodeSeq: 1,
+      });
+
+      useEditorStore.getState().resyncNodeSeq();
+      const newId = useEditorStore.getState().addImageNode(['cutout-layer']);
+
+      const after = useEditorStore.getState();
+      expect(newId).not.toBe('in-1');
+      // Source node survives untouched.
+      expect(after.imageNodes['in-1']).toBeTruthy();
+      expect(after.imageNodes['in-1'].layerIds).toEqual(['source-layer']);
+      // New node is its own entry.
+      expect(after.imageNodes[newId].layerIds).toEqual(['cutout-layer']);
+    });
+
+    it('also accounts for restored info- node ids (shared counter)', () => {
+      useEditorStore.setState({
+        imageNodes: {
+          'in-2': { id: 'in-2', layerIds: ['l'], position: { x: 0, y: 0 }, sourceSize: { w: 10, h: 10 }, size: { w: 10, h: 10 } },
+        },
+        infoNodes: { 'info-5': { id: 'info-5' } as never },
+        _nextNodeSeq: 1,
+      });
+      useEditorStore.getState().resyncNodeSeq();
+      // Next id must clear the highest existing suffix (info-5).
+      expect(useEditorStore.getState()._nextNodeSeq).toBe(6);
+    });
+  });
 });

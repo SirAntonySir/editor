@@ -45,7 +45,7 @@ void main() {
   hsl.z = clamp(hsl.z + lumShift * 0.25, 0.0, 1.0);   // ±0.25 lightness
 
   vec3 rgb = hsl2rgb(hsl);
-  vec4 adjusted = vec4(clamp(rgb, 0.0, 1.0), texel.a);
+  vec4 adjusted = vec4(rgb, texel.a);
   fragColor = applyMask(texel, adjusted, v_texCoord);
 }
 `;

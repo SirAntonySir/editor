@@ -110,45 +110,41 @@ function WorkspaceKeyHandler() {
   return null;
 }
 
-/** Fit the viewport to the restored workspace on the first post-reload
- *  tick where every rehydrated node has actually been measured by
- *  ReactFlow.
+/** Auto-fit the viewport whenever the IMAGE-node set changes — initial mount,
+ *  reload, or a freshly loaded/added image — once ReactFlow has measured the
+ *  new nodes.
  *
- *  ReactFlow's `fitView` prop only fires on first mount, and on a reload
- *  that first mount runs with `nodes = []` (workspace state is still
- *  rehydrating from persistence + the SSE snapshot). A plain rAF-after-
- *  count > 0 was racy: the nodes were *in the array* but ReactFlow hadn't
- *  yet measured their DOM, so the fit math used zero-width bboxes and
- *  the viewport landed off-screen. `useNodesInitialized()` flips to true
- *  once every mounted node has gone through the internal ResizeObserver —
- *  that's the right signal.
- *
- *  Fires exactly once per CanvasWorkspace mount: once we've fit, we
- *  ignore further node arrivals (a widget showing up later shouldn't
- *  yank the user's pan/zoom). */
-function WorkspaceAutoFitOnReload() {
+ *  Keyed ONLY off the image-node ids, so loading an image re-fits but a widget
+ *  or info node appearing does NOT yank the user's pan/zoom. The fit waits for
+ *  `useNodesInitialized()` (true once every mounted node has gone through the
+ *  internal ResizeObserver) so the fit math reads real bboxes, not the
+ *  zero-width boxes of an unmounted node — i.e. it runs *after* the image has
+ *  mounted. A bare rAF-after-count was racy for exactly that reason. */
+function WorkspaceAutoFit() {
   const { fitView } = useReactFlow();
   const nodesInitialized = useNodesInitialized();
-  const imageCount = useEditorStore((s) => Object.keys(s.imageNodes).length);
-  const widgetCount = useEditorStore((s) => Object.keys(s.widgetNodes).length);
-  const infoCount = useEditorStore((s) => Object.keys(s.infoNodes).length);
-  const total = imageCount + widgetCount + infoCount;
-  const hasFit = useRef(false);
+  const imageNodeKey = useEditorStore((s) => Object.keys(s.imageNodes).sort().join(','));
+  const prevKey = useRef<string | null>(null);
+  const pendingFit = useRef(false);
 
   useEffect(() => {
-    if (hasFit.current) return;
-    if (total === 0) return;
-    if (!nodesInitialized) return;
+    // A change in the image-node set (load / reload / add / remove) schedules a
+    // fit — but only when image nodes exist (don't fit an emptied canvas).
+    if (imageNodeKey !== prevKey.current) {
+      prevKey.current = imageNodeKey;
+      if (imageNodeKey !== '') pendingFit.current = true;
+    }
+    if (!pendingFit.current || !nodesInitialized) return;
     // Defer one frame past the initialised signal so any in-flight layout
     // adjustments (image-node header height, widget shell expansion) have
     // landed in ReactFlow's internal store before the fit math reads node
     // bboxes. fitView is async-safe; we don't await it.
     const handle = requestAnimationFrame(() => {
       fitView({ padding: 0.18, duration: 0 });
-      hasFit.current = true;
+      pendingFit.current = false;
     });
     return () => cancelAnimationFrame(handle);
-  }, [total, nodesInitialized, fitView]);
+  }, [imageNodeKey, nodesInitialized, fitView]);
 
   return null;
 }
@@ -468,7 +464,7 @@ export function CanvasWorkspace() {
         <Background color="var(--color-separator)" gap={16} size={1} />
         <Controls showInteractive={false} />
         <WorkspaceKeyHandler />
-        <WorkspaceAutoFitOnReload />
+        <WorkspaceAutoFit />
       </ReactFlow>
     </div>
   );

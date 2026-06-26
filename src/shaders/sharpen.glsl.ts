@@ -32,7 +32,7 @@ void main() {
   vec3 laplacian = c * 4.0 - sum;          // high-frequency detail
   float lumaLap = dot(laplacian, LUMA709); // scalar luma component
   vec3 sharpened = c + vec3(lumaLap) * u_amount;
-  vec4 adjusted = vec4(clamp(sharpened, 0.0, 1.0), texel.a);
+  vec4 adjusted = vec4(sharpened, texel.a);
   fragColor = applyMask(texel, adjusted, v_texCoord);
 }
 `;

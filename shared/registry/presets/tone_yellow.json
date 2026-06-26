@@ -3,7 +3,7 @@
   "display_name": "Adjust yellow tones",
   "category": "color",
   "source": "builtin",
-  "description": "Shift the yellow colour family in HSL space \u2014 covers yellow, yellows, gold, mustard, sallow. Tunes hue / saturation / luminance for that band only.",
+  "description": "Shift the yellow colour family in HSL space — covers yellow, yellows, gold, mustard, sallow. Tunes hue / saturation / luminance for that band only.",
   "typical_use": "User says 'yellow tones are off', 'too much yellow', 'desaturate the yellows', or names any synonym above.",
   "semantic_tags": [
     "mood",
@@ -14,9 +14,9 @@
     {
       "op_id": "hsl",
       "params": {
-        "yellow_hue": 0.0,
-        "yellow_sat": 0.0,
-        "yellow_lum": 0.0
+        "yellow_hue": -5,
+        "yellow_sat": 12,
+        "yellow_lum": 3
       }
     }
   ]

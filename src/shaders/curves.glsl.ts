@@ -27,7 +27,7 @@ void main() {
   color.g = texture(u_lut_rgb, vec2(color.g, 0.5)).r;
   color.b = texture(u_lut_rgb, vec2(color.b, 0.5)).r;
 
-  vec4 adjusted = vec4(clamp(color, 0.0, 1.0), texel.a);
+  vec4 adjusted = vec4(color, texel.a);
   fragColor = applyMask(texel, adjusted, v_texCoord);
 }
 `;

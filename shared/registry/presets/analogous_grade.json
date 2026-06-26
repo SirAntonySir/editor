@@ -14,9 +14,9 @@
     {
       "op_id": "hsl",
       "params": {
-        "red_hue": 0.0,
-        "orange_hue": 0.0,
-        "yellow_hue": 0.0
+        "red_hue": 8,
+        "orange_hue": 6,
+        "yellow_hue": 4
       }
     }
   ]

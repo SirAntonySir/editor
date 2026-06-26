@@ -38,7 +38,7 @@ void main() {
   tinted = mix(tinted, tinted * shadowTint    * 2.0, w_lo * u_shadowSat);
   tinted = mix(tinted, tinted * highlightTint * 2.0, w_hi * u_highlightSat);
 
-  vec4 adjusted = vec4(clamp(tinted, 0.0, 1.0), texel.a);
+  vec4 adjusted = vec4(tinted, texel.a);
   fragColor = applyMask(texel, adjusted, v_texCoord);
 }
 `;

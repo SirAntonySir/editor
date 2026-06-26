@@ -22,6 +22,14 @@ class _FakeAnthropic:
             ],
         }
 
+    def resolve_widget_params(self, *, op, intent, rationale, starting_params, image_context, session_id=None):
+        # Re-tune: push each scalar param to the top of its range so a test can
+        # assert the values actually changed from the starting priors.
+        out = {}
+        for k, p in op.params.items():
+            out[k] = p.range[1] if getattr(p, "range", None) else p.default
+        return out
+
 
 @pytest.fixture
 def client():

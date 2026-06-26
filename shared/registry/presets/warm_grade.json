@@ -3,7 +3,7 @@
   "display_name": "Warm grade",
   "category": "color",
   "source": "builtin",
-  "description": "Subjective 'warmer' \u2014 coordinated kelvin shift, highlight warmth, slight saturation.",
+  "description": "Subjective 'warmer' — coordinated kelvin shift, highlight warmth, slight saturation.",
   "typical_use": "Use when the user asks to warm up the image, the subject, or a region.",
   "semantic_tags": [
     "grade",
@@ -14,19 +14,19 @@
     {
       "op_id": "kelvin",
       "params": {
-        "kelvin": 6500
+        "kelvin": 8200
       }
     },
     {
       "op_id": "light",
       "params": {
-        "highlights": 0.0
+        "highlights": 6
       }
     },
     {
       "op_id": "color",
       "params": {
-        "saturation": 0.0
+        "saturation": 8
       }
     }
   ]

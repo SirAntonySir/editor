@@ -193,43 +193,57 @@ export function useImageNodeRender({
     if (canvas.style.height !== `${cssH}px`) canvas.style.height = `${cssH}px`;
 
     const hiddenNodeIds = new Set<string>();
-    const extraNodes: OperationNode[] = [];
+
+    // The canonical id scheme is `canon:<layer>:<type>`, so multiple widgets of
+    // the SAME (layer, op-type) share one node id — common when the AI proposes
+    // several light/colour suggestions at once. The preview ("eye") and the
+    // hide both key on that id, so they must be computed so they don't clobber
+    // each other: a node any widget is actively previewing must NOT be hidden
+    // by a sibling that shares its id, and multiple previewing siblings must
+    // MERGE their params rather than overwrite.
+    const nodeIdFor = (n: (typeof widgets)[number]['nodes'][number]): string =>
+      n.layerId ? `canon:${n.layerId}:${n.type}` : n.id;
+
+    // Pass 1 — previewing suggestions → one merged extra node per id. The
+    // extra node REPLACES the canonical entry in the renderer, so previewing a
+    // subset shows exactly those widgets' params (non-previewing siblings'
+    // seeded params are excluded).
+    const previewById = new Map<string, OperationNode>();
     for (const w of widgets) {
-      // Hide if the user explicitly hid the widget, OR it's a pending
-      // suggestion that the user isn't previewing.
-      const isPending = pendingSuggestionIds.has(w.id);
-      const isPreviewing = previewingSuggestionIds.has(w.id);
-      const isPendingSilenced = isPending && !isPreviewing;
-      // Preview path: splice the widget's own nodes into the render so the
-      // AI's proposed adjustment lights up even if the snapshot's canonical
-      // projection lags or doesn't carry them yet. Synthesize an
-      // OperationNode-shaped record from each WidgetNode using the canonical
-      // id scheme (`canon:<layer>:<type>`), so a co-existing canonical entry
-      // is REPLACED by the preview values in the renderer.
-      if (isPending && isPreviewing) {
-        for (const n of w.nodes) {
-          const id = n.layerId ? `canon:${n.layerId}:${n.type}` : n.id;
-          extraNodes.push({
+      if (!(pendingSuggestionIds.has(w.id) && previewingSuggestionIds.has(w.id))) continue;
+      for (const n of w.nodes) {
+        const id = nodeIdFor(n);
+        const existing = previewById.get(id);
+        if (existing) {
+          existing.params = { ...existing.params, ...(n.params as OperationNode['params']) };
+        } else {
+          previewById.set(id, {
             id,
             type: n.type,
             scope: n.scope,
-            params: n.params as OperationNode['params'],
+            params: { ...(n.params as OperationNode['params']) },
             inputs: n.inputs,
             layerId: n.layerId,
           });
         }
       }
+    }
+
+    // Pass 2 — hide nodes for explicitly-hidden widgets and pending,
+    // not-previewing suggestions, but never an id that's being previewed.
+    for (const w of widgets) {
+      const isPending = pendingSuggestionIds.has(w.id);
+      const isPreviewing = previewingSuggestionIds.has(w.id);
+      const isPendingSilenced = isPending && !isPreviewing;
       if (!hiddenWidgetIds.has(w.id) && !isPendingSilenced) continue;
       for (const n of w.nodes) {
-        if (n.layerId) {
-          hiddenNodeIds.add(`canon:${n.layerId}:${n.type}`);
-        } else {
-          // Node-scope or layerless nodes — fall back to the widget-internal id;
-          // matches the snapshot's id when layer_id isn't set.
-          hiddenNodeIds.add(n.id);
-        }
+        const id = nodeIdFor(n);
+        if (previewById.has(id)) continue; // actively previewed — keep it
+        hiddenNodeIds.add(id);
       }
     }
+
+    const extraNodes: OperationNode[] = [...previewById.values()];
     for (const id of hiddenCanonNodeIds) hiddenNodeIds.add(id);
 
     renderImageNodeComposite({

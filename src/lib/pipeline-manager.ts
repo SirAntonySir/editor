@@ -1,6 +1,7 @@
 import { WebGLPipeline } from '@/shaders/pipeline';
 import { CanvasRegistry } from './canvas-registry';
 import type { Adjustment } from '@/types/adjustment';
+import type { HiBitImage } from './png16';
 
 class PipelineManagerImpl {
   private pipeline: WebGLPipeline | null = null;
@@ -37,6 +38,22 @@ class PipelineManagerImpl {
   setSourceCanvas(canvas: HTMLCanvasElement | OffscreenCanvas): void {
     this.currentLayerId = null;
     this.getPipeline().setSource(canvas);
+  }
+
+  /** Whether the GPU supports the high-bit-depth (RGBA16F) float path. */
+  supportsFloat(): boolean {
+    return this.getPipeline().supportsFloat();
+  }
+
+  /**
+   * Use a high-bit-depth (RGBA-16) image as the pipeline source — the float
+   * path. `currentLayerId` is cleared so the RAF/sync render doesn't re-upload
+   * the layer's 8-bit canvas over it. Returns false when float is unsupported
+   * (caller falls back to `setSourceCanvas`).
+   */
+  setHiBitSource(img: HiBitImage): boolean {
+    this.currentLayerId = null;
+    return this.getPipeline().setHiBitSource(img);
   }
 
   requestRender(adjustments: Adjustment[]): void {

@@ -3,7 +3,7 @@
   "display_name": "Adjust purple tones",
   "category": "color",
   "source": "builtin",
-  "description": "Shift the purple colour family in HSL space \u2014 covers purple, violet, lavender, plum. Tunes hue / saturation / luminance for that band only.",
+  "description": "Shift the purple colour family in HSL space — covers purple, violet, lavender, plum. Tunes hue / saturation / luminance for that band only.",
   "typical_use": "User says 'purple tones are off', 'too much purple', 'desaturate the purples', or names any synonym above.",
   "semantic_tags": [
     "mood",
@@ -14,9 +14,9 @@
     {
       "op_id": "hsl",
       "params": {
-        "purple_hue": 0.0,
-        "purple_sat": 0.0,
-        "purple_lum": 0.0
+        "purple_hue": -5,
+        "purple_sat": 14,
+        "purple_lum": 3
       }
     }
   ]

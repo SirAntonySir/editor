@@ -3,7 +3,7 @@
   "display_name": "Fix color cast",
   "category": "color",
   "source": "builtin",
-  "description": "Corrects colour cast \u2014 neutral white balance shift plus saturation channel blend.",
+  "description": "Corrects colour cast — neutral white balance shift plus saturation channel blend.",
   "typical_use": "Use when the user wants to remove a colour cast or fix white balance.",
   "semantic_tags": [
     "cast",
@@ -14,13 +14,14 @@
     {
       "op_id": "kelvin",
       "params": {
-        "kelvin": 6500
+        "kelvin": 6800,
+        "tint": -12
       }
     },
     {
       "op_id": "color",
       "params": {
-        "saturation": 0.0
+        "saturation": 6
       }
     }
   ]

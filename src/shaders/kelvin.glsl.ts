@@ -72,7 +72,7 @@ void main() {
   // right) and the Lightroom convention. Hence subtract: +tint removes green.
   color.g -= u_tint * 0.1;
 
-  vec4 adjusted = vec4(clamp(color, 0.0, 1.0), texel.a);
+  vec4 adjusted = vec4(color, texel.a);
   fragColor = applyMask(texel, adjusted, v_texCoord);
 }
 `;

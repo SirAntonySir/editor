@@ -13,6 +13,13 @@ import { BACKEND_BASE_URL as BASE_URL } from '@/lib/backend-url';
 
 type UploadSource = ImageBitmap | HTMLCanvasElement | OffscreenCanvas;
 
+/** Options for the analyze pipeline. */
+export interface AnalyseOptions {
+  /** When false, skip the autonomous `suggest_widgets` proposals — context and
+   *  region precompute still run. Defaults to true. */
+  suggest?: boolean;
+}
+
 interface AiSessionState {
   sessionId: string | null;
   context: ImageContext | null;
@@ -31,11 +38,14 @@ interface AiSessionState {
    *  Idempotent: no-op when a session is already open. */
   openSession: (source: UploadSource) => Promise<void>;
   /** Run the analyze pipeline on the CURRENT session. Requires a session
-   *  to already exist (call `openSession` first or use `uploadAndAnalyse`). */
-  runAnalyse: () => Promise<void>;
+   *  to already exist (call `openSession` first or use `uploadAndAnalyse`).
+   *  Pass `{ suggest: false }` to build context + regions WITHOUT the
+   *  autonomous widget proposals — used when analyze is just a precursor to a
+   *  user-prompt agent turn (the prompt drives the proposals, not analyze). */
+  runAnalyse: (opts?: AnalyseOptions) => Promise<void>;
   /** Convenience: `openSession` then `runAnalyse`. Equivalent to the old
    *  monolithic upload-then-analyze call, kept for compat / one-shot use. */
-  uploadAndAnalyse: (source: UploadSource) => Promise<void>;
+  uploadAndAnalyse: (source: UploadSource, opts?: AnalyseOptions) => Promise<void>;
   bindCachedSession: (source: UploadSource) => Promise<void>;
   restoreContext: (context: ImageContext) => void;
   reset: () => void;
@@ -226,7 +236,8 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
       set({ status: 'error', error: msg });
     }
   },
-  async runAnalyse() {
+  async runAnalyse(opts) {
+    const suggest = opts?.suggest ?? true;
     const sessionId = get().sessionId;
     if (!sessionId) {
       console.warn('[ImageContext] runAnalyse: no session — call openSession first');
@@ -289,27 +300,38 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
       // by at most one tool at a time. SSE updates still stream into the
       // store as each completes.
       // TODO: convert backend write_lock to asyncio.Lock; remove this chain.
+      //
+      // `suggest_widgets` (autonomous proposals) is gated on `suggest`: when
+      // analyze is just a precursor to a user-prompt agent turn, we skip it so
+      // the only proposals the user sees come from their prompt. Region
+      // precompute still runs either way (the agent / picker needs regions).
       void backendTools.precompute_regions(sessionId)
         .catch((err) => {
           console.warn('[ImageContext] precompute_regions failed:', err);
         })
-        .then(() =>
-          backendTools.suggest_widgets(
+        .then(() => {
+          if (!suggest) {
+            // Analysis-only: the terminal `widget_mint` phase won't fire, so
+            // push the status card to its end state ourselves.
+            useBackendState.getState().markAnalyzeComplete();
+            return;
+          }
+          return backendTools.suggest_widgets(
             sessionId,
             activeLayerId ? { layerId: activeLayerId } : {},
           ).catch((err) => {
             console.warn('[ImageContext] suggest_widgets failed:', err);
-          }),
-        );
+          });
+        });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[ImageContext] runAnalyse failed:', msg, err);
       set({ status: 'error', error: msg });
     }
   },
-  async uploadAndAnalyse(source) {
+  async uploadAndAnalyse(source, opts) {
     await get().openSession(source);
-    if (get().sessionId) await get().runAnalyse();
+    if (get().sessionId) await get().runAnalyse(opts);
   },
   /**
    * Re-upload the image to /api/session and push the locally-cached context
@@ -386,7 +408,10 @@ function resolveLayerIdForImageNode(imageNodeId: string): string | null {
  * uploads the target layer's pixels first. This lets per-node context-menu
  * items target an image that is not the current `activeImageNodeId`.
  */
-export async function analyseImageLayer(imageNodeId: string): Promise<void> {
+export async function analyseImageLayer(
+  imageNodeId: string,
+  opts?: AnalyseOptions,
+): Promise<void> {
   const { setActiveImageNode, activeImageNodeId } = useEditorStore.getState();
   // Temporarily promote this node to active so `resolveTargetImageLayerId`
   // inside `runAnalyse` picks the right layer. Restore the previous active
@@ -397,14 +422,14 @@ export async function analyseImageLayer(imageNodeId: string): Promise<void> {
 
   const ai = useAiSession.getState();
   if (ai.sessionId) {
-    await ai.runAnalyse();
+    await ai.runAnalyse(opts);
   } else {
     const targetLayerId = resolveLayerIdForImageNode(imageNodeId);
     if (!targetLayerId) return;
     const source = pixelStore.getSource(targetLayerId);
     if (!source) return;
     const bitmap = await createImageBitmap(source);
-    await ai.uploadAndAnalyse(bitmap);
+    await ai.uploadAndAnalyse(bitmap, opts);
   }
 
   // Mark this node as analysed if the session completed without error.
@@ -424,14 +449,14 @@ export async function analyseImageLayer(imageNodeId: string): Promise<void> {
  * `uploadAndAnalyse`. Used by the Info tab "Analyze with AI" CTA, by
  * `.edp` open, and by IndexedDB session-restore.
  */
-export async function analyseActiveImageLayer(): Promise<void> {
+export async function analyseActiveImageLayer(opts?: AnalyseOptions): Promise<void> {
   const activeImageNodeId = useEditorStore.getState().activeImageNodeId;
   if (activeImageNodeId) {
-    return analyseImageLayer(activeImageNodeId);
+    return analyseImageLayer(activeImageNodeId, opts);
   }
   const ai = useAiSession.getState();
   if (ai.sessionId) {
-    await ai.runAnalyse();
+    await ai.runAnalyse(opts);
     return;
   }
   const targetLayerId = resolveTargetImageLayerId();
@@ -439,7 +464,7 @@ export async function analyseActiveImageLayer(): Promise<void> {
   const source = pixelStore.getSource(targetLayerId);
   if (!source) return;
   const bitmap = await createImageBitmap(source);
-  await ai.uploadAndAnalyse(bitmap);
+  await ai.uploadAndAnalyse(bitmap, opts);
 }
 
 /**

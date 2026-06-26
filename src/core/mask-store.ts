@@ -26,10 +26,33 @@ export interface Mask {
 
 class MaskStoreImpl {
   private masks = new Map<string, Mask>();
+  // Reactivity: a monotonic version + listeners so consumers (e.g. the command
+  // palette's Regions list) can `useSyncExternalStore` over the store and stay
+  // fresh on add / remove / rename — the store holds plain objects, so a label
+  // change is otherwise invisible to React.
+  private version = 0;
+  private listeners = new Set<() => void>();
+
+  /** Subscribe to any mutation. Arrow-bound so `useSyncExternalStore` can call
+   *  it detached. */
+  subscribe = (cb: () => void): (() => void) => {
+    this.listeners.add(cb);
+    return () => { this.listeners.delete(cb); };
+  };
+
+  /** Monotonic snapshot for `useSyncExternalStore` — stable (=== by value)
+   *  unless a mutation has happened. */
+  getVersion = (): number => this.version;
+
+  private bump(): void {
+    this.version += 1;
+    for (const cb of this.listeners) cb();
+  }
 
   register(input: Omit<Mask, 'id'>): MaskRef {
     const id = crypto.randomUUID();
     this.masks.set(id, { ...input, id });
+    this.bump();
     return id;
   }
 
@@ -37,6 +60,7 @@ class MaskStoreImpl {
    *  event). Overwrites any existing mask with the same id. */
   injectWithId(mask: Mask): void {
     this.masks.set(mask.id, mask);
+    this.bump();
   }
 
   get(ref: MaskRef): Mask | undefined {
@@ -51,19 +75,26 @@ class MaskStoreImpl {
       throw new Error(`updateData: expected ${m.width * m.height} bytes, got ${data.length}`);
     }
     m.data = data;
+    this.bump();
   }
 
   setLabel(ref: MaskRef, label: string): void {
     const m = this.masks.get(ref);
-    if (m) m.label = label;
+    if (!m || m.label === label) return;
+    m.label = label;
+    this.bump();
   }
 
   remove(ref: MaskRef): boolean {
-    return this.masks.delete(ref);
+    const deleted = this.masks.delete(ref);
+    if (deleted) this.bump();
+    return deleted;
   }
 
   clear(): void {
+    if (this.masks.size === 0) return;
     this.masks.clear();
+    this.bump();
   }
 
   has(ref: MaskRef): boolean {

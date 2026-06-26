@@ -40,7 +40,7 @@ void main() {
   vec3 result = c * (1.0 - falloff * darken);
   result = mix(result, vec3(1.0), falloff * lighten);
 
-  vec4 adjusted = vec4(clamp(result, 0.0, 1.0), texel.a);
+  vec4 adjusted = vec4(result, texel.a);
   fragColor = applyMask(texel, adjusted, v_texCoord);
 }
 `;

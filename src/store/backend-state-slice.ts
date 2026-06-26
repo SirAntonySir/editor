@@ -138,6 +138,13 @@ interface BackendState {
   pushMaskRename: (maskId: string, label: string) => void;
   /** Mark a cancel-in-flight before the SSE event lands. */
   setCancelling: (cancelling: boolean) => void;
+  /** Force the analyze run to its end state. Used by the analysis-only path
+   *  (prompt-driven analyze with `suggest:false`): no `widget_mint` phase fires
+   *  there, so the terminal signal that normally flips `mcpAnalyzeComplete`
+   *  never arrives — the status card would hang. This synthesizes it: marks
+   *  every still-pending phase done and flips the completion flag. No-op once
+   *  the run was cancelled. */
+  markAnalyzeComplete: () => void;
   reset: () => void;
 }
 
@@ -526,6 +533,16 @@ export const useBackendState = create<BackendState>()(
       maskStore.setLabel(maskId, label);
     },
     setCancelling: (cancelling) => set((s) => { s.cancelling = cancelling; }),
+    markAnalyzeComplete: () =>
+      set((s) => {
+        if (s.mcpAnalyzeCancelled) return;
+        if (s.phases) {
+          for (const name of Object.keys(s.phases) as PhaseName[]) {
+            if (s.phases[name].status !== 'done') s.phases[name].status = 'done';
+          }
+        }
+        s.mcpAnalyzeComplete = true;
+      }),
     setSessionId: (sessionId) =>
       set((s) => {
         s.sessionId = sessionId;

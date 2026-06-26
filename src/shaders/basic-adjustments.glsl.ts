@@ -70,7 +70,9 @@ void main() {
   color.r += u_temperature * 0.1;
   color.b -= u_temperature * 0.1;
 
-  vec4 adjusted = vec4(clamp(color, 0.0, 1.0), texel.a);
+  // No output clamp: 8-bit clamps at the FBO/present; the float (RAW-16)
+  // path keeps >1.0 so a later adjustment can recover pushed highlights.
+  vec4 adjusted = vec4(color, texel.a);
   fragColor = applyMask(texel, adjusted, v_texCoord);
 }
 `;

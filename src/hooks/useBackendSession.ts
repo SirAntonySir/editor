@@ -235,6 +235,11 @@ export function useBackendSession(): void {
               activeImageNodeId: persistedState.activeImageNodeId ?? null,
               imageNodeMode: persistedState.imageNodeMode ?? {},
             });
+            // `_nextNodeSeq` isn't persisted, so it's back at its reset
+            // default here. Re-derive it from the restored node ids, else the
+            // next addImageNode (e.g. Extract-to-Image-Node) mints a colliding
+            // `in-<n>` and overwrites a restored node.
+            useEditorStore.getState().resyncNodeSeq();
           }
           console.log('[reload] kicking off restorePixelSources');
           void restorePixelSources(persisted);

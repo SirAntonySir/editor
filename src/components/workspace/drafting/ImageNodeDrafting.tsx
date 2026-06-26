@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Handle, Position } from '@xyflow/react';
-import { MessageSquare, Sparkles } from 'lucide-react';
+import { Combine, MessageSquare, ScanSearch, Sparkles } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { usePreferencesStore } from '@/store/preferences-store';
@@ -148,6 +148,22 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   const displayW = data.size.w;
   const displayH = displayW / aspect;
 
+  // Small / narrow images: keep the chrome from dwarfing the image.
+  //  - Frame: a minimum body width so the title/footer never collapse; the
+  //    image is centred within it (letterbox sides) when it's narrower.
+  //  - Gutters: the fixed side margins (LayerStrip left, object markers right)
+  //    shrink with the frame so a small node isn't ringed by dead space.
+  // Comfortably-wide images (frame ≥ GUTTER_FULL_AT) are unchanged.
+  const MIN_BODY_W = 320;
+  const GUTTER_FULL_AT = 480;
+  const MIN_LEFT_GUTTER = 96;   // LayerStrip needs ~80px
+  const MIN_RIGHT_GUTTER = 56;  // object markers + leader line
+  const frameW = Math.max(displayW, MIN_BODY_W);
+  const letterbox = Math.round((frameW - displayW) / 2);
+  const gutterScale = Math.min(1, frameW / GUTTER_FULL_AT);
+  const leftGutter = Math.round(Math.max(MIN_LEFT_GUTTER, LEFT_MARGIN * gutterScale));
+  const rightGutter = Math.round(Math.max(MIN_RIGHT_GUTTER, RIGHT_MARGIN * gutterScale));
+
   const documentMeta = useEditorStore((s) => s.documentMeta);
   const imageNodeMode = useEditorStore((s) => s.imageNodeMode[id]);
   const setImageNodeMode = useEditorStore((s) => s.setImageNodeMode);
@@ -224,7 +240,10 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   const itemClassDim = 'px-2 py-1 text-[10px] rounded-sm cursor-not-allowed outline-none text-text-secondary opacity-60';
   const renderMenuItems = (Item: typeof DropdownMenu.Item | typeof ContextMenu.Item) => (
     <>
-      {/* AI items — hidden in the study control condition (AI_access=false). */}
+      {/* Top group: AI actions (study-gated) + the view/structure toggles
+          (objects mode, rejoin). Each carries an icon; AI icons are violet,
+          the structural ones neutral. A single separator divides the group
+          from the editing actions below. */}
       {aiAccess && (
         <>
           {!isAnalysed && (
@@ -247,9 +266,26 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
               <span>Ask about this image</span>
             </span>
           </Item>
-          <div className="my-1 h-px bg-separator" />
         </>
       )}
+      <Item
+        className={itemClass}
+        onSelect={() => setImageNodeMode(id, objectsActive ? 'layers' : 'objects')}
+      >
+        <span className="flex items-center gap-1.5">
+          <ScanSearch size={11} className="text-text-secondary" />
+          <span>{objectsActive ? 'Exit objects mode' : 'Enter objects mode'}</span>
+        </span>
+      </Item>
+      {sourceImageNodeId && (
+        <Item className={itemClass} onSelect={() => { rejoinSourceImage(id); }}>
+          <span className="flex items-center gap-1.5">
+            <Combine size={11} className="text-text-secondary" />
+            <span>Rejoin source image</span>
+          </span>
+        </Item>
+      )}
+      <div className="my-1 h-px bg-separator" />
       {selectedObject && (
         <>
           <div className="px-2 pt-1 pb-0.5 text-[9px] uppercase tracking-wide text-text-secondary">
@@ -287,12 +323,6 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
         onSelect={() => setIsRenaming(true)}
       >
         Rename
-      </Item>
-      <Item
-        className={itemClass}
-        onSelect={() => setImageNodeMode(id, objectsActive ? 'layers' : 'objects')}
-      >
-        {objectsActive ? 'Exit objects mode' : 'Enter objects mode'}
       </Item>
       <Item className={itemClass} onSelect={() => usePreferencesStore.getState().showCrop()}>
         Crop…
@@ -338,11 +368,6 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
       <Item className={itemClass} onSelect={() => void exportImageNode(id, 'webp')}>
         Export as WebP
       </Item>
-      {sourceImageNodeId && (
-        <Item className={itemClass} onSelect={() => { rejoinSourceImage(id); }}>
-          Rejoin source image
-        </Item>
-      )}
       <div className="my-1 h-px bg-separator" />
       <Item className={itemClass} onSelect={handleDelete}>
         Delete
@@ -354,8 +379,8 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
     <div
       className="relative"
       style={{
-        paddingLeft: `${LEFT_MARGIN}px`,
-        paddingRight: `${RIGHT_MARGIN}px`,
+        paddingLeft: `${leftGutter}px`,
+        paddingRight: `${rightGutter}px`,
         paddingTop: '24px',
         paddingBottom: '20px',
       }}
@@ -382,11 +407,15 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
       <div className="flex items-start gap-0">
         <div
           className="shrink-0 self-stretch"
-          style={{ width: `${LEFT_MARGIN}px`, marginLeft: `-${LEFT_MARGIN}px` }}
+          style={{ width: `${leftGutter}px`, marginLeft: `-${leftGutter}px` }}
         >
           <LayerStrip layerIds={data.layerIds} />
         </div>
 
+        {/* Frame column: a minimum width so the title/footer (which span this
+            column) never collapse around a narrow image. The image body is
+            centred within it — the side gaps are the letterbox. */}
+        <div className="flex justify-center shrink-0" style={{ width: `${frameW}px` }}>
         {/* Image body. Handles + ContextMenu + overlays all anchor here so
             tether edges touch the image rectangle (not the title). */}
         <div
@@ -438,12 +467,14 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
             heightPx={displayH}
             hideLabels
           />
-          {/* Numbered markers + leader lines into the right gutter. */}
+          {/* Numbered markers + leader lines into the right gutter. The leader
+              spans the letterbox plus the gutter so it reaches the true gutter
+              column even when the image is centred in a wider frame. */}
           <ObjectMarkers
             imageNodeId={id}
             widthPx={displayW}
             heightPx={displayH}
-            marginWidth={RIGHT_MARGIN}
+            marginWidth={letterbox + rightGutter}
           />
 
           {/* Corner ticks double as the resize handles when the node is
@@ -486,12 +517,12 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
           <Handle type="target" position={Position.Right}
             id="tether-in-right"   style={{ opacity: 0 }} />
         </div>
+        </div>
 
-        {/* Right margin gutter (object markers + leader lines land here in
-            Phase 3). Empty for now so the composition stays balanced. */}
+        {/* Right margin gutter — object markers + leader lines land here. */}
         <div
           className="shrink-0"
-          style={{ width: `${RIGHT_MARGIN}px`, marginRight: `-${RIGHT_MARGIN}px` }}
+          style={{ width: `${rightGutter}px`, marginRight: `-${rightGutter}px` }}
         />
       </div>
 

@@ -230,7 +230,6 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
         onToggleHidden={() => toggleHidden(widget.id)}
         onRefine={() => setRefineOpen((v) => !v)}
         onWhy={() => setWhyOpen((v) => !v)}
-        onReset={handleReset}
         onApply={handleApply}
         applyDisabled={offline}
         showAiAffordances={showAiAffordances}
@@ -256,7 +255,7 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
           {/* Per-widget history stepper — ‹ n/N › walks this widget's timeline,
               restoring each step (synced to global history). Renders nothing
               until the widget has history. */}
-          <WidgetHistoryStepper widgetId={widget.id} />
+          <WidgetHistoryStepper widgetId={widget.id} onReset={handleReset} />
           {/* Inline reasoning banner removed — the footer's "Why?" button
               already exposes the same string in a popover. */}
           {/* When a single-param pin filter is active, fall through to the

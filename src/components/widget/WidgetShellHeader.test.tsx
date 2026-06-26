@@ -14,7 +14,6 @@ const baseProps = {
   onToggleHidden: () => {},
   onRefine: () => {},
   onWhy: () => {},
-  onReset: () => {},
   onApply: () => {},
   applyDisabled: false,
   showAiAffordances: true,
@@ -115,22 +114,22 @@ describe('WidgetShellHeader', () => {
 });
 
 describe('WidgetShellHeader action buttons', () => {
-  it('hides expand-only action buttons (Refine, Why, Reset) when collapsed but keeps Apply + Close', () => {
+  it('hides expand-only action buttons (Refine, Why) when collapsed but keeps Apply + Close', () => {
     render(<WidgetShellHeader widget={makeAiWidget()} {...baseProps} expanded={false} />);
     expect(screen.queryByRole('button', { name: /refine widget/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /explain widget/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /reset widget/i })).not.toBeInTheDocument();
     // Apply + Close are the decision pair and stay visible on the pill.
     expect(screen.getByRole('button', { name: /apply widget/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /close widget/i })).toBeInTheDocument();
   });
 
-  it('shows all four AI action buttons when expanded on an AI widget', () => {
+  it('shows the AI action buttons when expanded on an AI widget', () => {
     render(<WidgetShellHeader widget={makeAiWidget()} {...baseProps} expanded />);
     expect(screen.getByRole('button', { name: /refine widget/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /explain widget/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /reset widget/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /apply widget/i })).toBeInTheDocument();
+    // Reset moved to the per-widget action strip — not in the header.
+    expect(screen.queryByRole('button', { name: /reset widget/i })).not.toBeInTheDocument();
   });
 
   it('omits Refine and Why? when showAiAffordances is false (tool-invoked)', () => {
@@ -144,8 +143,7 @@ describe('WidgetShellHeader action buttons', () => {
     );
     expect(screen.queryByRole('button', { name: /refine widget/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /explain widget/i })).not.toBeInTheDocument();
-    // Reset + Apply still render — they apply to tool widgets too.
-    expect(screen.getByRole('button', { name: /reset widget/i })).toBeInTheDocument();
+    // Apply still renders — it applies to tool widgets too.
     expect(screen.getByRole('button', { name: /apply widget/i })).toBeInTheDocument();
   });
 
@@ -154,7 +152,6 @@ describe('WidgetShellHeader action buttons', () => {
       onToggle: vi.fn(),
       onRefine: vi.fn(),
       onWhy: vi.fn(),
-      onReset: vi.fn(),
       onApply: vi.fn(),
     };
     render(
@@ -167,11 +164,9 @@ describe('WidgetShellHeader action buttons', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: /refine widget/i }));
     fireEvent.click(screen.getByRole('button', { name: /explain widget/i }));
-    fireEvent.click(screen.getByRole('button', { name: /reset widget/i }));
     fireEvent.click(screen.getByRole('button', { name: /apply widget/i }));
     expect(callbacks.onRefine).toHaveBeenCalledTimes(1);
     expect(callbacks.onWhy).toHaveBeenCalledTimes(1);
-    expect(callbacks.onReset).toHaveBeenCalledTimes(1);
     expect(callbacks.onApply).toHaveBeenCalledTimes(1);
     expect(callbacks.onToggle).not.toHaveBeenCalled();
   });

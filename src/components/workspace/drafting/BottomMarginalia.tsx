@@ -34,7 +34,7 @@ export function BottomMarginalia({
   return (
     <div
       data-testid="bottom-marginalia"
-      className="mt-2 flex items-center gap-3 font-[var(--font-mono)] text-[10px] tracking-[0.18em] uppercase text-text-secondary"
+      className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-[var(--font-mono)] text-[10px] tracking-[0.18em] uppercase text-text-secondary"
     >
       <span>
         <span className="text-text-primary tabular-nums">{sourceWidth}</span>

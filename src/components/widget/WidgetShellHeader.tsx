@@ -4,7 +4,6 @@ import {
   Eye,
   EyeOff,
   Pencil,
-  RotateCcw,
   Sparkles,
   X,
 } from 'lucide-react';
@@ -47,8 +46,6 @@ interface WidgetShellHeaderProps {
   /** Show the Why? popover. The default render is the bare button; pass
    *  `whyButton` to wrap it (e.g. inside a Radix Popover trigger). */
   onWhy: () => void;
-  /** Snap all bindings back to their default values. Always available. */
-  onReset: () => void;
   /** Accept the widget — backend records acceptance and the widget transitions
    *  to its `accepted` lifecycle state. Always available. */
   onApply: () => void;
@@ -84,7 +81,7 @@ function scopeLabelFor(widget: Widget): string | null {
   return staticScopeLabel(widget);
 }
 
-/** Shared classes for the ghost icon buttons (Refine, Why, Reset, Eye, X).
+/** Shared classes for the ghost icon buttons (Refine, Why, Eye, X).
  *  size-4 (16×16) keeps the hover background tight around the 11-px icon —
  *  size-5 leaves a ring of empty fill on hover that reads as chunky padding. */
 const GHOST_BTN =
@@ -94,8 +91,9 @@ const GHOST_BTN =
 
 /**
  * Slim header: AI badge (only for AI widgets) · title · scope chip (only
- * when non-global) · expanded-only action row (Refine, Why, Reset, Apply) ·
- * eye · close (×, only when expanded).
+ * when non-global) · expanded-only action row (Refine, Why) · eye ·
+ * apply · close. Reset now lives on the per-widget action strip
+ * (WidgetHistoryStepper), not the header.
  *
  * The original WidgetShellFooter has been folded into this header so the
  * widget shell renders without a footer — the ImageNode's bottom chrome is
@@ -112,7 +110,6 @@ export function WidgetShellHeader({
   onToggleHidden,
   onRefine,
   onWhy,
-  onReset,
   onApply,
   applyDisabled,
   showAiAffordances,
@@ -159,7 +156,7 @@ export function WidgetShellHeader({
       {/* Action buttons — only rendered when expanded, matching the X close
           button's existing pattern. Each stops propagation so the row's
           onClick (toggle) doesn't fire underneath. Order: Refine · Why ·
-          Reset · Eye · Apply ✓ · Close ✗ — Apply and Close are placed
+          Eye · Apply ✓ · Close ✗ — Apply and Close are placed
           adjacent at the trailing edge so the accept/reject pair reads as
           a single decision unit. */}
       {expanded && showAiAffordances && (
@@ -187,18 +184,6 @@ export function WidgetShellHeader({
             </Tooltip>
           )}
         </>
-      )}
-      {expanded && (
-        <Tooltip label="Reset to defaults">
-          <button
-            type="button"
-            aria-label="Reset widget"
-            onClick={(e) => { e.stopPropagation(); onReset(); }}
-            className={GHOST_BTN}
-          >
-            <RotateCcw size={11} aria-hidden />
-          </button>
-        </Tooltip>
       )}
 
       <Tooltip label={hidden ? 'Show on canvas' : 'Hide from canvas'}>

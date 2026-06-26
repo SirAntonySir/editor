@@ -13,6 +13,9 @@ from app.schemas.widget import StateEvent
 from app.services.session_store import SessionNotFound, SessionStore
 from app.state.events import EventBus
 from app.state.snapshot import SessionStateSnapshot, compute_snapshot
+from app.state.document import DEFAULT_IMAGE_NODE_ID
+from app.tools.agent_loop import run_agent_turn, dispatch_propose_adjustment
+from app.tools.client_tool_bridge import request_client_tool
 
 router = APIRouter()
 
@@ -58,6 +61,12 @@ def _bus() -> EventBus:
     return deps.get_event_bus()
 
 
+class _AgentTurnBody(BaseModel):
+    intent: str
+    attached_objects: list[str] = []
+    client_tools: list[dict] = []
+
+
 class _ToolResultBody(BaseModel):
     request_id: str
     ok: bool
@@ -99,6 +108,42 @@ async def state_tool_result(sid: str, body: _ToolResultBody) -> dict:
         {"ok": body.ok, "output": body.output, "error": body.error, "denied": body.denied},
     )
     return {"resolved": resolved}
+
+
+@router.post("/state/{sid}/agent_turn")
+async def state_agent_turn(sid: str, body: _AgentTurnBody) -> dict:
+    """Run an agentic palette turn — a multi-turn Anthropic tool-use loop. Holds
+    NO write-lock: sub-mutations go through registry.invoke (brief locks) and
+    client tools through request_client_tool. The active image node's layer ids
+    seed node_layers so propose_adjustment_widgets can scope correctly."""
+    store = _store()
+    bus = _bus()
+    try:
+        store.touch(sid)  # 404 if the session is unknown; no lock held into the loop.
+    except SessionNotFound:
+        raise HTTPException(status_code=404, detail="unknown or expired session")
+    # Plan-2 stand-in: target the default image node. Plan 3 replaces this with
+    # real per-node layer ids and adds extract-created nodes (see CARE POINT).
+    node_layers = {DEFAULT_IMAGE_NODE_ID: [DEFAULT_IMAGE_NODE_ID]}
+
+    anthropic = deps.get_anthropic_client()
+    registry = deps.get_tool_registry()
+
+    async def propose_fn(target_image_node_id: str, intent: str) -> dict:
+        return await dispatch_propose_adjustment(
+            registry, sid, target_image_node_id=target_image_node_id,
+            layer_ids=node_layers.get(target_image_node_id, []), intent=intent,
+        )
+
+    async def client_tool_fn(name: str, input: dict) -> dict:
+        return await request_client_tool(store, bus, sid, name=name, input=input, kind="mutate")
+
+    return await run_agent_turn(
+        agent_step=anthropic.agent_message,
+        sid=sid, intent=body.intent, attached_objects=body.attached_objects,
+        client_tools=body.client_tools, node_layers=node_layers,
+        propose_fn=propose_fn, client_tool_fn=client_tool_fn,
+    )
 
 
 async def _apply_history_snapshot(sid: str, snap, action: str) -> dict:

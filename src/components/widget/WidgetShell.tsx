@@ -303,7 +303,11 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
                 const neutral = engineNeutralForBinding(b);
                 return (
                   <BindingRow
-                    key={b.paramKey}
+                    // A multi-op widget can carry two bindings with the same
+                    // user paramKey (e.g. both ops expose "amount"). Key by the
+                    // binding's unique target (node + node-param) so React keeps
+                    // them distinct.
+                    key={`${b.target.nodeId}:${b.target.paramKey}`}
                     binding={b}
                     effectiveValue={eff}
                     maskSummaries={masks}

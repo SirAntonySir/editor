@@ -43,3 +43,24 @@ def test_remote_rejected_with_wrong_token(monkeypatch):
     _patch_token(monkeypatch, "sekret")
     r = _client().get("/admin/sessions?token=nope")
     assert r.status_code == 403
+
+
+def test_admin_uses_admin_token_not_the_public_backend_token(monkeypatch):
+    """With the backend-token middleware active, /admin is exempt from it and
+    gated only by ADMIN_TOKEN — so the public frontend token can't open it."""
+    from app.config import app_config
+
+    monkeypatch.setenv("BACKEND_AUTH_TOKEN", "frontendtok")
+    monkeypatch.setenv("ADMIN_TOKEN", "admintok")
+    app_config.get_settings.cache_clear()
+    try:
+        from app.main import create_app
+        client = TestClient(create_app())
+        # A normal API path IS gated by the backend-token middleware.
+        assert client.get("/api/state/none").status_code == 401
+        # /admin is exempt from that middleware and accepts ADMIN_TOKEN.
+        assert client.get("/admin/sessions?token=admintok").status_code == 200
+        # The public frontend token must NOT open admin.
+        assert client.get("/admin/sessions?token=frontendtok").status_code == 403
+    finally:
+        app_config.get_settings.cache_clear()

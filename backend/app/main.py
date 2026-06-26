@@ -118,7 +118,18 @@ def create_app() -> FastAPI:
         token = settings.backend_auth_token
 
         async def _require_token(request: Request, call_next):
-            if request.method != "OPTIONS" and request.url.path != "/health":
+            path = request.url.path
+            # /admin is gated separately by its own ADMIN_TOKEN (see admin.py).
+            # It must NOT also require BACKEND_AUTH_TOKEN — that token ships in
+            # the public frontend bundle, and the two gates both read `?token=`,
+            # so one URL param can't satisfy both. Exempt /admin here.
+            exempt = (
+                request.method == "OPTIONS"
+                or path == "/health"
+                or path == "/admin"
+                or path.startswith("/admin/")
+            )
+            if not exempt:
                 authz = request.headers.get("authorization", "")
                 provided = (
                     authz[len("Bearer ") :]

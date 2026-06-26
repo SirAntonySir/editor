@@ -18,7 +18,7 @@ const ACCEPT = `${WEB_IMAGE_ACCEPT},${RAW_ACCEPT}`;
  * original .ARW name / format / size so the editor presents it as the RAW, not
  * the PNG transport. Returns null (after a toast) when a RAW can't be developed.
  */
-async function resolveImageFile(
+export async function resolveImageFile(
   file: File,
 ): Promise<{ file: File; source?: SourceMeta } | null> {
   if (!isRawFile(file)) return { file };

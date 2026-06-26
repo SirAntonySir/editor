@@ -34,6 +34,11 @@ class EnvSettings(BaseSettings):
     # preflight must present this token via `Authorization: Bearer <token>` or
     # a `?token=<token>` query param (the latter for the header-less SSE stream).
     backend_auth_token: str = ""
+    # Dedicated secret for the /admin cockpit, SEPARATE from backend_auth_token.
+    # backend_auth_token is shipped to the browser (VITE_BACKEND_TOKEN) so it
+    # can't protect participant data; this one is server-only. Empty = admin
+    # stays loopback-only (no remote access).
+    admin_token: str = ""
     session_ttl_seconds: int = 1800
     max_image_bytes: int = 2 * 1024 * 1024
     sam_checkpoint_path: str | None = None

@@ -3,6 +3,7 @@ import { AnimatePresence } from 'framer-motion';
 import { ReactFlowProvider } from '@xyflow/react';
 import { EditorProvider, useEditor } from '@/components/EditorProvider';
 import { CanvasWorkspace } from '@/components/workspace/CanvasWorkspace';
+import { CanvasDropZone } from '@/components/workspace/CanvasDropZone';
 
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 import { FloatingDock } from '@/components/ui/FloatingDock';
@@ -69,8 +70,8 @@ function MainLayout({
 }) {
   return (
     <div className="relative flex-1 min-h-0 flex flex-row">
-      {/* Canvas column */}
-      <div className="relative flex-1 min-w-0 min-h-0">
+      {/* Canvas column — drop target for images dragged in from the OS. */}
+      <CanvasDropZone className="relative flex-1 min-w-0 min-h-0">
         <div className="absolute inset-0">
           <CanvasContextMenu>
             <div className="absolute inset-0">
@@ -85,8 +86,7 @@ function MainLayout({
         {/* Empty state. Flat composition over the dotted canvas — no
             card surface, no shadow. The framed icon + Kbd-augmented CTA
             match the editor's Vercel/Radix register (see design.md).
-            Drag-drop affordance is in the copy; the actual handler is a
-            follow-up (file drop is not yet wired onto the canvas). */}
+            Drag a photo onto the canvas (CanvasDropZone) or use the CTA. */}
         <AnimatePresence>
           {layers.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
@@ -114,7 +114,7 @@ function MainLayout({
           )}
         </AnimatePresence>
 
-      </div>
+      </CanvasDropZone>
 
       <RightSidebar />
     </div>

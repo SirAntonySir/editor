@@ -23,6 +23,10 @@ services:
         sync: false          # set in the Render dashboard (secret)
       - key: BACKEND_AUTH_TOKEN
         generateValue: true  # Render mints a strong shared secret; read it in the dashboard
+      - key: ADMIN_TOKEN
+        generateValue: true  # SEPARATE secret for /admin (participant data). NOT the frontend
+                             # token. Render mints it; read it in the dashboard, URL-encode for
+                             # /admin/?token=… (the interviewer runbook).
       - key: ALLOWED_ORIGINS
         sync: false          # e.g. https://<your-app>.vercel.app,app://bundle
       - key: ANTHROPIC_MODEL

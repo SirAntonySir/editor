@@ -31,6 +31,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from pydantic import BaseModel
 
+from app.config import get_settings
 from app.services import cohort_store, disk_session_io, process_stats
 from app.services.event_journal import read_events, write_event
 from app.services.session_store import SessionNotFound, SessionStore
@@ -80,12 +81,34 @@ def _usage_cost_usd(usage_payload: dict, model_id: str | None) -> float:
 
 
 def _require_loopback(request: Request) -> None:
-    """403 any request that isn't from the loopback interface."""
+    """Gate admin to loopback OR a valid shared token.
+
+    Loopback (local dev, or an SSH/Tailscale tunnel terminating on the host) is
+    always allowed. On a hosted deploy (Render) there is no loopback path from a
+    browser, so a request is also accepted when it carries the configured
+    ``ADMIN_TOKEN`` — either ``Authorization: Bearer <token>`` or a
+    ``?token=<token>`` query param (so the cockpit is openable as a plain URL).
+
+    ``ADMIN_TOKEN`` is deliberately SEPARATE from ``BACKEND_AUTH_TOKEN``: the
+    latter ships in the public frontend bundle (``VITE_BACKEND_TOKEN``) and so
+    can't protect the participant data the cockpit exposes. When no
+    ``ADMIN_TOKEN`` is configured, only loopback is allowed.
+    """
     client = request.client
     host = client.host if client else None
     if host in {"127.0.0.1", "::1", "localhost"}:
         return
-    raise HTTPException(status_code=403, detail="admin is localhost-only")
+    token = get_settings().admin_token
+    if token:
+        authz = request.headers.get("authorization", "")
+        provided = (
+            authz[len("Bearer ") :]
+            if authz.startswith("Bearer ")
+            else request.query_params.get("token")
+        )
+        if provided and provided == token:
+            return
+    raise HTTPException(status_code=403, detail="admin requires loopback or a valid ADMIN_TOKEN")
 
 
 # ─── Session summary derivation ───────────────────────────────────────
@@ -537,7 +560,7 @@ _ADMIN_HTML = r"""<!DOCTYPE html>
 <header>
   <h1>editor cockpit</h1>
   <a href="#/">dashboard</a>
-  <a href="/admin/export.csv">export csv (all sessions)</a>
+  <a id="export-csv-link" href="/admin/export.csv">export csv (all sessions)</a>
   <span style="flex:1"></span>
   <a id="refresh" href="#" onclick="route(); return false;">refresh</a>
 </header>
@@ -545,8 +568,17 @@ _ADMIN_HTML = r"""<!DOCTYPE html>
 <script>
 const $ = (s, el = document) => el.querySelector(s);
 
+// On hosted deploys the cockpit is opened as /admin/?token=<BACKEND_AUTH_TOKEN>.
+// Carry that token onto every same-origin admin request + link so the gate
+// (see _require_loopback) accepts them. Empty on loopback (no token needed).
+const TOKEN = new URLSearchParams(location.search).get('token') || '';
+function withTok(path) {
+  if (!TOKEN) return path;
+  return path + (path.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(TOKEN);
+}
+
 async function fetchJSON(path) {
-  const r = await fetch(path);
+  const r = await fetch(withTok(path));
   if (!r.ok) throw new Error(path + ' → ' + r.status);
   return r.json();
 }
@@ -590,6 +622,9 @@ function fmtDuration(s) {
 async function dashboard() {
   const app = $('#app');
   app.innerHTML = '<div class="empty">Loading…</div>';
+  // Carry the token onto the static export link too (server-rendered href).
+  const csv = $('#export-csv-link');
+  if (csv) csv.href = withTok('/admin/export.csv');
   const [agg, list, ps] = await Promise.all([
     fetchJSON('/admin/aggregate'),
     fetchJSON('/admin/sessions?limit=200'),
@@ -670,7 +705,7 @@ async function sessionDetail(sid) {
 
   let html = `<h2 style="display:flex; align-items:center; gap:12px;">
     <span>Session <span class="pill">${sid}</span></span>
-    <a href="/admin/sessions/${sid}/export.json" download
+    <a href="${withTok('/admin/sessions/' + sid + '/export.json')}" download
        style="font-size:11px; color:var(--accent); text-transform:none; letter-spacing:0; font-weight:400;">
       ⬇ export this session (json)
     </a>
@@ -692,7 +727,7 @@ async function sessionDetail(sid) {
 
   // Left: image + summary
   html += '<div style="flex:0 0 340px;">';
-  html += `<img class="img-preview" src="/admin/sessions/${sid}/image" alt="source" onerror="this.style.display='none'" />`;
+  html += `<img class="img-preview" src="${withTok('/admin/sessions/' + sid + '/image')}" alt="source" onerror="this.style.display='none'" />`;
   html += '<div style="margin-top:12px;">';
   const rows = [
     ['User',        (s.user_id || '').slice(0, 12) || '—'],
@@ -752,7 +787,7 @@ async function sessionDetail(sid) {
       const cur = toggleBtn.getAttribute('data-on') === '1';
       toggleBtn.disabled = true;
       try {
-        const r = await fetch('/admin/sessions/' + encodeURIComponent(sid) + '/ai-access', {
+        const r = await fetch(withTok('/admin/sessions/' + encodeURIComponent(sid) + '/ai-access'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ai_access: !cur }),

@@ -149,8 +149,27 @@ html, body, #root {
 @keyframes ai-snake-spin {
   to { --ai-snake-angle: 360deg; }
 }
+/* The arc fades out once the sweeps finish, handing off to the settled glow. */
+@keyframes ai-snake-fade {
+  to { opacity: 0; }
+}
+/* The chip's resting "arrived" state: a calm violet ring + bloom (same accent
+ * as a placed AI widget) that fades in as the sweep ends — so the proposal
+ * looks finished, not perpetually loading. */
+@keyframes ai-snake-settle {
+  from { box-shadow: var(--shadow-overlay); }
+  to {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--color-ai) 30%, transparent),
+      0 0 12px 1px color-mix(in srgb, var(--color-ai) 22%, transparent),
+      var(--shadow-overlay);
+  }
+}
 .ai-snake-border {
   position: relative;
+  /* `both` holds the FROM (plain overlay shadow) during the sweep, then the TO
+   * (violet glow) after — the steady end state. */
+  animation: ai-snake-settle 0.6s ease 1.5s both;
 }
 .ai-snake-border::before {
   content: '';
@@ -176,7 +195,16 @@ html, body, #root {
           mask-composite: exclude;
   pointer-events: none;
   filter: drop-shadow(0 0 5px color-mix(in srgb, var(--color-ai) 70%, transparent));
-  animation: ai-snake-spin 3s linear infinite;
+  /* Two sweeps (~0.9s each) on arrival, then fade the arc away — NOT an
+   * infinite spin (which read as a loading spinner). */
+  animation:
+    ai-snake-spin 0.9s linear 2,
+    ai-snake-fade 0.5s ease 1.6s forwards;
+}
+/* Respect reduced-motion: skip the sweep entirely, show only the settled glow. */
+@media (prefers-reduced-motion: reduce) {
+  .ai-snake-border { animation: ai-snake-settle 0.01s ease forwards; }
+  .ai-snake-border::before { animation: none; opacity: 0; }
 }
 
 /* AI-composed widget shell: violet outline + soft glow so AI widgets stand

@@ -132,7 +132,17 @@ async def run_agent_turn(
                 else:
                     result = await propose_fn(node, (block.input or {}).get("intent", intent))
             else:
-                result = await client_tool_fn(block.name, block.input or {})
+                envelope = await client_tool_fn(block.name, block.input or {})
+                # Unwrap the round-trip envelope: the tool's own return is under
+                # `output`. Feed THAT to the LLM, and thread any new image node
+                # so a later propose_adjustment_widgets can target it.
+                output = envelope.get("output") if isinstance(envelope, dict) else None
+                result = output if output is not None else envelope
+                if isinstance(output, dict):
+                    new_node = output.get("image_node_id")
+                    new_layers = output.get("layer_ids")
+                    if isinstance(new_node, str) and new_node and isinstance(new_layers, list):
+                        node_layers[new_node] = new_layers
             results.append({
                 "type": "tool_result",
                 "tool_use_id": block.id,

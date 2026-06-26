@@ -86,6 +86,35 @@ async def test_loop_routes_client_tool_and_unknown_node_errors():
 
 
 @pytest.mark.asyncio
+async def test_loop_threads_extracted_node_then_proposes_on_it():
+    llm = _ScriptedLLM([
+        _Resp("tool_use", [_Block("tool_use", "extract_object_to_image_node",
+                                  {"maskId": "m1"}, "tu_1")]),
+        _Resp("tool_use", [_Block("tool_use", "propose_adjustment_widgets",
+                                  {"target_image_node_id": "in-9", "intent": "dramatic"}, "tu_2")]),
+        _Resp("end_turn", [_Block("text")]),
+    ])
+    proposed = []
+
+    async def propose_fn(target_image_node_id, intent):
+        proposed.append((target_image_node_id, intent))
+        return {"ok": True, "widget_count": 1}
+
+    async def client_tool_fn(name, input):
+        # Round-trip envelope: the tool's own return sits under `output`.
+        return {"ok": True, "output": {"ok": True, "image_node_id": "in-9", "layer_ids": ["l-9"]}}
+
+    out = await run_agent_turn(
+        agent_step=llm, sid="sid-1", intent="extract sky and make it dramatic",
+        attached_objects=[], client_tools=[], node_layers={"in-1": ["l-1"]},
+        propose_fn=propose_fn, client_tool_fn=client_tool_fn,
+    )
+    assert out == {"ok": True, "tool_calls": 2}
+    # The extracted node in-9 was threaded, so propose targeted it (not rejected).
+    assert proposed == [("in-9", "dramatic")]
+
+
+@pytest.mark.asyncio
 async def test_loop_stops_at_max_tool_calls():
     forever = [_Resp("tool_use", [_Block("tool_use", "list_objects", {}, f"tu_{i}")]) for i in range(20)]
     llm = _ScriptedLLM(forever)

@@ -64,6 +64,7 @@ def _bus() -> EventBus:
 class _AgentTurnBody(BaseModel):
     intent: str
     attached_objects: list[str] = []
+    forced_targets: list[dict] = []
     client_tools: list[dict] = []
     active_node: dict | None = None
 
@@ -131,6 +132,18 @@ async def state_agent_turn(sid: str, body: _AgentTurnBody) -> dict:
     else:
         node_layers = {DEFAULT_IMAGE_NODE_ID: [DEFAULT_IMAGE_NODE_ID]}
 
+    # Frontend pre-extracted the user's attached region chips into their own
+    # image nodes (see runAgentTurn). Seed those so propose_adjustment_widgets
+    # resolves their layer ids, and collect their ids so the loop can force the
+    # LLM to act on them (not the whole image).
+    forced_target_ids: list[str] = []
+    for ft in body.forced_targets:
+        node_id = ft.get("image_node_id")
+        if not node_id:
+            continue
+        node_layers[node_id] = list(ft.get("layer_ids", []))
+        forced_target_ids.append(node_id)
+
     anthropic = deps.get_anthropic_client()
     registry = deps.get_tool_registry()
 
@@ -160,6 +173,7 @@ async def state_agent_turn(sid: str, body: _AgentTurnBody) -> dict:
         agent_step=anthropic.agent_message,
         sid=sid, intent=body.intent, attached_objects=body.attached_objects,
         client_tools=body.client_tools, node_layers=node_layers,
+        forced_targets=forced_target_ids,
         propose_fn=propose_fn, client_tool_fn=client_tool_fn,
         image_context=image_context,
     )

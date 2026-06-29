@@ -53,12 +53,13 @@ export function extractObjectIds(items: ReadonlyArray<{ sourceId?: string }>): s
 
 /** Serialize a doc (plus any legacy tray chips) into the backend `agent_turn`
  *  arguments. `intent` is the trimmed inline text; `attachedObjects` is the
- *  deduped id list, doc chips first then tray chips. The backend contract is
- *  unchanged — both args are built from one source. */
+ *  deduped parsed-id list (doc chips first then tray chips, for the legacy
+ *  fallback contract); `chipSourceIds` is the deduped raw `sourceId` list (same
+ *  order) the agent turn needs to resolve + force-extract each region. */
 export function serializePromptDoc(
   doc: PromptDoc,
   trayChips: ReadonlyArray<{ sourceId?: string }> = [],
-): { intent: string; attachedObjects: string[] } {
+): { intent: string; attachedObjects: string[]; chipSourceIds: string[] } {
   const intent = docToPlainText(doc).trim();
   const chipSources: Array<{ sourceId?: string }> = [
     ...doc.filter((s): s is Extract<PromptSegment, { kind: 'chip' }> => s.kind === 'chip'),
@@ -71,5 +72,12 @@ export function serializePromptDoc(
     seen.add(id);
     attachedObjects.push(id);
   }
-  return { intent, attachedObjects };
+  const seenSrc = new Set<string>();
+  const chipSourceIds: string[] = [];
+  for (const s of chipSources) {
+    if (!s.sourceId || seenSrc.has(s.sourceId)) continue;
+    seenSrc.add(s.sourceId);
+    chipSourceIds.push(s.sourceId);
+  }
+  return { intent, attachedObjects, chipSourceIds };
 }

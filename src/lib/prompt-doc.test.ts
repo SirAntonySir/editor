@@ -88,4 +88,16 @@ describe('serializePromptDoc', () => {
     ];
     expect(serializePromptDoc(doc).attachedObjects).toEqual([]);
   });
+
+  it('returns deduped chip sourceIds, doc chips before tray chips', () => {
+    const doc: PromptDoc = [
+      { kind: 'text', text: 'brighten ' },
+      { kind: 'chip', label: 'Sky', sourceId: 'region:ai:sky' },
+      { kind: 'text', text: ' and ' },
+      { kind: 'chip', label: 'Shoes', sourceId: 'region:object:m1' },
+    ];
+    const tray = [{ sourceId: 'region:object:m1' }, { sourceId: 'region:object:m2' }];
+    const { chipSourceIds } = serializePromptDoc(doc, tray);
+    expect(chipSourceIds).toEqual(['region:ai:sky', 'region:object:m1', 'region:object:m2']);
+  });
 });

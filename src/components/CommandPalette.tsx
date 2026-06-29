@@ -438,11 +438,11 @@ export function CommandPalette() {
       }
       if (cmd.kind === 'ai') {
         if (pending) return; // already in flight — ignore double-submit
-        // The agent loop derives its own targets: object chips ride along as
-        // `attached_objects`; adjustments land on the active image node.
-        // Inline chips contribute their label to `intent` and their id to
-        // `attachedObjects`; tray chips fold in too.
-        const { intent: submitted, attachedObjects } = serializePromptDoc(doc, attachedContext);
+        // Inline chips contribute their label to `intent` and their raw
+        // sourceId to `chipSourceIds`; tray chips fold in too. runAgentTurn
+        // deterministically extracts each chip's region into its own image node
+        // before the loop and hands the loop those nodes as forced targets.
+        const { intent: submitted, chipSourceIds } = serializePromptDoc(doc, attachedContext);
         if (!submitted) return;
         setPending(submitted);
         setErrorState(null);
@@ -479,9 +479,10 @@ export function CommandPalette() {
 
         // Agentic turn: the backend runs a multi-turn loop that may call client
         // tools (extract/select, gated by approval) and propose_adjustment_widgets.
-        // Object chips ride along as structured `attached_objects`. If the user
-        // ESC'd mid-flight, the dialog unmounts and these setStates no-op.
-        const turn = await runAgentTurn(submitted, attachedObjects);
+        // Attached region chips are pre-extracted to their own nodes inside
+        // runAgentTurn. If the user ESC'd mid-flight, the dialog unmounts and
+        // these setStates no-op.
+        const turn = await runAgentTurn(submitted, chipSourceIds);
         if (turn.ok) {
           setPending(null);
           setPendingPhase(null);

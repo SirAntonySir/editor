@@ -281,7 +281,9 @@ export const backendTools = {
   async agentTurn(
     sessionId: string,
     body: {
-      intent: string; attached_objects: string[]; client_tools: unknown[];
+      intent: string; attached_objects: string[];
+      forced_targets: { image_node_id: string; layer_ids: string[] }[];
+      client_tools: unknown[];
       active_node: { image_node_id: string; layer_ids: string[] } | null;
     },
   ): Promise<{ ok: boolean; toolCalls: number }> {

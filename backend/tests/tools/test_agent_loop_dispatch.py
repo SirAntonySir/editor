@@ -1,6 +1,22 @@
 import pytest
 
-from app.tools.agent_loop import dispatch_propose_adjustment
+from app.tools.agent_loop import dispatch_propose_adjustment, _build_system
+
+
+def test_build_system_forces_proposal_on_extracted_targets():
+    sys = _build_system([], ["node-a"], ["node-new1", "node-new2"])
+    assert "node-new1" in sys and "node-new2" in sys
+    # mandatory, and explicitly off the original image
+    assert "MUST" in sys
+    low = sys.lower()
+    assert "propose_adjustment_widgets" in low
+    assert "whole image" in low or "original image" in low
+
+
+def test_build_system_without_forced_targets_is_unchanged_shape():
+    sys = _build_system([], ["the active image node"], [])
+    assert "propose_adjustment_widgets" in sys
+    assert "already" not in sys.lower()  # no extraction-done preamble
 
 
 class _FakeError:

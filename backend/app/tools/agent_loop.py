@@ -60,7 +60,12 @@ PROPOSE_ADJUSTMENT_TOOL = {
 }
 
 
-def _build_system(attached_objects: list[str], node_ids: list[str]) -> str:
+def _build_system(
+    attached_objects: list[str],
+    node_ids: list[str],
+    forced_targets: list[str] | None = None,
+) -> str:
+    forced_targets = forced_targets or []
     targets = ", ".join(node_ids) if node_ids else "the active image node"
     base = (
         "You are an editing agent for a photo editor. The user gives an editing "
@@ -73,7 +78,17 @@ def _build_system(attached_objects: list[str], node_ids: list[str]) -> str:
         "image_node_id it returns. Do not stop until you have called at least one "
         "tool that satisfies the request."
     )
-    if attached_objects:
+    if forced_targets:
+        ids = ", ".join(forced_targets)
+        base += (
+            "\n\nThe user selected one or more regions, and they have ALREADY been "
+            f"extracted onto their own image nodes: {ids}. You MUST apply the "
+            "request by calling propose_adjustment_widgets on EACH of these node "
+            "ids. Do NOT call extract_object_to_image_node again for them, and do "
+            "NOT apply the adjustment to the whole/original image — only to these "
+            "extracted target nodes."
+        )
+    elif attached_objects:
         base += (
             "\n\nThe user pinned these object/mask ids as context: "
             + ", ".join(attached_objects)
@@ -97,6 +112,7 @@ async def run_agent_turn(
     node_layers: dict[str, list[str]],
     propose_fn,
     client_tool_fn,
+    forced_targets: list[str] | None = None,
     image_context: dict | None = None,
     max_tool_calls: int = 10,
 ) -> dict[str, Any]:
@@ -106,7 +122,7 @@ async def run_agent_turn(
     - propose_fn(target_image_node_id, intent) -> dict  (dispatch to propose_stack)
     - client_tool_fn(name, input) -> dict               (Plan 1 round-trip)
     """
-    system = _build_system(attached_objects, list(node_layers.keys()))
+    system = _build_system(attached_objects, list(node_layers.keys()), forced_targets)
     tools = [*client_tools, PROPOSE_ADJUSTMENT_TOOL]
     opening = intent
     if image_context:

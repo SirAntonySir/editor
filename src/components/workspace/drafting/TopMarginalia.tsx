@@ -111,12 +111,15 @@ export function TopMarginalia({
             onPointerDownCapture={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => e.stopPropagation()}
-            className={`font-[var(--font-display,Fraunces)] italic font-normal ${titleSize} leading-none -tracking-[0.015em] text-text-primary bg-transparent outline-none border-b border-[var(--color-accent)] w-full`}
+            className={`font-[var(--font-display,Fraunces)] italic font-normal ${titleSize} leading-none -tracking-[0.015em] text-text-primary bg-transparent outline-none border-b border-[var(--color-accent)] w-full pr-[0.12em]`}
             aria-label="Rename image node"
           />
         ) : (
           <div
-            className={`font-[var(--font-display,Fraunces)] italic font-normal ${titleSize} leading-none -tracking-[0.015em] text-text-primary truncate cursor-text`}
+            // pr-[0.12em]: italic Fraunces' last glyph overshoots its advance
+            // box; without this right inset `truncate`'s overflow:hidden clips
+            // the final letter even when the name isn't actually truncated.
+            className={`font-[var(--font-display,Fraunces)] italic font-normal ${titleSize} leading-none -tracking-[0.015em] text-text-primary truncate cursor-text pr-[0.12em]`}
             title={title}
             onDoubleClick={(e) => {
               e.stopPropagation();

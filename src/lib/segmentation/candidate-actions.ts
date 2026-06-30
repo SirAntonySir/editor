@@ -1,0 +1,85 @@
+import { backendTools } from '@/lib/backend-tools';
+import { maskStore } from '@/core/mask-store';
+import { useEditorStore } from '@/store';
+import { useAiSession } from '@/hooks/useImageContext';
+import { maskToPngBase64 } from '@/lib/segmentation/mask-png';
+import { matchRegionLabelByBbox } from '@/lib/match-region-by-bbox';
+import { objectOwnership } from '@/lib/segmentation/object-ownership';
+import { toast } from '@/components/ui/Toast';
+import type { DecodedMask, SamPoint } from '@/lib/segmentation/mobile-sam-types';
+
+/** A live SAM selection — the transient mask the user is working with before
+ *  committing it via an action verb. */
+export interface LiveSelection {
+  points: SamPoint[];
+  mask: DecodedMask;
+  label?: string;
+  origin?: 'client_refinement' | 'client_new' | 'client_extracted';
+}
+
+/**
+ * Register a live selection as a real backend mask and return its id. This is
+ * the commit side-effect shared by the action verbs (extract / convert): the
+ * selection is only persisted once the user acts on it.
+ *
+ * Returns null on failure (the caller keeps the selection so the user's pick
+ * isn't lost). Does NOT change active scope or image-node mode — the calling
+ * verb owns post-action UX.
+ */
+export async function materializeCandidate(
+  sel: LiveSelection,
+  ctx: { sessionId: string; imageNodeId: string; existingCount: number },
+): Promise<string | null> {
+  const pngBase64 = await maskToPngBase64(sel.mask);
+  const hasNegativePoint = sel.points.some((p) => p.label === 0);
+  // Auto-name: inherit an AI-named region the mask overlaps, else "Object N".
+  const aiRegions = useAiSession.getState().context?.candidateRegions;
+  const regionLabel = matchRegionLabelByBbox(sel.mask, aiRegions);
+  const autoName = sel.label ?? regionLabel ?? `Object ${ctx.existingCount + 1}`;
+  const origin = sel.origin ?? (hasNegativePoint ? 'client_refinement' : 'client_new');
+
+  const env = await backendTools.propose_mask(ctx.sessionId, {
+    imageNodeId: ctx.imageNodeId,
+    pngBase64,
+    paths: [],
+    label: autoName,
+    origin,
+  });
+  if (!env.ok) {
+    toast.info(`Segmentation failed: ${env.error?.message ?? 'unknown error'}`);
+    return null;
+  }
+  const maskId = env.output?.maskId;
+  if (!maskId) return null;
+
+  objectOwnership.set(maskId, ctx.imageNodeId);
+  // Inject locally with the bytes already in hand instead of waiting for the
+  // SSE round-trip. layerId resolves to the node's first image layer so the
+  // renderer's selected-mask overlay paints (it gates on layerSet.has).
+  const editor = useEditorStore.getState();
+  const node = editor.imageNodes[ctx.imageNodeId];
+  const layerId = node?.layerIds.find(
+    (lid) => editor.layers.find((l) => l.id === lid)?.type === 'image',
+  );
+  if (layerId) {
+    maskStore.injectWithId({
+      id: maskId,
+      layerId,
+      label: autoName,
+      width: sel.mask.width,
+      height: sel.mask.height,
+      data: sel.mask.data,
+      source: hasNegativePoint ? 'sam-points' : 'sam-point',
+      createdAt: Date.now(),
+    });
+  }
+  return maskId;
+}
+
+/** Build the inverse of a mask (0 ↔ 255). Pure — used by "Select Inverted" to
+ *  transform the live selection into a new live selection (no commit). */
+export function invertMask(mask: DecodedMask): DecodedMask {
+  const data = new Uint8Array(mask.data.length);
+  for (let i = 0; i < mask.data.length; i++) data[i] = 255 - mask.data[i];
+  return { width: mask.width, height: mask.height, data };
+}

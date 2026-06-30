@@ -8,6 +8,7 @@ import {
   selectInvertedObject,
   convertObjectToLayerMask,
   extractObjectToImageNode,
+  extractObjectToLayer,
   deleteObject,
 } from '@/lib/segmentation/object-actions';
 
@@ -247,6 +248,12 @@ function ObjectLabel({
             onSelect={() => convertObjectToLayerMask(obj.id, imageNodeId)}
           >
             Convert to Layer Mask
+          </ContextMenu.Item>
+          <ContextMenu.Item
+            className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"
+            onSelect={() => extractObjectToLayer(obj.id, imageNodeId)}
+          >
+            Extract to new layer
           </ContextMenu.Item>
           <ContextMenu.Item
             className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"

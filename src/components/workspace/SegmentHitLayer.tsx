@@ -3,14 +3,12 @@ import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useMobileSam } from '@/hooks/useMobileSam';
 import { useEditorStore } from '@/store';
-import { backendTools } from '@/lib/backend-tools';
-import { maskStore } from '@/core/mask-store';
-import { maskToPngBase64 } from '@/lib/segmentation/mask-png';
-import { matchRegionLabelByBbox } from '@/lib/match-region-by-bbox';
-import { objectOwnership } from '@/lib/segmentation/object-ownership';
-import { useAiSession } from '@/hooks/useImageContext';
+import {
+  runCandidateVerb,
+  invertMask,
+  type CandidateVerb,
+} from '@/lib/segmentation/candidate-actions';
 import { Kbd } from '@/components/ui/kbd';
-import { toast } from '@/components/ui/Toast';
 import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
 import { SegmentMaskPreview } from './SegmentMaskPreview';
 import type { SamPoint, DecodedMask } from '@/lib/segmentation/mobile-sam-types';
@@ -72,79 +70,45 @@ export function SegmentHitLayer({
 
   const cancelCandidate = useCallback(() => setCandidate(null), []);
 
-  const commitCandidate = useCallback(async () => {
+  // Done segmenting after a committing action: drop the live selection and
+  // return to layers mode (the resulting object's actions stay reachable).
+  const finishSelection = useCallback(() => {
+    setCandidate(null);
+    useEditorStore.getState().setImageNodeMode(imageNodeId, 'layers');
+  }, [imageNodeId]);
+
+  // Run a committing verb on the live selection. Materialize + action live in
+  // candidate-actions; the selection only persists once a verb runs. On
+  // failure the selection is kept so the user doesn't lose their pick.
+  const runVerb = useCallback(async (verb: CandidateVerb) => {
     const c = candidate;
     if (!c?.mask || !sessionId) return;
-    const pngBase64 = await maskToPngBase64(c.mask);
-    const hasNegativePoint = c.points.some((p) => p.label === 0);
-    // Auto-name: if the user has run AI analysis, see if the mask's bbox
-    // overlaps any AI-named region. Inheriting "pasta dish" is far more
-    // useful than "Object 3". Explicit label (Select Inverted etc.) and
-    // existing labels still win — this is the default-name path only.
-    const aiRegions = useAiSession.getState().context?.candidateRegions;
-    const regionLabel = matchRegionLabelByBbox(c.mask, aiRegions);
-    const autoName = c.label ?? regionLabel ?? `Object ${existingObjects.length + 1}`;
-    const origin = c.origin ?? (hasNegativePoint ? 'client_refinement' : 'client_new');
-    const env = await backendTools.propose_mask(sessionId, {
-      imageNodeId,
-      pngBase64,
-      paths: [],
-      label: autoName,
-      origin,
-    });
-    if (env.ok) {
-      // Record the imageNodeId-for-this-mask mapping on the client. The
-      // SSE event doesn't carry it, so without this the objects layer
-      // can't filter masksIndex per image-node.
-      const maskId = env.output?.maskId;
-      if (maskId) {
-        objectOwnership.set(maskId, imageNodeId);
-        // Inject locally with the bytes we already have, instead of waiting
-        // for the SSE round-trip. layerId resolves to the image node's
-        // first image layer so the renderer's selected-mask overlay paints
-        // (it gates on layerSet.has(mask.layerId)).
-        const editor = useEditorStore.getState();
-        const node = editor.imageNodes[imageNodeId];
-        const layerId = node?.layerIds.find(
-          (lid) => editor.layers.find((l) => l.id === lid)?.type === 'image',
-        );
-        if (layerId) {
-          maskStore.injectWithId({
-            id: maskId,
-            layerId,
-            label: autoName,
-            width: c.mask.width,
-            height: c.mask.height,
-            data: c.mask.data,
-            source: hasNegativePoint ? 'sam-points' : 'sam-point',
-            createdAt: Date.now(),
-          });
-        }
-        // Promote the new object to the active scope so subsequent
-        // toolrail / Cmd+K adjustments target it instead of the layer.
-        editor.setActiveObjectId(maskId);
-        // Drop back to layers mode — the user is done segmenting, and the
-        // committed object's actions are still reachable from the image-
-        // node's ContextMenu when the active scope points at this mask.
-        editor.setImageNodeMode(imageNodeId, 'layers');
-      }
-      toast.info(`Saved as "${autoName}"`);
-      setCandidate(null);
-    } else {
-      toast.info(`Save failed: ${env.error?.message ?? 'unknown error'}`);
-    }
-  }, [candidate, sessionId, imageNodeId, existingObjects.length]);
+    const id = await runCandidateVerb(
+      verb,
+      { points: c.points, mask: c.mask, label: c.label, origin: c.origin },
+      { sessionId, imageNodeId, existingCount: existingObjects.length },
+    );
+    if (id) finishSelection();
+  }, [candidate, sessionId, imageNodeId, existingObjects.length, finishSelection]);
 
-  // Esc / Enter while a candidate is live.
+  // Select Inverted: transform the live selection into its inverse. Stays
+  // transient — no commit.
+  const runInvert = useCallback(() => {
+    const m = candidate?.mask;
+    if (!m) return;
+    setCandidate({ points: [], mask: invertMask(m), label: candidate?.label });
+  }, [candidate]);
+
+  // Esc discards the live selection. (There is no Enter-to-save — committing
+  // happens only via an explicit action verb.)
   useEffect(() => {
     if (!candidate) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.preventDefault(); cancelCandidate(); }
-      if (e.key === 'Enter') { e.preventDefault(); void commitCandidate(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [candidate, commitCandidate, cancelCandidate]);
+  }, [candidate, cancelCandidate]);
 
   // Allow other actions (e.g. "Select Inverted" on an object) to inject a
   // candidate so the user gets the same Save/Cancel UI they'd get from a SAM
@@ -352,14 +316,13 @@ export function SegmentHitLayer({
         >
           {candidate.mask ? (
             <>
-              <Kbd keys="enter" className="ml-0" />
-              <span>save</span>
+              <Kbd keys="shift" className="ml-0" />
+              <span>+ click refine</span>
+              <span className="opacity-40">·</span>
+              <span>right-click actions</span>
               <span className="opacity-40">·</span>
               <Kbd keys="esc" className="ml-0" />
-              <span>cancel</span>
-              <span className="opacity-40">·</span>
-              <Kbd keys="shift" className="ml-0" />
-              <span>+ click to refine</span>
+              <span>discard</span>
             </>
           ) : (
             <span>Segmenting…</span>
@@ -375,20 +338,33 @@ export function SegmentHitLayer({
             <span data-candidate-trigger style={{ position: 'absolute', width: 0, height: 0 }} />
           </ContextMenu.Trigger>
           <ContextMenu.Portal>
-            <ContextMenu.Content className="overlay p-1 min-w-[160px] z-50">
+            <ContextMenu.Content className="overlay p-1 min-w-[180px] z-50">
               <ContextMenu.Item
-                className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none flex items-center justify-between gap-3"
-                onSelect={() => void commitCandidate()}
+                className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none data-[disabled]:opacity-40 data-[disabled]:cursor-default"
+                disabled={!sessionId}
+                onSelect={() => void runVerb('extract-layer')}
               >
-                <span>Save</span>
-                <Kbd keys="enter" className="ml-0" />
+                Extract to new layer
               </ContextMenu.Item>
               <ContextMenu.Item
-                className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none flex items-center justify-between gap-3 text-text-secondary"
-                onSelect={cancelCandidate}
+                className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none data-[disabled]:opacity-40 data-[disabled]:cursor-default"
+                disabled={!sessionId}
+                onSelect={() => void runVerb('extract-node')}
               >
-                <span>Cancel</span>
-                <Kbd keys="esc" className="ml-0" />
+                Extract to Image Node
+              </ContextMenu.Item>
+              <ContextMenu.Item
+                className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none data-[disabled]:opacity-40 data-[disabled]:cursor-default"
+                disabled={!sessionId}
+                onSelect={() => void runVerb('convert-mask')}
+              >
+                Convert to Layer Mask
+              </ContextMenu.Item>
+              <ContextMenu.Item
+                className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none text-text-secondary"
+                onSelect={runInvert}
+              >
+                Select Inverted
               </ContextMenu.Item>
             </ContextMenu.Content>
           </ContextMenu.Portal>

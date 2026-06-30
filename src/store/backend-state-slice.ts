@@ -148,6 +148,32 @@ interface BackendState {
   reset: () => void;
 }
 
+// Coalesce concurrent snapshot refetches. A burst of snapshot-dependent SSE
+// events can arrive while the snapshot is still null (e.g. widgets pinned /
+// minted DURING the initial analyze, before the post-analyze snapshot fetch),
+// or after a state.gap. One in-flight fetch reads the latest backend state for
+// all of them, so we skip overlapping fetches and resync once.
+let _snapshotRefetchInFlight = false;
+async function refetchSnapshot(sid: string): Promise<void> {
+  if (_snapshotRefetchInFlight) return;
+  _snapshotRefetchInFlight = true;
+  try {
+    const { fetchSnapshot } = await import('@/lib/sse-subscriber');
+    const snap = await fetchSnapshot(sid);
+    // Between the event and fetch completion the user may have opened a new
+    // image; writing the stale snapshot would clobber the new session's state.
+    if (useBackendState.getState().sessionId !== sid) {
+      console.warn('[sse] snapshot refetch dropped — session changed during fetch');
+      return;
+    }
+    useBackendState.getState().setSnapshot(snap);
+  } catch (err) {
+    console.warn('[sse] snapshot refetch failed:', err);
+  } finally {
+    _snapshotRefetchInFlight = false;
+  }
+}
+
 export const useBackendState = create<BackendState>()(
   immer((set) => ({
     sessionId: null,
@@ -233,31 +259,9 @@ export const useBackendState = create<BackendState>()(
             // Backend signaled that replay can't catch us up — doc.history was
             // pruned past our lastEventId. Refetch the full snapshot to resync.
             const sid = s.sessionId;
-            if (sid) {
-              // Defer the async refetch to a side-effect; the closure
-              // observes a settled store. Re-check that `sid` is still
-              // the active session at write time — between event and
-              // refetch completion the user may have opened a new image,
-              // and writing the stale snapshot would clobber the new
-              // session's state.
-              sideEffects.push(() => {
-                void (async () => {
-                  try {
-                    const { fetchSnapshot } = await import('@/lib/sse-subscriber');
-                    const snap = await fetchSnapshot(sid);
-                    if (useBackendState.getState().sessionId !== sid) {
-                      console.warn(
-                        '[sse] state.gap refetch dropped — session changed during fetch',
-                      );
-                      return;
-                    }
-                    useBackendState.getState().setSnapshot(snap);
-                  } catch (err) {
-                    console.warn('[sse] state.gap refetch failed:', err);
-                  }
-                })();
-              });
-            }
+            // Defer the async refetch to a side-effect; the closure observes a
+            // settled store. The helper re-checks the session id at write time.
+            if (sid) sideEffects.push(() => void refetchSnapshot(sid));
             return;
           }
           case 'session.ai_access': {
@@ -334,7 +338,17 @@ export const useBackendState = create<BackendState>()(
           }
         }
 
-        if (!s.snapshot) return;
+        if (!s.snapshot) {
+          // A snapshot-dependent event arrived before the snapshot exists —
+          // e.g. a widget pinned DURING the initial analyze, whose
+          // widget.created would otherwise be silently dropped here and only
+          // surface once analyze completes and the snapshot is fetched. Refetch
+          // now so the action takes effect promptly. Coalesced, and the same
+          // recovery the state.gap handler uses.
+          const sid = s.sessionId;
+          if (sid) sideEffects.push(() => void refetchSnapshot(sid));
+          return;
+        }
         // Defensive: drop stale events.
         if (ev.revision <= s.snapshot.revision) return;
 

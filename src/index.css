@@ -229,7 +229,8 @@ html, body, #root {
   }
 }
 .rejoin-snap-target {
-  border-radius: var(--radius-panel);
+  /* No border-radius override — the ring follows the (square) image rectangle
+     it sits on, not a panel radius. */
   animation: rejoin-snap-in 0.18s ease-out forwards;
   /* center origin so the pop reads as a snap, not a slide */
   transform-origin: center;

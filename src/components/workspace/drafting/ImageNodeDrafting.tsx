@@ -522,7 +522,7 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
 
   return (
     <div
-      className={`relative ${isRejoinTarget ? 'rejoin-snap-target' : ''}`}
+      className="relative"
       style={{
         paddingLeft: `${leftGutter}px`,
         paddingRight: `${rightGutter}px`,
@@ -562,9 +562,10 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
             centred within it — the side gaps are the letterbox. */}
         <div className="flex justify-center shrink-0" style={{ width: `${frameW}px` }}>
         {/* Image body. Handles + ContextMenu + overlays all anchor here so
-            tether edges touch the image rectangle (not the title). */}
+            tether edges touch the image rectangle (not the title). The rejoin
+            snap cue rings THIS rectangle (the image), not the padded node. */}
         <div
-          className="relative"
+          className={`relative ${isRejoinTarget ? 'rejoin-snap-target' : ''}`}
           style={{ width: `${displayW}px`, height: `${displayH}px` }}
         >
           <ContextMenu.Root>

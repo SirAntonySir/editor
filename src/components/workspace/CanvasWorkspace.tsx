@@ -412,8 +412,26 @@ export function CanvasWorkspace() {
   }, []);
 
   const { getIntersectingNodes } = useReactFlow();
+
+  // During a drag, highlight the source node as a rejoin drop-target whenever an
+  // extracted node hovers over it — the "release to rejoin" cue.
+  const onNodeDrag = useCallback(
+    (_: unknown, node: Node) => {
+      const editor = useEditorStore.getState();
+      let target: string | null = null;
+      if (node.type === 'image') {
+        const srcId = editor.imageNodes[node.id]?.sourceImageNodeId;
+        const overlapIds = getIntersectingNodes(node).map((n) => n.id);
+        target = rejoinTargetId(srcId, overlapIds);
+      }
+      if (editor.rejoinTargetNodeId !== target) editor.setRejoinTargetNodeId(target);
+    },
+    [getIntersectingNodes],
+  );
+
   const onNodeDragStop = useCallback(
     (_: unknown, node: Node, draggedNodes: Node[]) => {
+      useEditorStore.getState().setRejoinTargetNodeId(null); // clear the cue
       // Drag-to-rejoin: an extracted image node dropped onto its own source
       // merges back (the inverse of Extract to Image Node).
       if (node.type === 'image') {
@@ -490,6 +508,7 @@ export function CanvasWorkspace() {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
+        onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onSelectionDragStop={onSelectionDragStop}
         onNodeClick={onNodeClick}

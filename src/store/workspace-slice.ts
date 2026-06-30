@@ -90,6 +90,11 @@ export interface WorkspaceSlice {
    */
   previousImageNodeId: string | null;
 
+  /** Image node currently highlighted as a rejoin drop-target — set while an
+   *  extracted node is dragged over its source so the source can pulse a
+   *  "release to rejoin" cue. UI-only, transient (cleared on drag end). */
+  rejoinTargetNodeId: string | null;
+
   /** Per-ImageNode UI-only display mode. Absent ⇒ caller's default
    *  (typically 'objects' when candidateRegions exist, else 'layers').
    *  UI-only; not part of the snapshot SSoT. */
@@ -167,6 +172,7 @@ export interface WorkspaceSlice {
    * The workspace slice does not own selection state.
    */
   setActiveImageNode: (activeImageNodeId: string | null) => void;
+  setRejoinTargetNodeId: (id: string | null) => void;
   setImageNodeMode: (id: string, mode: 'layers' | 'objects') => void;
   setWorkspaceViewport: (v: WorkspaceViewport) => void;
 
@@ -208,6 +214,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
   workspaceViewport: { zoom: 1, pan: { x: 0, y: 0 } },
   activeImageNodeId: null,
   previousImageNodeId: null,
+  rejoinTargetNodeId: null,
   imageNodeMode: {},
   _nextNodeSeq: 1,
   _nextEdgeSeq: 1,
@@ -365,6 +372,11 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       delete state.tetherEdges[edgeId];
     }),
 
+  setRejoinTargetNodeId: (id) =>
+    set((state) => {
+      state.rejoinTargetNodeId = id;
+    }),
+
   setActiveImageNode: (activeImageNodeId) =>
     set((state) => {
       // Track previous: when the active id changes to a different non-null
@@ -439,6 +451,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       state.workspaceViewport = { zoom: 1, pan: { x: 0, y: 0 } };
       state.activeImageNodeId = null;
       state.previousImageNodeId = null;
+      state.rejoinTargetNodeId = null;
       state.imageNodeMode = {};
       state._nextNodeSeq = 1;
       state._nextEdgeSeq = 1;

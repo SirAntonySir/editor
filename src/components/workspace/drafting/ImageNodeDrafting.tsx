@@ -206,6 +206,9 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   const sourceImageNodeId = useEditorStore(
     (s) => s.imageNodes[id]?.sourceImageNodeId,
   );
+  // True while an extracted node is dragged over THIS node (its source) —
+  // drives the "release to rejoin" snap pulse.
+  const isRejoinTarget = useEditorStore((s) => s.rejoinTargetNodeId === id);
 
   // "Rejoin source image" un-does an extract by merging this node back into its
   // source — only valid once the user's edits here are APPLIED. Gate on any
@@ -519,7 +522,7 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
 
   return (
     <div
-      className="relative"
+      className={`relative ${isRejoinTarget ? 'rejoin-snap-target' : ''}`}
       style={{
         paddingLeft: `${leftGutter}px`,
         paddingRight: `${rightGutter}px`,

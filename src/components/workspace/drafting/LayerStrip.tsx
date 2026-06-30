@@ -65,7 +65,7 @@ export function LayerStrip({ layerIds }: LayerStripProps) {
         return (
           <ContextMenu.Root key={layer.id}>
             <ContextMenu.Trigger asChild>
-              <div className="group relative flex items-center gap-1.5">
+              <div className={`group relative flex items-center gap-1.5 ${isVisible ? '' : 'opacity-50'}`}>
                 {/* Hover/focus label — floats to the LEFT of the marker (the
                     strip sits in the left margin) so it never overlaps the
                     photo. Quiet at rest, revealed on hover. */}
@@ -101,18 +101,21 @@ export function LayerStrip({ layerIds }: LayerStripProps) {
                 >
                   <span
                     className={`font-[var(--font-display,Fraunces)] italic text-[14px] w-[18px] text-right tabular-nums ${
-                      isVisible ? 'text-[var(--color-accent)] font-medium' : 'text-text-secondary'
+                      isActive ? 'text-[var(--color-accent)] font-medium' : 'text-text-secondary'
                     }`}
                   >
                     {ordinal}
                   </span>
+                  {/* Fill marks the ACTIVE (edit-target) layer — only one is
+                      active, so a single filled sheet reads cleanly. Visibility
+                      is shown by the eye + the row's dimming, not the fill. */}
                   <span
                     aria-hidden
                     className={`block w-[40px] h-[26px] border transition-colors ${
-                      isVisible
+                      isActive
                         ? 'bg-[var(--color-accent)] border-[var(--color-accent)]'
                         : 'bg-transparent border-text-primary'
-                    } ${isActive ? 'ring-2 ring-offset-1 ring-text-primary' : ''}`}
+                    }`}
                     style={{ transform: 'skewX(-4deg)' }}
                   />
                 </button>

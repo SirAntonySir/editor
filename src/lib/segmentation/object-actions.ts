@@ -161,6 +161,10 @@ export function extractObjectToImageNode(
       srcNode.sourceSize.w > 0 ? srcNode.size.w / srcNode.sourceSize.w : 1;
     editor.setImageNodeDisplayWidth(newNodeId, sourceSize.w * srcScale);
     editor.setActiveImageNode(newNodeId);
+    // Make the guarantee explicit at the verb level (don't rely on
+    // extractLayerFromMask's internal setActiveLayer): the baked layer is the
+    // edit target after extraction.
+    editor.setActiveLayer(newLayerId);
     return { imageNodeId: newNodeId, layerId: newLayerId };
   } catch (err) {
     toast.info(`Extract failed: ${err instanceof Error ? err.message : String(err)}`);

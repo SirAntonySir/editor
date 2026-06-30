@@ -89,6 +89,8 @@ describe('extractObjectToImageNode', () => {
     expect(typeof result!.layerId).toBe('string');
     // The new node is set active, so its id matches activeImageNodeId.
     expect(result!.imageNodeId).toBe(useEditorStore.getState().activeImageNodeId);
+    // The baked layer becomes the active edit layer.
+    expect(useEditorStore.getState().activeLayerId).toBe(result!.layerId);
   });
 });
 
@@ -239,6 +241,9 @@ describe('convertObjectToLayerMask', () => {
 
     // Image-node must include the new layer.
     expect(state.imageNodes[nodeId].layerIds).toContain(dupId);
+    // The masked duplicate becomes the active edit layer so a following
+    // adjustment lands on it (the "convert then adjust" flow).
+    expect(state.activeLayerId).toBe(dupId);
   });
 
   it('is a no-op if duplicateLayer fails', () => {

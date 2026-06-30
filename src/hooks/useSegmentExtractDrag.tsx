@@ -31,15 +31,21 @@ interface ExtractDragHandlers {
 export function useSegmentExtractDrag(opts: ExtractDragOptions): ExtractDragHandlers & {
   dragging: boolean;
   ghost: ReactNode;
+  /** True once immediately after a completed drag (then resets). Call at the
+   *  top of the grab element's onClick so a drag doesn't also fire its click
+   *  (select / SAM-pick). */
+  consumeDragClick: () => boolean;
 } {
   const { screenToFlowPosition } = useReactFlow();
   const start = useRef<{ x: number; y: number } | null>(null);
+  const justDragged = useRef(false);
   // Screen-space cursor while dragging (drives the ghost); null when idle.
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return;
     start.current = { x: e.clientX, y: e.clientY };
+    justDragged.current = false;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }, []);
 
@@ -57,6 +63,7 @@ export function useSegmentExtractDrag(opts: ExtractDragOptions): ExtractDragHand
     start.current = null;
     setCursor(null);
     if (!wasDragging) return; // never passed threshold → a click, leave it alone
+    justDragged.current = true; // suppress the click that follows this pointerup
     e.stopPropagation();
     const dropFlow = screenToFlowPosition({ x: e.clientX, y: e.clientY });
     const node = useEditorStore.getState().imageNodes[opts.sourceImageNodeId];
@@ -82,5 +89,11 @@ export function useSegmentExtractDrag(opts: ExtractDragOptions): ExtractDragHand
       )
     : null;
 
-  return { onPointerDown, onPointerMove, onPointerUp, dragging: cursor !== null, ghost };
+  const consumeDragClick = useCallback(() => {
+    const v = justDragged.current;
+    justDragged.current = false;
+    return v;
+  }, []);
+
+  return { onPointerDown, onPointerMove, onPointerUp, dragging: cursor !== null, ghost, consumeDragClick };
 }

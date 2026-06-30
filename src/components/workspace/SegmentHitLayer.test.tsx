@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, fireEvent, waitFor } from '@testing-library/react';
+import { render as rtlRender, fireEvent, waitFor } from '@testing-library/react';
+import { ReactFlowProvider } from '@xyflow/react';
 import { SegmentHitLayer } from './SegmentHitLayer';
+
+// SegmentHitLayer uses useSegmentExtractDrag → useReactFlow, so renders need a
+// provider (matches the app, where it lives inside <ReactFlow>).
+const render = (ui: React.ReactElement) => rtlRender(<ReactFlowProvider>{ui}</ReactFlowProvider>);
 import { useEditorStore } from '@/store';
 import { useAiSession } from '@/hooks/useImageContext';
 import { useBackendState } from '@/store/backend-state-slice';

@@ -8,6 +8,9 @@ import {
   invertMask,
   type CandidateVerb,
 } from '@/lib/segmentation/candidate-actions';
+import { extractObjectToImageNode } from '@/lib/segmentation/object-actions';
+import { editorDocument } from '@/core/document';
+import { useSegmentExtractDrag } from '@/hooks/useSegmentExtractDrag';
 import { Kbd } from '@/components/ui/kbd';
 import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
 import { SegmentMaskPreview } from './SegmentMaskPreview';
@@ -98,6 +101,67 @@ export function SegmentHitLayer({
     if (!m) return;
     setCandidate({ points: [], mask: invertMask(m), label: candidate?.label });
   }, [candidate]);
+
+  // ── Drag-to-extract (objects mode only) ──────────────────────────────────
+  // Press a mask region — the live selection or a committed object — and drag
+  // it off the image to extract it to a new node at the drop point. A press
+  // that doesn't pass the threshold stays a click (SAM-pick / select).
+  const grabbed = useRef<{ kind: 'candidate' } | { kind: 'object'; maskId: string } | null>(null);
+  const extractDrag = useSegmentExtractDrag({
+    sourceImageNodeId: imageNodeId,
+    label: 'Extract',
+    onExtract: (dropFlow) => {
+      const g = grabbed.current;
+      grabbed.current = null;
+      if (!g) return;
+      const reposition = (nodeId: string) => {
+        const n = useEditorStore.getState().imageNodes[nodeId];
+        const pos = n ? { x: dropFlow.x - n.size.w / 2, y: dropFlow.y - n.size.h / 2 } : dropFlow;
+        editorDocument.workspace.setNodePosition(nodeId, pos);
+      };
+      if (g.kind === 'object') {
+        const res = extractObjectToImageNode(g.maskId, imageNodeId);
+        if (res) reposition(res.imageNodeId);
+        return;
+      }
+      // Live selection: materialize + extract (the new node becomes active),
+      // then reposition it to the drop and clear the selection.
+      const c = candidate;
+      if (!c?.mask || !sessionId) return;
+      void runCandidateVerb(
+        'extract-node',
+        { points: c.points, mask: c.mask, label: c.label, origin: c.origin },
+        { sessionId, imageNodeId, existingCount: existingObjects.length },
+      ).then((id) => {
+        if (!id) return;
+        const newNodeId = useEditorStore.getState().activeImageNodeId;
+        if (newNodeId) reposition(newNodeId);
+        finishSelection();
+      });
+    },
+  });
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!objectsMode) return; // layers mode: body-drags the node, don't arm
+      const el = layerRef.current;
+      if (!el) return;
+      const [nx, ny] = clientToNormalised(e, el);
+      if (candidate?.mask && isInsideMask(nx, ny, candidate.mask)) {
+        grabbed.current = { kind: 'candidate' };
+        extractDrag.onPointerDown(e);
+        return;
+      }
+      const objHit = existingObjects.find((obj) => isInsideMask(nx, ny, obj.mask));
+      if (objHit) {
+        grabbed.current = { kind: 'object', maskId: objHit.id };
+        extractDrag.onPointerDown(e);
+        return;
+      }
+      grabbed.current = null; // empty area → leave for the SAM-pick click
+    },
+    [objectsMode, candidate, existingObjects, extractDrag],
+  );
 
   // Esc discards the live selection. (There is no Enter-to-save — committing
   // happens only via an explicit action verb.)
@@ -229,6 +293,9 @@ export function SegmentHitLayer({
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
+      // A completed extract-drag ends in a click; swallow it so we don't also
+      // select/pick.
+      if (extractDrag.consumeDragClick()) return;
       const el = layerRef.current;
       if (!el) return;
       const [nx, ny] = clientToNormalised(e, el);
@@ -273,7 +340,7 @@ export function SegmentHitLayer({
       // Plain click (or shift without a candidate): start a fresh candidate.
       void runDecode([{ x: nx, y: ny, label: 1 }]);
     },
-    [candidate, runDecode, existingObjects, imageNodeId, objectsMode],
+    [candidate, runDecode, existingObjects, imageNodeId, objectsMode, extractDrag],
   );
 
   return (
@@ -300,9 +367,12 @@ export function SegmentHitLayer({
       style={{ pointerEvents: 'auto', zIndex: 5 }}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
-      onPointerMove={handlePointerMove}
+      onPointerDown={handlePointerDown}
+      onPointerMove={(e) => { handlePointerMove(e); extractDrag.onPointerMove(e); }}
+      onPointerUp={extractDrag.onPointerUp}
       onPointerLeave={handlePointerLeave}
     >
+      {extractDrag.ghost}
       <SegmentMaskPreview
         mask={candidate?.mask ?? null}
         widthPx={widthPx}

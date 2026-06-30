@@ -31,7 +31,7 @@ import { HistoryDropdown } from './HistoryDropdown';
 /* ------------------------------------------------------------------ */
 
 const menuContentClass =
-  'z-50 min-w-[190px] rounded-[var(--radius-panel)] bg-surface border border-border-strong shadow-overlay p-[3px] text-[11px] text-text-primary';
+  'z-50 min-w-[190px] overflow-hidden rounded-[var(--radius-panel)] bg-surface border border-border-strong shadow-overlay p-[3px] text-[11px] text-text-primary';
 
 // Space reserved at the window edge so the OS window controls don't overlap the
 // menus. macOS draws the traffic lights top-left (hiddenInset); Windows draws

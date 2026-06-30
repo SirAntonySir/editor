@@ -51,7 +51,7 @@ export function RegionSuggestions({
       role="listbox"
       aria-label="Element suggestions"
       style={style}
-      className="overlay min-w-[10rem] max-w-[18rem] py-1 text-xs shadow-md"
+      className="overlay overflow-hidden min-w-[10rem] max-w-[18rem] py-1 text-xs shadow-md"
     >
       {elements.map((el, i) => {
         const active = i === activeIndex;

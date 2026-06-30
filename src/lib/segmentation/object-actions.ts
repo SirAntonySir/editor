@@ -56,6 +56,43 @@ export function selectInvertedObject(maskId: string, imageNodeId: string): void 
   );
 }
 
+/** Build a selection from a layer's alpha channel — opaque pixels become the
+ *  selection (or its complement when `invert`). Surfaces as a Save/Cancel
+ *  candidate (same path as Select Inverted), so the user can commit it as an
+ *  Object and adjust within it. Useful for cutout/extracted layers; a fully
+ *  opaque layer selects the whole image (empty when inverted). */
+export function createSelectionFromLayer(
+  layerId: string,
+  imageNodeId: string,
+  { invert = false }: { invert?: boolean } = {},
+): void {
+  const source = pixelStore.getSource(layerId);
+  if (!source) {
+    toast.info('Selection: layer has no pixels yet.');
+    return;
+  }
+  const ctx = source.getContext('2d');
+  if (!ctx) return;
+  const { data } = ctx.getImageData(0, 0, source.width, source.height);
+  const mask = new Uint8Array(source.width * source.height);
+  for (let i = 0; i < mask.length; i++) {
+    const a = data[i * 4 + 3];
+    mask[i] = invert ? 255 - a : a;
+  }
+  const name = useEditorStore.getState().layers.find((l) => l.id === layerId)?.name ?? 'layer';
+  const label = invert ? `Inverted of ${name}` : `Selection from ${name}`;
+  window.dispatchEvent(
+    new CustomEvent('segment-hit:external-candidate', {
+      detail: {
+        imageNodeId,
+        mask: { width: source.width, height: source.height, data: mask },
+        label,
+        origin: 'client_new' as const,
+      },
+    }),
+  );
+}
+
 /** Apply the mask as a layer's `layerMask`. The mask's `layerId` points at
  *  the owning layer; LayerCompositor reads `layer.layerMask` and multiplies
  *  alpha at render time. AI-proposed masks carry a synthetic 'ai-proposed'

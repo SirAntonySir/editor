@@ -4,6 +4,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useEditorStore } from '@/store';
 import { editorDocument } from '@/core/document';
 import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
+import { LayerThumb } from '@/components/ui/LayerThumb';
 import type { Layer, BlendMode } from '@/store/layer-slice';
 
 const BLEND_MODES: BlendMode[] = [
@@ -36,7 +37,9 @@ export function LayerRow({ layer, isActive }: { layer: Layer; isActive: boolean 
       ].join(' ')}
       onClick={() => setActiveLayer(layer.id)}
     >
-      <div className="flex items-center justify-between gap-1.5">
+      <div className="flex items-center gap-2">
+        <LayerThumb layerId={layer.id} active={isActive} width={44} height={32} />
+        <div className="flex items-center justify-between gap-1.5 flex-1 min-w-0">
         {renaming ? (
           <input
             autoFocus
@@ -89,6 +92,7 @@ export function LayerRow({ layer, isActive }: { layer: Layer; isActive: boolean 
         >
           <Trash2 size={11} />
         </button>
+        </div>
       </div>
 
       {/* Opacity — AdjustmentSlider primitive handles label, readout, and Radix track */}

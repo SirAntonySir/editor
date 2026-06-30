@@ -1,29 +1,39 @@
 import { createPortal } from 'react-dom';
-import { MapPin } from 'lucide-react';
-import type { SuggestRegion } from '@/lib/region-suggest';
+import { MapPin, Image as ImageIcon, Layers } from 'lucide-react';
+import type { PaletteElement } from '@/lib/region-suggest';
 
 export interface RegionSuggestionsProps {
-  /** Ranked regions to offer. Empty → the dropdown renders nothing. */
-  regions: SuggestRegion[];
+  /** Ranked elements to offer (regions + targets). Empty → renders nothing. */
+  elements: PaletteElement[];
   /** Index of the keyboard-highlighted row. */
   activeIndex: number;
   /** Caret rect the dropdown anchors under (null → anchored at origin). */
   anchorRect: DOMRect | null;
-  onSelect(region: SuggestRegion): void;
+  onSelect(element: PaletteElement): void;
   onHover(index: number): void;
 }
 
-/** Caret-anchored region picker. Fixed-positioned just below the caret so it
- *  floats over the palette chrome. Mouse-down (not click) drives selection so
- *  the editor never loses focus mid-pick. */
+/** Per-kind affordance: a region pin, an image-node target, or a layer target. */
+function elementGlyph(el: PaletteElement): { Icon: typeof MapPin; tag: string } {
+  if (el.kind === 'target') {
+    return el.targetKind === 'layer'
+      ? { Icon: Layers, tag: 'Layer' }
+      : { Icon: ImageIcon, tag: 'Image' };
+  }
+  return { Icon: MapPin, tag: 'Region' };
+}
+
+/** Caret-anchored element picker (regions + targets). Fixed-positioned just
+ *  below the caret so it floats over the palette chrome. Mouse-down (not click)
+ *  drives selection so the editor never loses focus mid-pick. */
 export function RegionSuggestions({
-  regions,
+  elements,
   activeIndex,
   anchorRect,
   onSelect,
   onHover,
 }: RegionSuggestionsProps) {
-  if (regions.length === 0) return null;
+  if (elements.length === 0) return null;
 
   const style: React.CSSProperties = {
     position: 'fixed',
@@ -39,15 +49,16 @@ export function RegionSuggestions({
   return createPortal(
     <div
       role="listbox"
-      aria-label="Region suggestions"
+      aria-label="Element suggestions"
       style={style}
       className="overlay min-w-[10rem] max-w-[18rem] py-1 text-xs shadow-md"
     >
-      {regions.map((r, i) => {
+      {elements.map((el, i) => {
         const active = i === activeIndex;
+        const { Icon, tag } = elementGlyph(el);
         return (
           <button
-            key={r.sourceId}
+            key={el.sourceId}
             type="button"
             role="option"
             aria-selected={active}
@@ -55,17 +66,17 @@ export function RegionSuggestions({
             // mouseDown fires before the editor's blur, preserving the caret.
             onMouseDown={(e) => {
               e.preventDefault();
-              onSelect(r);
+              onSelect(el);
             }}
             onMouseEnter={() => onHover(i)}
             className={`flex w-full items-center gap-2 px-2 py-1 text-left transition-colors ${
               active ? 'bg-surface-secondary' : 'hover:bg-surface-secondary'
             }`}
           >
-            <MapPin size={12} className="flex-none text-[var(--color-ai)]" />
-            <span className="truncate text-text-primary">{r.label}</span>
+            <Icon size={12} className="flex-none text-[var(--color-ai)]" />
+            <span className="truncate text-text-primary">{el.label}</span>
             <span className="ml-auto flex-none text-[9px] uppercase tracking-wide text-text-secondary">
-              Region
+              {tag}
             </span>
           </button>
         );

@@ -7,7 +7,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ClipboardEvent as ReactClipboardEvent,
 } from 'react';
-import { wordBeforeCaret, type PromptDoc } from '@/lib/prompt-doc';
+import { triggerBeforeCaret, caretTokenToReplace, type PromptDoc } from '@/lib/prompt-doc';
 import {
   CHIP_REMOVE_ATTR,
   CHIP_SOURCE_ATTR,
@@ -32,9 +32,11 @@ export interface PromptEditorProps {
   className?: string;
   /** Fires on every edit with the parsed doc. */
   onChange(doc: PromptDoc): void;
-  /** Fires whenever the caret moves, with the word under the caret (or '')
-   *  and a client rect for the caret (or null). */
-  onCaretWordChange(word: string, caretRect: DOMRect | null): void;
+  /** Fires whenever the caret moves, with the filter query under the caret (the
+   *  plain word, or the text after an `@`), a client rect for the caret (or
+   *  null), and the trigger char (`'@'` for an explicit element mention, else
+   *  `null`). */
+  onCaretWordChange(query: string, caretRect: DOMRect | null, trigger: '@' | null): void;
 }
 
 // Submit (Enter) is intentionally NOT handled here. The palette's
@@ -77,14 +79,15 @@ export const PromptEditor = forwardRef<PromptEditorHandle, PromptEditorProps>(
       const root = editorRef.current;
       const sel = window.getSelection();
       if (!root || !sel || sel.rangeCount === 0 || !root.contains(sel.focusNode)) {
-        onCaretWordChange('', null);
+        onCaretWordChange('', null, null);
         return;
       }
       const node = sel.focusNode;
-      const word =
+      const before =
         node && node.nodeType === Node.TEXT_NODE
-          ? wordBeforeCaret((node.textContent ?? '').slice(0, sel.focusOffset))
+          ? (node.textContent ?? '').slice(0, sel.focusOffset)
           : '';
+      const { trigger, query } = triggerBeforeCaret(before);
       let rect: DOMRect | null = null;
       try {
         const r = sel.getRangeAt(0).cloneRange();
@@ -101,7 +104,7 @@ export const PromptEditor = forwardRef<PromptEditorHandle, PromptEditorProps>(
       } catch {
         rect = root.getBoundingClientRect();
       }
-      onCaretWordChange(word, rect);
+      onCaretWordChange(query, rect, trigger);
     }, [onCaretWordChange]);
 
     const insertChipAtCaret = useCallback(
@@ -118,7 +121,7 @@ export const PromptEditor = forwardRef<PromptEditorHandle, PromptEditorProps>(
           if (node && node.nodeType === Node.TEXT_NODE) {
             const text = node.textContent ?? '';
             const before = text.slice(0, sel.focusOffset);
-            const word = wordBeforeCaret(before);
+            const word = caretTokenToReplace(before);
             if (word) {
               const keep = before.slice(0, before.length - word.length);
               node.textContent = keep + text.slice(sel.focusOffset);
@@ -164,7 +167,7 @@ export const PromptEditor = forwardRef<PromptEditorHandle, PromptEditorProps>(
           const root = editorRef.current;
           if (root) root.replaceChildren();
           onChange([]);
-          onCaretWordChange('', null);
+          onCaretWordChange('', null, null);
         },
       }),
       [insertChipAtCaret, onChange, onCaretWordChange],

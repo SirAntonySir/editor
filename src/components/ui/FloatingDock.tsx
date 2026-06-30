@@ -4,6 +4,7 @@ import { usePreferencesStore } from '@/store/preferences-store';
 import { BackendStatusBar } from '@/components/ui/BackendStatusBar';
 import { SuggestionChips } from '@/components/ui/SuggestionChips';
 import { ClientToolApproval } from '@/components/ui/ClientToolApproval';
+import { RegionExtractionApproval } from '@/components/ui/RegionExtractionApproval';
 import { CommandTrigger } from '@/components/ui/CommandTrigger';
 
 /**
@@ -31,6 +32,7 @@ export function FloatingDock() {
       transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }}
     >
       <BackendStatusBar />
+      <RegionExtractionApproval />
       <ClientToolApproval />
       <SuggestionChips />
       <CommandTrigger />

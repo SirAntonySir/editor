@@ -31,6 +31,42 @@ export function wordBeforeCaret(textBeforeCaret: string): string {
   return m ? m[0] : '';
 }
 
+/** Detect an explicit `@` element-mention under the caret. Returns the
+ *  trigger + the (possibly empty) query typed after it. A bare `@` opens the
+ *  full element list; `@sk` filters it. When there's no `@`, falls back to the
+ *  plain word token so plain typing keeps its region-only fuzzy behaviour.
+ *
+ *  The `@` must start a token (line start or after whitespace) so an email-ish
+ *  "a@b" doesn't trigger the picker. */
+export function triggerBeforeCaret(
+  textBeforeCaret: string,
+): { trigger: '@' | null; query: string } {
+  const m = /(?:^|\s)@([A-Za-z0-9-]*)$/.exec(textBeforeCaret);
+  if (m) return { trigger: '@', query: m[1] };
+  return { trigger: null, query: wordBeforeCaret(textBeforeCaret) };
+}
+
+/** The exact text to delete when accepting a chip at the caret: an `@mention`
+ *  token (including the `@`), or the plain in-progress word. Keeps the editor's
+ *  strip-then-insert logic trigger-aware so "fix the @sk" → "fix the [chip]". */
+export function caretTokenToReplace(textBeforeCaret: string): string {
+  const m = /(?:^|\s)(@[A-Za-z0-9-]*)$/.exec(textBeforeCaret);
+  if (m) return m[1];
+  return wordBeforeCaret(textBeforeCaret);
+}
+
+/** A target reference parsed from a `target:node:<id>` / `target:layer:<id>`
+ *  chip sourceId. Targets are image nodes or layers selected via the `@`
+ *  picker; they drive `forced_targets` (not `attached_objects`). */
+export type TargetRef = { kind: 'node' | 'layer'; id: string };
+
+export function parseTargetSourceId(sourceId: string | undefined): TargetRef | null {
+  const s = sourceId ?? '';
+  if (s.startsWith('target:node:')) return { kind: 'node', id: s.slice('target:node:'.length) };
+  if (s.startsWith('target:layer:')) return { kind: 'layer', id: s.slice('target:layer:'.length) };
+  return null;
+}
+
 /** Pull an object/mask id out of a chip's `sourceId`. Region chips carry the
  *  identifier in the trailing segment; other chip kinds return null. */
 function objectIdFromSourceId(sourceId: string | undefined): string | null {

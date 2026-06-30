@@ -3,6 +3,8 @@ import { Eye, EyeOff } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { editorDocument } from '@/core/document';
+import { LayerThumb } from '@/components/ui/LayerThumb';
+import { createSelectionFromLayer } from '@/lib/segmentation/object-actions';
 
 const MENU_ITEM = 'text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none';
 // Destructive items: red text + red-tinted hover, so a delete reads as a delete.
@@ -13,18 +15,21 @@ import type { Layer } from '@/store/layer-slice';
 import type { BlendMode } from '@/store/layer-slice';
 
 interface LayerStripProps {
+  /** The image node these layers belong to — drives live thumbnails + the
+   *  "create selection from layer" actions. */
+  imageNodeId: string;
   /** Layer ids hosted by this image-node, in newest-first canvas order
    *  (matches the existing `data.layerIds`). */
   layerIds: string[];
 }
 
 /**
- * Tracing-paper column of skewed rectangles in the left margin, one per
- * layer. Visible layers' sheets are filled in ochre; hidden layers are
- * hairline-outlined. Clicking a sheet selects it as the active EDIT layer
- * (the one adjustments target) and rings it; a small eye button toggles
- * visibility independently. Hover/focus reveals the layer's name in italic
- * Fraunces alongside the sheet — keeping the column visually quiet at rest.
+ * Column of layer thumbnails in the left margin, one per layer. Each shows the
+ * layer's pixels (cover-cropped); the active EDIT layer (the one adjustments
+ * target) carries an accent ring, hidden layers are dimmed. Clicking a thumb
+ * selects it as active; a small eye button toggles visibility independently.
+ * Hover/focus reveals the layer's name in italic Fraunces alongside the thumb —
+ * keeping the column visually quiet at rest.
  *
  * The strip is the canvas-side control for "which layer am I editing" + quick
  * show/hide. The Inspector Layer tab is the detail view for opacity / blend
@@ -35,7 +40,7 @@ const BLEND_MODES: BlendMode[] = [
   'darken', 'lighten', 'soft-light', 'hard-light',
 ];
 
-export function LayerStrip({ layerIds }: LayerStripProps) {
+export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
   const allLayers = useEditorStore((s) => s.layers);
   const updateLayer = useEditorStore((s) => s.updateLayer);
   const setActiveLayer = useEditorStore((s) => s.setActiveLayer);
@@ -106,18 +111,9 @@ export function LayerStrip({ layerIds }: LayerStripProps) {
                   >
                     {ordinal}
                   </span>
-                  {/* Fill marks the ACTIVE (edit-target) layer — only one is
-                      active, so a single filled sheet reads cleanly. Visibility
-                      is shown by the eye + the row's dimming, not the fill. */}
-                  <span
-                    aria-hidden
-                    className={`block w-[40px] h-[26px] border transition-colors ${
-                      isActive
-                        ? 'bg-[var(--color-accent)] border-[var(--color-accent)]'
-                        : 'bg-transparent border-text-primary'
-                    }`}
-                    style={{ transform: 'skewX(-4deg)' }}
-                  />
+                  {/* Layer thumbnail — live-updates from the node composite;
+                      the active (edit-target) layer gets an accent ring. */}
+                  <LayerThumb layerId={layer.id} active={isActive} imageNodeId={imageNodeId} />
                 </button>
               </div>
             </ContextMenu.Trigger>
@@ -169,6 +165,19 @@ export function LayerStrip({ layerIds }: LayerStripProps) {
                   onSelect={() => usePreferencesStore.getState().showLayer()}
                 >
                   Open layer panel
+                </ContextMenu.Item>
+                <ContextMenu.Separator className="my-1 h-px bg-separator" />
+                <ContextMenu.Item
+                  className={MENU_ITEM}
+                  onSelect={() => createSelectionFromLayer(layer.id, imageNodeId)}
+                >
+                  Create selection
+                </ContextMenu.Item>
+                <ContextMenu.Item
+                  className={MENU_ITEM}
+                  onSelect={() => createSelectionFromLayer(layer.id, imageNodeId, { invert: true })}
+                >
+                  Create inverted selection
                 </ContextMenu.Item>
                 <ContextMenu.Separator className="my-1 h-px bg-separator" />
                 <ContextMenu.Item

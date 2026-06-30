@@ -8,14 +8,15 @@ import { pixelStore } from '@/core/pixel-store';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { spawnRegistryOp, spawnRegistryPreset } from '@/lib/toolrail-spawn';
-import { runAgentTurn } from '@/lib/palette-actions.agent';
 import { PromptEditor, type PromptEditorHandle } from '@/components/ui/PromptEditor';
 import { RegionSuggestions } from './RegionSuggestions';
-import { rankRegions, type SuggestRegion } from '@/lib/region-suggest';
+import { rankElements, type PaletteElement } from '@/lib/region-suggest';
 import { docToPlainText, serializePromptDoc, type PromptDoc } from '@/lib/prompt-doc';
+import { submitAgentPrompt } from '@/lib/palette-submit';
+import { usePaletteRuntime } from '@/store/palette-runtime';
 import { useMenuActions } from '@/lib/menu-actions';
 import { usePreferencesStore } from '@/store/preferences-store';
-import { analyseActiveImageLayer, useAiSession } from '@/hooks/useImageContext';
+import { useAiSession } from '@/hooks/useImageContext';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
 import { useSmartMatch } from '@/hooks/useSmartMatch';
 import { useAsk } from '@/hooks/useAsk';
@@ -27,11 +28,13 @@ import {
   buildMenuActionSections,
   buildPreferencesSections,
   buildRegionsSections,
+  buildTargetElements,
   filterSections,
   flattenSections,
   imageNodeLabel,
   resolveInitialTargetId,
   nextTargetId,
+  type AttachedContextItem,
   type PaletteCommand,
   type PaletteSection,
 } from '@/lib/command-palette';
@@ -60,12 +63,14 @@ export function CommandPalette() {
   /** Caret-anchored region picker state: the ranked matches, the highlighted
    *  row, and the caret rect to anchor under. `regions: []` means closed. */
   const [suggest, setSuggest] = useState<{
-    regions: SuggestRegion[];
+    regions: PaletteElement[];
     index: number;
     anchor: DOMRect | null;
   }>({ regions: [], index: 0, anchor: null });
   const [activeIndex, setActiveIndex] = useState(0);
-  const [pending, setPending] = useState<string | null>(null);
+  // In-flight Agent-turn state lives in a shared store (not local) so it
+  // survives the palette closing on submit and the minimized pill can read it.
+  const pending = usePaletteRuntime((s) => s.pending);
   /** Agent mode (default) drives the registry-driven palette. Ask mode swaps
    *  the results scroll for an LLM-answered markdown view. Toggled by the
    *  pill in the input row. */
@@ -78,8 +83,8 @@ export function CommandPalette() {
   /** Sub-phase of the AI flow shown in the input placeholder while a
    *  request is in flight: 'analyze' (image context being built) → 'propose'
    *  (LLM stack call). `null` outside the AI path. */
-  const [pendingPhase, setPendingPhase] = useState<'analyze' | 'propose' | null>(null);
-  const [errorState, setErrorState] = useState<{ code?: string; message: string; hint?: string } | null>(null);
+  const pendingPhase = usePaletteRuntime((s) => s.phase);
+  const errorState = usePaletteRuntime((s) => s.error);
   /** Context items attached to the AI prompt — populated when the user picks
    *  "Ask AI about this" on a chip menu, or drops a chip onto Cmd+K. Each
    *  item is prepended to the LLM prompt as a structured `Image context:` block. */
@@ -108,13 +113,21 @@ export function CommandPalette() {
   // caret picker. Reuses the same merge `buildRegionsSections` performs, so the
   // dropdown and the "Regions" list stay in sync. Recomputes when masks or AI
   // context change.
-  const regionList = useMemo<SuggestRegion[]>(
+  const regionList = useMemo<PaletteElement[]>(
     () =>
       buildRegionsSections()
         .flatMap((s) => s.commands)
-        .map((c) => ({ label: c.label, sourceId: c.chipSourceId ?? c.id })),
+        .map((c) => ({ kind: 'region' as const, label: c.label, sourceId: c.chipSourceId ?? c.id })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [aiContext, ownershipVersion, maskVersion],
+  );
+
+  // The `@` picker offers regions PLUS targets (image nodes + their image
+  // layers). Plain typing still ranks `regionList` only (see handleCaretWord),
+  // so a typed sentence doesn't flood the dropdown with every node/layer.
+  const elementList = useMemo<PaletteElement[]>(
+    () => [...regionList, ...buildTargetElements(imageNodes, layers)],
+    [regionList, imageNodes, layers],
   );
 
   // Right-sidebar geometry — used to keep the palette centered over the
@@ -313,13 +326,16 @@ export function CommandPalette() {
         return merged;
       });
       if (!open) {
-        // Preserve query + chips across opens — they only reset on
-        // successful submit or when the user clears them by hand. The
-        // pending state DOES get cleared here so a stale "Sending …" from
-        // a previous flight doesn't show on a fresh open.
-        setPending(null);
-        setPendingPhase(null);
-        setErrorState(null);
+        // Preserve query + chips across opens. In-flight / error state lives in
+        // usePaletteRuntime now and is intentionally NOT cleared here — a turn
+        // submitted earlier keeps loading on the pill, and reopening shows it.
+        // After a FAILED turn, repopulate the prompt + chips from the restore
+        // snapshot so the user can edit and retry instead of retyping.
+        const rt = usePaletteRuntime.getState();
+        if (rt.error && rt.restore) {
+          setDoc(rt.restore.doc);
+          setAttachedContext(rt.restore.attachedContext);
+        }
         setOpen(true);
       }
     }
@@ -379,11 +395,17 @@ export function CommandPalette() {
   // Caret moved in the editor — rank regions against the word under it and
   // (re)position the picker. An empty ranking closes the dropdown.
   const handleCaretWord = useCallback(
-    (word: string, rect: DOMRect | null) => {
-      const ranked = rankRegions(regionList, word);
+    (query: string, rect: DOMRect | null, trigger: '@' | null) => {
+      // `@` is the explicit "show me everything" affordance: the full element
+      // list (regions + targets), all of it on a bare `@`, filtered as the user
+      // types. Plain typing keeps the region-only fuzzy behaviour.
+      const ranked =
+        trigger === '@'
+          ? rankElements(elementList, query, { allowEmpty: true, limit: 24, minChars: 1 })
+          : rankElements(regionList, query);
       setSuggest({ regions: ranked, index: 0, anchor: rect });
     },
-    [regionList],
+    [regionList, elementList],
   );
 
   const closeSuggest = useCallback(
@@ -397,8 +419,8 @@ export function CommandPalette() {
   // the prompt is submitted (Enter → agent turn). Used by the keyboard accept,
   // the dropdown, and the Regions chip strip.
   const acceptSuggestion = useCallback(
-    (region: SuggestRegion) => {
-      editorRef.current?.insertChipAtCaret({ label: region.label, sourceId: region.sourceId });
+    (element: { label: string; sourceId: string }) => {
+      editorRef.current?.insertChipAtCaret({ label: element.label, sourceId: element.sourceId });
       closeSuggest();
     },
     [closeSuggest],
@@ -437,65 +459,21 @@ export function CommandPalette() {
         return;
       }
       if (cmd.kind === 'ai') {
-        if (pending) return; // already in flight — ignore double-submit
-        // Inline chips contribute their label to `intent` and their raw
-        // sourceId to `chipSourceIds`; tray chips fold in too. runAgentTurn
-        // deterministically extracts each chip's region into its own image node
-        // before the loop and hands the loop those nodes as forced targets.
-        const { intent: submitted, chipSourceIds } = serializePromptDoc(doc, attachedContext);
-        if (!submitted) return;
-        setPending(submitted);
-        setErrorState(null);
-
-        // Backend's propose_stack(mcp_user_prompt) rejects with
-        // `missing_context` when the image hasn't been analyzed. Rather than
-        // surface a dead-end error, auto-run analyze first — the user types
-        // a prompt and presses Enter, gets a single pending state for both
-        // the analyze and the AI call.
-        const aiSession = useAiSession.getState();
-        if (!aiSession.context) {
-          setPendingPhase('analyze');
-          try {
-            // Analysis-only: skip the autonomous widget suggestions here — the
-            // user's prompt (the agent turn below) is what should drive
-            // proposals, not the implicit analyze that precedes it.
-            await analyseActiveImageLayer({ suggest: false });
-          } catch (err) {
-            setPending(null);
-            setPendingPhase(null);
-            setErrorState({
-              message: err instanceof Error ? err.message : 'Analyze failed.',
-            });
-            return;
-          }
-          setPendingPhase('propose');
-          // Bail if the user hit ESC mid-analyze.
-          if (useAiSession.getState().context == null) {
-            setPending(null);
-            setPendingPhase(null);
-            return;
-          }
-        }
-
-        // Agentic turn: the backend runs a multi-turn loop that may call client
-        // tools (extract/select, gated by approval) and propose_adjustment_widgets.
-        // Attached region chips are pre-extracted to their own nodes inside
-        // runAgentTurn. If the user ESC'd mid-flight, the dialog unmounts and
-        // these setStates no-op.
-        const turn = await runAgentTurn(submitted, chipSourceIds);
-        if (turn.ok) {
-          setPending(null);
-          setPendingPhase(null);
-          resetPalette();
-          setOpen(false);
-        } else {
-          setPending(null);
-          setPendingPhase(null);
-          setErrorState({ message: 'The agent could not complete that request.' });
-        }
+        if (usePaletteRuntime.getState().pending) return; // already in flight
+        // Guard against an empty prompt before we tear the palette down.
+        const { intent } = serializePromptDoc(doc, attachedContext);
+        if (!intent) return;
+        // Fire-and-forget: the turn runs in `submitAgentPrompt` (module scope,
+        // driving usePaletteRuntime) so it survives the close. The pill shows
+        // the loader; the proposed widgets/segmentation questions stream onto
+        // the now-visible canvas; a failure leaves the store in an error state
+        // that reopening restores from.
+        void submitAgentPrompt(doc, attachedContext);
+        resetPalette();
+        setOpen(false);
       }
     },
-    [doc, pending, attachedContext, resetPalette, acceptSuggestion],
+    [doc, attachedContext, resetPalette, acceptSuggestion],
   );
 
   const onKeyDown = useCallback(
@@ -718,7 +696,7 @@ export function CommandPalette() {
                   <PromptEditor
                     ref={editorRef}
                     initialDoc={doc}
-                    onChange={(d) => { setDoc(d); if (errorState) setErrorState(null); }}
+                    onChange={(d) => { setDoc(d); if (usePaletteRuntime.getState().error) usePaletteRuntime.getState().clearError(); }}
                     onCaretWordChange={handleCaretWord}
                     disabled={mode === 'agent' && !!pending}
                     placeholder={
@@ -742,7 +720,7 @@ export function CommandPalette() {
                   )}
                 </div>
                 <RegionSuggestions
-                  regions={suggest.regions}
+                  elements={suggest.regions}
                   activeIndex={suggest.index}
                   anchorRect={suggest.anchor}
                   onSelect={acceptSuggestion}
@@ -894,16 +872,6 @@ export function CommandPalette() {
       </AnimatePresence>
     </Dialog.Root>
   );
-}
-
-/** Target chip — shows the active image node's name. Truncates long file
- *  names so the chip never blows out the row layout (the bug the screenshot
- *  showed). */
-interface AttachedContextItem {
-  id: string;
-  label: string;
-  value: string;
-  sourceId?: string;
 }
 
 /** Inline context chips rendered inside the input row (just before the

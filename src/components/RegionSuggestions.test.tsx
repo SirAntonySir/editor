@@ -1,13 +1,13 @@
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { it, expect, vi, afterEach } from 'vitest';
 import { RegionSuggestions } from './RegionSuggestions';
-import type { SuggestRegion } from '@/lib/region-suggest';
+import type { PaletteElement } from '@/lib/region-suggest';
 
 afterEach(cleanup);
 
-const REGIONS: SuggestRegion[] = [
-  { label: 'shoes', sourceId: 'region:object:m1' },
-  { label: 'shirt', sourceId: 'region:object:m2' },
+const REGIONS: PaletteElement[] = [
+  { kind: 'region', label: 'shoes', sourceId: 'region:object:m1' },
+  { kind: 'region', label: 'shirt', sourceId: 'region:object:m2' },
 ];
 
 const anchor = { left: 10, bottom: 20, top: 12, right: 40, width: 30, height: 8 } as DOMRect;
@@ -15,7 +15,7 @@ const anchor = { left: 10, bottom: 20, top: 12, right: 40, width: 30, height: 8 
 it('renders nothing when there are no regions', () => {
   const { container } = render(
     <RegionSuggestions
-      regions={[]}
+      elements={[]}
       activeIndex={0}
       anchorRect={anchor}
       onSelect={() => {}}
@@ -28,7 +28,7 @@ it('renders nothing when there are no regions', () => {
 it('renders a row per region', () => {
   render(
     <RegionSuggestions
-      regions={REGIONS}
+      elements={REGIONS}
       activeIndex={0}
       anchorRect={anchor}
       onSelect={() => {}}
@@ -42,7 +42,7 @@ it('renders a row per region', () => {
 it('marks the active row', () => {
   render(
     <RegionSuggestions
-      regions={REGIONS}
+      elements={REGIONS}
       activeIndex={1}
       anchorRect={anchor}
       onSelect={() => {}}
@@ -59,7 +59,7 @@ it('calls onSelect with the clicked region', () => {
   const onSelect = vi.fn();
   render(
     <RegionSuggestions
-      regions={REGIONS}
+      elements={REGIONS}
       activeIndex={0}
       anchorRect={anchor}
       onSelect={onSelect}

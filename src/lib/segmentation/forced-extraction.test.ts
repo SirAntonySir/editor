@@ -21,14 +21,30 @@ describe('planForcedExtractions', () => {
     expect(plan.fallbackIds).toEqual([]);
   });
 
-  it('falls back when the mask is missing or the ai-region has no maskRef', () => {
+  it('falls back when the mask is missing and there is nothing to segment from', () => {
     const plan = planForcedExtractions(
       ['region:object:gone', 'region:ai:grass'],
       REGIONS,
       () => false,
     );
     expect(plan.extractable).toEqual([]);
+    expect(plan.segmentable).toEqual([]);
     // parsed object ids: committed → its mask id; ai → its label
     expect(plan.fallbackIds).toEqual(['gone', 'grass']);
+  });
+
+  it('routes a maskless ai-region with a representativePoint to segmentable', () => {
+    const regions = [
+      ...REGIONS,
+      { label: 'Shoes', description: '', representativePoint: [0.5, 0.4] },
+    ] as unknown as CandidateRegion[];
+    // No mask exists yet (Render: server-side SAM precompute is off), but the
+    // region carries a click point → segment it client-side, don't fall back.
+    const plan = planForcedExtractions(['region:ai:shoes'], regions, () => false);
+    expect(plan.extractable).toEqual([]);
+    expect(plan.segmentable).toEqual([
+      { sourceId: 'region:ai:shoes', label: 'Shoes', point: [0.5, 0.4] },
+    ]);
+    expect(plan.fallbackIds).toEqual([]);
   });
 });

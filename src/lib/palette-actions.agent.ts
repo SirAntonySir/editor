@@ -7,6 +7,8 @@ import { maskStore } from '@/core/mask-store';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
 import { extractObjectToImageNode } from '@/lib/segmentation/object-actions';
 import { planForcedExtractions } from '@/lib/segmentation/forced-extraction';
+import { segmentRegionFromPoint } from '@/lib/segmentation/segment-region';
+import { extractObjectIds } from '@/lib/prompt-doc';
 
 /** The v1 curated tool set the agent loop exposes to the LLM (spec §3.F).
  *  propose_adjustment_widgets is dispatched server-side, so it is NOT a client
@@ -41,13 +43,34 @@ export async function runAgentTurn(
 
   const forcedTargets: { image_node_id: string; layer_ids: string[] }[] = [];
   const fallbackIds = [...plan.fallbackIds];
-  for (const { maskId } of plan.extractable) {
-    const sourceNodeId = objectOwnership.get(maskId) ?? activeNodeId ?? undefined;
+
+  const pushExtraction = (maskId: string, sourceNodeId: string | undefined): void => {
     const extracted = sourceNodeId ? extractObjectToImageNode(maskId, sourceNodeId) : null;
     if (extracted) {
       forcedTargets.push({ image_node_id: extracted.imageNodeId, layer_ids: [extracted.layerId] });
     } else {
       fallbackIds.push(maskId); // extraction failed → let the agent try
+    }
+  };
+
+  // 1. Regions that already have a mask: extract straight away.
+  for (const { maskId } of plan.extractable) {
+    pushExtraction(maskId, objectOwnership.get(maskId) ?? activeNodeId ?? undefined);
+  }
+
+  // 2. Maskless AI regions with a click point: segment client-side (MobileSAM)
+  //    first — this is the Render path, where masks aren't precomputed — then
+  //    extract. If segmentation fails, fall back so the agent can still try.
+  for (const seg of plan.segmentable) {
+    if (!activeNodeId) {
+      fallbackIds.push(...extractObjectIds([{ sourceId: seg.sourceId }]));
+      continue;
+    }
+    const maskId = await segmentRegionFromPoint(activeNodeId, seg.point, seg.label);
+    if (maskId) {
+      pushExtraction(maskId, activeNodeId);
+    } else {
+      fallbackIds.push(...extractObjectIds([{ sourceId: seg.sourceId }]));
     }
   }
 

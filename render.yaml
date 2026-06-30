@@ -17,7 +17,11 @@ services:
     region: frankfurt        # closest Render region to Munich
     numInstances: 1          # in-memory state — do NOT scale past 1
     healthCheckPath: /health
-    autoDeploy: false
+    # Auto-deploy backend changes on push to main. NOTE: the service is stateful
+    # (in-memory sessions + SSE), so a deploy restarts it and drops any active
+    # session — fine for the study (each participant starts fresh), and it stops
+    # backend fixes from silently lagging behind the Vercel frontend.
+    autoDeploy: true
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false          # set in the Render dashboard (secret)

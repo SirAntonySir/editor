@@ -14,6 +14,7 @@ vi.mock('@/store/segment-actions', () => ({
 
 const {
   extractObjectToImageNode,
+  extractObjectToLayer,
   selectInvertedObject,
   convertObjectToLayerMask,
 } = await import('./object-actions');
@@ -88,6 +89,39 @@ describe('extractObjectToImageNode', () => {
     expect(typeof result!.layerId).toBe('string');
     // The new node is set active, so its id matches activeImageNodeId.
     expect(result!.imageNodeId).toBe(useEditorStore.getState().activeImageNodeId);
+  });
+});
+
+// ─── extractObjectToLayer ────────────────────────────────────────────────────
+
+describe('extractObjectToLayer', () => {
+  it('bakes a cutout into a new layer on the SAME node and returns its id', () => {
+    const editor = useEditorStore.getState();
+    const srcId = editor.addImageNode(['srcLayer'], { x: 0, y: 0 }, { w: 100, h: 100 });
+    const maskRef = maskStore.register({
+      layerId: 'srcLayer',
+      width: 4,
+      height: 4,
+      data: new Uint8Array(16).fill(255),
+      source: 'sam-point',
+      createdAt: 0,
+    });
+
+    const newId = extractObjectToLayer(maskRef, srcId);
+
+    expect(newId).toBe('cut-layer'); // the mocked extractLayerFromMask return
+    const node = useEditorStore.getState().imageNodes[srcId];
+    expect(node.layerIds).toContain('cut-layer');
+    // It must NOT spawn a new image node — the cutout stays in the source node.
+    expect(Object.keys(useEditorStore.getState().imageNodes)).toEqual([srcId]);
+  });
+
+  it('returns null when the source node does not exist', () => {
+    const maskRef = maskStore.register({
+      layerId: 'l', width: 2, height: 2, data: new Uint8Array(4).fill(255),
+      source: 'sam-point', createdAt: 0,
+    });
+    expect(extractObjectToLayer(maskRef, 'nope')).toBeNull();
   });
 });
 

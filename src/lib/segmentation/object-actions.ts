@@ -168,6 +168,56 @@ export function extractObjectToImageNode(
   }
 }
 
+/** Bake the masked pixels into a new layer on top of the source layer, in the
+ *  SAME image node (a visible cutout, transparent elsewhere). Unlike
+ *  extractObjectToImageNode this does NOT spawn a new node. Returns the new
+ *  layer id, or null on failure. */
+export function extractObjectToLayer(
+  maskId: string,
+  sourceImageNodeId: string,
+): string | null {
+  const mask = maskStore.get(maskId);
+  if (!mask) {
+    toast.info('Extract: mask no longer exists.');
+    return null;
+  }
+  const editor = useEditorStore.getState();
+  const srcNode = editor.imageNodes[sourceImageNodeId];
+  if (!srcNode) return null;
+  // Same source-layer resolution as extractObjectToImageNode: prefer the mask's
+  // real layer, else the active layer when it lives on this node, else first.
+  const isRealLayer = editor.layers.some((l) => l.id === mask.layerId);
+  const sourceLayerId = isRealLayer
+    ? mask.layerId
+    : (editor.activeLayerId && srcNode.layerIds.includes(editor.activeLayerId)
+        ? editor.activeLayerId
+        : srcNode.layerIds[0]);
+  if (!sourceLayerId) {
+    toast.info('Extract: no source layer available on this image node.');
+    return null;
+  }
+  try {
+    // cropToMaskBbox: false keeps the cutout at full source dimensions so it
+    // stays aligned on top of the source rather than cropped to a floating box.
+    const newLayerId = extractLayerFromMask({
+      sourceLayerId,
+      maskRef: maskId,
+      cropToMaskBbox: false,
+    });
+    useEditorStore.setState((s) => {
+      const node = s.imageNodes[sourceImageNodeId];
+      if (node && !node.layerIds.includes(newLayerId)) {
+        node.layerIds.push(newLayerId);
+      }
+    });
+    editor.setActiveLayer(newLayerId);
+    return newLayerId;
+  } catch (err) {
+    toast.info(`Extract failed: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
 /** Optimistic delete: filter the snapshot's masksIndex + clear ownership +
  *  reset activeObjectId locally, then ask the backend to drop the mask. */
 export async function deleteObject(maskId: string): Promise<void> {

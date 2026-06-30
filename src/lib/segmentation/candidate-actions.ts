@@ -5,6 +5,11 @@ import { useAiSession } from '@/hooks/useImageContext';
 import { maskToPngBase64 } from '@/lib/segmentation/mask-png';
 import { matchRegionLabelByBbox } from '@/lib/match-region-by-bbox';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
+import {
+  extractObjectToImageNode,
+  extractObjectToLayer,
+  convertObjectToLayerMask,
+} from '@/lib/segmentation/object-actions';
 import { toast } from '@/components/ui/Toast';
 import type { DecodedMask, SamPoint } from '@/lib/segmentation/mobile-sam-types';
 
@@ -74,6 +79,25 @@ export async function materializeCandidate(
     });
   }
   return maskId;
+}
+
+export type CandidateVerb = 'extract-node' | 'extract-layer' | 'convert-mask';
+
+/** Run a committing verb on a live selection: materialize the mask, then run
+ *  the matching object action with the new id. Returns the new mask id, or null
+ *  if materialize failed (in which case no action runs and the caller keeps the
+ *  selection). Select Inverted is NOT here — it stays transient (see invertMask). */
+export async function runCandidateVerb(
+  verb: CandidateVerb,
+  sel: LiveSelection,
+  ctx: { sessionId: string; imageNodeId: string; existingCount: number },
+): Promise<string | null> {
+  const id = await materializeCandidate(sel, ctx);
+  if (!id) return null;
+  if (verb === 'extract-node') extractObjectToImageNode(id, ctx.imageNodeId);
+  else if (verb === 'extract-layer') extractObjectToLayer(id, ctx.imageNodeId);
+  else if (verb === 'convert-mask') convertObjectToLayerMask(id, ctx.imageNodeId);
+  return id;
 }
 
 /** Build the inverse of a mask (0 ↔ 255). Pure — used by "Select Inverted" to

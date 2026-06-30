@@ -16,9 +16,15 @@ vi.mock('@/lib/backend-tools', () => ({
 vi.mock('@/hooks/useImageContext', () => ({
   useAiSession: { getState: () => ({ context: null }) },
 }));
+vi.mock('./object-actions', () => ({
+  extractObjectToImageNode: vi.fn(() => ({ imageNodeId: 'n2', layerId: 'L2' })),
+  extractObjectToLayer: vi.fn(() => 'L3'),
+  convertObjectToLayerMask: vi.fn(),
+}));
 
 const { backendTools } = await import('@/lib/backend-tools');
-const { materializeCandidate, invertMask } = await import('./candidate-actions');
+const objectActions = await import('./object-actions');
+const { materializeCandidate, invertMask, runCandidateVerb } = await import('./candidate-actions');
 
 function mask(width = 4, height = 4): DecodedMask {
   const data = new Uint8Array(width * height);
@@ -66,6 +72,40 @@ describe('materializeCandidate', () => {
       { sessionId: 'sess-1', imageNodeId: 'in-1', existingCount: 0 },
     );
     expect(id).toBeNull();
+  });
+});
+
+describe('runCandidateVerb', () => {
+  const sel = { points: [{ x: 0.1, y: 0.1, label: 1 as const }], mask: mask() };
+  const ctx = { sessionId: 'sess-1', imageNodeId: 'in-1', existingCount: 0 };
+
+  beforeEach(() => {
+    (objectActions.extractObjectToImageNode as ReturnType<typeof vi.fn>).mockClear();
+    (objectActions.extractObjectToLayer as ReturnType<typeof vi.fn>).mockClear();
+    (objectActions.convertObjectToLayerMask as ReturnType<typeof vi.fn>).mockClear();
+  });
+
+  it('materializes then extracts to image node with the new mask id', async () => {
+    const id = await runCandidateVerb('extract-node', sel, ctx);
+    expect(id).toBe('new-mask');
+    expect(objectActions.extractObjectToImageNode).toHaveBeenCalledWith('new-mask', 'in-1');
+  });
+
+  it('materializes then extracts to a new in-place layer', async () => {
+    await runCandidateVerb('extract-layer', sel, ctx);
+    expect(objectActions.extractObjectToLayer).toHaveBeenCalledWith('new-mask', 'in-1');
+  });
+
+  it('materializes then converts to layer mask', async () => {
+    await runCandidateVerb('convert-mask', sel, ctx);
+    expect(objectActions.convertObjectToLayerMask).toHaveBeenCalledWith('new-mask', 'in-1');
+  });
+
+  it('returns null and runs no action when materialize fails', async () => {
+    (backendTools.propose_mask as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, error: { message: 'boom' } });
+    const id = await runCandidateVerb('extract-node', sel, ctx);
+    expect(id).toBeNull();
+    expect(objectActions.extractObjectToImageNode).not.toHaveBeenCalled();
   });
 });
 

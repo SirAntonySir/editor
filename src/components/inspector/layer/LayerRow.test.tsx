@@ -121,6 +121,16 @@ describe('LayerRow — blend mode dropdown', () => {
   });
 });
 
+describe('LayerRow — delete', () => {
+  it('removes the layer when the delete button is clicked', () => {
+    seedLayer();
+    render(<LayerRow layer={getLayer()} isActive />);
+
+    fireEvent.click(screen.getByRole('button', { name: /delete photo\.jpg/i }));
+    expect(useEditorStore.getState().layers.find((l) => l.id === 'L1')).toBeUndefined();
+  });
+});
+
 describe('LayerRow — active left bar class', () => {
   it('active row has ochre left border class, inactive row has transparent left border class', () => {
     seedLayer();

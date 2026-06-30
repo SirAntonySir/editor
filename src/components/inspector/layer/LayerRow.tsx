@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Lock, LockOpen, Pencil, ChevronDown } from 'lucide-react';
+import { Eye, EyeOff, Lock, LockOpen, Pencil, Trash2, ChevronDown } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useEditorStore } from '@/store';
+import { editorDocument } from '@/core/document';
 import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
 import type { Layer, BlendMode } from '@/store/layer-slice';
 
@@ -79,6 +80,14 @@ export function LayerRow({ layer, isActive }: { layer: Layer; isActive: boolean 
           className={layer.locked ? 'text-[var(--color-accent)]' : 'text-text-secondary hover:text-[var(--color-accent)]'}
         >
           {layer.locked ? <Lock size={11} /> : <LockOpen size={11} />}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); editorDocument.workspace.removeLayer(layer.id); }}
+          aria-label={`Delete ${layer.name}`}
+          className="text-text-secondary hover:text-[var(--color-danger,#e5484d)]"
+        >
+          <Trash2 size={11} />
         </button>
       </div>
 

@@ -58,6 +58,8 @@ export interface PreferencesState {
   showImageContext: () => void;
   /** Open the sidebar and select the Crop tab. */
   showCrop: () => void;
+  /** Open the sidebar and select the Layer tab. */
+  showLayer: () => void;
 }
 
 export const SIDEBAR_MIN_WIDTH = 200;
@@ -107,6 +109,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       // Reveal context: ensure the sidebar is open and the Info tab is active.
       showImageContext: () => set({ rightSidebarCollapsed: false, inspectorTab: 'info' }),
       showCrop: () => set({ rightSidebarCollapsed: false, inspectorTab: 'crop' }),
+      showLayer: () => set({ rightSidebarCollapsed: false, inspectorTab: 'layer' }),
     }),
     {
       name: 'editor-preferences',

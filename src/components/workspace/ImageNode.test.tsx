@@ -108,7 +108,7 @@ describe('ImageNode', () => {
       trigger.focus();
       await user.keyboard('{Enter}');
       expect(screen.getByRole('menuitem', { name: /Split last layer/i })).toBeInTheDocument();
-      expect(screen.getByRole('menuitem', { name: /^Delete$/i })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: /^Delete image$/i })).toBeInTheDocument();
     });
 
     it('Delete menu item removes the node from the store', async () => {
@@ -121,7 +121,7 @@ describe('ImageNode', () => {
       const trigger = screen.getByLabelText('Image node menu');
       trigger.focus();
       await user.keyboard('{Enter}');
-      const deleteItem = screen.getByRole('menuitem', { name: /^Delete$/i });
+      const deleteItem = screen.getByRole('menuitem', { name: /^Delete image$/i });
       deleteItem.focus();
       await user.keyboard('{Enter}');
       expect(useEditorStore.getState().imageNodes[id]).toBeUndefined();
@@ -249,7 +249,7 @@ describe('right-click context menu', () => {
     await user.pointer({ target: body, keys: '[MouseRight]' });
     expect(await screen.findByText('Crop…')).toBeInTheDocument();
     expect(screen.getByText('Rotate 90° CW')).toBeInTheDocument();
-    expect(screen.getByText('Delete')).toBeInTheDocument();
+    expect(screen.getByText('Delete image')).toBeInTheDocument();
   });
 });
 
@@ -334,7 +334,7 @@ describe('ImageNode · merge via dropdown menu', () => {
     const trigger = screen.getByLabelText('Image node menu');
     trigger.focus();
     await user.keyboard('{Enter}');
-    expect(screen.getByRole('menuitem', { name: /^Delete$/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /^Delete image$/i })).toBeInTheDocument();
   });
 });
 

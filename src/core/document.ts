@@ -20,6 +20,7 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { useAiSession } from '@/hooks/useImageContext';
 import { clearInternalCanvasCache } from '@/lib/image-node-geometry';
+import { mergeVisibleLayersBody } from '@/lib/merge-visible-layers';
 import { downscaleForUpload } from '@/lib/downscale-for-upload';
 import { parseImageMetadata } from '@/lib/image-metadata';
 import { backendTools } from '@/lib/backend-tools';
@@ -605,6 +606,24 @@ const workspace = {
     recordSnapshot('Remove image node', () =>
       useEditorStore.getState().removeImageNode(id),
     );
+  },
+
+  /** Merge an image node's visible layers into one flat raster layer
+   *  ("Merge Visible"). One undo step; no-op (with toast) when <2 visible. */
+  mergeVisibleLayers(imageNodeId: string): void {
+    recordSnapshot('Merge visible layers', () => mergeVisibleLayersBody(imageNodeId));
+  },
+
+  /** Delete a single layer through the facade so it's undoable. Catches the
+   *  "layer has children" throw (leaves the layer in place). */
+  removeLayer(id: string): void {
+    recordSnapshot('Delete layer', () => {
+      try {
+        useEditorStore.getState().removeLayer(id);
+      } catch {
+        /* layer has children — remove children first. */
+      }
+    });
   },
 
   /**

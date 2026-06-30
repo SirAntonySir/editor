@@ -256,10 +256,10 @@ function ObjectLabel({
           </ContextMenu.Item>
           <ContextMenu.Separator className="my-1 h-px bg-separator" />
           <ContextMenu.Item
-            className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none text-text-secondary"
+            className="text-[12px] px-2 py-1.5 rounded-[3px] cursor-pointer outline-none text-[var(--color-danger,#e5484d)] hover:bg-[color-mix(in_srgb,var(--color-danger,#e5484d)_12%,transparent)]"
             onSelect={() => void deleteObject(obj.id)}
           >
-            Delete
+            Delete object mask
           </ContextMenu.Item>
         </ContextMenu.Content>
       </ContextMenu.Portal>

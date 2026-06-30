@@ -109,6 +109,15 @@ export interface RenderImageNodeCompositeArgs {
    * extra node overrides any `opGraph.nodes` entry with the same id.
    */
   extraNodes?: OperationNode[];
+  /**
+   * Bake mode for "Merge visible layers". When true, stop after the per-layer
+   * composite (per-layer adjustments + mask + blend + opacity) and write that to
+   * `canvas` — skipping the node-scope pass, geometry (crop/rotate) and the
+   * overlay pass. The result is the flat, appearance-true raster of the visible
+   * layers in source space; whole-node adjustments stay live on the op-graph.
+   * Use with `renderScale: 1` for a full-resolution bake.
+   */
+  bakePerLayerOnly?: boolean;
 }
 
 function clampRenderScale(scale: number | undefined): number {
@@ -324,6 +333,19 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
     ctx.globalCompositeOperation = BLEND_MODE_MAP[layer.blendMode] ?? 'source-over';
     ctx.drawImage(rendered, 0, 0, internal.width, internal.height);
     ctx.restore();
+  }
+
+  // ---- Bake mode: stop after the per-layer composite ----------------------
+  // "Merge visible layers" wants the flat raster of the visible layers WITHOUT
+  // node-scope adjustments, geometry, or overlays (those stay live on the
+  // op-graph). Blit `internal` (source-space at renderScale=1) to the output.
+  if (args.bakePerLayerOnly) {
+    const out = visible.getContext('2d');
+    if (out) {
+      out.clearRect(0, 0, visible.width, visible.height);
+      out.drawImage(internal, 0, 0, visible.width, visible.height);
+    }
+    return;
   }
 
   // ---- Composite-then-apply pass: node-scope adjustments ------------------

@@ -243,6 +243,15 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
     });
   }
   const canSplit = data.layerIds.length >= 2;
+  // Merge Visible needs 2+ *visible* layers on this node. Selector returns a
+  // number, so it re-renders only when a relevant layer's visibility flips.
+  const visibleLayerCount = useEditorStore((s) =>
+    data.layerIds.reduce(
+      (n, lid) => n + (s.layers.find((l) => l.id === lid)?.visible ? 1 : 0),
+      0,
+    ),
+  );
+  const canMergeVisible = visibleLayerCount >= 2;
   function handleSplit() {
     if (!canSplit) return;
     const lastLayerId = data.layerIds[data.layerIds.length - 1];
@@ -259,6 +268,10 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
    */
   const itemClass = 'px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none text-text-primary hover:bg-surface-secondary focus:bg-surface-secondary';
   const itemClassDim = 'px-2 py-1 text-[10px] rounded-sm cursor-not-allowed outline-none text-text-secondary opacity-60';
+  // Destructive items: red text + red-tinted hover so a delete reads as a delete.
+  const itemClassDanger =
+    'px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none text-[var(--color-danger,#e5484d)] ' +
+    'hover:bg-[color-mix(in_srgb,var(--color-danger,#e5484d)_12%,transparent)]';
   const renderMenuItems = (Item: typeof DropdownMenu.Item | typeof ContextMenu.Item) => (
     <>
       {/* Top group: AI actions (study-gated) + the view/structure toggles
@@ -354,10 +367,10 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
             Extract to Image Node
           </Item>
           <Item
-            className={itemClass}
+            className={itemClassDanger}
             onSelect={() => void deleteObject(selectedObject.id)}
           >
-            Delete object
+            Delete object mask
           </Item>
           <div className="my-1 h-px bg-separator" />
         </>
@@ -391,6 +404,13 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
         Split last layer
       </Item>
       <Item
+        className={canMergeVisible ? itemClass : itemClassDim}
+        disabled={!canMergeVisible}
+        onSelect={canMergeVisible ? () => editorDocument.workspace.mergeVisibleLayers(id) : undefined}
+      >
+        Merge visible layers
+      </Item>
+      <Item
         className={itemClass}
         onSelect={() => {
           // Promote this image-node to active so the shared duplicate
@@ -413,8 +433,8 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
         Export as WebP
       </Item>
       <div className="my-1 h-px bg-separator" />
-      <Item className={itemClass} onSelect={handleDelete}>
-        Delete
+      <Item className={itemClassDanger} onSelect={handleDelete}>
+        Delete image
       </Item>
     </>
   );

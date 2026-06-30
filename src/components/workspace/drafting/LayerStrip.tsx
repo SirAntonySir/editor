@@ -1,6 +1,13 @@
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
+import { editorDocument } from '@/core/document';
+
+const MENU_ITEM = 'text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none';
+// Destructive items: red text + red-tinted hover, so a delete reads as a delete.
+const MENU_ITEM_DANGER =
+  'text-[12px] px-2 py-1.5 rounded-[3px] cursor-pointer outline-none text-[var(--color-danger,#e5484d)] ' +
+  'hover:bg-[color-mix(in_srgb,var(--color-danger,#e5484d)_12%,transparent)]';
 import type { Layer } from '@/store/layer-slice';
 import type { BlendMode } from '@/store/layer-slice';
 
@@ -56,15 +63,23 @@ export function LayerStrip({ layerIds }: LayerStripProps) {
                 type="button"
                 onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { visible: !layer.visible }); }}
                 onPointerDownCapture={(e) => e.stopPropagation()}
-                className="group flex items-center gap-2 cursor-pointer outline-none"
+                className="group relative flex items-center gap-2 cursor-pointer outline-none"
                 data-visible={isVisible ? '' : undefined}
                 aria-pressed={isVisible}
                 aria-label={`Layer ${ordinal} · ${layer.name ?? 'Layer'}`}
-                // Layer name surfaces only via native tooltip on hover. The
-                // earlier inline label competed with the marginalia typography
-                // even on the visible row.
-                title={layer.name ?? `Layer ${ordinal}`}
               >
+                {/* Hover/focus label — floats to the LEFT of the marker (the
+                    strip sits in the left margin) so it never overlaps the
+                    photo. Quiet at rest, revealed on hover. */}
+                <span
+                  className="absolute right-full mr-2 top-1/2 -translate-y-1/2 whitespace-nowrap
+                    px-1.5 py-0.5 rounded-[3px] text-[11px] italic font-[var(--font-display,Fraunces)]
+                    bg-surface text-text-primary border border-separator shadow-sm
+                    opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100
+                    transition-opacity pointer-events-none"
+                >
+                  {layer.name ?? `Layer ${ordinal}`}
+                </span>
                 <span
                   className={`font-[var(--font-display,Fraunces)] italic text-[14px] w-[18px] text-right tabular-nums ${
                     isVisible ? 'text-[var(--color-accent)] font-medium' : 'text-text-secondary'
@@ -86,26 +101,32 @@ export function LayerStrip({ layerIds }: LayerStripProps) {
             <ContextMenu.Portal>
               <ContextMenu.Content className="overlay p-1 min-w-[180px] z-50">
                 <ContextMenu.Item
-                  className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"
+                  className={MENU_ITEM}
+                  onSelect={() => updateLayer(layer.id, { visible: !layer.visible })}
+                >
+                  {isVisible ? 'Hide' : 'Show'}
+                </ContextMenu.Item>
+                <ContextMenu.Item
+                  className={MENU_ITEM}
                   onSelect={() => {
                     const editor = useEditorStore.getState();
                     editor.setActiveLayer(layer.id);
                     editor.requestRenameLayer(layer.id);
-                    usePreferencesStore.getState().setInspectorTab('layer');
+                    usePreferencesStore.getState().showLayer();
                   }}
                 >
                   Rename
                 </ContextMenu.Item>
                 <ContextMenu.Sub>
-                  <ContextMenu.SubTrigger className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none">
-                    Blend mode
+                  <ContextMenu.SubTrigger className={MENU_ITEM}>
+                    Change blend mode
                   </ContextMenu.SubTrigger>
                   <ContextMenu.Portal>
                     <ContextMenu.SubContent className="overlay p-1 min-w-[180px] z-50">
                       {BLEND_MODES.map((mode) => (
                         <ContextMenu.Item
                           key={mode}
-                          className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"
+                          className={MENU_ITEM}
                           onSelect={() => updateLayer(layer.id, { blendMode: mode })}
                         >
                           {mode}
@@ -115,17 +136,23 @@ export function LayerStrip({ layerIds }: LayerStripProps) {
                   </ContextMenu.Portal>
                 </ContextMenu.Sub>
                 <ContextMenu.Item
-                  className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"
+                  className={MENU_ITEM}
                   onSelect={() => updateLayer(layer.id, { locked: !layer.locked })}
                 >
                   {layer.locked ? 'Unlock' : 'Lock'}
                 </ContextMenu.Item>
+                <ContextMenu.Item
+                  className={MENU_ITEM}
+                  onSelect={() => usePreferencesStore.getState().showLayer()}
+                >
+                  Open layer panel
+                </ContextMenu.Item>
                 <ContextMenu.Separator className="my-1 h-px bg-separator" />
                 <ContextMenu.Item
-                  className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none text-text-secondary"
-                  onSelect={() => useEditorStore.getState().removeLayer(layer.id)}
+                  className={MENU_ITEM_DANGER}
+                  onSelect={() => editorDocument.workspace.removeLayer(layer.id)}
                 >
-                  Delete
+                  Delete layer
                 </ContextMenu.Item>
               </ContextMenu.Content>
             </ContextMenu.Portal>

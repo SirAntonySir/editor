@@ -22,20 +22,20 @@ describe('LayerStrip — sheet selects active, eye toggles visibility', () => {
   });
 
   it('clicking a sheet sets it as the active edit layer', () => {
-    const { getAllByRole } = render(<LayerStrip layerIds={LAYER_IDS} />);
+    const { getAllByRole } = render(<LayerStrip imageNodeId="n1" layerIds={LAYER_IDS} />);
     const sheets = getAllByRole('button', { name: /select layer/i });
     fireEvent.click(sheets[0]); // L1
     expect(useEditorStore.getState().activeLayerId).toBe('L1');
   });
 
   it('clicking a sheet does not change visibility', () => {
-    const { getAllByRole } = render(<LayerStrip layerIds={LAYER_IDS} />);
+    const { getAllByRole } = render(<LayerStrip imageNodeId="n1" layerIds={LAYER_IDS} />);
     fireEvent.click(getAllByRole('button', { name: /select layer/i })[0]);
     expect(useEditorStore.getState().layers.find((l) => l.id === 'L1')?.visible).toBe(true);
   });
 
   it('clicking the eye toggles visibility without changing the active layer', () => {
-    const { getAllByRole } = render(<LayerStrip layerIds={LAYER_IDS} />);
+    const { getAllByRole } = render(<LayerStrip imageNodeId="n1" layerIds={LAYER_IDS} />);
     const eyes = getAllByRole('button', { name: /hide layer|show layer/i });
     fireEvent.click(eyes[0]); // L1 visible -> false
     expect(useEditorStore.getState().layers.find((l) => l.id === 'L1')?.visible).toBe(false);
@@ -44,7 +44,7 @@ describe('LayerStrip — sheet selects active, eye toggles visibility', () => {
 
   it('marks the active layer sheet with data-active', () => {
     useEditorStore.setState({ layers: SEED_LAYERS, activeLayerId: 'L2' });
-    const { getAllByRole } = render(<LayerStrip layerIds={LAYER_IDS} />);
+    const { getAllByRole } = render(<LayerStrip imageNodeId="n1" layerIds={LAYER_IDS} />);
     const sheets = getAllByRole('button', { name: /select layer/i });
     expect(sheets[0].hasAttribute('data-active')).toBe(false); // L1
     expect(sheets[1].hasAttribute('data-active')).toBe(true);  // L2
@@ -59,7 +59,7 @@ describe('LayerStrip — right-click context menu', () => {
   });
 
   it('right-click opens a menu with Rename / Blend / Lock / Delete', async () => {
-    const { getAllByRole, findByText } = render(<LayerStrip layerIds={['L1', 'L2']} />);
+    const { getAllByRole, findByText } = render(<LayerStrip imageNodeId="n1" layerIds={['L1', 'L2']} />);
     fireEvent.contextMenu(getAllByRole('button', { name: /select layer/i })[0]);
     expect(await findByText(/rename/i)).toBeInTheDocument();
     expect(await findByText(/blend/i)).toBeInTheDocument();
@@ -68,7 +68,7 @@ describe('LayerStrip — right-click context menu', () => {
   });
 
   it('Lock toggles layer.locked', async () => {
-    const { getAllByRole, findByText } = render(<LayerStrip layerIds={['L1', 'L2']} />);
+    const { getAllByRole, findByText } = render(<LayerStrip imageNodeId="n1" layerIds={['L1', 'L2']} />);
     fireEvent.contextMenu(getAllByRole('button', { name: /select layer/i })[0]);
     fireEvent.click(await findByText(/^lock$/i));
     const after = useEditorStore.getState().layers.find((l) => l.id === 'L1');
@@ -76,14 +76,14 @@ describe('LayerStrip — right-click context menu', () => {
   });
 
   it('Delete removes the layer', async () => {
-    const { getAllByRole, findByText } = render(<LayerStrip layerIds={['L1', 'L2']} />);
+    const { getAllByRole, findByText } = render(<LayerStrip imageNodeId="n1" layerIds={['L1', 'L2']} />);
     fireEvent.contextMenu(getAllByRole('button', { name: /select layer/i })[0]);
     fireEvent.click(await findByText(/delete/i));
     expect(useEditorStore.getState().layers.find((l) => l.id === 'L1')).toBeUndefined();
   });
 
   it('Rename triggers requestRenameLayer, sets activeLayerId, and switches Inspector to Layer tab', async () => {
-    const { getAllByRole, findByText } = render(<LayerStrip layerIds={['L1', 'L2']} />);
+    const { getAllByRole, findByText } = render(<LayerStrip imageNodeId="n1" layerIds={['L1', 'L2']} />);
     fireEvent.contextMenu(getAllByRole('button', { name: /select layer/i })[0]);
     fireEvent.click(await findByText(/rename/i));
     expect(useEditorStore.getState().renamingLayerId).toBe('L1');

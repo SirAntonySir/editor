@@ -30,7 +30,12 @@ export function LayerTab() {
     <ScrollArea className="flex-1 min-h-0">
       <div className="flex flex-col">
         {layers.map((layer) => (
-          <LayerRow key={layer.id} layer={layer} isActive={layer.id === activeLayerId} />
+          <LayerRow
+            key={layer.id}
+            layer={layer}
+            isActive={layer.id === activeLayerId}
+            imageNodeId={activeImageNode.id}
+          />
         ))}
       </div>
     </ScrollArea>

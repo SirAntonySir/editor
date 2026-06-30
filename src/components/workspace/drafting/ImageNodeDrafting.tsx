@@ -551,7 +551,7 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
           className="shrink-0 self-stretch"
           style={{ width: `${leftGutter}px`, marginLeft: `-${leftGutter}px` }}
         >
-          <LayerStrip layerIds={data.layerIds} />
+          <LayerStrip imageNodeId={id} layerIds={data.layerIds} />
         </div>
 
         {/* Frame column: a minimum width so the title/footer (which span this

@@ -11,7 +11,15 @@ const BLEND_MODES: BlendMode[] = [
   'normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'soft-light', 'hard-light',
 ];
 
-export function LayerRow({ layer, isActive }: { layer: Layer; isActive: boolean }) {
+export function LayerRow({
+  layer,
+  isActive,
+  imageNodeId,
+}: {
+  layer: Layer;
+  isActive: boolean;
+  imageNodeId?: string;
+}) {
   const updateLayer = useEditorStore((s) => s.updateLayer);
   const setActiveLayer = useEditorStore((s) => s.setActiveLayer);
   const renamingLayerId = useEditorStore((s) => s.renamingLayerId);
@@ -38,7 +46,7 @@ export function LayerRow({ layer, isActive }: { layer: Layer; isActive: boolean 
       onClick={() => setActiveLayer(layer.id)}
     >
       <div className="flex items-center gap-2">
-        <LayerThumb layerId={layer.id} active={isActive} width={44} height={32} />
+        <LayerThumb layerId={layer.id} active={isActive} imageNodeId={imageNodeId} width={44} height={32} />
         <div className="flex items-center justify-between gap-1.5 flex-1 min-w-0">
         {renaming ? (
           <input

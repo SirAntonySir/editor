@@ -14,11 +14,11 @@ const TINT_G = 58;
 const TINT_B = 237;
 const TINT_ALPHA = 110;
 
-/** Walk the binary mask edges and stroke them in two passes (dark halo +
- *  white dashes) for contrast on any background. Animated marching ants on
- *  a pixelated boundary read as flicker (every dash jumps at every stair-
- *  step), so the outline is static — matches the existing committed-mask
- *  treatment from `lib/overlay-painters.ts`. */
+/** Walk the binary mask edges into a path, then stroke a soft violet outline.
+ *  The path is the raw pixel-stair boundary; a small blur on the stroke (plus
+ *  the smooth, non-pixelated upscale of the canvas) rounds the stairs so the
+ *  edge reads as a curve rather than a staircase. A faint dark underlay keeps
+ *  it legible over any photo; the visible line is the AI violet. */
 function paintMask(mask: DecodedMask, ctx: CanvasRenderingContext2D): void {
   // Translucent fill.
   const img = ctx.createImageData(mask.width, mask.height);
@@ -49,16 +49,20 @@ function paintMask(mask: DecodedMask, ctx: CanvasRenderingContext2D): void {
       if (!rt) { ctx.moveTo(x + 1, y); ctx.lineTo(x + 1, y + 1); }
     }
   }
-  // Dark soft halo.
-  ctx.lineWidth = 2;
+  // Blur + round joins smooth the pixel-stair boundary into a curve.
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
   ctx.setLineDash([]);
-  ctx.strokeStyle = 'rgba(0,0,0,0.40)';
+  ctx.filter = 'blur(0.7px)';
+  // Faint dark underlay for legibility on any background.
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = 'rgba(0,0,0,0.30)';
   ctx.stroke();
-  // White dashed top.
-  ctx.lineWidth = 1.25;
-  ctx.setLineDash([4, 3]);
-  ctx.strokeStyle = '#ffffff';
+  // Violet line on top (matches --color-ai / the fill + shimmer).
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = `rgb(${TINT_R}, ${TINT_G}, ${TINT_B})`;
   ctx.stroke();
+  ctx.filter = 'none';
 }
 
 /** Build a white-on-transparent alpha image of the mask, as a data URL — used
@@ -108,7 +112,9 @@ export function SegmentMaskPreview({ mask, widthPx, heightPx }: SegmentMaskPrevi
         style={{
           width: `${widthPx}px`,
           height: `${heightPx}px`,
-          imageRendering: 'pixelated',
+          // Smooth (bilinear) upscale — NOT pixelated — so the mask-resolution
+          // fill + blurred outline read as soft curves at display size.
+          imageRendering: 'auto',
         }}
         aria-hidden
       />

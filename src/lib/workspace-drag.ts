@@ -42,13 +42,21 @@ export function nodeHasUnappliedChanges(
   );
 }
 
-/** For rejoin: the dragged extracted node's source id, but only when that
- *  source is among the nodes it currently overlaps. Null otherwise (no source,
- *  or not dropped on the source → plain reposition). */
-export function rejoinTargetId(
+/** Center point of a rect. */
+export function rectCenter(rect: DragRect): { x: number; y: number } {
+  return { x: rect.position.x + rect.size.w / 2, y: rect.position.y + rect.size.h / 2 };
+}
+
+/** For rejoin: the dragged extracted node's source id, but only when the
+ *  dragged node's CENTER sits inside the source's bounds. A tight, predictable
+ *  hitbox — you must pull the node's middle over the source image — rather than
+ *  React Flow's generous partial-overlap default that fires on an edge touch.
+ *  Null when there's no source or the center is off it (plain reposition). */
+export function rejoinTargetByCenter(
   sourceImageNodeId: string | undefined,
-  intersectingNodeIds: ReadonlyArray<string>,
+  draggedRect: DragRect,
+  sourceRect: DragRect | undefined,
 ): string | null {
-  if (!sourceImageNodeId) return null;
-  return intersectingNodeIds.includes(sourceImageNodeId) ? sourceImageNodeId : null;
+  if (!sourceImageNodeId || !sourceRect) return null;
+  return isOutsideRect(rectCenter(draggedRect), sourceRect) ? null : sourceImageNodeId;
 }

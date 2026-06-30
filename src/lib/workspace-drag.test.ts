@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { exceedsDragThreshold, isOutsideRect, rejoinTargetId, nodeHasUnappliedChanges } from './workspace-drag';
+import { exceedsDragThreshold, isOutsideRect, rejoinTargetByCenter, nodeHasUnappliedChanges } from './workspace-drag';
 
 describe('exceedsDragThreshold', () => {
   it('is false for a tiny move (a click, not a drag)', () => {
@@ -37,14 +37,20 @@ describe('nodeHasUnappliedChanges', () => {
   });
 });
 
-describe('rejoinTargetId', () => {
-  it('returns the source id when the dragged node overlaps its own source', () => {
-    expect(rejoinTargetId('src-1', ['src-1', 'other'])).toBe('src-1');
+describe('rejoinTargetByCenter', () => {
+  const source = { position: { x: 0, y: 0 }, size: { w: 100, h: 100 } };
+  // Dragged node 40×40; center = position + 20.
+  const draggedAt = (x: number, y: number) => ({ position: { x, y }, size: { w: 40, h: 40 } });
+
+  it('returns the source id when the dragged center is over the source', () => {
+    expect(rejoinTargetByCenter('src-1', draggedAt(30, 30), source)).toBe('src-1'); // center 50,50
   });
-  it('returns null when not overlapping its source', () => {
-    expect(rejoinTargetId('src-1', ['other'])).toBeNull();
+  it('returns null when the dragged center is off the source (edge touch only)', () => {
+    // position 90,90 → center 110,110, outside the 100×100 source though boxes still overlap.
+    expect(rejoinTargetByCenter('src-1', draggedAt(90, 90), source)).toBeNull();
   });
-  it('returns null for a node with no source (not an extracted node)', () => {
-    expect(rejoinTargetId(undefined, ['src-1'])).toBeNull();
+  it('returns null with no source or unknown source rect', () => {
+    expect(rejoinTargetByCenter(undefined, draggedAt(30, 30), source)).toBeNull();
+    expect(rejoinTargetByCenter('src-1', draggedAt(30, 30), undefined)).toBeNull();
   });
 });

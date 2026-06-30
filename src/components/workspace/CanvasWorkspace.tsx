@@ -26,7 +26,7 @@ import { InfoNode, type InfoNodeData } from './InfoNode';
 import type { Widget } from '@/types/widget';
 import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { rejoinSourceImage } from '@/lib/image-node-actions';
-import { rejoinTargetId, nodeHasUnappliedChanges } from '@/lib/workspace-drag';
+import { rejoinTargetByCenter, nodeHasUnappliedChanges } from '@/lib/workspace-drag';
 import { toast } from '@/components/ui/Toast';
 
 /** Per-node ErrorBoundary so a render throw in one ImageNode doesn't
@@ -411,34 +411,43 @@ export function CanvasWorkspace() {
     }
   }, []);
 
-  const { getIntersectingNodes } = useReactFlow();
+  // Rejoin target for a node being dragged: tight, center-based hitbox — the
+  // dragged node's CENTER must sit over its own source image (not React Flow's
+  // generous partial-overlap). `node.position` is the live drag position; size
+  // comes from the store. Returns the source id or null.
+  const rejoinTargetFor = useCallback((node: Node): string | null => {
+    if (node.type !== 'image') return null;
+    const editor = useEditorStore.getState();
+    const dragged = editor.imageNodes[node.id];
+    const srcId = dragged?.sourceImageNodeId;
+    const src = srcId ? editor.imageNodes[srcId] : undefined;
+    if (!dragged || !src) return null;
+    return rejoinTargetByCenter(
+      srcId,
+      { position: node.position, size: dragged.size },
+      { position: src.position, size: src.size },
+    );
+  }, []);
 
   // During a drag, highlight the source node as a rejoin drop-target whenever an
-  // extracted node hovers over it — the "release to rejoin" cue.
+  // extracted node's center is over it — the "release to rejoin" cue.
   const onNodeDrag = useCallback(
     (_: unknown, node: Node) => {
+      const target = rejoinTargetFor(node);
       const editor = useEditorStore.getState();
-      let target: string | null = null;
-      if (node.type === 'image') {
-        const srcId = editor.imageNodes[node.id]?.sourceImageNodeId;
-        const overlapIds = getIntersectingNodes(node).map((n) => n.id);
-        target = rejoinTargetId(srcId, overlapIds);
-      }
       if (editor.rejoinTargetNodeId !== target) editor.setRejoinTargetNodeId(target);
     },
-    [getIntersectingNodes],
+    [rejoinTargetFor],
   );
 
   const onNodeDragStop = useCallback(
     (_: unknown, node: Node, draggedNodes: Node[]) => {
       useEditorStore.getState().setRejoinTargetNodeId(null); // clear the cue
-      // Drag-to-rejoin: an extracted image node dropped onto its own source
-      // merges back (the inverse of Extract to Image Node).
+      // Drag-to-rejoin: an extracted image node dropped (center) onto its own
+      // source merges back (the inverse of Extract to Image Node).
       if (node.type === 'image') {
         const editor = useEditorStore.getState();
-        const srcId = editor.imageNodes[node.id]?.sourceImageNodeId;
-        const overlapIds = getIntersectingNodes(node).map((n) => n.id);
-        if (rejoinTargetId(srcId, overlapIds)) {
+        if (rejoinTargetFor(node)) {
           const layerIds = editor.imageNodes[node.id]?.layerIds ?? [];
           const widgets = useBackendState.getState().snapshot?.widgets ?? [];
           const pending = useSuggestionsUi.getState().pendingSuggestionIds;
@@ -453,7 +462,7 @@ export function CanvasWorkspace() {
       }
       persistDraggedPositions(draggedNodes);
     },
-    [persistDraggedPositions, getIntersectingNodes],
+    [persistDraggedPositions, rejoinTargetFor],
   );
 
   const onSelectionDragStop = useCallback(

@@ -14,8 +14,8 @@
     {
       "op_id": "light",
       "params": {
-        "shadows": 40.0,
-        "blacks": 30.0
+        "shadows": 24.0,
+        "blacks": 18.0
       }
     }
   ]

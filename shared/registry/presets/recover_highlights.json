@@ -14,8 +14,8 @@
     {
       "op_id": "light",
       "params": {
-        "highlights": -40.0,
-        "whites": -30.0
+        "highlights": -20.0,
+        "whites": -15.0
       }
     }
   ]

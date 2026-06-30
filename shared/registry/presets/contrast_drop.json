@@ -14,13 +14,13 @@
     {
       "op_id": "light",
       "params": {
-        "contrast": -30.0
+        "contrast": -18.0
       }
     },
     {
       "op_id": "levels",
       "params": {
-        "inBlack": 20.0
+        "inBlack": 12.0
       }
     }
   ]

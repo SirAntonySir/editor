@@ -14,14 +14,14 @@
     {
       "op_id": "levels",
       "params": {
-        "inBlack": 30.0,
-        "inWhite": 227.5
+        "inBlack": 20.0,
+        "inWhite": 232.0
       }
     },
     {
       "op_id": "light",
       "params": {
-        "contrast": -25.0
+        "contrast": -16.0
       }
     }
   ]

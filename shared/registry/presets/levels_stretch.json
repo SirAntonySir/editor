@@ -14,9 +14,9 @@
     {
       "op_id": "levels",
       "params": {
-        "inBlack": 40.0,
-        "inWhite": 217.5,
-        "gamma": 1.25
+        "inBlack": 24.0,
+        "inWhite": 230.0,
+        "gamma": 1.12
       }
     }
   ]

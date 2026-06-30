@@ -13,21 +13,21 @@
     {
       "op_id": "light",
       "params": {
-        "exposure": 15.0,
-        "shadows": 35.0,
-        "highlights": -30.0
+        "exposure": 10.0,
+        "shadows": 25.0,
+        "highlights": -20.0
       }
     },
     {
       "op_id": "color",
       "params": {
-        "saturation": -20.0
+        "saturation": -15.0
       }
     },
     {
       "op_id": "clarity",
       "params": {
-        "amount": -50.0
+        "amount": -35.0
       }
     }
   ]

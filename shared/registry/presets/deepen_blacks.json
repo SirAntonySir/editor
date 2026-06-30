@@ -14,13 +14,13 @@
     {
       "op_id": "light",
       "params": {
-        "blacks": -40.0
+        "blacks": -24.0
       }
     },
     {
       "op_id": "levels",
       "params": {
-        "inBlack": 20.0
+        "inBlack": 12.0
       }
     }
   ]

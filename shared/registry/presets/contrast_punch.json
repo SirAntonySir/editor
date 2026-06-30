@@ -14,9 +14,9 @@
     {
       "op_id": "light",
       "params": {
-        "contrast": 40.0,
-        "blacks": -20.0,
-        "whites": 20.0
+        "contrast": 24.0,
+        "blacks": -12.0,
+        "whites": 12.0
       }
     }
   ]

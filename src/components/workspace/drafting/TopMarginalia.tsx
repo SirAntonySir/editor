@@ -5,6 +5,20 @@ import type { ReactNode } from 'react';
 import { track } from '@/lib/telemetry';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 
+/**
+ * The slice of a Radix menu namespace the shared `renderMenuItems` needs.
+ * Both `DropdownMenu` and `ContextMenu` satisfy this structurally, so the
+ * same item list can render in the `⋯` dropdown and the right-click menu —
+ * including the nested "Export as…" submenu via Sub/SubTrigger/SubContent.
+ */
+export type MenuPrimitives = {
+  Item: typeof DropdownMenu.Item;
+  Sub: typeof DropdownMenu.Sub;
+  SubTrigger: typeof DropdownMenu.SubTrigger;
+  SubContent: typeof DropdownMenu.SubContent;
+  Portal: typeof DropdownMenu.Portal;
+};
+
 interface TopMarginaliaProps {
   /** Image-node display name (file basename without extension). */
   title: string;
@@ -16,7 +30,7 @@ interface TopMarginaliaProps {
   /** Items to render inside the `⋯` dropdown. The caller passes the same
    *  shared menu items the classic header uses, so Eye / Split / Merge /
    *  Delete all reach the user from one place. */
-  renderMenuItems: (Item: typeof DropdownMenu.Item) => ReactNode;
+  renderMenuItems: (menu: MenuPrimitives) => ReactNode;
   /** Compact spacing — the row sits closer to the image. Without this, the
    *  marginalia float visibly above the canvas. */
   tight?: boolean;
@@ -152,7 +166,13 @@ export function TopMarginalia({
                 align="end"
               >
                 <ScrollArea viewportClassName="p-1 max-h-[var(--radix-dropdown-menu-content-available-height)]">
-                  {renderMenuItems(DropdownMenu.Item)}
+                  {renderMenuItems({
+                    Item: DropdownMenu.Item,
+                    Sub: DropdownMenu.Sub,
+                    SubTrigger: DropdownMenu.SubTrigger,
+                    SubContent: DropdownMenu.SubContent,
+                    Portal: DropdownMenu.Portal,
+                  })}
                 </ScrollArea>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>

@@ -1,8 +1,27 @@
 import { useState, useMemo } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Handle, Position } from '@xyflow/react';
-import { Combine, Info, MessageSquare, ScanSearch, Sparkles } from 'lucide-react';
+import {
+  ChevronRight,
+  Combine,
+  Copy,
+  Crop as CropIcon,
+  Download,
+  FlipHorizontal2,
+  FlipVertical2,
+  Info,
+  Merge,
+  MessageSquare,
+  Pencil,
+  RotateCcw,
+  RotateCw,
+  ScanSearch,
+  Scissors,
+  Sparkles,
+  SquareArrowOutUpRight,
+  SquareStack,
+  Trash2,
+} from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { usePreferencesStore } from '@/store/preferences-store';
@@ -27,7 +46,7 @@ import { ImageNodeBody } from '../ImageNodeBody';
 import { SegmentHitLayer } from '../SegmentHitLayer';
 import { ImageNodeObjectsLayer } from '../ImageNodeObjectsLayer';
 import { CornerTicks } from './CornerTicks';
-import { TopMarginalia } from './TopMarginalia';
+import { TopMarginalia, type MenuPrimitives } from './TopMarginalia';
 import { BottomMarginalia } from './BottomMarginalia';
 import { LayerStrip } from './LayerStrip';
 import { ObjectMarkers } from './ObjectMarkers';
@@ -272,7 +291,7 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   const itemClassDanger =
     'px-2 py-1 text-[10px] rounded-sm cursor-pointer outline-none text-[var(--color-danger,#e5484d)] ' +
     'hover:bg-[color-mix(in_srgb,var(--color-danger,#e5484d)_12%,transparent)]';
-  const renderMenuItems = (Item: typeof DropdownMenu.Item | typeof ContextMenu.Item) => (
+  const renderMenuItems = ({ Item, Sub, SubTrigger, SubContent, Portal }: MenuPrimitives) => (
     <>
       {/* Top group: AI actions (study-gated) + the view/structure toggles
           (objects mode, rejoin). Each carries an icon; AI icons are violet,
@@ -352,25 +371,37 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
             className={itemClass}
             onSelect={() => startObjectRename(selectedObject.id, id)}
           >
-            Rename
+            <span className="flex items-center gap-1.5">
+              <Pencil size={11} className="text-text-secondary" />
+              <span>Rename</span>
+            </span>
           </Item>
           <Item
             className={itemClass}
             onSelect={() => convertObjectToLayerMask(selectedObject.id, id)}
           >
-            Convert to Layer Mask
+            <span className="flex items-center gap-1.5">
+              <SquareStack size={11} className="text-text-secondary" />
+              <span>Convert to Layer Mask</span>
+            </span>
           </Item>
           <Item
             className={itemClass}
             onSelect={() => extractObjectToImageNode(selectedObject.id, id)}
           >
-            Extract to Image Node
+            <span className="flex items-center gap-1.5">
+              <SquareArrowOutUpRight size={11} className="text-text-secondary" />
+              <span>Extract to Image Node</span>
+            </span>
           </Item>
           <Item
             className={itemClassDanger}
             onSelect={() => void deleteObject(selectedObject.id)}
           >
-            Delete object mask
+            <span className="flex items-center gap-1.5">
+              <Trash2 size={11} />
+              <span>Delete object mask</span>
+            </span>
           </Item>
           <div className="my-1 h-px bg-separator" />
         </>
@@ -379,36 +410,62 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
         className={itemClass}
         onSelect={() => setIsRenaming(true)}
       >
-        Rename
+        <span className="flex items-center gap-1.5">
+          <Pencil size={11} className="text-text-secondary" />
+          <span>Rename</span>
+        </span>
       </Item>
       <Item className={itemClass} onSelect={() => usePreferencesStore.getState().showCrop()}>
-        Crop…
+        <span className="flex items-center gap-1.5">
+          <CropIcon size={11} className="text-text-secondary" />
+          <span>Crop…</span>
+        </span>
       </Item>
+      {/* Rotate direction is carried by the curved-arrow icon, so the CW/CCW
+          label suffix is dropped — both items read "Rotate 90°". */}
       <Item className={itemClass} onSelect={() => handleTransformDelta({ angle: +90 })}>
-        Rotate 90° CW
+        <span className="flex items-center gap-1.5">
+          <RotateCw size={11} className="text-text-secondary" />
+          <span>Rotate 90°</span>
+        </span>
       </Item>
       <Item className={itemClass} onSelect={() => handleTransformDelta({ angle: -90 })}>
-        Rotate 90° CCW
+        <span className="flex items-center gap-1.5">
+          <RotateCcw size={11} className="text-text-secondary" />
+          <span>Rotate 90°</span>
+        </span>
       </Item>
       <Item className={itemClass} onSelect={() => handleTransformDelta({ flip_h: true })}>
-        Flip Horizontal
+        <span className="flex items-center gap-1.5">
+          <FlipHorizontal2 size={11} className="text-text-secondary" />
+          <span>Flip Horizontal</span>
+        </span>
       </Item>
       <Item className={itemClass} onSelect={() => handleTransformDelta({ flip_v: true })}>
-        Flip Vertical
+        <span className="flex items-center gap-1.5">
+          <FlipVertical2 size={11} className="text-text-secondary" />
+          <span>Flip Vertical</span>
+        </span>
       </Item>
       <Item
         className={canSplit ? itemClass : itemClassDim}
         disabled={!canSplit}
         onSelect={canSplit ? handleSplit : undefined}
       >
-        Split last layer
+        <span className="flex items-center gap-1.5">
+          <Scissors size={11} className="text-text-secondary" />
+          <span>Split last layer</span>
+        </span>
       </Item>
       <Item
         className={canMergeVisible ? itemClass : itemClassDim}
         disabled={!canMergeVisible}
         onSelect={canMergeVisible ? () => editorDocument.workspace.mergeVisibleLayers(id) : undefined}
       >
-        Merge visible layers
+        <span className="flex items-center gap-1.5">
+          <Merge size={11} className="text-text-secondary" />
+          <span>Merge visible layers</span>
+        </span>
       </Item>
       <Item
         className={itemClass}
@@ -420,21 +477,42 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
           void duplicateActiveImageNode();
         }}
       >
-        Duplicate
+        <span className="flex items-center gap-1.5">
+          <Copy size={11} className="text-text-secondary" />
+          <span>Duplicate</span>
+        </span>
       </Item>
       <div className="my-1 h-px bg-separator" />
-      <Item className={itemClass} onSelect={() => void exportImageNode(id, 'png')}>
-        Export as PNG
-      </Item>
-      <Item className={itemClass} onSelect={() => void exportImageNode(id, 'jpeg')}>
-        Export as JPEG
-      </Item>
-      <Item className={itemClass} onSelect={() => void exportImageNode(id, 'webp')}>
-        Export as WebP
-      </Item>
+      {/* The three formats collapse into one "Export as…" submenu — same
+          handler per format, nested under a single Download-iconed trigger. */}
+      <Sub>
+        <SubTrigger className={itemClass}>
+          <span className="flex w-full items-center gap-1.5">
+            <Download size={11} className="text-text-secondary" />
+            <span>Export as…</span>
+            <ChevronRight size={11} className="ml-auto text-text-secondary" />
+          </span>
+        </SubTrigger>
+        <Portal>
+          <SubContent className="overlay min-w-[120px] z-50 p-1">
+            <Item className={itemClass} onSelect={() => void exportImageNode(id, 'png')}>
+              PNG
+            </Item>
+            <Item className={itemClass} onSelect={() => void exportImageNode(id, 'jpeg')}>
+              JPEG
+            </Item>
+            <Item className={itemClass} onSelect={() => void exportImageNode(id, 'webp')}>
+              WebP
+            </Item>
+          </SubContent>
+        </Portal>
+      </Sub>
       <div className="my-1 h-px bg-separator" />
       <Item className={itemClassDanger} onSelect={handleDelete}>
-        Delete image
+        <span className="flex items-center gap-1.5">
+          <Trash2 size={11} />
+          <span>Delete image</span>
+        </span>
       </Item>
     </>
   );
@@ -455,7 +533,7 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
           title={data.name ?? 'Image'}
           onCompareDown={() => setCompareHeld(true)}
           onCompareUp={() => setCompareHeld(false)}
-          renderMenuItems={renderMenuItems as (Item: typeof DropdownMenu.Item) => React.ReactNode}
+          renderMenuItems={renderMenuItems}
           tight
           isRenaming={isRenaming}
           onRenameStart={() => setIsRenaming(true)}
@@ -517,7 +595,13 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
             <ContextMenu.Portal>
               <ContextMenu.Content className="overlay min-w-[160px] z-50">
                 <ScrollArea viewportClassName="p-1 max-h-[var(--radix-context-menu-content-available-height)]">
-                  {renderMenuItems(ContextMenu.Item)}
+                  {renderMenuItems({
+                    Item: ContextMenu.Item,
+                    Sub: ContextMenu.Sub,
+                    SubTrigger: ContextMenu.SubTrigger,
+                    SubContent: ContextMenu.SubContent,
+                    Portal: ContextMenu.Portal,
+                  } as MenuPrimitives)}
                 </ScrollArea>
               </ContextMenu.Content>
             </ContextMenu.Portal>

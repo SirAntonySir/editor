@@ -220,7 +220,6 @@ function ObjectMarker({ obj, index, imageNodeId, top, onHover }: ObjectMarkerPro
           onMouseLeave={() => onHover(null)}
           onDoubleClick={(e) => { e.stopPropagation(); startEdit(); }}
           onClick={(e) => e.stopPropagation()}
-          onContextMenuCapture={(e) => e.stopPropagation()}
         >
           <span
             aria-hidden

@@ -14,19 +14,19 @@
     {
       "op_id": "sharpen",
       "params": {
-        "amount": 45.0
+        "amount": 28.0
       }
     },
     {
       "op_id": "clarity",
       "params": {
-        "amount": 45.0
+        "amount": 28.0
       }
     },
     {
       "op_id": "light",
       "params": {
-        "contrast": 15.0
+        "contrast": 10.0
       }
     }
   ]

@@ -206,7 +206,9 @@ describe('header dropdown transform items', () => {
 
     renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected />);
     await userEvent.click(screen.getByLabelText('Image node menu'));
-    await userEvent.click(screen.getByText('Rotate 90° CW'));
+    // Both rotate items now read "Rotate 90°" (CW/CCW carried by the icon);
+    // the CW (+90) item renders first.
+    await userEvent.click(screen.getAllByText('Rotate 90°')[0]);
 
     expect(spy).toHaveBeenCalledWith('sess-1', expect.objectContaining({
       imageNodeId: 'in-1',
@@ -248,7 +250,7 @@ describe('right-click context menu', () => {
     const body = screen.getByLabelText('Image node body');
     await user.pointer({ target: body, keys: '[MouseRight]' });
     expect(await screen.findByText('Crop…')).toBeInTheDocument();
-    expect(screen.getByText('Rotate 90° CW')).toBeInTheDocument();
+    expect(screen.getAllByText('Rotate 90°')).toHaveLength(2);
     expect(screen.getByText('Delete image')).toBeInTheDocument();
   });
 });

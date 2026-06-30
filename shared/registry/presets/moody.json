@@ -13,15 +13,15 @@
     {
       "op_id": "light",
       "params": {
-        "exposure": -20.0,
-        "contrast": 35.0,
-        "shadows": -30.0
+        "exposure": -14.0,
+        "contrast": 25.0,
+        "shadows": -22.0
       }
     },
     {
       "op_id": "color",
       "params": {
-        "saturation": -20.0
+        "saturation": -15.0
       }
     }
   ]

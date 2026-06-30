@@ -10,7 +10,7 @@ vi.mock('@/components/ui/Toast', () => ({
 // image-node-actions also imports `lib/export` which instantiates a canvas at
 // module load time. Stub the whole module so we don't need a browser context.
 vi.mock('@/lib/export', () => ({
-  exportImage: vi.fn().mockResolvedValue(null),
+  exportImageNodeBlob: vi.fn().mockResolvedValue(null),
   saveAs: vi.fn().mockResolvedValue(undefined),
 }));
 

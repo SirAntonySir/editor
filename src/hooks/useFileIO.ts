@@ -1,7 +1,9 @@
 import { useCallback } from 'react';
-import { exportImage, saveAs } from '@/lib/export';
+import { exportImageNode } from '@/lib/image-node-actions';
 import { editorDocument } from '@/core/document';
 import { openImageFromPicker, addImageFromPicker } from '@/lib/open-file';
+import { useEditorStore } from '@/store';
+import { toast } from '@/components/ui/Toast';
 
 export function useFileIO() {
   const handleOpen = useCallback(() => {
@@ -23,10 +25,15 @@ export function useFileIO() {
 
   const handleExport = useCallback(
     async (format: 'png' | 'jpeg' | 'webp') => {
-      const blob = await exportImage({ format, quality: format === 'jpeg' ? 0.92 : 1 });
-      if (blob) {
-        await saveAs(blob, `export.${format === 'jpeg' ? 'jpg' : format}`);
+      // Export the active image-node WYSIWYG (same renderer the canvas uses).
+      // The menu items gate on hasLayers, but with no node selected we can't
+      // tell which to render — ask the user to pick one.
+      const { activeImageNodeId } = useEditorStore.getState();
+      if (!activeImageNodeId) {
+        toast.info('Select an image to export.');
+        return;
       }
+      await exportImageNode(activeImageNodeId, format);
     },
     [],
   );

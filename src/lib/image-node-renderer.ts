@@ -118,6 +118,13 @@ export interface RenderImageNodeCompositeArgs {
    * Use with `renderScale: 1` for a full-resolution bake.
    */
   bakePerLayerOnly?: boolean;
+  /**
+   * Skip the overlay pass (selection chrome, mask fills/outlines, segmentation
+   * highlights). Set by export / bake callers that want the clean composite —
+   * per-layer adjustments + node-scope + geometry — WITHOUT any of the editor's
+   * on-canvas UI painted into the output bitmap.
+   */
+  skipOverlays?: boolean;
 }
 
 function clampRenderScale(scale: number | undefined): number {
@@ -395,8 +402,12 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
 
   // ---- Overlay pass on the visible (post-transform) canvas ----------------
   // Painted on top of the composite so chrome is always visible. State source:
-  // maskStore + selection slice.
-  paintOverlays({ ctx: visibleCtx, canvas: visible, imageNodeId: args.imageNodeId, layerIds });
+  // maskStore + selection slice. Skipped for export / bake so the editor's
+  // on-canvas UI (selection frame, mask fills, segment outlines) never bleeds
+  // into the saved bitmap.
+  if (!args.skipOverlays) {
+    paintOverlays({ ctx: visibleCtx, canvas: visible, imageNodeId: args.imageNodeId, layerIds });
+  }
 }
 
 interface PaintOverlaysArgs {

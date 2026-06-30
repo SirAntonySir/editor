@@ -9,7 +9,7 @@
 
 import { useEditorStore } from '@/store';
 import { editorDocument } from '@/core/document';
-import { exportImage, saveAs, type ExportFormat } from '@/lib/export';
+import { exportImageNodeBlob, saveAs, type ExportFormat } from '@/lib/export';
 import { toast } from '@/components/ui/Toast';
 import { pixelStore } from '@/core/pixel-store';
 import { putSource } from '@/core/pixel-source-store';
@@ -36,10 +36,9 @@ function persistCanvasSource(layerId: string, canvas: OffscreenCanvas): void {
 /** Export the image-node's pixels in the requested format. Saves via the
  *  shared File-System-Access / download-link fallback in `lib/export`.
  *
- *  Implementation note: we export the first image layer of the node. Most
- *  image-nodes have a single layer (file-picker open, extract-to-image-node);
- *  multi-layer nodes are not yet expected from the canvas flow. If that
- *  changes, swap to a per-image-node composite renderer. */
+ *  Renders WYSIWYG via the on-screen composite pipeline (per-layer adjustments
+ *  + node-scope adjustments + crop/rotate geometry), so the saved file matches
+ *  the canvas. See `exportImageNodeBlob` / `renderImageNodeToCanvas`. */
 export async function exportImageNode(
   imageNodeId: string,
   format: ExportFormat,
@@ -47,25 +46,24 @@ export async function exportImageNode(
   const editor = useEditorStore.getState();
   const node = editor.imageNodes[imageNodeId];
   if (!node) return;
-  const layerId = node.layerIds.find(
+  const hasImageLayer = node.layerIds.some(
     (lid) => editor.layers.find((l) => l.id === lid)?.type === 'image',
   );
-  if (!layerId) {
+  if (!hasImageLayer) {
     toast.info('Export: no image layer to render.');
     return;
   }
-  const blob = await exportImage({
+  const blob = await exportImageNodeBlob(
+    imageNodeId,
     format,
-    quality: format === 'jpeg' ? 0.92 : 1,
-    layerId,
-  });
+    format === 'jpeg' ? 0.92 : 1,
+  );
   if (!blob) {
     toast.info('Export failed: nothing to render.');
     return;
   }
-  const layer = editor.layers.find((l) => l.id === layerId);
   const docName = editor.documentMeta?.name ?? 'image';
-  const baseName = (node.name ?? layer?.name ?? docName).replace(/\.[^.]+$/, '');
+  const baseName = (node.name ?? docName).replace(/\.[^.]+$/, '');
   const ext = format === 'jpeg' ? 'jpg' : format;
   await saveAs(blob, `${baseName}.${ext}`);
 }

@@ -113,7 +113,7 @@ export function ColorSkeleton() {
 
 export function RegionsSkeleton() {
   return (
-    <SkeletonShell icon={MapPin} label="Regions">
+    <SkeletonShell icon={MapPin} label="Elements">
       <div className="flex flex-col gap-1.5">
         {[0, 1, 2].map((i) => (
           <div key={i} className="flex gap-2 items-center py-0.5">

@@ -25,7 +25,7 @@ export function RegionsSection({ ctx }: Props) {
   const statsByLabel = new Map((ctx.regionStats ?? []).map((s) => [s.label, s]));
   return (
     <section className="px-3 py-2.5">
-      <SectionHeader icon={MapPin} label="Regions" count={ctx.candidateRegions.length} />
+      <SectionHeader icon={MapPin} label="Elements" count={ctx.candidateRegions.length} />
       <div className="flex flex-col gap-1.5">
         {ctx.candidateRegions.map((r) => (
           <RegionRow

@@ -73,7 +73,7 @@ describe('InfoTab', () => {
     expect(screen.getByText('Semantic')).not.toBeNull();
     expect(screen.getByText('Histograms')).not.toBeNull();
     expect(screen.getByText('Color')).not.toBeNull();
-    expect(screen.getByText('Regions')).not.toBeNull();
+    expect(screen.getByText('Elements')).not.toBeNull();
     expect(screen.getByText('Problems')).not.toBeNull();
     // dominantTones rendered as chips (regression guard for the casing fix)
     expect(screen.getByText('shadows')).not.toBeNull();

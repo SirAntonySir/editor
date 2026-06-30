@@ -13,6 +13,7 @@ import {
 } from '@/store/preferences-store';
 import { maskStore } from '@/core/mask-store';
 import { useAiSession } from '@/hooks/useImageContext';
+import type { PaletteElement } from './region-suggest';
 
 export type PaletteCommandKind = 'op' | 'preset' | 'tool' | 'menu' | 'ai' | 'chip';
 
@@ -48,6 +49,17 @@ export interface PaletteSection {
   id: string;
   title: string;
   commands: PaletteCommand[];
+}
+
+/** A context item attached to an AI prompt — populated by the per-chip "Ask AI
+ *  about this" affordance or by dropping a chip onto Cmd+K. Lifted here (out of
+ *  the CommandPalette component) so the runtime store + submit helper can carry
+ *  it across a close → reopen for failure recovery. */
+export interface AttachedContextItem {
+  id: string;
+  label: string;
+  value: string;
+  sourceId?: string;
 }
 
 /** Cache for createMaterialIcon — repeatedly calling it per render churns
@@ -491,7 +503,7 @@ export function buildRegionsSections(): PaletteSection[] {
       chipSourceId: sourceId,
     }));
 
-  return [{ id: 'regions', title: 'Regions', commands }];
+  return [{ id: 'regions', title: 'Elements', commands }];
 }
 
 /** Flatten sections to a single array for keyboard arrow navigation. */
@@ -539,6 +551,36 @@ export function filterCommands(commands: PaletteCommand[], query: string): Palet
 }
 
 // ─── Image-node label + cycling ───────────────────────────────────────
+
+/** Build the `@`-picker's target elements: every image node plus its image
+ *  layers. Regions are merged in separately by the caller; targets are what's
+ *  new here. Image-node targets carry the node's id; layer targets carry the
+ *  layer id (the owning node is resolved at submit time). Adjustment-only
+ *  layers are skipped — they aren't sensible targets. */
+export function buildTargetElements(
+  imageNodes: Record<string, ImageNodeState>,
+  layers: Layer[],
+): PaletteElement[] {
+  const out: PaletteElement[] = [];
+  for (const node of Object.values(imageNodes)) {
+    out.push({
+      kind: 'target',
+      targetKind: 'node',
+      label: imageNodeLabel(node, layers),
+      sourceId: `target:node:${node.id}`,
+    });
+  }
+  for (const layer of layers) {
+    if (layer.type !== 'image') continue;
+    out.push({
+      kind: 'target',
+      targetKind: 'layer',
+      label: layer.name,
+      sourceId: `target:layer:${layer.id}`,
+    });
+  }
+  return out;
+}
 
 export function imageNodeLabel(node: ImageNodeState, layers: Layer[]): string {
   // Prefer the user-set override (set via image-node rename), then the first

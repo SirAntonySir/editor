@@ -48,7 +48,7 @@ describe('buildRegionsSections', () => {
     const sections = buildRegionsSections();
     expect(sections).toHaveLength(1);
     expect(sections[0].id).toBe('regions');
-    expect(sections[0].title).toBe('Regions');
+    expect(sections[0].title).toBe('Elements');
     expect(sections[0].commands).toHaveLength(1);
     expect(sections[0].commands[0].label).toBe('Sky');
   });

@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
+import { editorDocument } from '@/core/document';
 import { useImageNodeObjects, type ImageObject } from '@/hooks/useImageNodeObjects';
+import { useSegmentExtractDrag } from '@/hooks/useSegmentExtractDrag';
 import {
   renameObject,
   selectInvertedObject,
@@ -209,18 +211,38 @@ function ObjectMarker({ obj, index, imageNodeId, top, onHover }: ObjectMarkerPro
     setDraft(obj.label);
   }
 
+  // Drag the marker off the image → extract the object to a new node at the
+  // drop point (a gesture shortcut for the "Extract to Image Node" verb).
+  const { onPointerDown, onPointerMove, onPointerUp, dragging, ghost } = useSegmentExtractDrag({
+    sourceImageNodeId: imageNodeId,
+    label: obj.label,
+    onExtract: (dropFlow) => {
+      const res = extractObjectToImageNode(obj.id, imageNodeId);
+      if (!res) return;
+      const n = useEditorStore.getState().imageNodes[res.imageNodeId];
+      const pos = n
+        ? { x: dropFlow.x - n.size.w / 2, y: dropFlow.y - n.size.h / 2 }
+        : dropFlow;
+      editorDocument.workspace.setNodePosition(res.imageNodeId, pos);
+    },
+  });
+
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>
         <div
           data-object-marker={obj.id}
-          className="absolute flex items-center gap-2 pointer-events-auto cursor-default select-none"
+          className={`absolute flex items-center gap-2 pointer-events-auto select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
           style={{ top: `${top}px`, left: 0 }}
           onMouseEnter={() => onHover(obj.id)}
           onMouseLeave={() => onHover(null)}
           onDoubleClick={(e) => { e.stopPropagation(); startEdit(); }}
           onClick={(e) => e.stopPropagation()}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
         >
+          {ghost}
           <span
             aria-hidden
             className="flex items-center justify-center w-[22px] h-[22px] rounded-full bg-surface border border-[var(--color-accent)] text-[var(--color-accent)] font-[var(--font-mono)] text-[10px] tabular-nums leading-none"

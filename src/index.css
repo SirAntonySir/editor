@@ -207,6 +207,30 @@ html, body, #root {
   .ai-snake-border::before { animation: none; opacity: 0; }
 }
 
+/* Segmentation mask shimmer: a soft AI-violet band drifts across the active
+ * selection (clipped to its shape via a mask-image on the element). Subtle and
+ * continuous — reads as "alive / being analysed", layered over the static fill.
+ * The gradient is wider than the box (background-size) so the band sweeps
+ * smoothly off one edge and in the other. */
+@keyframes segment-shimmer-drift {
+  from { background-position: 180% 0; }
+  to   { background-position: -40% 0; }
+}
+.segment-shimmer {
+  background-image: linear-gradient(
+    115deg,
+    transparent 38%,
+    color-mix(in srgb, var(--color-ai) 42%, transparent) 50%,
+    transparent 62%
+  );
+  background-size: 240% 100%;
+  background-repeat: no-repeat;
+  animation: segment-shimmer-drift 2.6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .segment-shimmer { animation: none; background-image: none; }
+}
+
 /* Rejoin drop-target: while an extracted node is dragged over its source, the
  * source "snaps" to attention — a quick accent ring + glow pop that then holds
  * steady, so releasing reads as "click back into place". */

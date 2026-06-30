@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { DecodedMask } from '@/lib/segmentation/mobile-sam-types';
 
 interface SegmentMaskPreviewProps {
@@ -61,6 +61,27 @@ function paintMask(mask: DecodedMask, ctx: CanvasRenderingContext2D): void {
   ctx.stroke();
 }
 
+/** Build a white-on-transparent alpha image of the mask, as a data URL — used
+ *  as a CSS `mask-image` so an animated shimmer layer is clipped to the segment
+ *  shape. Regenerated only when the mask changes. */
+function maskToAlphaUrl(mask: DecodedMask): string | null {
+  const c = document.createElement('canvas');
+  c.width = mask.width;
+  c.height = mask.height;
+  const cx = c.getContext('2d');
+  if (!cx) return null;
+  const img = cx.createImageData(mask.width, mask.height);
+  for (let i = 0; i < mask.data.length; i++) {
+    const j = i * 4;
+    img.data[j] = 255;
+    img.data[j + 1] = 255;
+    img.data[j + 2] = 255;
+    img.data[j + 3] = mask.data[i] === 255 ? 255 : 0;
+  }
+  cx.putImageData(img, 0, 0);
+  return c.toDataURL();
+}
+
 export function SegmentMaskPreview({ mask, widthPx, heightPx }: SegmentMaskPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -74,19 +95,41 @@ export function SegmentMaskPreview({ mask, widthPx, heightPx }: SegmentMaskPrevi
     paintMask(mask, ctx);
   }, [mask]);
 
+  const maskUrl = useMemo(() => (mask ? maskToAlphaUrl(mask) : null), [mask]);
+
   if (!mask) return null;
   return (
-    <canvas
-      ref={canvasRef}
-      width={mask.width}
-      height={mask.height}
-      className="pointer-events-none absolute inset-0"
-      style={{
-        width: `${widthPx}px`,
-        height: `${heightPx}px`,
-        imageRendering: 'pixelated',
-      }}
-      aria-hidden
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        width={mask.width}
+        height={mask.height}
+        className="pointer-events-none absolute inset-0"
+        style={{
+          width: `${widthPx}px`,
+          height: `${heightPx}px`,
+          imageRendering: 'pixelated',
+        }}
+        aria-hidden
+      />
+      {/* AI shimmer: a soft violet band drifts across the segment, clipped to
+          its shape via the mask alpha. Purely additive over the static fill. */}
+      {maskUrl && (
+        <div
+          aria-hidden
+          className="segment-shimmer pointer-events-none absolute inset-0"
+          style={{
+            width: `${widthPx}px`,
+            height: `${heightPx}px`,
+            WebkitMaskImage: `url(${maskUrl})`,
+            maskImage: `url(${maskUrl})`,
+            WebkitMaskSize: '100% 100%',
+            maskSize: '100% 100%',
+            WebkitMaskRepeat: 'no-repeat',
+            maskRepeat: 'no-repeat',
+          }}
+        />
+      )}
+    </>
   );
 }

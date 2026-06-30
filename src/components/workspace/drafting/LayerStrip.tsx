@@ -1,4 +1,5 @@
 import * as ContextMenu from '@radix-ui/react-context-menu';
+import { Eye, EyeOff } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { editorDocument } from '@/core/document';
@@ -20,12 +21,14 @@ interface LayerStripProps {
 /**
  * Tracing-paper column of skewed rectangles in the left margin, one per
  * layer. Visible layers' sheets are filled in ochre; hidden layers are
- * hairline-outlined. Click toggles `layer.visible`. Hover/focus reveals the
- * layer's name in italic Fraunces alongside the sheet — keeping the
- * column visually quiet at rest.
+ * hairline-outlined. Clicking a sheet selects it as the active EDIT layer
+ * (the one adjustments target) and rings it; a small eye button toggles
+ * visibility independently. Hover/focus reveals the layer's name in italic
+ * Fraunces alongside the sheet — keeping the column visually quiet at rest.
  *
- * The strip handles the "I want to quickly show/hide a layer" use case. The
- * Inspector Layer tab is the detail view for opacity / blend mode / rename.
+ * The strip is the canvas-side control for "which layer am I editing" + quick
+ * show/hide. The Inspector Layer tab is the detail view for opacity / blend
+ * mode / rename.
  */
 const BLEND_MODES: BlendMode[] = [
   'normal', 'multiply', 'screen', 'overlay',
@@ -35,6 +38,8 @@ const BLEND_MODES: BlendMode[] = [
 export function LayerStrip({ layerIds }: LayerStripProps) {
   const allLayers = useEditorStore((s) => s.layers);
   const updateLayer = useEditorStore((s) => s.updateLayer);
+  const setActiveLayer = useEditorStore((s) => s.setActiveLayer);
+  const activeLayerId = useEditorStore((s) => s.activeLayerId);
 
   // Resolve ids → layer records, dropping any orphan id (defensive — should
   // not happen, but a missing layer would crash the map below).
@@ -56,18 +61,11 @@ export function LayerStrip({ layerIds }: LayerStripProps) {
       {layers.map((layer, i) => {
         const ordinal = (i + 1).toString().padStart(2, '0');
         const isVisible = layer.visible;
+        const isActive = layer.id === activeLayerId;
         return (
           <ContextMenu.Root key={layer.id}>
             <ContextMenu.Trigger asChild>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { visible: !layer.visible }); }}
-                onPointerDownCapture={(e) => e.stopPropagation()}
-                className="group relative flex items-center gap-2 cursor-pointer outline-none"
-                data-visible={isVisible ? '' : undefined}
-                aria-pressed={isVisible}
-                aria-label={`Layer ${ordinal} · ${layer.name ?? 'Layer'}`}
-              >
+              <div className="group relative flex items-center gap-1.5">
                 {/* Hover/focus label — floats to the LEFT of the marker (the
                     strip sits in the left margin) so it never overlaps the
                     photo. Quiet at rest, revealed on hover. */}
@@ -80,23 +78,45 @@ export function LayerStrip({ layerIds }: LayerStripProps) {
                 >
                   {layer.name ?? `Layer ${ordinal}`}
                 </span>
-                <span
-                  className={`font-[var(--font-display,Fraunces)] italic text-[14px] w-[18px] text-right tabular-nums ${
-                    isVisible ? 'text-[var(--color-accent)] font-medium' : 'text-text-secondary'
-                  }`}
+                {/* Eye — toggles visibility independently of selection. */}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { visible: !layer.visible }); }}
+                  onPointerDownCapture={(e) => e.stopPropagation()}
+                  className="text-text-secondary hover:text-text-primary outline-none"
+                  aria-label={`${isVisible ? 'Hide' : 'Show'} layer ${ordinal}`}
+                  aria-pressed={isVisible}
                 >
-                  {ordinal}
-                </span>
-                <span
-                  aria-hidden
-                  className={`block w-[40px] h-[26px] border transition-colors ${
-                    isVisible
-                      ? 'bg-[var(--color-accent)] border-[var(--color-accent)]'
-                      : 'bg-transparent border-text-primary group-hover:border-text-primary'
-                  }`}
-                  style={{ transform: 'skewX(-4deg)' }}
-                />
-              </button>
+                  {isVisible ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}
+                </button>
+                {/* Sheet — selects the active EDIT layer. */}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setActiveLayer(layer.id); }}
+                  onPointerDownCapture={(e) => e.stopPropagation()}
+                  className="relative flex items-center gap-2 cursor-pointer outline-none"
+                  data-active={isActive ? '' : undefined}
+                  aria-current={isActive ? 'true' : undefined}
+                  aria-label={`Select layer ${ordinal} · ${layer.name ?? 'Layer'}`}
+                >
+                  <span
+                    className={`font-[var(--font-display,Fraunces)] italic text-[14px] w-[18px] text-right tabular-nums ${
+                      isVisible ? 'text-[var(--color-accent)] font-medium' : 'text-text-secondary'
+                    }`}
+                  >
+                    {ordinal}
+                  </span>
+                  <span
+                    aria-hidden
+                    className={`block w-[40px] h-[26px] border transition-colors ${
+                      isVisible
+                        ? 'bg-[var(--color-accent)] border-[var(--color-accent)]'
+                        : 'bg-transparent border-text-primary'
+                    } ${isActive ? 'ring-2 ring-offset-1 ring-text-primary' : ''}`}
+                    style={{ transform: 'skewX(-4deg)' }}
+                  />
+                </button>
+              </div>
             </ContextMenu.Trigger>
             <ContextMenu.Portal>
               <ContextMenu.Content className="overlay p-1 min-w-[180px] z-50">

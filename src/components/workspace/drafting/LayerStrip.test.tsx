@@ -13,7 +13,7 @@ const SEED_LAYERS = [
 
 const LAYER_IDS = ['L1', 'L2'];
 
-describe('LayerStrip — click toggles visibility', () => {
+describe('LayerStrip — sheet selects active, eye toggles visibility', () => {
   beforeEach(() => {
     useEditorStore.setState({
       layers: SEED_LAYERS,
@@ -21,31 +21,33 @@ describe('LayerStrip — click toggles visibility', () => {
     });
   });
 
-  it('clicking a visible sheet flips visible to false', () => {
+  it('clicking a sheet sets it as the active edit layer', () => {
     const { getAllByRole } = render(<LayerStrip layerIds={LAYER_IDS} />);
-    const sheets = getAllByRole('button');
-    // DOM order matches layerIds order: sheets[0] = L1
-    fireEvent.click(sheets[0]);
-    const after = useEditorStore.getState().layers.find((l) => l.id === 'L1');
-    expect(after?.visible).toBe(false);
+    const sheets = getAllByRole('button', { name: /select layer/i });
+    fireEvent.click(sheets[0]); // L1
+    expect(useEditorStore.getState().activeLayerId).toBe('L1');
   });
 
-  it('clicking a hidden sheet flips visible to true', () => {
-    useEditorStore.setState({
-      layers: SEED_LAYERS.map((l) => l.id === 'L2' ? { ...l, visible: false } : l),
-    });
+  it('clicking a sheet does not change visibility', () => {
     const { getAllByRole } = render(<LayerStrip layerIds={LAYER_IDS} />);
-    const sheets = getAllByRole('button');
-    // DOM order: sheets[1] = L2
-    fireEvent.click(sheets[1]);
-    const after = useEditorStore.getState().layers.find((l) => l.id === 'L2');
-    expect(after?.visible).toBe(true);
+    fireEvent.click(getAllByRole('button', { name: /select layer/i })[0]);
+    expect(useEditorStore.getState().layers.find((l) => l.id === 'L1')?.visible).toBe(true);
   });
 
-  it('does not touch activeLayerId', () => {
+  it('clicking the eye toggles visibility without changing the active layer', () => {
     const { getAllByRole } = render(<LayerStrip layerIds={LAYER_IDS} />);
-    fireEvent.click(getAllByRole('button')[0]);
+    const eyes = getAllByRole('button', { name: /hide layer|show layer/i });
+    fireEvent.click(eyes[0]); // L1 visible -> false
+    expect(useEditorStore.getState().layers.find((l) => l.id === 'L1')?.visible).toBe(false);
     expect(useEditorStore.getState().activeLayerId).toBeNull();
+  });
+
+  it('marks the active layer sheet with data-active', () => {
+    useEditorStore.setState({ layers: SEED_LAYERS, activeLayerId: 'L2' });
+    const { getAllByRole } = render(<LayerStrip layerIds={LAYER_IDS} />);
+    const sheets = getAllByRole('button', { name: /select layer/i });
+    expect(sheets[0].hasAttribute('data-active')).toBe(false); // L1
+    expect(sheets[1].hasAttribute('data-active')).toBe(true);  // L2
   });
 });
 
@@ -58,7 +60,7 @@ describe('LayerStrip — right-click context menu', () => {
 
   it('right-click opens a menu with Rename / Blend / Lock / Delete', async () => {
     const { getAllByRole, findByText } = render(<LayerStrip layerIds={['L1', 'L2']} />);
-    fireEvent.contextMenu(getAllByRole('button')[0]);
+    fireEvent.contextMenu(getAllByRole('button', { name: /select layer/i })[0]);
     expect(await findByText(/rename/i)).toBeInTheDocument();
     expect(await findByText(/blend/i)).toBeInTheDocument();
     expect(await findByText(/lock/i)).toBeInTheDocument();
@@ -67,7 +69,7 @@ describe('LayerStrip — right-click context menu', () => {
 
   it('Lock toggles layer.locked', async () => {
     const { getAllByRole, findByText } = render(<LayerStrip layerIds={['L1', 'L2']} />);
-    fireEvent.contextMenu(getAllByRole('button')[0]);
+    fireEvent.contextMenu(getAllByRole('button', { name: /select layer/i })[0]);
     fireEvent.click(await findByText(/^lock$/i));
     const after = useEditorStore.getState().layers.find((l) => l.id === 'L1');
     expect(after?.locked).toBe(true);
@@ -75,14 +77,14 @@ describe('LayerStrip — right-click context menu', () => {
 
   it('Delete removes the layer', async () => {
     const { getAllByRole, findByText } = render(<LayerStrip layerIds={['L1', 'L2']} />);
-    fireEvent.contextMenu(getAllByRole('button')[0]);
+    fireEvent.contextMenu(getAllByRole('button', { name: /select layer/i })[0]);
     fireEvent.click(await findByText(/delete/i));
     expect(useEditorStore.getState().layers.find((l) => l.id === 'L1')).toBeUndefined();
   });
 
   it('Rename triggers requestRenameLayer, sets activeLayerId, and switches Inspector to Layer tab', async () => {
     const { getAllByRole, findByText } = render(<LayerStrip layerIds={['L1', 'L2']} />);
-    fireEvent.contextMenu(getAllByRole('button')[0]);
+    fireEvent.contextMenu(getAllByRole('button', { name: /select layer/i })[0]);
     fireEvent.click(await findByText(/rename/i));
     expect(useEditorStore.getState().renamingLayerId).toBe('L1');
     expect(useEditorStore.getState().activeLayerId).toBe('L1');

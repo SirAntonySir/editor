@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { exceedsDragThreshold, isOutsideRect, rejoinTargetId } from './workspace-drag';
+import { exceedsDragThreshold, isOutsideRect, rejoinTargetId, nodeHasUnappliedChanges } from './workspace-drag';
 
 describe('exceedsDragThreshold', () => {
   it('is false for a tiny move (a click, not a drag)', () => {
@@ -20,6 +20,20 @@ describe('isOutsideRect', () => {
     expect(isOutsideRect({ x: 120, y: 40 }, rect)).toBe(true); // right
     expect(isOutsideRect({ x: 50, y: -5 }, rect)).toBe(true);  // above
     expect(isOutsideRect({ x: -1, y: 40 }, rect)).toBe(true);  // left
+  });
+});
+
+describe('nodeHasUnappliedChanges', () => {
+  const w = (id: string, status: string, layerId: string) =>
+    ({ id, status, nodes: [{ layerId }] });
+  it('true when an active widget targets one of the node layers', () => {
+    expect(nodeHasUnappliedChanges([w('w1', 'active', 'L1')], new Set(), ['L1'])).toBe(true);
+  });
+  it('false when the only matching widget is a pending suggestion', () => {
+    expect(nodeHasUnappliedChanges([w('w1', 'active', 'L1')], new Set(['w1']), ['L1'])).toBe(false);
+  });
+  it('false when no widget targets the node layers', () => {
+    expect(nodeHasUnappliedChanges([w('w1', 'active', 'LX')], new Set(), ['L1'])).toBe(false);
   });
 });
 

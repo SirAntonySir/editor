@@ -26,6 +26,22 @@ export function isOutsideRect(pt: { x: number; y: number }, rect: DragRect): boo
   );
 }
 
+/** A node has unapplied changes when an active (non-pending-suggestion) widget
+ *  targets one of its layers. Rejoin is blocked until those are applied or
+ *  dismissed — mirrors the "Rejoin source image" menu guard. */
+export function nodeHasUnappliedChanges(
+  widgets: ReadonlyArray<{ status: string; id: string; nodes: ReadonlyArray<{ layerId?: string | null }> }>,
+  pendingSuggestionIds: ReadonlySet<string>,
+  layerIds: ReadonlyArray<string>,
+): boolean {
+  return widgets.some(
+    (w) =>
+      w.status === 'active' &&
+      !pendingSuggestionIds.has(w.id) &&
+      w.nodes.some((n) => n.layerId != null && layerIds.includes(n.layerId)),
+  );
+}
+
 /** For rejoin: the dragged extracted node's source id, but only when that
  *  source is among the nodes it currently overlaps. Null otherwise (no source,
  *  or not dropped on the source → plain reposition). */

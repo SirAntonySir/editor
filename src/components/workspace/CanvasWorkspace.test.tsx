@@ -1,7 +1,17 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { cleanup, render, fireEvent } from '@testing-library/react';
+import { ReactFlowProvider } from '@xyflow/react';
 import { CanvasWorkspace } from './CanvasWorkspace';
 import { useEditorStore } from '@/store';
+
+// CanvasWorkspace calls useReactFlow at its top level (for getIntersectingNodes
+// in onNodeDragStop), so it must render under a provider — same as the app.
+const renderWorkspace = () =>
+  render(
+    <ReactFlowProvider>
+      <CanvasWorkspace />
+    </ReactFlowProvider>,
+  );
 
 vi.mock('@/lib/backend-tools', () => ({
   backendTools: {
@@ -21,19 +31,19 @@ afterEach(cleanup);
 
 describe('CanvasWorkspace', () => {
   it('renders an empty workspace when no nodes exist', () => {
-    render(<CanvasWorkspace />);
+    renderWorkspace();
     expect(document.querySelector('.react-flow')).toBeTruthy();
   });
 
   it('renders an Image node for each entry in the store', () => {
     const id = useEditorStore.getState().addImageNode(['l-1'], { x: 50, y: 50 });
-    render(<CanvasWorkspace />);
+    renderWorkspace();
     expect(document.querySelector(`[data-id="${id}"]`)).toBeTruthy();
   });
 
   it('Delete key ignores keypresses originating from form inputs', async () => {
     const id = useEditorStore.getState().addImageNode(['l-1'], { x: 50, y: 50 });
-    render(<CanvasWorkspace />);
+    renderWorkspace();
     await new Promise((r) => setTimeout(r, 0));
     // Simulate a keypress whose target is an input — handler must early-out.
     const input = document.createElement('input');
@@ -45,7 +55,7 @@ describe('CanvasWorkspace', () => {
 
   it('Delete key without selected nodes/edges is a no-op', async () => {
     const id = useEditorStore.getState().addImageNode(['l-1'], { x: 50, y: 50 });
-    render(<CanvasWorkspace />);
+    renderWorkspace();
     await new Promise((r) => setTimeout(r, 0));
     fireEvent.keyDown(window, { key: 'Delete' });
     // Node still present because nothing was selected in React Flow's state.
@@ -61,7 +71,7 @@ describe('CanvasWorkspace', () => {
       id: 'l-2', type: 'image', name: 'Layer 2',
       visible: true, opacity: 1, blendMode: 'normal', locked: false,
     });
-    render(<CanvasWorkspace />);
+    renderWorkspace();
     // Allow effect to run.
     await new Promise((r) => setTimeout(r, 0));
     const nodes = Object.values(useEditorStore.getState().imageNodes);

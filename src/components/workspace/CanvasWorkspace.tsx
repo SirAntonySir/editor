@@ -24,6 +24,10 @@ import { pickTetherHandles } from './tether-handles';
 import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
 import { InfoNode, type InfoNodeData } from './InfoNode';
 import type { Widget } from '@/types/widget';
+import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
+import { rejoinSourceImage } from '@/lib/image-node-actions';
+import { rejoinTargetId, nodeHasUnappliedChanges } from '@/lib/workspace-drag';
+import { toast } from '@/components/ui/Toast';
 
 /** Per-node ErrorBoundary so a render throw in one ImageNode doesn't
  *  unmount the whole React Flow canvas (and with it every sibling node).
@@ -407,11 +411,31 @@ export function CanvasWorkspace() {
     }
   }, []);
 
+  const { getIntersectingNodes } = useReactFlow();
   const onNodeDragStop = useCallback(
-    (_: unknown, _node: Node, draggedNodes: Node[]) => {
+    (_: unknown, node: Node, draggedNodes: Node[]) => {
+      // Drag-to-rejoin: an extracted image node dropped onto its own source
+      // merges back (the inverse of Extract to Image Node).
+      if (node.type === 'image') {
+        const editor = useEditorStore.getState();
+        const srcId = editor.imageNodes[node.id]?.sourceImageNodeId;
+        const overlapIds = getIntersectingNodes(node).map((n) => n.id);
+        if (rejoinTargetId(srcId, overlapIds)) {
+          const layerIds = editor.imageNodes[node.id]?.layerIds ?? [];
+          const widgets = useBackendState.getState().snapshot?.widgets ?? [];
+          const pending = useSuggestionsUi.getState().pendingSuggestionIds;
+          if (nodeHasUnappliedChanges(widgets, pending, layerIds)) {
+            toast.info('Apply or dismiss your changes before rejoining the source image.');
+            persistDraggedPositions(draggedNodes); // leave it where dropped
+            return;
+          }
+          rejoinSourceImage(node.id); // merges + un-crops; node is consumed
+          return;
+        }
+      }
       persistDraggedPositions(draggedNodes);
     },
-    [persistDraggedPositions],
+    [persistDraggedPositions, getIntersectingNodes],
   );
 
   const onSelectionDragStop = useCallback(

@@ -6,9 +6,12 @@ import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
 import { editorDocument } from '@/core/document';
 
 // Workspace widget placement footprint used by the collision-aware spawn
-// algorithm (nextSpawnPositionFor). Widgets spawn COLLAPSED, so this
-// height estimates the closed header only.
-const WIDGET_SPAWN_SIZE = { w: WIDGET_SHELL_MIN_WIDTH, h: 52 } as const;
+// algorithm (nextSpawnPositionFor). Widgets spawn EXPANDED (see
+// buildTetherForWidget), so this estimates a typical expanded body height — the
+// real per-widget size, once React Flow has measured it, is persisted onto the
+// widget node and used in preference (see the occupied-rect list below). This
+// value only governs not-yet-measured widgets.
+const WIDGET_SPAWN_SIZE = { w: WIDGET_SHELL_MIN_WIDTH, h: 220 } as const;
 
 
 /**
@@ -45,11 +48,16 @@ function buildTetherForWidget(widget: Widget, viewport?: Viewport): void {
   if (!targetNode) return;
 
   // Build the occupied-rect list: every image node + every positioned widget.
+  // Widgets spawn EXPANDED, so a placed widget's real height is hundreds of px,
+  // not the collapsed-header estimate. Use the React-Flow-measured size when we
+  // have it (persisted onto the widget node) so the next spawn clears the real
+  // footprint instead of stacking into it. Falls back to the estimate until the
+  // widget has been measured once.
   const occupied: PlacedRect[] = [
     ...Object.values(imageNodes).map((n) => ({ position: n.position, size: n.size })),
     ...Object.values(editor.widgetNodes).map((wn) => ({
       position: wn.position,
-      size: WIDGET_SPAWN_SIZE,
+      size: wn.size ?? WIDGET_SPAWN_SIZE,
     })),
   ];
 

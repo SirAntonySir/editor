@@ -34,6 +34,10 @@ export interface ImageNodeState {
 export interface WidgetNodeState {
   id: string;
   position: Point;
+  /** Last React-Flow-measured canvas size, persisted so spawn-placement
+   *  collision can avoid the widget's REAL (expanded) footprint instead of a
+   *  fixed header estimate. Absent until the widget has been measured once. */
+  size?: Size;
 }
 
 // ─── Info widgets ──────────────────────────────────────────────────────

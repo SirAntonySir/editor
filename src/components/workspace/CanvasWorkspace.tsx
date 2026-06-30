@@ -258,6 +258,21 @@ export function CanvasWorkspace() {
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setNodes((prev) => applyNodeChanges(changes, prev) as WorkspaceNode[]);
+    // Persist React-Flow-measured widget sizes so spawn-placement collision
+    // (workspace-tether) avoids each widget's REAL expanded footprint instead
+    // of a fixed header estimate. Dimension changes are event-driven (RF emits
+    // them on measure/resize), so this doesn't run on every render.
+    const wn = useEditorStore.getState().widgetNodes;
+    for (const c of changes) {
+      if (c.type !== 'dimensions' || !c.dimensions) continue;
+      const node = wn[c.id];
+      if (!node) continue; // only positioned widget nodes carry a footprint
+      const w = c.dimensions.width;
+      const h = c.dimensions.height;
+      if (!node.size || Math.abs(node.size.w - w) > 1 || Math.abs(node.size.h - h) > 1) {
+        useEditorStore.getState().setWidgetSize(c.id, { w, h });
+      }
+    }
   }, []);
 
   // Edges are auto-derived from active widgets. Each widget gets one edge to

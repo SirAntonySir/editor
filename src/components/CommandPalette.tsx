@@ -139,20 +139,19 @@ export function CommandPalette() {
   const sidebarOffset =
     layers.length > 0 && !rightSidebarCollapsed ? rightSidebarWidth : 0;
 
-  // Section order: Regions → Adjustments → Presets → Commands → AI. Regions
-  // sit first so a quick label search surfaces the named area immediately.
-  // Commands sit below domain operations so a bare "light" query still
-  // surfaces the Light adjustment first; users searching for "open" /
-  // "undo" / "zoom" still find them by name and the Kbd chip reminds them
-  // of the shortcut.
+  // Section order: Adjustments → Presets → Commands. Elements are NOT a section
+  // here — they're inserted via the inline caret picker (@-suggestions) in the
+  // prompt, not browsed as a palette list. Commands sit below domain operations
+  // so a bare "light" query still surfaces the Light adjustment first; users
+  // searching for "open" / "undo" / "zoom" still find them by name and the Kbd
+  // chip reminds them of the shortcut.
   const allSections = useMemo<PaletteSection[]>(
     () => [
-      ...buildRegionsSections(),
       ...STATIC_REGISTRY_SECTIONS,
       ...buildMenuActionSections(menuActions),
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [menuActions, aiContext, ownershipVersion, maskVersion],
+    [menuActions],
   );
 
   // Filter sections by query. Result is partitioned: `primary` holds rows
@@ -758,32 +757,22 @@ export function CommandPalette() {
                 ) : (
                 <div className="flex-1 min-h-0 overflow-hidden">
                 <ScrollArea className="h-full" viewportClassName="py-1">
-                  {primarySections.map((section, sIdx) =>
-                    section.id === 'regions' ? (
-                      <RegionChipStrip
-                        key={section.id}
-                        commands={section.commands}
-                        startIndex={primaryStartIndices[sIdx]}
-                        activeIndex={activeIndex}
-                        onSelect={run}
-                      />
-                    ) : (
-                      <div key={section.id}>
-                        <SectionHeader title={section.title} />
-                        {section.commands.map((cmd, cIdx) => {
-                          const absIdx = primaryStartIndices[sIdx] + cIdx;
-                          return (
-                            <CommandRow
-                              key={cmd.id}
-                              command={cmd}
-                              active={absIdx === activeIndex}
-                              onSelect={() => run(cmd)}
-                            />
-                          );
-                        })}
-                      </div>
-                    ),
-                  )}
+                  {primarySections.map((section, sIdx) => (
+                    <div key={section.id}>
+                      <SectionHeader title={section.title} />
+                      {section.commands.map((cmd, cIdx) => {
+                        const absIdx = primaryStartIndices[sIdx] + cIdx;
+                        return (
+                          <CommandRow
+                            key={cmd.id}
+                            command={cmd}
+                            active={absIdx === activeIndex}
+                            onSelect={() => run(cmd)}
+                          />
+                        );
+                      })}
+                    </div>
+                  ))}
                   {smartSection && (
                     <div key={smartSection.id}>
                       <SectionHeader
@@ -814,16 +803,7 @@ export function CommandPalette() {
                       />
                     </>
                   )}
-                  {secondarySections.map((section, sIdx) =>
-                    section.id === 'regions' ? (
-                      <RegionChipStrip
-                        key={`sec:${section.id}`}
-                        commands={section.commands}
-                        startIndex={secondaryStartIndices[sIdx]}
-                        activeIndex={activeIndex}
-                        onSelect={run}
-                      />
-                    ) : (
+                  {secondarySections.map((section, sIdx) => (
                     <div key={`sec:${section.id}`}>
                       <SectionHeader title={section.title} />
                       {section.commands.map((cmd, cIdx) => {
@@ -838,8 +818,7 @@ export function CommandPalette() {
                         );
                       })}
                     </div>
-                    ),
-                  )}
+                  ))}
                   {flat.length === 0 && (
                     <div className="px-2 py-1.5 text-xs text-text-secondary">No matches.</div>
                   )}
@@ -980,47 +959,6 @@ function TargetThumb({ layerId }: { layerId: string | undefined }) {
         <ImageIcon size={10} className="absolute opacity-70" aria-hidden />
       )}
     </span>
-  );
-}
-
-/**
- * Regions section, rendered as a single horizontal scroll strip of chips
- * (instead of a vertical list + "Regions" header). A leading SquareDashed icon
- * marks the strip; each chip stays keyboard-navigable via `activeIndex` so
- * up/down + Enter still work alongside clicking.
- */
-function RegionChipStrip({
-  commands,
-  startIndex,
-  activeIndex,
-  onSelect,
-}: {
-  commands: PaletteCommand[];
-  startIndex: number;
-  activeIndex: number;
-  onSelect: (cmd: PaletteCommand) => void;
-}) {
-  return (
-    <div className="flex items-center gap-1.5 px-2 py-1.5 overflow-x-auto">
-      <SquareDashed size={13} className="flex-none text-text-secondary" aria-hidden />
-      {commands.map((cmd, i) => {
-        const active = startIndex + i === activeIndex;
-        return (
-          <button
-            key={cmd.id}
-            type="button"
-            onClick={() => onSelect(cmd)}
-            className={`flex-none inline-flex items-center text-[11px] rounded-[3px] px-1.5 py-0.5 border transition-colors ${
-              active
-                ? 'bg-[color-mix(in_srgb,var(--color-ai)_15%,transparent)] border-[color-mix(in_srgb,var(--color-ai)_40%,transparent)] text-[var(--color-ai)]'
-                : 'bg-surface-secondary border-separator text-text-primary hover:border-[var(--color-ai)]'
-            }`}
-          >
-            <span className="truncate max-w-[140px]">{cmd.label}</span>
-          </button>
-        );
-      })}
-    </div>
   );
 }
 

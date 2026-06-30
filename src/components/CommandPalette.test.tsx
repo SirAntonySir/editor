@@ -23,7 +23,6 @@ import { runAgentTurn } from '@/lib/palette-actions.agent';
 import { useAiSession, analyseActiveImageLayer } from '@/hooks/useImageContext';
 import { maskStore } from '@/core/mask-store';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
-import { extractObjectToImageNode } from '@/lib/segmentation/object-actions';
 
 vi.mock('@/lib/segmentation/object-actions', () => ({
   // Accepting a region always separates it; we spy the extraction so the
@@ -183,52 +182,10 @@ describe('CommandPalette execution', () => {
     await waitFor(() => expect(runAgentTurn).toHaveBeenCalledWith('make it warmer', []));
   });
 
-  it('accepting a region only attaches a chip — it does NOT segment / spin up a node', async () => {
-    const nodeId = useEditorStore.getState().addImageNode(['l1']);
-    useEditorStore.getState().setActiveImageNode(nodeId);
-    // A committed object labelled "person" so the Regions section lists it.
-    maskStore.injectWithId({
-      id: 'm1',
-      layerId: 'l1',
-      label: 'person',
-      width: 1,
-      height: 1,
-      data: new Uint8Array([0]),
-      source: 'sam-point',
-      createdAt: 0,
-    });
-    objectOwnership.set('m1', nodeId);
-    render(<CommandPalette />);
-    open();
-    await userEvent.click(screen.getAllByText('person')[0]);
-    // Attaching a chip is a prompt reference only; extraction is the AI's
-    // decision at submit time, never a side effect of clicking the chip.
-    expect(extractObjectToImageNode).not.toHaveBeenCalled();
-  });
-
-  it('reflects a renamed object label in the Regions list', async () => {
-    const nodeId = useEditorStore.getState().addImageNode(['l1']);
-    useEditorStore.getState().setActiveImageNode(nodeId);
-    maskStore.injectWithId({
-      id: 'm1',
-      layerId: 'l1',
-      label: 'person',
-      width: 1,
-      height: 1,
-      data: new Uint8Array([0]),
-      source: 'sam-point',
-      createdAt: 0,
-    });
-    objectOwnership.set('m1', nodeId);
-    render(<CommandPalette />);
-    open();
-    expect(screen.getAllByText('person').length).toBeGreaterThan(0);
-
-    // Rename through the reactive maskStore → the Regions list updates live.
-    await act(async () => { maskStore.setLabel('m1', 'climber'); });
-    expect(screen.getByText('climber')).toBeInTheDocument();
-    expect(screen.queryByText('person')).not.toBeInTheDocument();
-  });
+  // Note: elements are no longer browsable as a palette section/strip — they're
+  // inserted via the inline caret picker (covered by RegionSuggestions /
+  // prompt-doc tests). The former "Regions list" render tests were removed with
+  // the strip.
 });
 
 describe('CommandPalette — inline context chips', () => {

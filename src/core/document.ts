@@ -27,6 +27,7 @@ import { backendTools } from '@/lib/backend-tools';
 import { toast } from '@/components/ui/Toast';
 
 import { BACKEND_BASE_URL } from '@/lib/backend-url';
+import { logWidgetUndoDiag } from '@/lib/widget-undo-diag';
 
 const DEBOUNCE_MS = 2000;
 
@@ -507,16 +508,22 @@ function recordSnapshot<T>(_label: string, fn: () => T): T {
 async function undoAction(): Promise<void> {
   if (interaction) endInteraction();
   const sessionId = useBackendState.getState().sessionId;
+  logWidgetUndoDiag('undo:start', { hasSession: !!sessionId });
   if (sessionId) {
     try {
       const applied = await backendTools.undo(sessionId);
-      if (applied !== null) return;  // backend handled it
+      if (applied !== null) {
+        logWidgetUndoDiag('undo:handled-by-backend', { applied });
+        return;  // backend handled it
+      }
+      logWidgetUndoDiag('undo:backend-returned-null-falling-back');
     } catch (err) {
       console.warn('[history] backend undo failed, falling back:', err);
     }
   }
   const snap = history.undo<SerializableState>();
   if (snap) restoreState(snap);
+  logWidgetUndoDiag('undo:frontend-fallback-applied', { hadSnap: !!snap });
 }
 
 async function redoAction(): Promise<void> {

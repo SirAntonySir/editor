@@ -43,6 +43,22 @@ export function selectInvertedObject(maskId: string, imageNodeId: string): void 
   }
   const inverted = new Uint8Array(mask.data.length);
   for (let i = 0; i < mask.data.length; i++) inverted[i] = 255 - mask.data[i];
+  // TEMP DIAGNOSTIC (Select Inverted "one point" bug) — remove after triage.
+  // Reports the source mask's value distribution + the inverse fill so we can
+  // see whether the source is clean-binary (bg exactly 0) or not.
+  {
+    let on = 0, zero = 0, other = 0, invOn = 0;
+    for (let i = 0; i < mask.data.length; i++) {
+      const v = mask.data[i];
+      if (v === 255) on++; else if (v === 0) zero++; else other++;
+      if (inverted[i] === 255) invOn++;
+    }
+    console.warn('[selectInverted] mask stats', {
+      w: mask.width, h: mask.height, len: mask.data.length,
+      expectedLen: mask.width * mask.height,
+      fg255: on, bg0: zero, otherValues: other, inverseFg255: invOn,
+    });
+  }
   const label = mask.label ? `Inverted of ${mask.label}` : 'Inverted selection';
   window.dispatchEvent(
     new CustomEvent('segment-hit:external-candidate', {

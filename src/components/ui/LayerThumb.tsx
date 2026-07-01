@@ -10,11 +10,11 @@ type DrawSource = CanvasImageSource & { width: number; height: number };
  * Thumbnail of one layer, cover-cropped into a box. The active (edit-target)
  * layer gets an inset accent ring; others a hairline ring.
  *
- * When `imageNodeId` is given it LIVE-updates from that node's composite canvas
- * (adjustments baked) via `activeCanvasBus`, so edits show immediately — for a
- * single-layer node the composite is exactly this layer; multi-layer nodes show
- * the node composite. Otherwise it falls back to the raw source pixels and
- * redraws on `pixelVersion`.
+ * For a single-layer node the node composite IS this layer, so when
+ * `imageNodeId` is given it LIVE-updates from that node's composite canvas
+ * (adjustments baked) via `activeCanvasBus`, so edits show immediately. For a
+ * multi-layer node the composite blends every layer and is NOT this layer, so
+ * it draws the layer's own raw source pixels (redrawn on `pixelVersion`).
  *
  * Cross-domain primitive (workspace LayerStrip + inspector LayerRow) → `ui/`.
  */
@@ -36,6 +36,13 @@ export function LayerThumb({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [drawn, setDrawn] = useState(false);
   const pixelVersion = useEditorStore((s) => s.pixelVersion);
+  // The node composite blends ALL of the node's layers, so it equals this
+  // layer's pixels only when the node holds a single layer. For multi-layer
+  // nodes the composite is NOT this layer — draw the layer's own source pixels
+  // instead, otherwise every thumbnail shows the same full-image composite.
+  const nodeIsSingleLayer = useEditorStore((s) =>
+    imageNodeId ? (s.imageNodes[imageNodeId]?.layerIds.length ?? 1) <= 1 : false,
+  );
 
   // Cover-crop any source canvas/bitmap into the thumb canvas.
   const draw = useCallback((src: DrawSource) => {
@@ -53,20 +60,25 @@ export function LayerThumb({
     setDrawn(true);
   }, []);
 
-  // Initial / fallback: the layer's raw source pixels (covers pre-first-render).
+  // The layer's raw source pixels. This is the authority for multi-layer nodes
+  // (where the composite isn't this layer) and the pre-first-render fallback
+  // for single-layer nodes. Re-runs on `nodeIsSingleLayer` so crossing the
+  // single↔multi boundary (e.g. Extract to Layer) redraws from source.
   useEffect(() => {
     setDrawn(false);
     const source = pixelStore.getSource(layerId);
     if (source) draw(source as unknown as DrawSource);
-  }, [layerId, pixelVersion, draw]);
+  }, [layerId, pixelVersion, draw, nodeIsSingleLayer]);
 
-  // Live: redraw from the node's composite whenever that node re-renders.
+  // Live: redraw from the node's composite whenever that node re-renders — but
+  // ONLY for a single-layer node, where the composite equals this layer (so
+  // adjustments show live). Multi-layer nodes stay on the source draw above.
   useEffect(() => {
-    if (!imageNodeId) return;
+    if (!imageNodeId || !nodeIsSingleLayer) return;
     return activeCanvasBus.subscribe((nodeId, canvas) => {
       if (nodeId === imageNodeId) draw(canvas);
     });
-  }, [imageNodeId, draw]);
+  }, [imageNodeId, nodeIsSingleLayer, draw]);
 
   return (
     <span

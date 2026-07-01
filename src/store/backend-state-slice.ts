@@ -13,6 +13,7 @@ import { deletePrefix } from '@/core/pixel-source-store';
 import { tetherWorkspaceWidget } from '@/lib/workspace-tether';
 import { useEditorStore } from '@/store';
 import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
+import { logWidgetUndoDiag } from '@/lib/widget-undo-diag';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
 import { LlmToolRegistry } from '@/lib/tool-manifest/llm-tool-registry';
 import { backendTools } from '@/lib/backend-tools';
@@ -306,6 +307,17 @@ export const useBackendState = create<BackendState>()(
             // Any in-flight optimistic patches are stale — the restored
             // snapshot is authoritative.
             s.optimistic.clear();
+            // TEMP DIAGNOSTIC — see whether restored widgets are re-marked
+            // pending (they are not, today). Remove after triage.
+            sideEffects.push(() =>
+              logWidgetUndoDiag('history.applied', {
+                restoredWidgets: (p.widgets ?? []).map((w) => ({
+                  id: w.id,
+                  status: w.status,
+                  origin: w.origin?.kind,
+                })),
+              }),
+            );
             return;
           }
           case 'context.updated': {
@@ -433,8 +445,13 @@ export const useBackendState = create<BackendState>()(
               image_node_id?: string | null;
             };
             // Push MaskSummary into snapshot.masks_index so the inspector chip
-            // cloud sees it.
-            if (s.snapshot) {
+            // cloud sees it. Idempotent by mask id: the same mask.created can
+            // reach here more than once (SSE replay, or a snapshot refetch that
+            // already included it landing before this queued push), and a
+            // duplicate entry would render as multiple identical objects
+            // (useImageNodeObjects maps one row per entry). See the "extract to
+            // layer creates 3 masks" repro.
+            if (s.snapshot && !s.snapshot.masksIndex.some((m) => m.id === p.mask_id)) {
               s.snapshot.masksIndex.push({
                 id: p.mask_id,
                 width: p.width,

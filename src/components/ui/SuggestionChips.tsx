@@ -8,6 +8,7 @@ import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { useAiAccess } from '@/lib/ai-access';
 import { backendTools } from '@/lib/backend-tools';
 import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
+import { logWidgetUndoDiag } from '@/lib/widget-undo-diag';
 import type { Widget } from '@/types/widget';
 import { UI } from '@/config';
 
@@ -74,6 +75,7 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
   const infoOpen = hover || sticky;
 
   function handleAllow() {
+    logWidgetUndoDiag('allow:before', { widgetId: widget.id });
     const { x, y, zoom } = rf.getViewport();
     const screen = { w: window.innerWidth, h: window.innerHeight };
     tetherWorkspaceWidgetOnEngage(widget, { pan: { x, y }, zoom, screen });
@@ -86,9 +88,11 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
       decidedAt: Date.now(),
     });
     resolve(widget.id);
+    logWidgetUndoDiag('allow:after', { widgetId: widget.id });
   }
 
   function handleDeny() {
+    logWidgetUndoDiag('deny:before', { widgetId: widget.id });
     if (sessionId) {
       void backendTools.delete_widget(sessionId, {
         widgetId: widget.id,
@@ -103,6 +107,7 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
       decidedAt: Date.now(),
     });
     resolve(widget.id);
+    logWidgetUndoDiag('deny:after', { widgetId: widget.id });
   }
 
   const isPreviewing = previewingIds.has(widget.id);

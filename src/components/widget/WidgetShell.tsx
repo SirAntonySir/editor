@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Widget, MaskSummary } from '@/types/widget';
 import { backendTools } from '@/lib/backend-tools';
+import { logWidgetUndoDiag } from '@/lib/widget-undo-diag';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useWidgetExpansion } from '@/hooks/useWidgetExpansion';
 import { useHoveredWidget } from '@/hooks/useHoveredWidget';
@@ -176,6 +177,7 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
         }),
       );
     }
+    logWidgetUndoDiag('apply(accept_widget)', { widgetId: widget.id });
     void backendTools.accept_widget(sessionId, { widgetId: widget.id });
   }
 

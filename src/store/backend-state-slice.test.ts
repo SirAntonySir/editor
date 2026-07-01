@@ -79,6 +79,24 @@ describe('BackendStateSlice', () => {
     expect(snap.revision).toBe(2);
   });
 
+  it('applyEvent mask.created is idempotent — a repeated mask id is not added twice', () => {
+    // Repro for "extract-to-layer creates 3 identical masks": the same mask
+    // reaching masksIndex more than once (SSE replay / refetch-then-push race)
+    // must not duplicate the entry, or useImageNodeObjects renders one mask as
+    // many objects.
+    useBackendState.setState({ snapshot: baseSnapshot() });
+    const maskEvent = (revision: number): StateEvent => ({
+      revision,
+      kind: 'mask.created',
+      payload: { mask_id: 'm1', source: 'sam_point', width: 4, height: 4, image_node_id: 'n1', label: 'Object 1' },
+      emitted_at: '2026-05-23T00:00:01Z',
+    } as unknown as StateEvent);
+    useBackendState.getState().applyEvent(maskEvent(2));
+    useBackendState.getState().applyEvent(maskEvent(3));
+    const idx = useBackendState.getState().snapshot!.masksIndex;
+    expect(idx.filter((m) => m.id === 'm1')).toHaveLength(1);
+  });
+
   it('applyEvent widget.created swaps in the embedded operation_graph', () => {
     useBackendState.setState({ snapshot: baseSnapshot() });
     const ev: StateEvent = {

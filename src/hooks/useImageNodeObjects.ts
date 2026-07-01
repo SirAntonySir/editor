@@ -48,10 +48,15 @@ export function useImageNodeObjects(imageNodeId: string): ImageObject[] {
   return useMemo(() => {
     if (!masksIndex) return [];
     const out: ImageObject[] = [];
+    const seen = new Set<string>();
     let autoIdx = 0;
     for (const entry of masksIndex) {
       const id = (entry as { id?: string }).id;
       if (!id) continue;
+      // Dedup by id: masksIndex should hold one row per mask, but a duplicate
+      // (SSE/refetch race) must never render as multiple identical objects.
+      if (seen.has(id)) continue;
+      seen.add(id);
       // objectOwnership wins when set — it's the client's authoritative
       // mapping for masks it proposed (the backend's `image_node_id` can
       // drift, e.g. legacy `in-default`). For backend-only masks with no

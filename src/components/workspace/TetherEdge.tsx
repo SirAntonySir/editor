@@ -2,6 +2,9 @@ import { BaseEdge, getBezierPath, type Edge, type EdgeProps } from '@xyflow/reac
 
 export interface TetherEdgeData extends Record<string, unknown> {
   scopeKind: 'layer' | 'node';
+  /** 'extracted' renders a calm, semi-transparent grey provenance connector
+   *  from an extracted image node back to its source (not the accent tether). */
+  variant?: 'extracted';
 }
 
 export type TetherEdgeType = Edge<TetherEdgeData, 'tether'>;
@@ -38,23 +41,30 @@ export function TetherEdge({
   // the per-cycle offset shift via the `--march-shift` CSS variable, so the
   // loop is seamless.
   const isNodeScope = data?.scopeKind === 'node';
-  const dashArray = isNodeScope ? '3 3' : '5 1';
+  const isExtracted = data?.variant === 'extracted';
+  // Extracted provenance connector: calm semi-transparent grey, static dashes
+  // (no marching-ants), so it reads as a quiet "came from here" link rather
+  // than an active accent tether.
+  const stroke = isExtracted
+    ? 'color-mix(in srgb, var(--color-text-secondary) 55%, transparent)'
+    : 'var(--color-accent)';
+  const dashArray = isExtracted ? '4 3' : isNodeScope ? '3 3' : '5 1';
   return (
     <>
       <BaseEdge
         id={id}
         path={path}
         strokeDasharray={dashArray}
-        className="tether-march"
+        className={isExtracted ? undefined : 'tether-march'}
         style={{
-          stroke: 'var(--color-accent)',
+          stroke,
           strokeWidth: STROKE_WIDTH,
           fill: 'none',
           ['--march-shift' as string]: String(DASH_SUM),
         }}
       />
-      <circle cx={sourceX} cy={sourceY} r={DOT_RADIUS} fill="var(--color-accent)" />
-      <circle cx={targetX} cy={targetY} r={DOT_RADIUS} fill="var(--color-accent)" />
+      <circle cx={sourceX} cy={sourceY} r={DOT_RADIUS} fill={stroke} />
+      <circle cx={targetX} cy={targetY} r={DOT_RADIUS} fill={stroke} />
     </>
   );
 }

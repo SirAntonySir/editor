@@ -147,6 +147,22 @@ export function SegmentHitLayer({
       const el = layerRef.current;
       if (!el) return;
       const [nx, ny] = clientToNormalised(e, el);
+      // TEMP DIAGNOSTIC — "drag-to-extract doesn't arm on the object body".
+      // Logs, at the press point, each object's mask dims + the sampled value +
+      // whether isInsideMask matches. Remove after triage.
+      // eslint-disable-next-line no-console
+      console.warn('[extract-drag-diag] pointerDown', {
+        nx: +nx.toFixed(3),
+        ny: +ny.toFixed(3),
+        objectsCount: existingObjects.length,
+        hasCandidate: !!candidate?.mask,
+        objects: existingObjects.map((o) => {
+          const m = o.mask;
+          const x = Math.min(m.width - 1, Math.max(0, Math.floor(nx * m.width)));
+          const y = Math.min(m.height - 1, Math.max(0, Math.floor(ny * m.height)));
+          return { id: o.id.slice(0, 8), w: m.width, h: m.height, sampled: m.data[y * m.width + x], inside: isInsideMask(nx, ny, m) };
+        }),
+      });
       if (candidate?.mask && isInsideMask(nx, ny, candidate.mask)) {
         grabbed.current = { kind: 'candidate' };
         extractDrag.onPointerDown(e);
@@ -280,16 +296,27 @@ export function SegmentHitLayer({
       const el = layerRef.current;
       if (!el) return;
       const [nx, ny] = clientToNormalised(e, el);
-      const overObject = existingObjects.some((obj) => {
+      const hit = existingObjects.find((obj) => {
         const x = Math.min(obj.mask.width - 1, Math.max(0, Math.floor(nx * obj.mask.width)));
         const y = Math.min(obj.mask.height - 1, Math.max(0, Math.floor(ny * obj.mask.height)));
         return obj.mask.data[y * obj.mask.width + x] === 255;
       });
-      setHoveringObject((prev) => (prev === overObject ? prev : overObject));
+      const hitId = hit?.id ?? null;
+      setHoveringObject((prev) => (prev === (hitId !== null) ? prev : hitId !== null));
+      // Bidirectional object hover: sync the shared `hoveredObjectId` so the
+      // region's margin marker lights up (ObjectMarkers) and its mask overlay
+      // paints (paintOverlays). Guarded to write only on enter/leave of an
+      // object, not on every pointer move.
+      const editor = useEditorStore.getState();
+      if (editor.hoveredObjectId !== hitId) editor.setHoveredObjectId(hitId);
     },
     [existingObjects],
   );
-  const handlePointerLeave = useCallback(() => setHoveringObject(false), []);
+  const handlePointerLeave = useCallback(() => {
+    setHoveringObject(false);
+    const editor = useEditorStore.getState();
+    if (editor.hoveredObjectId !== null) editor.setHoveredObjectId(null);
+  }, []);
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {

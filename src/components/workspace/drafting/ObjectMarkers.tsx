@@ -82,7 +82,13 @@ function placeMarkers(objects: ImageObject[], heightPx: number): PlacedMarker[] 
  */
 export function ObjectMarkers({ imageNodeId, widthPx, heightPx, marginWidth }: ObjectMarkersProps) {
   const objects = useImageNodeObjects(imageNodeId);
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  // Hover is bidirectional and shared with the canvas: hovering a marker sets
+  // `hoveredObjectId`, which lights this marker's leader line AND paints the
+  // object's mask overlay on the image (see paintOverlays in
+  // image-node-renderer). SegmentHitLayer sets the same field when the cursor
+  // is over the object's pixels, so hovering the region lights its marker.
+  const hoveredObjectId = useEditorStore((s) => s.hoveredObjectId);
+  const setHoveredObjectId = useEditorStore((s) => s.setHoveredObjectId);
 
   const placed = useMemo(() => {
     const out = placeMarkers(objects, heightPx);
@@ -116,25 +122,31 @@ export function ObjectMarkers({ imageNodeId, widthPx, heightPx, marginWidth }: O
         {placed.map((p) => {
           const markerCenterX = widthPx + MARKER_X_OFFSET + MARKER_SIZE / 2;
           const markerCenterY = p.markerY + MARKER_SIZE / 2;
-          const isHover = hoveredId === p.obj.id;
+          const isHover = hoveredObjectId === p.obj.id;
           return (
             <g key={p.obj.id}>
-              <line
-                x1={p.cx}
-                y1={p.cy}
-                x2={markerCenterX}
-                y2={markerCenterY}
-                stroke="var(--color-accent)"
-                strokeWidth={0.9}
-                strokeDasharray="2 3"
-                opacity={isHover ? 1 : 0.5}
-              />
+              {/* Leader line is hover-only — the default surface is just the
+                  faint centroid dots, keeping the photo clean. On hover the
+                  line reveals which region this marker tags (and the canvas
+                  highlights the mask via hoveredObjectId). */}
+              {isHover && (
+                <line
+                  x1={p.cx}
+                  y1={p.cy}
+                  x2={markerCenterX}
+                  y2={markerCenterY}
+                  stroke="var(--color-accent)"
+                  strokeWidth={1.6}
+                  strokeDasharray="2 3"
+                  opacity={1}
+                />
+              )}
               <circle
                 cx={p.cx}
                 cy={p.cy}
-                r={2.4}
+                r={isHover ? 3 : 2.2}
                 fill="var(--color-accent)"
-                opacity={isHover ? 1 : 0.7}
+                opacity={isHover ? 1 : 0.45}
               />
             </g>
           );
@@ -155,7 +167,7 @@ export function ObjectMarkers({ imageNodeId, widthPx, heightPx, marginWidth }: O
             index={p.index}
             imageNodeId={imageNodeId}
             top={p.markerY}
-            onHover={setHoveredId}
+            onHover={setHoveredObjectId}
           />
         ))}
       </div>
@@ -177,6 +189,24 @@ function ObjectMarker({ obj, index, imageNodeId, top, onHover }: ObjectMarkerPro
   const inputRef = useRef<HTMLInputElement>(null);
   const pendingRenameId = useEditorStore((s) => s.pendingObjectRenameId);
   const clearRenameRequest = useEditorStore((s) => s.clearObjectRenameRequest);
+  // Selection state: a marker click sets `activeObjectId` (the adjustment
+  // target read by AdjustmentsAccordion), mirroring an on-canvas object-pixel
+  // click. Without this the margin markers only hover-highlight and the
+  // "Target" field is stuck on "Whole image".
+  const isSelected = useEditorStore((s) => s.activeObjectId === obj.id);
+
+  // Toggle this object as the active adjustment target. Clicking the already-
+  // selected marker clears the scope back to whole-image, matching the canvas
+  // empty-click behaviour in SegmentHitLayer.
+  function toggleSelect(): void {
+    const editor = useEditorStore.getState();
+    if (editor.activeObjectId === obj.id) {
+      editor.setActiveObjectId(null);
+    } else {
+      editor.setActiveObjectId(obj.id);
+      editor.setActiveImageNode(imageNodeId);
+    }
+  }
 
   function startEdit(): void {
     setDraft(obj.label);
@@ -213,7 +243,7 @@ function ObjectMarker({ obj, index, imageNodeId, top, onHover }: ObjectMarkerPro
 
   // Drag the marker off the image → extract the object to a new node at the
   // drop point (a gesture shortcut for the "Extract to Image Node" verb).
-  const { onPointerDown, onPointerMove, onPointerUp, dragging, ghost } = useSegmentExtractDrag({
+  const { onPointerDown, onPointerMove, onPointerUp, dragging, ghost, consumeDragClick } = useSegmentExtractDrag({
     sourceImageNodeId: imageNodeId,
     label: obj.label,
     onExtract: (dropFlow) => {
@@ -232,12 +262,22 @@ function ObjectMarker({ obj, index, imageNodeId, top, onHover }: ObjectMarkerPro
       <ContextMenu.Trigger asChild>
         <div
           data-object-marker={obj.id}
-          className={`absolute flex items-center gap-2 pointer-events-auto select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+          // `nodrag nopan` opts this marker out of React Flow's pointer
+          // handling — without it a press starts a node drag/pan and the
+          // click never fires, so selection (and the extract-drag) silently
+          // no-op even though hover still works.
+          className={`nodrag nopan absolute flex items-center gap-2 pointer-events-auto select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
           style={{ top: `${top}px`, left: 0 }}
           onMouseEnter={() => onHover(obj.id)}
           onMouseLeave={() => onHover(null)}
           onDoubleClick={(e) => { e.stopPropagation(); startEdit(); }}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            // A completed extract-drag ends in a click; swallow it so a drag
+            // doesn't also toggle selection.
+            if (consumeDragClick()) return;
+            toggleSelect();
+          }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -245,7 +285,11 @@ function ObjectMarker({ obj, index, imageNodeId, top, onHover }: ObjectMarkerPro
           {ghost}
           <span
             aria-hidden
-            className="flex items-center justify-center w-[22px] h-[22px] rounded-full bg-surface border border-[var(--color-accent)] text-[var(--color-accent)] font-[var(--font-mono)] text-[10px] tabular-nums leading-none"
+            className={`flex items-center justify-center w-[22px] h-[22px] rounded-full border border-[var(--color-accent)] font-[var(--font-mono)] text-[10px] tabular-nums leading-none ${
+              isSelected
+                ? 'bg-[var(--color-accent)] text-surface'
+                : 'bg-surface text-[var(--color-accent)]'
+            }`}
           >
             {index}
           </span>
@@ -262,7 +306,11 @@ function ObjectMarker({ obj, index, imageNodeId, top, onHover }: ObjectMarkerPro
               className="bg-transparent text-text-primary font-[var(--font-display,Fraunces)] italic text-[14px] leading-none outline-none w-[10ch] border-b border-[var(--color-accent)]"
             />
           ) : (
-            <span className="font-[var(--font-display,Fraunces)] italic text-[14px] leading-none text-text-primary">
+            <span
+              className={`font-[var(--font-display,Fraunces)] italic text-[14px] leading-none ${
+                isSelected ? 'text-[var(--color-accent)]' : 'text-text-primary'
+              }`}
+            >
               {obj.label}
             </span>
           )}

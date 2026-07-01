@@ -403,6 +403,39 @@ export function CanvasWorkspace() {
         selectable: false,
       });
     }
+
+    // ─── Extracted-object provenance tethers ───────────────────────
+    // Every image node extracted from a source (`sourceImageNodeId`) gets a
+    // calm, semi-transparent grey connector back to that source, so the cutout
+    // visibly reads as "came from here". Same handle-routing as the others.
+    for (const node of Object.values(imageNodes)) {
+      const srcId = node.sourceImageNodeId;
+      if (!srcId || !imageNodes[srcId]) continue;
+      const rfNode = rfLookup.get(node.id);
+      const rfSrc = rfLookup.get(srcId);
+      if (!rfNode || !rfSrc) continue;
+      const nodeCenter = {
+        x: rfNode.position.x + rfNode.size.w / 2,
+        y: rfNode.position.y + rfNode.size.h / 2,
+      };
+      const srcBounds = {
+        x0: rfSrc.position.x,
+        y0: rfSrc.position.y,
+        x1: rfSrc.position.x + rfSrc.size.w,
+        y1: rfSrc.position.y + rfSrc.size.h,
+      };
+      const { sourceHandle, targetHandle } = pickTetherHandles(nodeCenter, srcBounds);
+      out.push({
+        id: `extracted-${node.id}`,
+        source: node.id,
+        target: srcId,
+        sourceHandle,
+        targetHandle,
+        type: 'tether',
+        data: { scopeKind: 'node', variant: 'extracted' as const },
+        selectable: false,
+      });
+    }
     return out;
   }, [snapshotWidgets, imageNodes, widgetNodes, infoNodes, activeImageNodeId, nodes]);
 

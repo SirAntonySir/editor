@@ -90,6 +90,9 @@ const RIGHT_MARGIN = 120;
 export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps) {
   const [compareHeld, setCompareHeld] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
+  // Reveal the resize corner handles on hover (not only when selected), so the
+  // image node resizes the same way widgets do.
+  const [hovered, setHovered] = useState(false);
   const setImageNodeName = useEditorStore((s) => s.setImageNodeName);
   // Right-click "Analyze with AI" hides once this node has been analysed —
   // the AI menu does the same via its `analysedIds.includes(id)` check.
@@ -567,6 +570,8 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
         <div
           className={`relative ${isRejoinTarget ? 'rejoin-snap-target' : ''}`}
           style={{ width: `${displayW}px`, height: `${displayH}px` }}
+          onPointerEnter={() => setHovered(true)}
+          onPointerLeave={() => setHovered(false)}
         >
           <ContextMenu.Root>
             <ContextMenu.Trigger asChild>
@@ -639,7 +644,7 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
             imageNodeId={id}
             displayWidth={displayW}
             displayHeight={displayH}
-            selected={selected}
+            selected={selected || hovered}
           />
 
           {/* Selection frame fades in on `selected`. Width transitions only

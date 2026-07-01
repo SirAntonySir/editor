@@ -1,5 +1,5 @@
 import { render, screen, cleanup } from '@testing-library/react';
-import { it, describe, expect, beforeEach, afterEach } from 'vitest';
+import { it, expect, beforeEach, afterEach } from 'vitest';
 import { AdjustmentsAccordion } from './AdjustmentsAccordion';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
@@ -36,22 +36,9 @@ it('does not render the standalone Colour Band row (moved into HSL popover)', ()
   expect(screen.queryByText('Colour band')).toBeNull();
 });
 
-describe('binding header', () => {
-  it('shows "Whole image" target when no object is selected', () => {
-    useEditorStore.setState({ activeObjectId: null, activeLayerId: null, activeImageNodeId: null } as never);
-    render(<AdjustmentsAccordion />);
-    expect(screen.getByText('Whole image')).toBeTruthy();
-  });
-
-  it('shows just "Whole image" when no object is selected, no layer suffix', () => {
-    useEditorStore.setState({
-      activeObjectId: null,
-      activeImageNodeId: null,
-      activeLayerId: 'L1',
-      layers: [{ id: 'L1', name: 'Background' }],
-    } as never);
-    render(<AdjustmentsAccordion />);
-    expect(screen.getByText('Whole image')).toBeTruthy();
-    expect(screen.queryByText(/ on /i)).toBeNull();
-  });
+it('no longer renders a text "Targets:" header (replaced by EditTargetPreview)', () => {
+  useEditorStore.setState({ activeObjectId: null, activeLayerId: null, activeImageNodeId: null } as never);
+  render(<AdjustmentsAccordion />);
+  expect(screen.queryByText(/Targets:/i)).toBeNull();
+  expect(screen.queryByText('Whole image')).toBeNull();
 });

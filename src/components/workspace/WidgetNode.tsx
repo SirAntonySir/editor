@@ -22,6 +22,16 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
   // User uniform scale (bottom-right corner resize). 1 = natural size.
   const scale = useEditorStore((s) => s.widgetNodes[id]?.scale ?? 1);
 
+  // Dim widgets whose target layer isn't the selected one, so the canvas
+  // foregrounds the widgets that act on the layer you're editing. A widget's
+  // target is its ops' `layerId` (the same value the Pin path sets). Hover
+  // restores full opacity so a dimmed widget stays readable/usable. Never dim
+  // when nothing is selected, or for a node-scope widget with no layerId.
+  const activeLayerId = useEditorStore((s) => s.activeLayerId);
+  const widgetLayerId = data.widget.nodes.find((n) => n.layerId)?.layerId ?? null;
+  const dimmed = activeLayerId != null && widgetLayerId != null && widgetLayerId !== activeLayerId;
+  const dimClass = dimmed ? 'opacity-40 hover:opacity-100 transition-opacity' : '';
+
   // Anchor the left/right edge handles to the node's vertical centre so
   // tethers connect at the middle of the side, matching the image node (whose
   // handles use React Flow's centered default) rather than pinning to the
@@ -85,7 +95,7 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
         // Outer box carries the SCALED footprint React Flow measures; the shell
         // inside is uniformly scaled from its top-left. `group` so the resize
         // handle can reveal on hover.
-        <div className="group" style={{ position: 'relative', width: `${scaledW}px`, height: `${scaledH}px` }}>
+        <div className={`group ${dimClass}`} style={{ position: 'relative', width: `${scaledW}px`, height: `${scaledH}px` }}>
           <div
             ref={innerRef}
             style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: 'max-content' }}
@@ -97,7 +107,9 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
           <WidgetResizeHandle widgetId={id} naturalW={naturalSize.w} scale={scale} visible={selected} />
         </div>
       ) : (
-        <MarkerDot widget={data.widget} />
+        <div className={dimClass}>
+          <MarkerDot widget={data.widget} />
+        </div>
       )}
     </>
   );

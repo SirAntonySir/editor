@@ -539,6 +539,10 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
           title={data.name ?? 'Image'}
           onCompareDown={() => setCompareHeld(true)}
           onCompareUp={() => setCompareHeld(false)}
+          objectsActive={objectsActive}
+          onToggleObjectsMode={() => setImageNodeMode(id, objectsActive ? 'layers' : 'objects')}
+          showAnalyze={aiAccess && !isAnalysed}
+          onAnalyze={() => void analyseImageLayer(id)}
           renderMenuItems={renderMenuItems}
           tight
           isRenaming={isRenaming}

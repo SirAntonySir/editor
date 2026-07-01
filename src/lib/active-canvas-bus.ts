@@ -11,11 +11,20 @@ type Listener = (imageNodeId: string, canvas: HTMLCanvasElement) => void;
 
 const listeners = new Set<Listener>();
 let last: { imageNodeId: string; canvas: HTMLCanvasElement } | null = null;
+// Per-id registry so a consumer can pull ANY node's latest canvas by id (not
+// just the global last frame). Used by the source-node mirror preview to draw
+// an extracted child's edited pixels back onto the source.
+const byId = new Map<string, HTMLCanvasElement>();
 
 export const activeCanvasBus = {
   publish(imageNodeId: string, canvas: HTMLCanvasElement): void {
     last = { imageNodeId, canvas };
+    byId.set(imageNodeId, canvas);
     for (const cb of listeners) cb(imageNodeId, canvas);
+  },
+  /** Latest published canvas for a specific image node, or null. */
+  get(imageNodeId: string): HTMLCanvasElement | null {
+    return byId.get(imageNodeId) ?? null;
   },
   subscribe(cb: Listener): () => void {
     listeners.add(cb);

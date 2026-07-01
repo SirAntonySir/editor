@@ -349,6 +349,26 @@ describe('workspace-slice', () => {
     });
   });
 
+  describe('mirrorPreview', () => {
+    beforeEach(() => useEditorStore.getState().resetWorkspace());
+
+    it('toggleMirrorPreview flips the per-node flag', () => {
+      const id = useEditorStore.getState().addImageNode(['l1']);
+      expect(useEditorStore.getState().mirrorPreview[id]).toBeFalsy();
+      useEditorStore.getState().toggleMirrorPreview(id);
+      expect(useEditorStore.getState().mirrorPreview[id]).toBe(true);
+      useEditorStore.getState().toggleMirrorPreview(id);
+      expect(useEditorStore.getState().mirrorPreview[id]).toBe(false);
+    });
+
+    it('removeImageNode clears the node\'s mirror flag', () => {
+      const id = useEditorStore.getState().addImageNode(['l1']);
+      useEditorStore.getState().toggleMirrorPreview(id);
+      useEditorStore.getState().removeImageNode(id);
+      expect(useEditorStore.getState().mirrorPreview[id]).toBeUndefined();
+    });
+  });
+
   describe('imageNodeMode', () => {
     beforeEach(() => useEditorStore.getState().resetWorkspace());
 

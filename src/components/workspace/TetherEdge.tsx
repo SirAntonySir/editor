@@ -1,4 +1,6 @@
-import { BaseEdge, getBezierPath, type Edge, type EdgeProps } from '@xyflow/react';
+import { BaseEdge, EdgeLabelRenderer, getBezierPath, type Edge, type EdgeProps } from '@xyflow/react';
+import { Eye } from 'lucide-react';
+import { useEditorStore } from '@/store';
 
 export interface TetherEdgeData extends Record<string, unknown> {
   scopeKind: 'layer' | 'node';
@@ -16,6 +18,8 @@ const DASH_SUM = 6;          // canvas units; matches the pattern total below
 
 export function TetherEdge({
   id,
+  source,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -31,11 +35,21 @@ export function TetherEdge({
   // Bézier curve that leaves each handle along its direction (sourcePosition /
   // targetPosition come from pickTetherHandles), giving an organic tether
   // instead of orthogonal elbows.
-  const [path] = getBezierPath({
+  const [path, labelX, labelY] = getBezierPath({
     sourceX, sourceY, targetX, targetY,
     sourcePosition, targetPosition,
     curvature: CURVATURE,
   });
+  // For an extracted provenance edge, resolve which endpoint is the extracted
+  // CHILD (the node carrying `sourceImageNodeId` pointing at the other end) so
+  // the mirror-preview toggle keys off it.
+  const extractedChildId = useEditorStore((s) => {
+    if (s.imageNodes[source]?.sourceImageNodeId === target) return source;
+    if (s.imageNodes[target]?.sourceImageNodeId === source) return target;
+    return null;
+  });
+  const mirrorOn = useEditorStore((s) => (extractedChildId ? !!s.mirrorPreview[extractedChildId] : false));
+  const toggleMirrorPreview = useEditorStore((s) => s.toggleMirrorPreview);
   // Marching-ants pattern. Layer-scope reads near-solid (5 on, 1 off),
   // node-scope reads as half-half dashes (3 on, 3 off). The dash sum equals
   // the per-cycle offset shift via the `--march-shift` CSS variable, so the
@@ -65,6 +79,32 @@ export function TetherEdge({
       />
       <circle cx={sourceX} cy={sourceY} r={DOT_RADIUS} fill={stroke} />
       <circle cx={targetX} cy={targetY} r={DOT_RADIUS} fill={stroke} />
+      {/* Mirror-preview toggle at the edge midpoint (extracted edges only):
+          previews the child's edited pixels back on the source before rejoin. */}
+      {isExtracted && extractedChildId && (
+        <EdgeLabelRenderer>
+          <button
+            type="button"
+            className={`nodrag nopan inline-flex items-center justify-center w-[18px] h-[18px]
+              rounded-full border bg-surface shadow-sm cursor-pointer transition-colors ${
+                mirrorOn
+                  ? 'text-[var(--color-accent)] border-[var(--color-accent)]'
+                  : 'text-text-secondary border-separator hover:text-text-primary'
+              }`}
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+              pointerEvents: 'all',
+            }}
+            aria-label={mirrorOn ? 'Hide preview on source' : 'Preview edits on source'}
+            aria-pressed={mirrorOn}
+            title={mirrorOn ? 'Hide preview on source' : 'Preview edits on source'}
+            onClick={(e) => { e.stopPropagation(); toggleMirrorPreview(extractedChildId); }}
+          >
+            <Eye size={11} aria-hidden />
+          </button>
+        </EdgeLabelRenderer>
+      )}
     </>
   );
 }

@@ -5,6 +5,7 @@ import { useAiSession } from '@/hooks/useImageContext';
 import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';
 import { useEditorStore } from '@/store';
 import { ScrollArea } from '@/components/ui/ScrollArea';
+import { EditTargetPreview } from '@/components/ui/EditTargetPreview';
 import { SemanticSection } from './SemanticSection';
 import { HistogramsSection } from './HistogramsSection';
 import { ColorSection } from './ColorSection';
@@ -98,18 +99,23 @@ export function InfoTab() {
   // semantic / regions / problems follow below — they're snapshot-y and
   // describe the upload-time image.
   return (
-    <div className="flex-1 min-h-0 relative flex flex-col">
-      <ScrollArea className="flex-1 min-h-0">
-        {hasHistograms ? <HistogramsSection ctx={mechCtx!} /> : <HistogramsSkeleton />}
-        {hasColor ? <ColorSection ctx={mechCtx!} /> : <ColorSkeleton />}
-        {/* MetadataSection self-gates on `documentMeta.metadata` — it renders
-            null when no EXIF was parsed, so we don't need a wrapping check. */}
-        <MetadataSection />
-        {hasSemantic ? <SemanticSection ctx={ctx!} /> : <SemanticSkeleton />}
-        {hasRegions ? <RegionsSection ctx={ctx!} /> : <RegionsSkeleton />}
-        {hasProblems ? <ProblemsSection ctx={ctx!} /> : <ProblemsSkeleton />}
-      </ScrollArea>
-      {showOverlay && <NoContextState analyzing={inAnalyze} />}
+    <div className="flex-1 min-h-0 flex flex-col">
+      {/* Edit-target preview stays above the analyze overlay so the user can
+          always see what they're editing, even before analyze runs. */}
+      <EditTargetPreview />
+      <div className="flex-1 min-h-0 relative flex flex-col">
+        <ScrollArea className="flex-1 min-h-0">
+          {hasHistograms ? <HistogramsSection ctx={mechCtx!} /> : <HistogramsSkeleton />}
+          {hasColor ? <ColorSection ctx={mechCtx!} /> : <ColorSkeleton />}
+          {/* MetadataSection self-gates on `documentMeta.metadata` — it renders
+              null when no EXIF was parsed, so we don't need a wrapping check. */}
+          <MetadataSection />
+          {hasSemantic ? <SemanticSection ctx={ctx!} /> : <SemanticSkeleton />}
+          {hasRegions ? <RegionsSection ctx={ctx!} /> : <RegionsSkeleton />}
+          {hasProblems ? <ProblemsSection ctx={ctx!} /> : <ProblemsSkeleton />}
+        </ScrollArea>
+        {showOverlay && <NoContextState analyzing={inAnalyze} />}
+      </div>
     </div>
   );
 }

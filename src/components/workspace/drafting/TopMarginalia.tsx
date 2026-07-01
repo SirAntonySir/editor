@@ -1,4 +1,4 @@
-import { Eye, MoreHorizontal } from 'lucide-react';
+import { Eye, MoreHorizontal, ScanSearch, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { ReactNode } from 'react';
@@ -27,6 +27,14 @@ interface TopMarginaliaProps {
    *  doesn't fit a menu well, so it stays as a top-of-node affordance. */
   onCompareDown: () => void;
   onCompareUp: () => void;
+  /** Objects-mode toggle — accent when active. Mirrors the ⋯ menu's
+   *  Enter/Exit objects mode item, promoted to a header icon. */
+  objectsActive?: boolean;
+  onToggleObjectsMode?: () => void;
+  /** Analyze-with-AI header button (violet). Shown only when AI is available
+   *  and the image hasn't been analysed yet — mirrors the menu item. */
+  showAnalyze?: boolean;
+  onAnalyze?: () => void;
   /** Items to render inside the `⋯` dropdown. The caller passes the same
    *  shared menu items the classic header uses, so Eye / Split / Merge /
    *  Delete all reach the user from one place. */
@@ -57,6 +65,10 @@ export function TopMarginalia({
   title,
   onCompareDown,
   onCompareUp,
+  objectsActive = false,
+  onToggleObjectsMode,
+  showAnalyze = false,
+  onAnalyze,
   renderMenuItems,
   tight = false,
   isRenaming = false,
@@ -134,6 +146,33 @@ export function TopMarginalia({
       {/* Right column: control affordances */}
       <div className="shrink-0 flex flex-col items-end gap-1.5">
         <div className="flex items-center gap-1">
+          {showAnalyze && onAnalyze && (
+            <button
+              type="button"
+              aria-label="Analyze with AI"
+              title="Analyze with AI"
+              onClick={(e) => { e.stopPropagation(); onAnalyze(); }}
+              className="inline-flex items-center justify-center w-5 h-5 rounded-[3px] text-[var(--color-ai)] hover:bg-surface-secondary cursor-pointer"
+            >
+              <Sparkles size={12} aria-hidden />
+            </button>
+          )}
+          {onToggleObjectsMode && (
+            <button
+              type="button"
+              aria-label={objectsActive ? 'Exit objects mode' : 'Enter objects mode'}
+              title={objectsActive ? 'Exit objects mode' : 'Enter objects mode'}
+              aria-pressed={objectsActive}
+              onClick={(e) => { e.stopPropagation(); onToggleObjectsMode(); }}
+              className={`inline-flex items-center justify-center w-5 h-5 rounded-[3px] hover:bg-surface-secondary cursor-pointer ${
+                objectsActive
+                  ? 'text-[var(--color-accent)] bg-surface-secondary'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              <ScanSearch size={12} aria-hidden />
+            </button>
+          )}
           <button
             ref={compareBtnRef}
             type="button"

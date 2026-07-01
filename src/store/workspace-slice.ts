@@ -99,6 +99,12 @@ export interface WorkspaceSlice {
    *  (typically 'objects' when candidateRegions exist, else 'layers').
    *  UI-only; not part of the snapshot SSoT. */
   imageNodeMode: Record<string, 'layers' | 'objects'>;
+  /** Per extracted-node "mirror preview" flag: when true, the child's edited
+   *  pixels are drawn back onto its source image at the object's original
+   *  spot, so you can preview the extraction in place before rejoining.
+   *  Keyed by the EXTRACTED node id. UI-only. */
+  mirrorPreview: Record<string, boolean>;
+  toggleMirrorPreview: (extractedNodeId: string) => void;
 
   /** Private id sequences. Reset by `resetWorkspace`. */
   _nextNodeSeq: number;
@@ -219,6 +225,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
   previousImageNodeId: null,
   rejoinTargetNodeId: null,
   imageNodeMode: {},
+  mirrorPreview: {},
   _nextNodeSeq: 1,
   _nextEdgeSeq: 1,
 
@@ -326,6 +333,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
         state.previousImageNodeId = null;
       }
       delete state.imageNodeMode[id];
+      delete state.mirrorPreview[id];
     }),
 
   resyncNodeSeq: () =>
@@ -413,6 +421,11 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       state.imageNodeMode[id] = mode;
     }),
 
+  toggleMirrorPreview: (extractedNodeId) =>
+    set((state) => {
+      state.mirrorPreview[extractedNodeId] = !state.mirrorPreview[extractedNodeId];
+    }),
+
   // ─── Info widgets ─────────────────────────────────────────────────
   addInfoNode: (content, options) => {
     let id = '';
@@ -463,6 +476,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       state.previousImageNodeId = null;
       state.rejoinTargetNodeId = null;
       state.imageNodeMode = {};
+      state.mirrorPreview = {};
       state._nextNodeSeq = 1;
       state._nextEdgeSeq = 1;
     }),

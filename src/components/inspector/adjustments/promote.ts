@@ -2,29 +2,27 @@ import { backendTools } from '@/lib/backend-tools';
 import { useEditorStore } from '@/store';
 import { scopeFromSelection } from '@/lib/scope-from-selection';
 
-function activeNodeLayerIds(): string[] | undefined {
-  const editor = useEditorStore.getState();
-  const id = editor.activeImageNodeId;
-  if (!id) return undefined;
-  return editor.imageNodes[id]?.layerIds;
-}
-
 /** Spawn a canvas widget for a tool (the per-section Pin / ↗ open on canvas).
  * Editing a section writes canonical directly; this is the optional promote
  * that materializes a draggable canvas shell bound to the same op. No-op when
  * offline or no active layer.
  *
+ * The pin targets the ACTIVE layer only: we send `layerIds: [layerId]` rather
+ * than every layer of the node. The `layerIds` array is the backend's
+ * broadcast-across-the-node trigger (see scope.ts / propose-stack.ts) — sending
+ * the whole stack made pinned adjustments spread across the node and land on
+ * the base layer instead of the selected one.
+ *
  * Migrated from propose_widget to proposeStack using forced_ops. */
 export function promoteToCanvas(sessionId: string | null, toolId: string, layerId: string | null): void {
   if (!sessionId || !layerId) return;
   const scope = scopeFromSelection(useEditorStore.getState().activeObjectId);
-  const layerIds = activeNodeLayerIds();
   void backendTools.proposeStack(sessionId, {
     intent: toolId,
     scope,
     forced_ops: [toolId],
     layerId,
-    ...(layerIds ? { layerIds } : {}),
+    layerIds: [layerId],
     origin: 'tool_invoked',
   });
 }
@@ -45,13 +43,14 @@ export function promoteSingleParamToCanvas(
   if (!sessionId || !layerId) return;
   useEditorStore.getState().queuePinRequest(layerId, opAdjustmentType, [paramKey]);
   const scope = scopeFromSelection(useEditorStore.getState().activeObjectId);
-  const layerIds = activeNodeLayerIds();
   void backendTools.proposeStack(sessionId, {
     intent: `${toolId}:${paramKey}`,
     scope,
     forced_ops: [toolId],
     layerId,
-    ...(layerIds ? { layerIds } : {}),
+    // Target the active layer only — see promoteToCanvas for why we don't
+    // broadcast across the whole node here.
+    layerIds: [layerId],
     origin: 'tool_invoked',
   });
 }

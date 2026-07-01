@@ -11,7 +11,7 @@
  * node visually; quantization keeps re-renders coarse (one per zoom octave).
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '@xyflow/react';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
@@ -181,6 +181,31 @@ export function useImageNodeRender({
     eff.w > 0 ? (cssW * Math.max(0, zoom) * dpr) / eff.w : 1,
   );
 
+  // ── Mirror preview ────────────────────────────────────────────────────────
+  // Signature of extracted children that point at THIS node and have the
+  // "preview on source" toggle on. Re-runs the paint when a toggle flips or a
+  // previewed child is added/removed/rejoined.
+  const mirrorChildrenKey = useEditorStore((s) =>
+    Object.values(s.imageNodes)
+      .filter((n) => n.sourceImageNodeId === imageNodeId && s.mirrorPreview[n.id])
+      .map((n) => n.id)
+      .sort()
+      .join('|'),
+  );
+  // Bumped when a previewed child republishes its canvas, so the source repaints
+  // with the child's latest edits.
+  const [previewTick, setPreviewTick] = useState(0);
+  useEffect(() => {
+    if (!mirrorChildrenKey) return; // no previewed children — nothing to watch
+    return activeCanvasBus.subscribe((publishedId) => {
+      const st = useEditorStore.getState();
+      const n = st.imageNodes[publishedId];
+      if (n?.sourceImageNodeId === imageNodeId && st.mirrorPreview[publishedId]) {
+        setPreviewTick((t) => (t + 1) % 1_000_000);
+      }
+    });
+  }, [imageNodeId, mirrorChildrenKey]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -264,12 +289,42 @@ export function useImageNodeRender({
     });
     // Publish post-render so listeners (Info-tab live mechanical, etc.) see
     // the composite. Always publish — the bus consumer filters by active id.
+    // Published BEFORE the mirror overlay so the bus carries this node's own
+    // composite (not a preview-overlaid one).
     activeCanvasBus.publish(imageNodeId, canvas);
+
+    // Mirror preview: for each extracted child of this node with the toggle on,
+    // draw its edited canvas back at the object's original spot (sourceOrigin),
+    // scaled from source pixels to this canvas's backing dims. The cutout is
+    // transparent outside the mask, so only the object footprint is overwritten
+    // — you see the edited object in place, live, before rejoining.
+    if (mirrorChildrenKey) {
+      const st = useEditorStore.getState();
+      const ctx2 = canvas.getContext('2d');
+      const sx = sourceWidth > 0 ? canvas.width / sourceWidth : 1;
+      const sy = sourceHeight > 0 ? canvas.height / sourceHeight : 1;
+      if (ctx2) {
+        for (const child of Object.values(st.imageNodes)) {
+          if (child.sourceImageNodeId !== imageNodeId || !st.mirrorPreview[child.id]) continue;
+          const childCanvas = activeCanvasBus.get(child.id);
+          if (!childCanvas || childCanvas.width === 0 || childCanvas.height === 0) continue;
+          const origin = st.layers.find((l) => l.id === child.layerIds[0])?.sourceOrigin;
+          if (!origin) continue;
+          ctx2.drawImage(
+            childCanvas,
+            origin.x * sx, origin.y * sy,
+            child.sourceSize.w * sx, child.sourceSize.h * sy,
+          );
+        }
+      }
+    }
   }, [
     imageNodeId,
     layerIds,
     sourceWidth,
     sourceHeight,
+    mirrorChildrenKey,
+    previewTick,
     eff.w,
     eff.h,
     cssW,

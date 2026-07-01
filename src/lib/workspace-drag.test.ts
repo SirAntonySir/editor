@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { exceedsDragThreshold, isOutsideRect, rejoinTargetByCenter, nodeHasUnappliedChanges } from './workspace-drag';
+import { exceedsDragThreshold, isOutsideRect, rejoinTargetByCenter, nodeHasUnappliedChanges, nextWidgetScale } from './workspace-drag';
 
 describe('exceedsDragThreshold', () => {
   it('is false for a tiny move (a click, not a drag)', () => {
@@ -20,6 +20,26 @@ describe('isOutsideRect', () => {
     expect(isOutsideRect({ x: 120, y: 40 }, rect)).toBe(true); // right
     expect(isOutsideRect({ x: 50, y: -5 }, rect)).toBe(true);  // above
     expect(isOutsideRect({ x: -1, y: 40 }, rect)).toBe(true);  // left
+  });
+});
+
+describe('nextWidgetScale', () => {
+  it('keeps the start scale when there is no drag', () => {
+    expect(nextWidgetScale(200, 1, 0)).toBe(1);
+  });
+  it('grows the scale as the bottom-right corner is dragged out', () => {
+    // natural 200 at scale 1 → width 200; +100 → 300/200 = 1.5.
+    expect(nextWidgetScale(200, 1, 100)).toBeCloseTo(1.5);
+  });
+  it('shrinks as it is dragged in', () => {
+    expect(nextWidgetScale(200, 1, -40)).toBeCloseTo(0.8);
+  });
+  it('clamps to the min and max', () => {
+    expect(nextWidgetScale(200, 1, -1000, 0.7, 2.5)).toBe(0.7);
+    expect(nextWidgetScale(200, 1, 1000, 0.7, 2.5)).toBe(2.5);
+  });
+  it('is a no-op for a zero-width widget', () => {
+    expect(nextWidgetScale(0, 1.3, 100)).toBe(1.3);
   });
 });
 

@@ -162,6 +162,9 @@ export interface WorkspaceSlice {
   /** Persist the widget's React-Flow-measured canvas size. No-op if the widget
    *  node doesn't exist yet (only positioned widgets need a collision footprint). */
   setWidgetSize: (id: string, size: Size) => void;
+  /** Set the widget's user uniform scale (bottom-right corner resize). Creates
+   *  the entry if it doesn't exist yet. */
+  setWidgetScale: (id: string, scale: number) => void;
   /**
    * Insert or replace an edge by `edge.id`. The caller owns the id.
    */
@@ -360,6 +363,13 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
     set((state) => {
       const existing = state.widgetNodes[id];
       if (existing) existing.size = { ...size };
+    }),
+
+  setWidgetScale: (id, scale) =>
+    set((state) => {
+      const existing = state.widgetNodes[id];
+      if (existing) existing.scale = scale;
+      else state.widgetNodes[id] = { id, position: { x: 0, y: 0 }, scale };
     }),
 
   setEdge: (edge) =>

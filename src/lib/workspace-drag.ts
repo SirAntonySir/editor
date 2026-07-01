@@ -42,6 +42,22 @@ export function nodeHasUnappliedChanges(
   );
 }
 
+/** New uniform scale for a widget resized by dragging its bottom-right corner.
+ *  `dxCanvas` is the horizontal drag delta in canvas units (clientDX / zoom).
+ *  Width drives the uniform scale so the ratio is locked; clamped to [min,max].
+ *  No-op (returns startScale) for a zero-width widget. */
+export function nextWidgetScale(
+  naturalW: number,
+  startScale: number,
+  dxCanvas: number,
+  min = 0.7,
+  max = 2.5,
+): number {
+  if (naturalW <= 0) return startScale;
+  const newWidth = naturalW * startScale + dxCanvas;
+  return Math.min(max, Math.max(min, newWidth / naturalW));
+}
+
 /** Center point of a rect. */
 export function rectCenter(rect: DragRect): { x: number; y: number } {
   return { x: rect.position.x + rect.size.w / 2, y: rect.position.y + rect.size.h / 2 };

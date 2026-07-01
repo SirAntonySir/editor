@@ -38,6 +38,9 @@ export interface WidgetNodeState {
    *  collision can avoid the widget's REAL (expanded) footprint instead of a
    *  fixed header estimate. Absent until the widget has been measured once. */
   size?: Size;
+  /** User-set uniform scale (bottom-right corner resize). 1 = natural size.
+   *  Absent ⇒ 1. Scales the whole widget as a unit (ratio locked). */
+  scale?: number;
 }
 
 // ─── Info widgets ──────────────────────────────────────────────────────

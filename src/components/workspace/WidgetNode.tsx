@@ -1,7 +1,9 @@
-import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
+import { Handle, Position, useUpdateNodeInternals, useStore } from '@xyflow/react';
 import { useEffect, useRef, useState } from 'react';
 import { WidgetShell } from '@/components/widget/WidgetShell';
 import { useChromeVisible } from '@/hooks/useChromeVisible';
+import { useEditorStore } from '@/store';
+import { nextWidgetScale } from '@/lib/workspace-drag';
 import type { Widget } from '@/types/widget';
 import { MarkerDot } from './MarkerDot';
 
@@ -17,6 +19,8 @@ interface WidgetNodeProps {
 
 export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
   const chromeVisible = useChromeVisible();
+  // User uniform scale (bottom-right corner resize). 1 = natural size.
+  const scale = useEditorStore((s) => s.widgetNodes[id]?.scale ?? 1);
 
   // Anchor the left/right edge handles to the node's vertical centre so
   // tethers connect at the middle of the side, matching the image node (whose
@@ -24,10 +28,10 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
   // header band.
   const sideY = '50%';
 
-  // Measure the WidgetShell's natural CSS box so the bottom + right source
-  // handles can anchor at its actual extent. Widgets now live in canvas space
-  // (Figma model): React Flow's zoom transform handles screen-pixel conversion,
-  // so handle positions are in unscaled CSS pixels.
+  // Measure the WidgetShell's natural (UNSCALED) CSS box so the bottom + right
+  // source handles can anchor at its actual extent. transform:scale doesn't
+  // change the layout box, so offsetWidth/Height stay natural; we multiply by
+  // `scale` for handle positions + the outer footprint React Flow measures.
   const innerRef = useRef<HTMLDivElement | null>(null);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number }>({
     w: 226, // WIDGET_SHELL_MIN_WIDTH fallback (kept literal to avoid an import cycle)
@@ -43,10 +47,13 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
     return () => ro.disconnect();
   }, []);
 
+  const scaledW = naturalSize.w * scale;
+  const scaledH = naturalSize.h * scale;
+
   const updateNodeInternals = useUpdateNodeInternals();
   useEffect(() => {
     updateNodeInternals(id);
-  }, [id, naturalSize.w, naturalSize.h, updateNodeInternals]);
+  }, [id, scaledW, scaledH, updateNodeInternals]);
 
   return (
     <>
@@ -60,7 +67,7 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
         type="source"
         position={Position.Bottom}
         id="tether-out-bottom"
-        style={{ left: '50%', top: `${naturalSize.h}px`, opacity: 0 }}
+        style={{ left: '50%', top: `${scaledH}px`, opacity: 0 }}
       />
       <Handle
         type="source"
@@ -72,15 +79,72 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
         type="source"
         position={Position.Right}
         id="tether-out-right"
-        style={{ top: sideY, left: `${naturalSize.w}px`, opacity: 0 }}
+        style={{ top: sideY, left: `${scaledW}px`, opacity: 0 }}
       />
       {chromeVisible ? (
-        <div ref={innerRef}>
-          <WidgetShell widget={data.widget} selected={selected} />
+        // Outer box carries the SCALED footprint React Flow measures; the shell
+        // inside is uniformly scaled from its top-left.
+        <div style={{ position: 'relative', width: `${scaledW}px`, height: `${scaledH}px` }}>
+          <div
+            ref={innerRef}
+            style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: 'max-content' }}
+          >
+            <WidgetShell widget={data.widget} selected={selected} />
+          </div>
+          {selected && (
+            <WidgetResizeHandle widgetId={id} naturalW={naturalSize.w} scale={scale} />
+          )}
         </div>
       ) : (
         <MarkerDot widget={data.widget} />
       )}
     </>
+  );
+}
+
+/** Bottom-right corner handle that uniformly scales the widget (ratio locked).
+ *  Mirrors the image-node CornerTicks feel: hairline accent L, nodrag/nopan,
+ *  pointer capture, drag divided by canvas zoom. */
+function WidgetResizeHandle({
+  widgetId,
+  naturalW,
+  scale,
+}: {
+  widgetId: string;
+  naturalW: number;
+  scale: number;
+}) {
+  const setWidgetScale = useEditorStore((s) => s.setWidgetScale);
+  const zoom = useStore((s) => s.transform[2]);
+  const start = useRef<{ clientX: number; scale: number } | null>(null);
+
+  return (
+    <span
+      aria-hidden
+      data-testid="widget-resize-handle"
+      className="nodrag nopan absolute block border border-[var(--color-accent)] border-l-0 border-t-0 cursor-nwse-resize"
+      style={{ width: 14, height: 14, right: -2, bottom: -2 }}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        start.current = { clientX: e.clientX, scale };
+      }}
+      onPointerMove={(e) => {
+        const s = start.current;
+        if (!s) return;
+        const dx = (e.clientX - s.clientX) / Math.max(zoom, 0.001);
+        setWidgetScale(widgetId, nextWidgetScale(naturalW, s.scale, dx));
+      }}
+      onPointerUp={(e) => {
+        if (!start.current) return;
+        e.currentTarget.releasePointerCapture(e.pointerId);
+        start.current = null;
+      }}
+      onPointerCancel={(e) => {
+        if (!start.current) return;
+        e.currentTarget.releasePointerCapture(e.pointerId);
+        start.current = null;
+      }}
+    />
   );
 }

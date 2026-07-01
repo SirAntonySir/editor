@@ -257,7 +257,16 @@ export function CanvasWorkspace() {
   // snap-back on re-renders. Drag-stop persists back to the store.
   const [nodes, setNodes] = useState<WorkspaceNode[]>(storeNodes);
   useEffect(() => {
-    setNodes(storeNodes);
+    // Rebuilding nodes from the store on every change would wipe React Flow's
+    // per-node `selected` flag (it lives only in RF's local state), which
+    // unmounts selection-gated affordances like the resize handles mid-drag.
+    // Preserve `selected` by id across the resync.
+    setNodes((prev) => {
+      const selectedIds = new Set(prev.filter((n) => n.selected).map((n) => n.id));
+      return selectedIds.size === 0
+        ? storeNodes
+        : storeNodes.map((n) => (selectedIds.has(n.id) ? { ...n, selected: true } : n));
+    });
   }, [storeNodes]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {

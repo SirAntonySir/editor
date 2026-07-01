@@ -83,17 +83,18 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
       />
       {chromeVisible ? (
         // Outer box carries the SCALED footprint React Flow measures; the shell
-        // inside is uniformly scaled from its top-left.
-        <div style={{ position: 'relative', width: `${scaledW}px`, height: `${scaledH}px` }}>
+        // inside is uniformly scaled from its top-left. `group` so the resize
+        // handle can reveal on hover.
+        <div className="group" style={{ position: 'relative', width: `${scaledW}px`, height: `${scaledH}px` }}>
           <div
             ref={innerRef}
             style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: 'max-content' }}
           >
             <WidgetShell widget={data.widget} selected={selected} />
           </div>
-          {selected && (
-            <WidgetResizeHandle widgetId={id} naturalW={naturalSize.w} scale={scale} />
-          )}
+          {/* Always mounted (so a scale-triggered re-render can't unmount it
+              mid-drag); revealed on hover or while selected. */}
+          <WidgetResizeHandle widgetId={id} naturalW={naturalSize.w} scale={scale} visible={selected} />
         </div>
       ) : (
         <MarkerDot widget={data.widget} />
@@ -109,10 +110,13 @@ function WidgetResizeHandle({
   widgetId,
   naturalW,
   scale,
+  visible,
 }: {
   widgetId: string;
   naturalW: number;
   scale: number;
+  /** Force-visible (e.g. while the node is selected); otherwise reveal on hover. */
+  visible: boolean;
 }) {
   const setWidgetScale = useEditorStore((s) => s.setWidgetScale);
   const zoom = useStore((s) => s.transform[2]);
@@ -122,7 +126,9 @@ function WidgetResizeHandle({
     <span
       aria-hidden
       data-testid="widget-resize-handle"
-      className="nodrag nopan absolute block border border-[var(--color-accent)] border-l-0 border-t-0 cursor-nwse-resize"
+      className={`nodrag nopan absolute block border border-[var(--color-accent)] border-l-0 border-t-0 cursor-nwse-resize transition-opacity group-hover:opacity-100 ${
+        visible ? 'opacity-100' : 'opacity-0'
+      }`}
       style={{ width: 14, height: 14, right: -2, bottom: -2 }}
       onPointerDown={(e) => {
         e.stopPropagation();

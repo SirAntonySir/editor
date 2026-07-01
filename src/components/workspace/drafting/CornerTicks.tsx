@@ -137,9 +137,13 @@ export function CornerTicks({
           width: `${arm}px`,
           height: `${arm}px`,
           transition: 'width 200ms, height 200ms, top 200ms, right 200ms, bottom 200ms, left 200ms',
-          // The handle should accept pointer events only while selected.
+          // The handle should accept pointer events only while selected/hovered.
           pointerEvents: selected ? 'auto' : 'none',
           cursor: selected ? cfg.cursor : undefined,
+          // Sit above SegmentHitLayer (z-5) + ObjectMarkers (z-7) when
+          // interactive, so hovering the corner shows the resize cursor and the
+          // handle is grabbable instead of the hit-layer swallowing it.
+          zIndex: selected ? 10 : undefined,
         };
         // Position the OUTER corner of each L by sliding `out` px in the
         // appropriate axes. The inner corner of the L always lands ON the

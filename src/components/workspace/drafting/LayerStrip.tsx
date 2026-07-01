@@ -179,6 +179,16 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
                 >
                   Create inverted selection
                 </ContextMenu.Item>
+                {/* Move (not copy) this layer onto its own image node. Only
+                    meaningful when the node has other layers to leave behind. */}
+                {layers.length >= 2 && (
+                  <ContextMenu.Item
+                    className={MENU_ITEM}
+                    onSelect={() => editorDocument.workspace.splitImageNode(imageNodeId, layer.id)}
+                  >
+                    Move to own image node
+                  </ContextMenu.Item>
+                )}
                 <ContextMenu.Separator className="my-1 h-px bg-separator" />
                 <ContextMenu.Item
                   className={MENU_ITEM_DANGER}

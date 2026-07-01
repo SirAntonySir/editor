@@ -82,6 +82,27 @@ describe('LayerStrip — right-click context menu', () => {
     expect(useEditorStore.getState().layers.find((l) => l.id === 'L1')).toBeUndefined();
   });
 
+  it('Move to own image node moves the layer off the source (not a copy)', async () => {
+    const nodeId = useEditorStore.getState().addImageNode(['L1', 'L2']);
+    const { getAllByRole, findByText } = render(<LayerStrip imageNodeId={nodeId} layerIds={['L1', 'L2']} />);
+    fireEvent.contextMenu(getAllByRole('button', { name: /select layer/i })[0]); // L1
+    fireEvent.click(await findByText(/move to own image node/i));
+
+    const st = useEditorStore.getState();
+    // Source node lost L1; a new node gained it.
+    expect(st.imageNodes[nodeId].layerIds).not.toContain('L1');
+    const withL1 = Object.values(st.imageNodes).filter((n) => n.layerIds.includes('L1'));
+    expect(withL1.length).toBe(1); // moved, not copied — L1 lives in exactly one node
+    expect(withL1[0].id).not.toBe(nodeId);
+  });
+
+  it('Move to own image node is hidden when the node has a single layer', () => {
+    const nodeId = useEditorStore.getState().addImageNode(['L1']);
+    const { getAllByRole, queryByText } = render(<LayerStrip imageNodeId={nodeId} layerIds={['L1']} />);
+    fireEvent.contextMenu(getAllByRole('button', { name: /select layer/i })[0]);
+    expect(queryByText(/move to own image node/i)).toBeNull();
+  });
+
   it('Rename triggers requestRenameLayer, sets activeLayerId, and switches Inspector to Layer tab', async () => {
     const { getAllByRole, findByText } = render(<LayerStrip imageNodeId="n1" layerIds={['L1', 'L2']} />);
     fireEvent.contextMenu(getAllByRole('button', { name: /select layer/i })[0]);

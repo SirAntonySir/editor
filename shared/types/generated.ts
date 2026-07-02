@@ -50,6 +50,7 @@ export interface Widget {
   createdAt: string;
   dismissedAtRevision: number | null;
   displayName: string | null;
+  genfill: GenfillState | null;
   id: string;
   intent: string;
   lockedParams: string[];
@@ -268,6 +269,31 @@ export interface TintStripSchema {
 export interface NodeParamTarget {
   nodeId: string;
   paramKey: string;
+}
+/**
+ * State block for generative-fill widgets. Genfill widgets carry NO
+ * operation-graph nodes and NO bindings — they produce pixels, not shader
+ * params. The WebGL pipeline never sees them; the frontend renders a
+ * bespoke body from this block and creates a new layer at Accept.
+ */
+export interface GenfillState {
+  error: GenfillError | null;
+  imageNodeId: string;
+  maskId: string;
+  negativePrompt: string | null;
+  prompt: string;
+  result: GenfillResultInfo | null;
+  seed: number;
+  status: "compose" | "generating" | "ready" | "error";
+}
+export interface GenfillError {
+  kind: "moderation" | "timeout" | "api_error" | "not_configured";
+  message: string;
+}
+export interface GenfillResultInfo {
+  assetId: string;
+  height: number;
+  width: number;
 }
 export interface WidgetNode {
   id: string;

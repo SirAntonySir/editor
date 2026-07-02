@@ -833,6 +833,129 @@
       "title": "EnumSelectSchema",
       "type": "object"
     },
+    "GenfillError": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "moderation",
+            "timeout",
+            "api_error",
+            "not_configured"
+          ],
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "message"
+      ],
+      "title": "GenfillError",
+      "type": "object"
+    },
+    "GenfillResultInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "assetId",
+        "height",
+        "width"
+      ],
+      "title": "GenfillResultInfo",
+      "type": "object"
+    },
+    "GenfillState": {
+      "additionalProperties": false,
+      "description": "State block for generative-fill widgets. Genfill widgets carry NO\noperation-graph nodes and NO bindings \u2014 they produce pixels, not shader\nparams. The WebGL pipeline never sees them; the frontend renders a\nbespoke body from this block and creates a new layer at Accept.",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GenfillError"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "imageNodeId": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "maskId": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "negativePrompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "prompt": {
+          "default": "",
+          "type": "string"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GenfillResultInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seed": {
+          "default": 0,
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "compose",
+            "generating",
+            "ready",
+            "error"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "error",
+        "imageNodeId",
+        "maskId",
+        "negativePrompt",
+        "prompt",
+        "result",
+        "seed",
+        "status"
+      ],
+      "title": "GenfillState",
+      "type": "object"
+    },
     "GlobalScope": {
       "additionalProperties": false,
       "properties": {
@@ -2062,6 +2185,17 @@
           ],
           "default": null
         },
+        "genfill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GenfillState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "id": {
           "minLength": 1,
           "type": "string"
@@ -2155,6 +2289,7 @@
         "createdAt",
         "dismissedAtRevision",
         "displayName",
+        "genfill",
         "id",
         "intent",
         "lockedParams",

@@ -196,6 +196,33 @@ export interface WidgetPreview {
   autoBeforeAfter: boolean;
 }
 
+export type GenfillStatus = 'compose' | 'generating' | 'ready' | 'error';
+
+export interface GenfillResultInfo {
+  assetId: string;
+  width: number;
+  height: number;
+}
+
+export interface GenfillErrorInfo {
+  kind: 'moderation' | 'timeout' | 'api_error' | 'not_configured';
+  message: string;
+}
+
+/** State block for generative-fill widgets (Replicate bria/genfill).
+ *  Non-null marks the widget as genfill: bespoke body, no op-graph nodes,
+ *  pixels land on a NEW layer at Accept. */
+export interface GenfillState {
+  status: GenfillStatus;
+  prompt: string;
+  negativePrompt?: string | null;
+  seed: number;
+  maskId: string;
+  imageNodeId: string;
+  result?: GenfillResultInfo | null;
+  error?: GenfillErrorInfo | null;
+}
+
 export interface Widget {
   id: string;
   intent: string;
@@ -218,6 +245,7 @@ export interface Widget {
   category?: string | null;
   createdAt: string;
   updatedAt: string;
+  genfill?: GenfillState | null;
 }
 
 export interface MaskSummary {

@@ -15,8 +15,18 @@ class ColorSwatch(BaseModel):
 
 
 ProblemKind = Literal[
+    # Whole-image defects (region_label/bbox usually null).
     "clipped_highlights", "crushed_shadows", "low_contrast",
     "strong_color_cast", "noisy_shadows", "uneven_white_balance",
+    # Element-local defects — only meaningful on a single candidate region;
+    # the augment prompt requires region_label + bbox for these.
+    "local_underexposure", "local_overexposure", "soft_focus",
+    "distracting_element", "dull_subject", "skin_tone_shift",
+    # Escape hatch: a real observation no kind above covers. Journal-only —
+    # never minted into a widget (no tool mapping exists). Recurring `other`
+    # observations across study sessions are the empirical candidates for
+    # vocabulary growth (spec: problem vocabulary hybrid).
+    "other",
 ]
 
 
@@ -27,6 +37,13 @@ class Problem(BaseModel):
     region_label: str | None = None
     bbox: list[float] | None = Field(default=None, min_length=4, max_length=4)
     suggested_fused_tools: list[str] = Field(default_factory=list)
+    # Free-text, image-specific name for the issue as seen in THIS photo
+    # ("Blown-out sky behind the wires"). Becomes the minted widget's
+    # display_name; `kind` stays the canonical analytics key.
+    display_label: str | None = None
+    # What was observed — primarily for kind="other", where it is the whole
+    # payload of the journal-only observation.
+    description: str | None = None
 
 
 class RegionStats(BaseModel):

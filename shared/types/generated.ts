@@ -56,6 +56,7 @@ export interface Widget {
   nodes: WidgetNode[];
   opId: string | null;
   origin: WidgetOrigin;
+  paramSource: string | null;
   preview: WidgetPreview;
   reasoning: string | null;
   rejectedAttempts: ResolvedNumbers[];
@@ -670,13 +671,22 @@ export interface ColorSwatch {
 }
 export interface Problem {
   bbox: [number, number, number, number] | null;
+  description: string | null;
+  displayLabel: string | null;
   kind:
     | "clipped_highlights"
     | "crushed_shadows"
     | "low_contrast"
     | "strong_color_cast"
     | "noisy_shadows"
-    | "uneven_white_balance";
+    | "uneven_white_balance"
+    | "local_underexposure"
+    | "local_overexposure"
+    | "soft_focus"
+    | "distracting_element"
+    | "dull_subject"
+    | "skin_tone_shift"
+    | "other";
   regionLabel: string | null;
   severity: number;
   suggestedFusedTools: string[];

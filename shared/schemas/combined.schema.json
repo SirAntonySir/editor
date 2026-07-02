@@ -1478,6 +1478,28 @@
           ],
           "default": null
         },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "displayLabel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "kind": {
           "enum": [
             "clipped_highlights",
@@ -1485,7 +1507,14 @@
             "low_contrast",
             "strong_color_cast",
             "noisy_shadows",
-            "uneven_white_balance"
+            "uneven_white_balance",
+            "local_underexposure",
+            "local_overexposure",
+            "soft_focus",
+            "distracting_element",
+            "dull_subject",
+            "skin_tone_shift",
+            "other"
           ],
           "type": "string"
         },
@@ -1514,6 +1543,8 @@
       },
       "required": [
         "bbox",
+        "description",
+        "displayLabel",
         "kind",
         "regionLabel",
         "severity",
@@ -2065,6 +2096,17 @@
         "origin": {
           "$ref": "#/$defs/WidgetOrigin"
         },
+        "paramSource": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "preview": {
           "$ref": "#/$defs/WidgetPreview"
         },
@@ -2119,6 +2161,7 @@
         "nodes",
         "opId",
         "origin",
+        "paramSource",
         "preview",
         "reasoning",
         "rejectedAttempts",

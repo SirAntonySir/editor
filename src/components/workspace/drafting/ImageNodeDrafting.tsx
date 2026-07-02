@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { Handle, Position } from '@xyflow/react';
 import {
+  Bot,
   ChevronRight,
   Combine,
   Copy,
@@ -99,11 +100,15 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   const isAnalysed = useAiSession((s) => s.analysedImageNodeIds.includes(id));
   // Study control condition hides the node's AI context-menu items.
   const aiAccess = useAiAccess();
+  // No backend session → no AI items at all (they'd silently no-op). Matches
+  // the app-wide doctrine: tools disabled when sseStatus !== 'open'.
+  const offline = useBackendState((s) => s.sseStatus !== 'open');
 
-  function handleAskAboutThis() {
-    // Open the palette directly in Ask mode. The image-node's first layer
-    // name rides as an attached context chip so the LLM call grounds on
+  function openPaletteOnThisImage(mode: 'ask' | 'agent') {
+    // Open the palette directly in the given mode. The image-node's first
+    // layer name rides as an attached context chip so the LLM call grounds on
     // "this image" rather than the active selection at palette-open time.
+    // 'ask' answers questions; 'agent' drives edits (widget proposals).
     const node = useEditorStore.getState().imageNodes[id];
     const firstLayerId = node?.layerIds[0];
     const firstLayer = firstLayerId
@@ -112,7 +117,7 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
     const label = node?.name ?? firstLayer?.name ?? 'this image';
     window.dispatchEvent(new CustomEvent('spawn-palette:open', {
       detail: {
-        mode: 'ask',
+        mode,
         attachContext: [{ label: 'Image', value: label, sourceId: `imageNode:${id}` }],
       },
     }));
@@ -194,6 +199,8 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   const documentMeta = useEditorStore((s) => s.documentMeta);
   const imageNodeMode = useEditorStore((s) => s.imageNodeMode[id]);
   const setImageNodeMode = useEditorStore((s) => s.setImageNodeMode);
+  const objectSelectTool = useEditorStore((s) => s.objectSelectTool);
+  const setObjectSelectTool = useEditorStore((s) => s.setObjectSelectTool);
   const objects = useImageNodeObjects(id);
   const activeObjectId = useEditorStore((s) => s.activeObjectId);
   // The "selected object" reachable from the image-node menu: the active
@@ -303,7 +310,11 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
           (objects mode, rejoin). Each carries an icon; AI icons are violet,
           the structural ones neutral. A single separator divides the group
           from the editing actions below. */}
-      {aiAccess && (
+      {/* AI group: hidden entirely when offline (no session → items would
+          no-op) or in the study control condition. Progression: before
+          analysis only "Analyze with AI" shows; once this node has image
+          context, Ask + Agent replace it (both ground on the context). */}
+      {aiAccess && !offline && (
         <>
           {!isAnalysed && (
             <Item
@@ -316,15 +327,28 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
               </span>
             </Item>
           )}
-          <Item
-            className={itemClass}
-            onSelect={handleAskAboutThis}
-          >
-            <span className="flex items-center gap-1.5">
-              <MessageSquare size={11} className="text-[var(--color-ai)]" />
-              <span>Ask about this image</span>
-            </span>
-          </Item>
+          {isAnalysed && (
+            <>
+              <Item
+                className={itemClass}
+                onSelect={() => openPaletteOnThisImage('ask')}
+              >
+                <span className="flex items-center gap-1.5">
+                  <MessageSquare size={11} className="text-[var(--color-ai)]" />
+                  <span>Ask about this image</span>
+                </span>
+              </Item>
+              <Item
+                className={itemClass}
+                onSelect={() => openPaletteOnThisImage('agent')}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Bot size={11} className="text-[var(--color-ai)]" />
+                  <span>Edit with Agent</span>
+                </span>
+              </Item>
+            </>
+          )}
         </>
       )}
       <Item
@@ -541,7 +565,9 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
           onCompareUp={() => setCompareHeld(false)}
           objectsActive={objectsActive}
           onToggleObjectsMode={() => setImageNodeMode(id, objectsActive ? 'layers' : 'objects')}
-          showAnalyze={aiAccess && !isAnalysed}
+          objectSelectTool={objectSelectTool}
+          onSelectObjectTool={setObjectSelectTool}
+          showAnalyze={aiAccess && !offline && !isAnalysed}
           onAnalyze={() => void analyseImageLayer(id)}
           renderMenuItems={renderMenuItems}
           tight
@@ -601,6 +627,8 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
                   imageNodeId={id}
                   widthPx={displayW}
                   heightPx={displayH}
+                  sourceWidth={data.sourceSize.w}
+                  sourceHeight={data.sourceSize.h}
                   objectsMode={objectsActive}
                 />
               </div>

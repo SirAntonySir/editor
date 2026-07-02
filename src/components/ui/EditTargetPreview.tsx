@@ -90,7 +90,12 @@ export function EditTargetPreview() {
     try {
       renderImageNodeComposite({
         canvas: scratch,
-        imageNodeId: nodeId,
+        // Namespace the id so the preview gets its OWN internal/scratch cache
+        // canvases. Passing the real nodeId shares the per-imageNodeId cache
+        // (getInternalCanvas/getMemoisedScratchCanvas) with the live canvas at
+        // a different scale, clobbering the main composite — the "source image
+        // vanishes on undo/re-render" bug.
+        imageNodeId: `edit-target-preview:${nodeId}`,
         layerIds: [layerId],
         sourceWidth: srcW,
         sourceHeight: srcH,

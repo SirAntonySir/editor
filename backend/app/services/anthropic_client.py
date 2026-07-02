@@ -270,22 +270,46 @@ _SOFT_FIELDS_TOOL = {
                     "properties": {
                         "kind": {
                             "type": "string",
+                            # Mirror of ProblemKind in schemas/enriched_context.py —
+                            # keep the two lists in sync.
                             "enum": [
+                                # Whole-image defects
                                 "clipped_highlights",
                                 "crushed_shadows",
                                 "low_contrast",
                                 "strong_color_cast",
                                 "noisy_shadows",
                                 "uneven_white_balance",
+                                # Element-local defects (require region_label + bbox)
+                                "local_underexposure",
+                                "local_overexposure",
+                                "soft_focus",
+                                "distracting_element",
+                                "dull_subject",
+                                "skin_tone_shift",
+                                # Journal-only escape hatch — recorded, never minted
+                                "other",
                             ],
                         },
                         "severity": {"type": "number", "minimum": 0, "maximum": 1},
-                        "region_label": {"type": ["string", "null"]},
+                        "display_label": {
+                            "type": ["string", "null"],
+                            "description": "2-6 words naming the issue AS SEEN in this photo (e.g. 'Blown-out sky behind the wires'), not the generic kind name.",
+                        },
+                        "description": {
+                            "type": ["string", "null"],
+                            "description": "For kind='other': what you observed that no vocabulary kind covers. Optional otherwise.",
+                        },
+                        "region_label": {
+                            "type": ["string", "null"],
+                            "description": "EXACT label of the candidate region the issue sits on. Required for element-local kinds; null for whole-image issues.",
+                        },
                         "bbox": {
                             "type": ["array", "null"],
                             "items": {"type": "number"},
                             "minItems": 4,
                             "maxItems": 4,
+                            "description": "Normalized [x, y, w, h] copied from the named candidate region. Set whenever region_label is set.",
                         },
                         "suggested_fused_tools": {
                             "type": "array",
@@ -340,12 +364,42 @@ achieves the intent. \
 Do not return prose."""
 
 _AUGMENT_PROMPT = """You are completing an EnrichedImageContext for a photo editor. \
-You see ONE image and a JSON summary of cheap statistics (histograms, median luma, cast). \
+You see ONE image and JSON summaries: whole-image cheap statistics (histograms, \
+median luma, cast), per-region pixel statistics for each candidate region, and \
+the base context with the candidate regions themselves. \
 Fill in: estimated_white_point (RGB of the most likely neutral pixels), \
 wb_neutral_confidence (0..1; low if no clearly-neutral region exists), \
 grade_character (short label: warm-amber / cool-cinematic / neutral / teal-orange / ...), \
-problems[] (one entry per detected issue with severity 0..1 and suggested_fused_tools), \
+problems[], \
 and region_soft_fields[] (per candidate region label, is_skin_likely + is_sky_likely). \
+\
+Detect problems in TWO passes: \
+(1) WHOLE-IMAGE — global defects: clipped_highlights, crushed_shadows, low_contrast, \
+strong_color_cast, noisy_shadows, uneven_white_balance. Leave region_label and bbox null. \
+(2) PER-REGION — inspect EACH candidate region individually, using its image area \
+and its per-region stats: local_underexposure, local_overexposure, soft_focus, \
+distracting_element, dull_subject, skin_tone_shift. A global kind may also be used \
+region-locally when it affects one region far more than the frame (e.g. crushed \
+shadows only inside the foreground subject). For every per-region problem set \
+region_label to the EXACT candidate region label and copy that region's bbox. \
+\
+Emit one entry per genuinely detected issue with severity 0..1 and \
+suggested_fused_tools. Do not invent issues to fill both passes; an image may have \
+zero local problems. Do not duplicate the same issue at both scopes unless the \
+local severity clearly exceeds the global one. \
+\
+For every problem also set display_label: 2-6 words naming the issue AS SEEN in \
+this photo ("Blown-out sky behind the wires"), not the generic kind name — it \
+becomes the title of the suggestion card the user reads. \
+\
+If you notice a real issue that NO kind covers, emit kind="other" with a \
+description of what you see. It is recorded for vocabulary growth but not acted \
+on — never force a wrong kind onto an observation. \
+\
+Calibrate severity so 0.5 is the action threshold: >= 0.5 means a default viewer \
+would want it fixed; ~0.25 = minor or stylistic; ~0.75 = clearly damaging. Scale \
+by the fraction of the frame or subject affected and the importance of the \
+affected area (a blown sky behind the main subject outranks a blown corner). \
 \
 The valid `suggested_fused_tools` ids and what each does are listed in the catalog \
 attached as a user-message text block; choose ids only from that catalog. \

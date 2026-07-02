@@ -94,6 +94,27 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
             {"imageContext": base_ctx.model_dump(mode="json", by_alias=True)},
         )
 
+        # Pre-augment numeric region stats (pure numpy off the base-context
+        # bboxes; the skin/sky soft flags aren't known yet, so pass []). A
+        # compact per-region summary rides in the augment payload so the
+        # per-region problem pass grounds on numbers, not just vision. The
+        # full stats (with soft flags) are recomputed after augment below —
+        # the pass costs milliseconds, so running it twice beats threading
+        # partial results through.
+        pre_stats = await loop.run_in_executor(
+            None, compute_region_stats, arr, base_ctx, [],
+        )
+        region_stats_summary = [
+            {
+                "label": r.label,
+                "mean_luma": round(r.mean_luma, 1),
+                "contrast_p10_p90": round(r.contrast_p10_p90, 1),
+                "saturation_mean": round(r.saturation_mean, 3),
+                "mean_rgb": [round(v, 1) for v in r.mean_rgb],
+            }
+            for r in pre_stats
+        ]
+
         # Soft fields (LLM, slower) + region_stats (cv2) — region_stats
         # depends on the base context regions.
         soft = await loop.run_in_executor(
@@ -109,6 +130,7 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
                     "contrast_p10_p90": pr.cheap.contrast_p10_p90,
                     "cast_strength": pr.cheap.cast_strength,
                     "cast_direction": list(pr.cheap.cast_direction),
+                    "region_stats": region_stats_summary,
                 },
                 session_id=doc.session_id,
             ),

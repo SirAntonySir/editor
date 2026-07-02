@@ -1468,6 +1468,18 @@
     "origin": {
       "$ref": "#/$defs/WidgetOrigin"
     },
+    "paramSource": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Paramsource"
+    },
     "preview": {
       "$ref": "#/$defs/WidgetPreview"
     },

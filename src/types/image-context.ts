@@ -10,12 +10,20 @@ export interface ColorSwatchData {
 }
 
 export type ProblemKind =
+  // Whole-image defects (regionLabel/bbox usually null)
   | 'clipped_highlights'
   | 'crushed_shadows'
   | 'low_contrast'
   | 'strong_color_cast'
   | 'noisy_shadows'
-  | 'uneven_white_balance';
+  | 'uneven_white_balance'
+  // Element-local defects — carry regionLabel + bbox of the candidate region
+  | 'local_underexposure'
+  | 'local_overexposure'
+  | 'soft_focus'
+  | 'distracting_element'
+  | 'dull_subject'
+  | 'skin_tone_shift';
 
 export interface Problem {
   kind: ProblemKind;

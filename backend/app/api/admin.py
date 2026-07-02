@@ -34,6 +34,7 @@ from pydantic import BaseModel
 from app.config import get_settings
 from app.services import cohort_store, disk_session_io, process_stats
 from app.services.event_journal import read_events, write_event
+from app.services.study_measures import compute_study_measures
 from app.services.session_store import SessionNotFound, SessionStore
 
 from .deps import get_event_bus, get_session_store
@@ -280,6 +281,13 @@ class _AiAccessBody(BaseModel):
     ai_access: bool
 
 
+class _BlockMarkerBody(BaseModel):
+    block: int
+    part: str  # 'corrective' | 'creative' | 'sky'
+    condition: str | None = None  # 'ai_on' | 'ai_off' — auto-filled if omitted
+    action: str = "start"  # 'start' | 'end'
+
+
 @router.post("/sessions/{sid}/ai-access", dependencies=[Depends(_require_loopback)])
 async def set_session_ai_access(
     sid: str,
@@ -316,6 +324,35 @@ async def set_session_ai_access(
         "ai_access": body.ai_access,
         "user_id": user_id,
     })
+
+
+@router.post("/sessions/{sid}/block", dependencies=[Depends(_require_loopback)])
+async def mark_study_block(
+    sid: str,
+    body: _BlockMarkerBody,
+    store: SessionStore = Depends(get_session_store),
+) -> JSONResponse:
+    """Write a `study.block` marker to the session journal. The interviewer
+    clicks this per part (corrective / creative / sky) so measures compute
+    per-part and the AI-block boundary is explicit. `condition` auto-fills from
+    the session's current AI_access when omitted."""
+    if not (disk_session_io.SESSIONS_DIR / sid).exists():
+        raise HTTPException(status_code=404, detail="session not found")
+    condition = body.condition
+    if condition is None:
+        try:
+            summary = _summarize_session(sid)
+            condition = "ai_on" if summary.get("ai_access", True) else "ai_off"
+        except Exception:
+            condition = None
+    payload = {
+        "block": body.block,
+        "part": body.part,
+        "condition": condition,
+        "action": body.action,
+    }
+    write_event(sid, "study.block", payload)
+    return JSONResponse({"session_id": sid, "marker": payload})
 
 
 @router.get("/sessions/{sid}/image", dependencies=[Depends(_require_loopback)])
@@ -437,9 +474,14 @@ def export_session_json(sid: str) -> JSONResponse:
     """
     if not (disk_session_io.SESSIONS_DIR / sid).exists():
         raise HTTPException(status_code=404, detail="session not found")
+    events = read_events(sid)
     payload = {
         "summary": _summarize_session(sid),
-        "events": read_events(sid),
+        # Per-part study measures (segmentation, manual-vs-AI edit share,
+        # refines/reverts/coexistent widgets/toggles/renames). See
+        # services/study_measures.py.
+        "study_measures": compute_study_measures(events),
+        "events": events,
         "exported_at": datetime.now(timezone.utc).isoformat(),
     }
     return JSONResponse(

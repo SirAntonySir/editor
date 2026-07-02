@@ -59,15 +59,27 @@ async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "lega
                 result.add((hint, b.target.param_key))
         return result
 
-    def _scope_for(_problem) -> Scope:
-        # Currently SAM is gated off (see _sam_enabled), so region masks
-        # are not precomputed and a `named_region` scope has nothing to
-        # apply through — the resulting widget shows on the canvas but
-        # produces no pixel change. Force everything to global scope until
-        # masks come back; the original region_label still lives in
-        # `widget.reasoning` via the augment prompt, so the user can see
-        # WHERE the problem was detected even when we can't restrict the
-        # adjustment to that area yet.
+    def _scope_for(problem) -> Scope:
+        """Element-local problems get the region's scope when its SAM mask
+        was precomputed (`precompute_regions` registers one MaskRecord per
+        candidate region, labelled with the region label, before the
+        suggestion phase). Same scope shape the user-prompt path ships —
+        anchor chips, `named_region:<label>` dismissal signatures, and the
+        fused skin-safety check all engage unchanged. Rendering still
+        applies globally until the canonical projection carries scope
+        (step 2: scope-aware canonical); the scope recorded here is what
+        makes that step retroactively correct for existing widgets.
+
+        No resolvable mask → global, journaled as scope_fallback so the
+        degradation is measurable. Whole-image problems stay global."""
+        label = problem.region_label
+        if not label:
+            return Scope.model_validate({"kind": "global"})
+        if any(m.label == label for m in doc.masks.values()):
+            return Scope.model_validate({"kind": "named_region", "label": label})
+        _journal(doc, {"event": "scope_fallback", "problem": problem.kind,
+                       "region_label": label,
+                       "detail": "no precomputed mask for region"})
         return Scope.model_validate({"kind": "global"})
 
     def _dismissed(fused_id: str, scope: Scope) -> bool:
@@ -148,6 +160,15 @@ async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "lega
     for problem in ctx.problems:
         if len(picks) >= problem_budget:
             break
+        if problem.kind == "other":
+            # Escape-hatch observation: no tool mapping exists, so minting a
+            # widget would be noise — but the observation is exactly the data
+            # that grows the vocabulary. Journal it regardless of severity.
+            _journal(doc, {"event": "observation", "problem": "other",
+                           "severity": problem.severity,
+                           "label": problem.display_label,
+                           "detail": problem.description})
+            continue
         if problem.severity < 0.5:
             _journal(doc, {"event": "suggestion_skipped", "reason": "severity_gate",
                            "problem": problem.kind, "severity": problem.severity})
@@ -178,21 +199,25 @@ async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "lega
             # we fall through to a later suggestion the tool no longer
             # matches the problem name, so we label it after the TOOL
             # instead. Problem context still lives in `widget.reasoning`.
+            # `intent` stays canonical (analytics key); the augment pass's
+            # free-text display_label becomes the card title the user reads.
             intent = (
                 problem.kind.replace("_", " ") if tool_index == 0 else template.label
             )
-            picks.append(Pick((template, intent, scope, fused_id, targets)))
+            picks.append(Pick((template, intent, scope, fused_id, targets,
+                               problem.display_label)))
             used_fused_ids.add(fused_id)
             used_targets |= targets
             break  # one per problem
 
     resolved = await asyncio.gather(
-        *[_resolve(t, i, s) for (t, i, s, _fid, _tgts) in picks]
+        *[_resolve(t, i, s) for (t, i, s, _fid, _tgts, _lbl) in picks]
     )
     successful = 0
-    for widget in resolved:
+    for pick, widget in zip(picks, resolved):
         if widget is None:
             continue
+        widget.display_name = pick[5]  # image-specific label; None → UI falls back to intent
         _stamp(widget)
         doc.add_widget(widget)
         successful += 1
@@ -264,9 +289,10 @@ async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "lega
     topup_resolved = await asyncio.gather(
         *[_resolve(t, i, s) for (t, i, s, _fid, _tgts) in topup_picks]
     )
-    for widget in topup_resolved:
+    for pick, widget in zip(topup_picks, topup_resolved):
         if widget is None:
             continue
+        widget.display_name = pick[0].label  # template label (no problem to name it after)
         _stamp(widget)
         doc.add_widget(widget)
 

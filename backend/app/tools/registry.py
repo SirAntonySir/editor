@@ -92,6 +92,17 @@ class BackendToolRegistry:
         self._store = store
         self._bus = event_bus
 
+    @property
+    def store(self) -> SessionStore:
+        """Session store, exposed for tools that schedule background work
+        (genfill) and must re-acquire the document lock after their handler
+        returned."""
+        return self._store
+
+    @property
+    def bus(self) -> EventBus:
+        return self._bus
+
     # ---------------- registration ----------------
 
     def register(self, tool: BackendTool) -> None:

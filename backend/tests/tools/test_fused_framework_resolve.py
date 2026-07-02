@@ -180,3 +180,41 @@ async def test_response_schema_derived_from_param_envelope_keys():
     schema = captured["schema"]
     assert sorted(schema["properties"]["values"]["required"]) == ["a", "b"]
     assert set(schema["properties"]["values"]["properties"].keys()) == {"a", "b"}
+
+
+# ---------------------------------------------------------------------------
+# Envelope-in-schema regression (2026-07-02 telemetry finding)
+# ---------------------------------------------------------------------------
+# Real sessions showed EVERY resolve attempt violating the envelope because
+# the response schema only said {"type": "number"} — Claude answered
+# Lightroom-scale / absolute-hue / 0-1-fraction values with no way to know
+# better, so every autonomous widget shipped clamped or midpoint values and
+# burned 2 doomed retries (~10s) per suggestion. The system prompt always
+# claimed the envelope was "hinted in the schema"; these tests keep it true.
+
+
+@pytest.mark.asyncio
+async def test_response_schema_carries_envelope_bounds():
+    ctx = _StubCtx()
+    scope = Scope.model_validate({"kind": "global"})
+    client, captured = _capture_payload()
+    await _SimpleTemplate().resolve("intent", scope, ctx, None, None, client)
+
+    value_schema = captured["schema"]["properties"]["values"]["properties"]["a"]
+    assert value_schema["minimum"] == 0
+    assert value_schema["maximum"] == 10
+    # The description must warn about the scale semantics that caused the
+    # real-world misses (absolute values, 0-1 fractions).
+    assert "relative" in value_schema["description"].lower()
+
+
+@pytest.mark.asyncio
+async def test_prompt_payload_carries_param_ranges():
+    ctx = _StubCtx()
+    scope = Scope.model_validate({"kind": "global"})
+    client, captured = _capture_payload()
+    await _SimpleTemplate().resolve("intent", scope, ctx, None, None, client)
+
+    assert captured["payload"]["param_ranges"] == {
+        "a": {"min": 0, "max": 10, "step": 1},
+    }

@@ -326,11 +326,16 @@ _NAME_PICK_TOOL = {
 }
 
 _FUSED_RESOLVE_PROMPT = """You are tuning the numeric parameters of a fused photo-edit \
-tool. The user (or a prior call) supplies an intent and an image context summary. \
+tool. The user (or a prior call) supplies an intent, an image context summary, and \
+`param_ranges` with each parameter's valid [min, max]. \
 \
 Emit a single `emit_fused_tool_values` tool_use whose input matches the response \
-schema you are given. Stay within the param envelope hinted in the schema; the \
-calling framework clamps anything outside the envelope and may retry. \
+schema. Every value MUST lie within its declared min/max. The ranges are the tool's \
+OWN relative slider scales — e.g. a hue param with range [-30, 30] is a relative \
+shift in degrees, NOT an absolute 0-360 hue; a saturation param with range [-20, 40] \
+is in slider units, NOT a 0-1 fraction. Values near the range limits are maximum-\
+strength moves — reserve them for severe problems; prefer the smallest change that \
+achieves the intent. \
 \
 Do not return prose."""
 

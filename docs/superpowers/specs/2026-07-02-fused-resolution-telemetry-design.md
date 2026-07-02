@@ -82,10 +82,34 @@ The problem-pass loop journals one `suggestion_skipped` per skip decision
 
 - Admin-cockpit slicing by `param_source` (admin.py has in-flight edits;
   additive journal data is enough for now).
-- Prompt/quality changes to the fused resolvers themselves (why the envelope
-  was violated 3× is a separate investigation — the telemetry added here is
-  what makes it investigable).
+- ~~Prompt/quality changes to the fused resolvers themselves~~ → resolved,
+  see Addendum.
 - Frontend display of `param_source`.
+
+## Addendum (2026-07-02, same day): envelope-in-schema fix
+
+The telemetry immediately found the root cause of the universal envelope
+violations: `FusedToolTemplate.resolve()` built its response schema as
+`{"type": "number"}` — no bounds, no units — while the system prompt claimed
+the envelope was "hinted in the schema". Claude answered Lightroom-scale
+values (−100 highlights), absolute hues (210° for a ±30 relative-shift
+param), and 0–1 fractions for slider-unit saturations. Every attempt
+violated; every widget shipped clamped/midpoint values; 2 of 3 calls per
+suggestion (~10 s) were doomed retries.
+
+Fix (approved as follow-up):
+- `_value_schema` per param: `minimum`/`maximum` + a description warning the
+  scale is the tool's own relative slider, not absolute/fractional.
+- `param_ranges` added to the prompt payload.
+- `_FUSED_RESOLVE_PROMPT` rewritten: values MUST lie in min/max, ranges are
+  relative slider scales, range-limit values are maximum-strength moves to
+  reserve for severe problems (ties into the intensity discipline of the
+  holistic-stack spec).
+
+Expected effect: first-attempt in-envelope resolutions (`param_source="llm"`
+dominant in the journal), ~⅓ wall-clock saved per autonomous suggestion, and
+semantically correct saturations. Verify via `proposal.health` rates on the
+next real sessions.
 
 ## Testing
 

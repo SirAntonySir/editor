@@ -102,6 +102,27 @@ class FusedToolTemplate(ABC):
         that just reformats `context_inputs` is a code smell — extend the
         base resolver instead."""
         required_keys = list(self.param_envelope.keys())
+
+        # The envelope MUST reach the model. Telemetry on real sessions
+        # (2026-07-02) showed every resolve attempt violating the envelope —
+        # Claude answered Lightroom-scale values (-100 highlights), absolute
+        # hues (210° for a ±30 relative-shift param), and 0–1 fractions for
+        # slider-unit saturations — because the schema only said
+        # {"type": "number"}. The system prompt always claimed the envelope
+        # was "hinted in the schema"; this makes that true.
+        def _value_schema(k: str) -> dict:
+            env = self.param_envelope[k]
+            return {
+                "type": "number",
+                "minimum": env.min,
+                "maximum": env.max,
+                "description": (
+                    f"Slider on this tool's OWN relative scale, valid range "
+                    f"[{env.min}, {env.max}], step {env.step}. Not an absolute "
+                    f"colour value, not a 0-1 fraction."
+                ),
+            }
+
         response_schema = {
             "type": "object",
             "additionalProperties": False,
@@ -111,7 +132,7 @@ class FusedToolTemplate(ABC):
                     "type": "object",
                     "additionalProperties": False,
                     "required": required_keys,
-                    "properties": {k: {"type": "number"} for k in required_keys},
+                    "properties": {k: _value_schema(k) for k in required_keys},
                 },
                 "reasoning": {"type": "string"},
             },
@@ -120,6 +141,10 @@ class FusedToolTemplate(ABC):
         prompt_payload = {
             "intent": intent,
             "scope": scope.model_dump(mode="json", by_alias=True),
+            "param_ranges": {
+                k: {"min": env.min, "max": env.max, "step": env.step}
+                for k, env in self.param_envelope.items()
+            },
             "context_summary": context_summary,
             "prior_widget_values": (
                 {b.param_key: b.value for b in prior_widget.bindings}

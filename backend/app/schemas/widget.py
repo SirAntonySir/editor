@@ -395,7 +395,7 @@ class MaskRecord(BaseModel):
     width: int = Field(gt=0)
     height: int = Field(gt=0)
     png_b64: str = Field(min_length=1)
-    source: Literal["sam_point", "sam_box", "named_region", "painted", "combined"]
+    source: Literal["sam_point", "sam_box", "named_region", "painted", "combined", "lasso"]
     parent_mask_ids: list[str] = Field(default_factory=list)
     label: str | None = None
     # Multi-image-canvas: identifies the ImageNode this mask targets.

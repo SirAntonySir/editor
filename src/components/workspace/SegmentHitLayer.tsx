@@ -14,14 +14,25 @@ import { useSegmentExtractDrag } from '@/hooks/useSegmentExtractDrag';
 import { Kbd } from '@/components/ui/kbd';
 import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
 import { SegmentMaskPreview } from './SegmentMaskPreview';
+import {
+  lassoRasterSize,
+  rasterizeLassoPath,
+  shouldAppendPoint,
+  type LassoPoint,
+} from '@/lib/segmentation/lasso';
 import type { SamPoint, DecodedMask } from '@/lib/segmentation/mobile-sam-types';
 
 interface SegmentHitLayerProps {
   imageNodeId: string;
   widthPx: number;
   heightPx: number;
+  /** Natural image dimensions — drives the lasso raster resolution (capped
+   *  long edge). Falls back to the display px when absent. */
+  sourceWidth?: number;
+  sourceHeight?: number;
   /** True when the image-node is in objects mode. Drives left-click
-   *  behaviour: in objects mode an empty-area click runs SAM; in layers
+   *  behaviour: in objects mode an empty-area click runs SAM (point tool)
+   *  or draws a freehand polygon (lasso tool — no SAM call); in layers
    *  mode it just clears the active mask scope so the image-node selects.
    *  Right-click hit-test against existing objects runs in BOTH modes so
    *  the user can rename/delete/etc. objects without entering objects
@@ -33,7 +44,9 @@ interface CandidateState {
   points: SamPoint[];
   mask: DecodedMask | null;
   label?: string;
-  origin?: 'client_refinement' | 'client_new' | 'client_extracted';
+  origin?: 'client_refinement' | 'client_new' | 'client_extracted' | 'client_lasso';
+  /** Normalized lasso vertices — forwarded to propose_mask's `paths`. */
+  paths?: number[][][];
 }
 
 function clientToNormalised(
@@ -52,10 +65,12 @@ function isInsideMask(nx: number, ny: number, mask: DecodedMask | null): boolean
 }
 
 export function SegmentHitLayer({
-  imageNodeId, widthPx, heightPx, objectsMode,
+  imageNodeId, widthPx, heightPx, sourceWidth, sourceHeight, objectsMode,
 }: SegmentHitLayerProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const [hoveringObject, setHoveringObject] = useState(false);
+  const objectSelectTool = useEditorStore((s) => s.objectSelectTool);
+  const lassoActive = objectsMode && objectSelectTool === 'lasso';
   // Read from useBackendState — this is the authoritative tool-session
   // store and stays populated across reloads (reattached from localStorage
   // via useBackendSession). useAiSession.sessionId mirrors the same id
@@ -70,6 +85,20 @@ export function SegmentHitLayer({
   // decode's setState. Without this, a slow first decode would clobber a
   // faster second click's candidate after it returned.
   const decodeSeqRef = useRef(0);
+
+  // ── Lasso drawing state ──────────────────────────────────────────────────
+  // Ref accumulates vertices (pointermove-rate); state mirrors it for the SVG
+  // preview. A completed lasso ends in a browser click — the ref below lets
+  // handleClick swallow that click so it doesn't also select an object
+  // underneath the release point.
+  const lassoPathRef = useRef<LassoPoint[] | null>(null);
+  const [lassoDraft, setLassoDraft] = useState<LassoPoint[] | null>(null);
+  const lassoJustFinishedRef = useRef(false);
+
+  const cancelLasso = useCallback(() => {
+    lassoPathRef.current = null;
+    setLassoDraft(null);
+  }, []);
 
   const cancelCandidate = useCallback(() => setCandidate(null), []);
 
@@ -88,7 +117,7 @@ export function SegmentHitLayer({
     if (!c?.mask || !sessionId) return;
     const id = await runCandidateVerb(
       verb,
-      { points: c.points, mask: c.mask, label: c.label, origin: c.origin },
+      { points: c.points, mask: c.mask, label: c.label, origin: c.origin, paths: c.paths },
       { sessionId, imageNodeId, existingCount: existingObjects.length },
     );
     if (id) finishSelection();
@@ -130,7 +159,7 @@ export function SegmentHitLayer({
       if (!c?.mask || !sessionId) return;
       void runCandidateVerb(
         'extract-node',
-        { points: c.points, mask: c.mask, label: c.label, origin: c.origin },
+        { points: c.points, mask: c.mask, label: c.label, origin: c.origin, paths: c.paths },
         { sessionId, imageNodeId, existingCount: existingObjects.length },
       ).then((id) => {
         if (!id) return;
@@ -147,6 +176,16 @@ export function SegmentHitLayer({
       const el = layerRef.current;
       if (!el) return;
       const [nx, ny] = clientToNormalised(e, el);
+      if (lassoActive) {
+        // Lasso tool: primary-button press starts a freehand path anywhere on
+        // the image (drag-to-extract stays a point-tool affordance). Pointer
+        // capture keeps every move on this element and away from React Flow.
+        if (e.button !== 0) return;
+        el.setPointerCapture(e.pointerId);
+        lassoPathRef.current = [[nx, ny]];
+        setLassoDraft([[nx, ny]]);
+        return;
+      }
       // TEMP DIAGNOSTIC — "drag-to-extract doesn't arm on the object body".
       // Logs, at the press point, each object's mask dims + the sampled value +
       // whether isInsideMask matches. Remove after triage.
@@ -176,8 +215,32 @@ export function SegmentHitLayer({
       }
       grabbed.current = null; // empty area → leave for the SAM-pick click
     },
-    [objectsMode, candidate, existingObjects, extractDrag],
+    [objectsMode, lassoActive, candidate, existingObjects, extractDrag],
   );
+
+  // Close the lasso: rasterize the polygon into a DecodedMask (pure scanline
+  // fill — no SAM anywhere) and hand it to the same candidate state the SAM
+  // path uses. Degenerate paths (accidental click, hairline scribble) are
+  // discarded silently.
+  const finishLasso = useCallback(() => {
+    const path = lassoPathRef.current;
+    lassoPathRef.current = null;
+    setLassoDraft(null);
+    if (!path) return;
+    const { width, height } = lassoRasterSize(
+      sourceWidth ?? widthPx, sourceHeight ?? heightPx,
+    );
+    const mask = rasterizeLassoPath(path, width, height);
+    if (!mask) return;
+    lassoJustFinishedRef.current = true;
+    decodeSeqRef.current += 1; // invalidate any in-flight SAM decode
+    setCandidate({
+      points: [],
+      mask,
+      origin: 'client_lasso',
+      paths: [path.map(([x, y]) => [x, y])],
+    });
+  }, [sourceWidth, sourceHeight, widthPx, heightPx]);
 
   // Esc discards the live selection. (There is no Enter-to-save — committing
   // happens only via an explicit action verb.)
@@ -189,6 +252,16 @@ export function SegmentHitLayer({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [candidate, cancelCandidate]);
+
+  // Esc mid-draw abandons the lasso path without producing a candidate.
+  useEffect(() => {
+    if (!lassoDraft) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); cancelLasso(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [lassoDraft, cancelLasso]);
 
   // Allow other actions (e.g. "Select Inverted" on an object) to inject a
   // candidate so the user gets the same Save/Cancel UI they'd get from a SAM
@@ -296,6 +369,18 @@ export function SegmentHitLayer({
       const el = layerRef.current;
       if (!el) return;
       const [nx, ny] = clientToNormalised(e, el);
+      // Drawing a lasso: accumulate vertices (≈2-screen-px min distance so
+      // the path stays light) and skip the hover hit-test entirely.
+      const path = lassoPathRef.current;
+      if (path) {
+        const rect = el.getBoundingClientRect();
+        const minDistNorm = rect.width > 0 ? 2 / rect.width : 0.002;
+        if (shouldAppendPoint(path, [nx, ny], minDistNorm)) {
+          path.push([nx, ny]);
+          setLassoDraft([...path]);
+        }
+        return;
+      }
       const hit = existingObjects.find((obj) => {
         const x = Math.min(obj.mask.width - 1, Math.max(0, Math.floor(nx * obj.mask.width)));
         const y = Math.min(obj.mask.height - 1, Math.max(0, Math.floor(ny * obj.mask.height)));
@@ -320,9 +405,13 @@ export function SegmentHitLayer({
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      // A completed extract-drag ends in a click; swallow it so we don't also
-      // select/pick.
+      // A completed extract-drag or lasso ends in a click; swallow it so we
+      // don't also select/pick at the release point.
       if (extractDrag.consumeDragClick()) return;
+      if (lassoJustFinishedRef.current) {
+        lassoJustFinishedRef.current = false;
+        return;
+      }
       const el = layerRef.current;
       if (!el) return;
       const [nx, ny] = clientToNormalised(e, el);
@@ -353,11 +442,17 @@ export function SegmentHitLayer({
         return;
       }
 
+      // Lasso tool: clicks never reach SAM — selection happens by drawing
+      // (pointer down/move/up), and a degenerate draw already resolved to a
+      // plain click above (object select) or nothing.
+      if (lassoActive) return;
+
       // Objects mode — fall through to SAM. Shift-click while a candidate
       // is live: append a refinement point. Positive (label 1) if outside
       // the current mask, negative (label 0) if inside — mirrors the SAM
-      // convention for click-driven refinement.
-      if (e.shiftKey && candidate) {
+      // convention for click-driven refinement. Lasso candidates are not
+      // SAM-refinable (there are no prompt points to extend).
+      if (e.shiftKey && candidate && candidate.origin !== 'client_lasso') {
         const insideMask = isInsideMask(nx, ny, candidate.mask);
         const point: SamPoint = { x: nx, y: ny, label: insideMask ? 0 : 1 };
         void runDecode([...candidate.points, point]);
@@ -367,7 +462,7 @@ export function SegmentHitLayer({
       // Plain click (or shift without a candidate): start a fresh candidate.
       void runDecode([{ x: nx, y: ny, label: 1 }]);
     },
-    [candidate, runDecode, existingObjects, imageNodeId, objectsMode, extractDrag],
+    [candidate, runDecode, existingObjects, imageNodeId, objectsMode, lassoActive, extractDrag],
   );
 
   return (
@@ -396,7 +491,11 @@ export function SegmentHitLayer({
       onContextMenu={handleContextMenu}
       onPointerDown={handlePointerDown}
       onPointerMove={(e) => { handlePointerMove(e); extractDrag.onPointerMove(e); }}
-      onPointerUp={extractDrag.onPointerUp}
+      onPointerUp={(e) => {
+        if (lassoPathRef.current) { finishLasso(); return; }
+        extractDrag.onPointerUp(e);
+      }}
+      onPointerCancel={cancelLasso}
       onPointerLeave={handlePointerLeave}
     >
       {extractDrag.ghost}
@@ -405,7 +504,39 @@ export function SegmentHitLayer({
         widthPx={widthPx}
         heightPx={heightPx}
       />
-      {candidate && (
+      {/* Live lasso path while drawing. viewBox 0..1 maps normalized vertices
+       *  straight onto the layer; non-scaling-stroke keeps the dash hairline
+       *  at every zoom. Tokens only — no hardcoded colors. */}
+      {lassoDraft && lassoDraft.length >= 2 && (
+        <svg
+          data-testid="lasso-draft-path"
+          className="pointer-events-none absolute inset-0 w-full h-full"
+          viewBox="0 0 1 1"
+          preserveAspectRatio="none"
+        >
+          <polygon
+            points={lassoDraft.map(([x, y]) => `${x},${y}`).join(' ')}
+            fill="var(--color-accent)"
+            fillOpacity={0.12}
+            stroke="var(--color-accent)"
+            strokeWidth={1.5}
+            strokeDasharray="4 3"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+      )}
+      {lassoDraft && (
+        <div
+          data-testid="lasso-draft-hint"
+          className="glass-overlay pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-1 rounded-[4px] text-text-primary text-[10px] leading-none whitespace-nowrap flex items-center gap-1.5"
+        >
+          <span>release to close</span>
+          <span className="opacity-40">·</span>
+          <Kbd keys="esc" className="ml-0" />
+          <span>cancel</span>
+        </div>
+      )}
+      {candidate && !lassoDraft && (
         <div
           data-testid="segment-candidate-hint"
           data-state={candidate.mask ? 'ready' : 'pending'}
@@ -413,9 +544,13 @@ export function SegmentHitLayer({
         >
           {candidate.mask ? (
             <>
-              <Kbd keys="shift" className="ml-0" />
-              <span>+ click refine</span>
-              <span className="opacity-40">·</span>
+              {candidate.origin !== 'client_lasso' && (
+                <>
+                  <Kbd keys="shift" className="ml-0" />
+                  <span>+ click refine</span>
+                  <span className="opacity-40">·</span>
+                </>
+              )}
               <span>right-click actions</span>
               <span className="opacity-40">·</span>
               <Kbd keys="esc" className="ml-0" />

@@ -2,9 +2,16 @@ import type { StateCreator } from 'zustand';
 
 export type EditorMode = 'develop' | 'compose';
 
+export type ObjectSelectTool = 'point' | 'lasso';
+
 export interface ToolSlice {
   activeTool: string;
   editorMode: EditorMode;
+  /** How object mode selects: SAM point-click (default) or a freehand lasso
+   *  polygon rasterized client-side (no SAM call). Shared across image nodes;
+   *  only meaningful while a node's object mode is active. */
+  objectSelectTool: ObjectSelectTool;
+  setObjectSelectTool: (tool: ObjectSelectTool) => void;
   toolConfigs: Record<string, unknown>;
   expandedWidgetIds: Set<string>;
   expandedSectionIds: Set<string>;
@@ -61,6 +68,7 @@ export interface ToolSlice {
 export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]], []> = (set, get) => ({
   activeTool: 'select',
   editorMode: 'develop',
+  objectSelectTool: 'point',
   toolConfigs: {},
   expandedWidgetIds: new Set<string>(),
   expandedSectionIds: new Set<string>(),
@@ -105,6 +113,11 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   setActiveTool: (name) =>
     set((state) => {
       state.activeTool = name;
+    }),
+
+  setObjectSelectTool: (tool) =>
+    set((state) => {
+      state.objectSelectTool = tool;
     }),
 
   setEditorMode: (mode) =>

@@ -1,4 +1,4 @@
-import { Eye, MoreHorizontal, ScanSearch, Sparkles } from 'lucide-react';
+import { Eye, Lasso, MoreHorizontal, MousePointerClick, ScanSearch, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { ReactNode } from 'react';
@@ -31,6 +31,10 @@ interface TopMarginaliaProps {
    *  Enter/Exit objects mode item, promoted to a header icon. */
   objectsActive?: boolean;
   onToggleObjectsMode?: () => void;
+  /** Point-vs-lasso selection tool, shown only while objects mode is active.
+   *  Point runs SAM on click; lasso draws a freehand polygon (no SAM). */
+  objectSelectTool?: 'point' | 'lasso';
+  onSelectObjectTool?: (tool: 'point' | 'lasso') => void;
   /** Analyze-with-AI header button (violet). Shown only when AI is available
    *  and the image hasn't been analysed yet — mirrors the menu item. */
   showAnalyze?: boolean;
@@ -67,6 +71,8 @@ export function TopMarginalia({
   onCompareUp,
   objectsActive = false,
   onToggleObjectsMode,
+  objectSelectTool = 'point',
+  onSelectObjectTool,
   showAnalyze = false,
   onAnalyze,
   renderMenuItems,
@@ -156,6 +162,44 @@ export function TopMarginalia({
             >
               <Sparkles size={12} aria-hidden />
             </button>
+          )}
+          {objectsActive && onSelectObjectTool && (
+            <div
+              role="radiogroup"
+              aria-label="Object selection tool"
+              className="inline-flex items-center rounded-[3px] bg-surface-secondary p-px mr-0.5"
+            >
+              <button
+                type="button"
+                role="radio"
+                aria-checked={objectSelectTool === 'point'}
+                aria-label="Point select (SAM)"
+                title="Point select — click an object, SAM finds it"
+                onClick={(e) => { e.stopPropagation(); onSelectObjectTool('point'); }}
+                className={`inline-flex items-center justify-center w-5 h-5 rounded-[2px] cursor-pointer ${
+                  objectSelectTool === 'point'
+                    ? 'text-[var(--color-accent)] bg-surface-primary'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                <MousePointerClick size={12} aria-hidden />
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={objectSelectTool === 'lasso'}
+                aria-label="Lasso select (freehand)"
+                title="Lasso select — draw a freehand region, no AI"
+                onClick={(e) => { e.stopPropagation(); onSelectObjectTool('lasso'); }}
+                className={`inline-flex items-center justify-center w-5 h-5 rounded-[2px] cursor-pointer ${
+                  objectSelectTool === 'lasso'
+                    ? 'text-[var(--color-accent)] bg-surface-primary'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                <Lasso size={12} aria-hidden />
+              </button>
+            </div>
           )}
           {onToggleObjectsMode && (
             <button

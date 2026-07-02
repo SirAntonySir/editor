@@ -92,3 +92,27 @@ async def test_propose_mask_dimensions(make_doc) -> None:
     assert record.height == 16
     # origin falls back to sam_point for client_extracted
     assert record.source == "sam_point"
+
+
+@pytest.mark.asyncio
+async def test_propose_mask_lasso_origin(make_doc) -> None:
+    """A client-rasterized lasso polygon commits with source='lasso' — no SAM
+    was involved and the record must say so (study telemetry + mask chips
+    read the source)."""
+    doc = make_doc()
+    b64 = _make_png_b64(40, 40)
+
+    out = await ProposeMaskTool().handler(
+        doc,
+        _Input(
+            image_node_id="node-1",
+            png_base64=b64,
+            paths=[[[0.1, 0.1], [0.9, 0.1], [0.5, 0.9]]],
+            label="sky patch",
+            origin="client_lasso",
+        ),
+    )
+
+    record = doc.masks[out.mask_id]
+    assert record.source == "lasso"
+    assert record.label == "sky patch"

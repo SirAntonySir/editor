@@ -6,7 +6,8 @@ MaskRecord, registers it in doc.masks, and streams a mask.proposed SSE event
 so the frontend snapshot consumer can append it to masksIndex live without a
 full re-fetch.
 
-Valid origins: "client_refinement", "client_new", "client_extracted".
+Valid origins: "client_refinement", "client_new", "client_extracted",
+"client_lasso" (freehand polygon rasterized client-side — no SAM involved).
 """
 
 from __future__ import annotations
@@ -49,6 +50,7 @@ _ORIGIN_TO_SOURCE: dict[str, str] = {
     "client_refinement": "sam_box",
     "client_new": "sam_point",
     "client_extracted": "sam_point",
+    "client_lasso": "lasso",
 }
 
 

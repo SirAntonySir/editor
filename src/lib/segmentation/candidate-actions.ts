@@ -13,13 +13,17 @@ import {
 import { toast } from '@/components/ui/Toast';
 import type { DecodedMask, SamPoint } from '@/lib/segmentation/mobile-sam-types';
 
-/** A live SAM selection — the transient mask the user is working with before
- *  committing it via an action verb. */
+/** A live selection — the transient mask the user is working with before
+ *  committing it via an action verb. Produced by SAM (point mode) or by the
+ *  client-side lasso rasterizer (no SAM involved). */
 export interface LiveSelection {
   points: SamPoint[];
   mask: DecodedMask;
   label?: string;
-  origin?: 'client_refinement' | 'client_new' | 'client_extracted';
+  origin?: 'client_refinement' | 'client_new' | 'client_extracted' | 'client_lasso';
+  /** Normalized vertex path(s) for lasso selections — shipped to the backend's
+   *  `paths` field so the vector intent is preserved alongside the raster. */
+  paths?: number[][][];
 }
 
 /**
@@ -46,7 +50,7 @@ export async function materializeCandidate(
   const env = await backendTools.propose_mask(ctx.sessionId, {
     imageNodeId: ctx.imageNodeId,
     pngBase64,
-    paths: [],
+    paths: sel.paths ?? [],
     label: autoName,
     origin,
   });
@@ -74,7 +78,9 @@ export async function materializeCandidate(
       width: sel.mask.width,
       height: sel.mask.height,
       data: sel.mask.data,
-      source: hasNegativePoint ? 'sam-points' : 'sam-point',
+      source: origin === 'client_lasso'
+        ? 'lasso'
+        : (hasNegativePoint ? 'sam-points' : 'sam-point'),
       createdAt: Date.now(),
     });
   }

@@ -5,6 +5,7 @@ export type MaskSource =
   | 'sam-points'
   | 'sam-box'
   | 'brush'
+  | 'lasso'
   | 'ai-proposed';
 
 export interface SamPrompt {

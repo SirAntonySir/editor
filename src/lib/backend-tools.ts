@@ -23,7 +23,7 @@ export interface ProposeMaskInput {
   pngBase64: string;
   paths: number[][][];
   label?: string | null;
-  origin: 'client_refinement' | 'client_new' | 'client_extracted';
+  origin: 'client_refinement' | 'client_new' | 'client_extracted' | 'client_lasso';
 }
 
 export interface ProposeMaskOutput {

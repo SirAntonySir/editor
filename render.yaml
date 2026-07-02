@@ -34,6 +34,8 @@ services:
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false          # set in the Render dashboard (secret)
+      - key: REPLICATE_API_TOKEN
+        sync: false          # set in the Render dashboard (secret) — genfill widget
       - key: BACKEND_AUTH_TOKEN
         generateValue: true  # Render mints a strong shared secret; read it in the dashboard
       - key: ADMIN_TOKEN

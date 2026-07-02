@@ -204,12 +204,26 @@ def _seed_numbers(template: FusedToolTemplate) -> ResolvedNumbers:
     })
 
 
+def _journal_fused_health(session_id: str | None, payload: dict) -> None:
+    """Journal a fused-resolution health event (spec: fused resolution
+    telemetry §1). No session_id (direct callers, tests) → skip. Telemetry
+    must never break resolution, so failures only warn."""
+    if not session_id:
+        return
+    try:
+        from app.services.event_journal import write_event
+        write_event(session_id, "proposal.health", {"stage": "fused_resolve", **payload})
+    except Exception:  # noqa: BLE001
+        logger.warning("proposal.health journal write failed", exc_info=True)
+
+
 def _build_widget(
     template: FusedToolTemplate,
     intent: str,
     scope: Scope,
     numbers: ResolvedNumbers,
     origin: WidgetOrigin,
+    param_source: str | None = None,
 ) -> Widget:
     node_id_by_target: dict[str, str] = {}
     nodes: list[WidgetNode] = []
@@ -259,6 +273,7 @@ def _build_widget(
         rejected_attempts=[],
         status="active",
         revision=1,
+        param_source=param_source,
     )
 
 
@@ -272,20 +287,33 @@ async def run_fused_tool(
     instruction: str | None,
     anthropic: Any,
     origin: WidgetOrigin | None = None,
+    session_id: str | None = None,
 ) -> Widget:
     """Resolve a fused tool. Try up to 3 times. On envelope violation, clamp on
-    last retry. On triple-miss or resolver exception, seed with envelope midpoints."""
+    the last retry and accept — a resolution with one out-of-range param is
+    still an image-informed answer, far better than discarding it. Only when
+    every attempt raised ResolverError do we seed envelope midpoints.
+
+    Every degradation is journaled (proposal.health, stage=fused_resolve) and
+    the widget records how its values were produced via `param_source`
+    ("llm" | "llm_clamped" | "midpoint") so the study can tell an AI decision
+    from a mechanical fallback."""
     skin_safe = _scope_is_skin_likely(scope, ctx)
     final_origin = origin or WidgetOrigin(kind="mcp_user_prompt", prompt=intent)
-    for attempt in range(3):
+    attempts = 3
+    for attempt in range(attempts):
         try:
             numbers = await template.resolve(intent, scope, ctx, prior, instruction, anthropic)
         except ResolverError as exc:
             logger.warning("fused_tool %s resolver error (attempt %d): %s", template.id, attempt, exc)
+            _journal_fused_health(session_id, {
+                "event": "resolver_retry", "tool": template.id,
+                "attempt": attempt, "detail": str(exc)[:500],
+            })
             continue
 
         clamped_values: dict[str, ParamValue] = {}
-        out_of_envelope = False
+        violated_keys: list[str] = []
         for k, v in numbers.values.items():
             env = template.param_envelope.get(k)
             if env is None:
@@ -296,10 +324,44 @@ async def run_fused_tool(
                 continue
             clamped = _clamp(float(v), env, skin_safe)
             if abs(clamped - float(v)) > 1e-6:
-                out_of_envelope = True
+                violated_keys.append(k)
             clamped_values[k] = clamped
-        if not out_of_envelope:
-            return _build_widget(template, intent, scope, numbers, final_origin)
+        if not violated_keys:
+            return _build_widget(
+                template, intent, scope, numbers, final_origin, param_source="llm",
+            )
+        if attempt == attempts - 1:
+            # Last attempt: clamp and accept instead of discarding the whole
+            # resolution for one out-of-range param.
+            logger.warning(
+                "fused_tool %s envelope violation on final attempt; clamping %s",
+                template.id, violated_keys,
+            )
+            _journal_fused_health(session_id, {
+                "event": "envelope_clamped", "tool": template.id,
+                "params": violated_keys,
+            })
+            clamped_numbers = ResolvedNumbers(
+                values=clamped_values, reasoning=numbers.reasoning,
+            )
+            return _build_widget(
+                template, intent, scope, clamped_numbers, final_origin,
+                param_source="llm_clamped",
+            )
         logger.warning("fused_tool %s envelope violation (attempt %d); retrying", template.id, attempt)
+        _journal_fused_health(session_id, {
+            "event": "resolver_retry", "tool": template.id,
+            "attempt": attempt, "detail": f"envelope_violation: {violated_keys}",
+        })
     logger.error("fused_tool %s triple-missed; seeding from envelope midpoints", template.id)
-    return _build_widget(template, intent, scope, _seed_numbers(template), final_origin)
+    _journal_fused_health(session_id, {
+        "event": "midpoint_seeded", "tool": template.id,
+    })
+    seeded = _seed_numbers(template)
+    seeded.reasoning = (
+        "Automatic fallback — the resolver failed; values are safe midpoints, "
+        "adjust to taste."
+    )
+    return _build_widget(
+        template, intent, scope, seeded, final_origin, param_source="midpoint",
+    )

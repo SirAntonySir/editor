@@ -6,6 +6,19 @@ analyze_image mega-tool; called by the suggest_widgets MCP tool.
 from __future__ import annotations
 
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def _journal(doc, payload: dict) -> None:
+    """Journal an autonomous-pass decision (proposal.health, stage=autonomous).
+    Telemetry must never break suggestion minting, so failures only warn."""
+    try:
+        from app.services.event_journal import write_event
+        write_event(doc.session_id, "proposal.health", {"stage": "autonomous", **payload})
+    except Exception:  # noqa: BLE001
+        logger.warning("proposal.health journal write failed", exc_info=True)
 
 
 async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "legacy") -> None:
@@ -111,12 +124,17 @@ async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "lega
                 asyncio.to_thread(
                     _run_fused_tool_sync,
                     run_fused_tool, template, intent, scope, ctx, anthropic, origin,
+                    doc.session_id,
                 ),
                 timeout=resolve_timeout_s,
             )
         except asyncio.TimeoutError:
+            _journal(doc, {"event": "resolve_failed", "tool": template.id,
+                           "detail": f"timeout after {resolve_timeout_s}s"})
             return None
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
+            _journal(doc, {"event": "resolve_failed", "tool": template.id,
+                           "detail": str(exc)[:500]})
             return None
 
     # ---- Problem-driven pass: select first, resolve in parallel ----------
@@ -131,18 +149,28 @@ async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "lega
         if len(picks) >= problem_budget:
             break
         if problem.severity < 0.5:
+            _journal(doc, {"event": "suggestion_skipped", "reason": "severity_gate",
+                           "problem": problem.kind, "severity": problem.severity})
             continue
         for tool_index, fused_id in enumerate(problem.suggested_fused_tools):
             if fused_id not in templates:
+                _journal(doc, {"event": "suggestion_skipped", "reason": "unknown_template",
+                               "problem": problem.kind, "tool": fused_id})
                 continue
             if fused_id in used_fused_ids:
+                _journal(doc, {"event": "suggestion_skipped", "reason": "duplicate_fused_id",
+                               "problem": problem.kind, "tool": fused_id})
                 continue
             template = templates[fused_id]
             targets = _canonical_targets(template)
             if targets & used_targets:
+                _journal(doc, {"event": "suggestion_skipped", "reason": "knob_collision",
+                               "problem": problem.kind, "tool": fused_id})
                 continue
             scope = _scope_for(problem)
             if _dismissed(fused_id, scope):
+                _journal(doc, {"event": "suggestion_skipped", "reason": "dismissed",
+                               "problem": problem.kind, "tool": fused_id})
                 continue
             # Intent text: when we use the problem's PRIMARY suggestion the
             # tool was hand-picked to match the problem, so naming the widget
@@ -202,7 +230,12 @@ async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "lega
     except asyncio.TimeoutError:
         # Top-up is best-effort — failing it just leaves fewer
         # autonomous suggestions, not a broken session.
+        _journal(doc, {"event": "topup_candidates_failed",
+                       "detail": f"timeout after {resolve_timeout_s}s"})
         candidates = []
+    else:
+        _journal(doc, {"event": "topup_requested", "needed": needed,
+                       "candidates": list(candidates)})
 
     global_scope = Scope.model_validate({"kind": "global"})
     topup_picks: list = []
@@ -210,12 +243,19 @@ async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "lega
         if len(topup_picks) >= needed:
             break
         if fused_id not in templates or fused_id in already_used:
+            _journal(doc, {"event": "suggestion_skipped", "tool": fused_id,
+                           "reason": ("unknown_template" if fused_id not in templates
+                                      else "duplicate_fused_id")})
             continue
         template = templates[fused_id]
         targets = _canonical_targets(template)
         if targets & used_targets:
+            _journal(doc, {"event": "suggestion_skipped", "reason": "knob_collision",
+                           "tool": fused_id})
             continue
         if _dismissed(fused_id, global_scope):
+            _journal(doc, {"event": "suggestion_skipped", "reason": "dismissed",
+                           "tool": fused_id})
             continue
         topup_picks.append((template, template.label, global_scope, fused_id, targets))
         used_targets |= targets
@@ -231,7 +271,7 @@ async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "lega
         doc.add_widget(widget)
 
 
-def _run_fused_tool_sync(run_fused_tool, template, intent, scope, ctx, anthropic, origin):
+def _run_fused_tool_sync(run_fused_tool, template, intent, scope, ctx, anthropic, origin, session_id):
     """Bridge from a worker thread back into `run_fused_tool` (async). Each
     thread spins its own event loop via `asyncio.run` — the Anthropic SDK
     call inside the resolver blocks that loop, not the caller's. Cheap:
@@ -246,5 +286,6 @@ def _run_fused_tool_sync(run_fused_tool, template, intent, scope, ctx, anthropic
             instruction=None,
             anthropic=anthropic,
             origin=origin,
+            session_id=session_id,
         )
     )

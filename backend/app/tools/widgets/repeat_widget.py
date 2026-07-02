@@ -61,6 +61,7 @@ class RepeatWidgetTool(BackendTool[_Input, _Output]):
         new_widget = await run_fused_tool(
             template, intent=w.intent, scope=w.scope, ctx=doc.get_image_context(DEFAULT_IMAGE_NODE_ID),
             prior=w, instruction=instruction, anthropic=anthropic, origin=w.origin,
+            session_id=doc.session_id,
         )
         new_widget.id = w.id
         new_widget.revision = w.revision + 1

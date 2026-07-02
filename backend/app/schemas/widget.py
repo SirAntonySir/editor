@@ -368,6 +368,13 @@ class Widget(BaseModel):
     locked_params: list[str] = Field(default_factory=list)
     display_name: str | None = None    # NEW — per-widget label (smart composition)
     category: str | None = None         # NEW — for grouping (smart composition)
+    # How the widget's values were produced, stamped by the fused framework:
+    # "llm" (in-envelope resolution), "llm_clamped" (accepted after clamping
+    # on the final retry), "midpoint" (mechanical envelope-midpoint fallback
+    # after every resolve attempt failed). None for paths that don't stamp it
+    # (propose_stack, presets). The study reads this off `widget.created`
+    # journal payloads to separate AI decisions from fallbacks.
+    param_source: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     # Revision at which this widget was dismissed. None for active/accepted

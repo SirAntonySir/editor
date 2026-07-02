@@ -312,10 +312,17 @@ export function SegmentHitLayer({
       // Radix trigger element (the hidden candidate span, or an object
       // label in a sibling layer). When the candidate trigger lives inside
       // SegmentHitLayer, the synthesized event bubbles right back up into
-      // this handler and would recurse infinitely. Bail when the event
-      // target is already a trigger we'd want to redispatch to.
+      // this handler and would recurse infinitely. By the time it re-enters
+      // here Radix has already opened the menu at the target (target phase),
+      // so the event's job is done — STOP it. Without stopPropagation it
+      // keeps bubbling into the image-node's ContextMenu.Trigger wrapping
+      // this layer, which stacks the node's menu on top of the candidate
+      // menu and swallows the user's first click.
       const target = e.target as HTMLElement | null;
-      if (target?.closest?.('[data-candidate-trigger], [data-object-id]')) return;
+      if (target?.closest?.('[data-candidate-trigger], [data-object-id]')) {
+        e.stopPropagation();
+        return;
+      }
       const [nx, ny] = clientToNormalised(e, el);
 
       if (candidate?.mask && isInsideMask(nx, ny, candidate.mask)) {
@@ -324,7 +331,7 @@ export function SegmentHitLayer({
         const trig = el.querySelector('[data-candidate-trigger]') as HTMLElement | null;
         if (!trig) return;
         trig.dispatchEvent(new MouseEvent('contextmenu', {
-          bubbles: true, cancelable: true, view: window,
+          bubbles: true, cancelable: true,
           clientX: e.clientX, clientY: e.clientY, button: 2,
         }));
         return;
@@ -351,7 +358,7 @@ export function SegmentHitLayer({
       const trig = document.querySelector(`[data-object-id="${hit.id}"]`) as HTMLElement | null;
       if (!trig) return;
       trig.dispatchEvent(new MouseEvent('contextmenu', {
-        bubbles: true, cancelable: true, view: window,
+        bubbles: true, cancelable: true,
         clientX: e.clientX, clientY: e.clientY, button: 2,
       }));
     },

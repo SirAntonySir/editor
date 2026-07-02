@@ -141,6 +141,31 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
     expect(backendTools.propose_mask).not.toHaveBeenCalled();
   });
 
+  it('right-click on the candidate does NOT bubble to the image-node context menu', async () => {
+    // Regression: SegmentHitLayer sits INSIDE the image-node's
+    // ContextMenu.Trigger. Right-clicking the live selection re-dispatches a
+    // bubbling contextmenu event onto the hidden candidate trigger — if that
+    // synthetic event escapes the hit layer, the image node's menu opens ON
+    // TOP of the candidate menu and swallows the first click.
+    const outerContextMenu = vi.fn();
+    const { findByTestId } = render(
+      <div onContextMenu={outerContextMenu}>
+        <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />
+      </div>,
+    );
+    const layer = await findByTestId('segment-hit-layer');
+    stubRect(layer);
+    // Establish a candidate (fake mask: top-left quadrant on).
+    fireEvent.click(layer, { clientX: 100, clientY: 75 });
+    await waitFor(() => expect(layer.querySelector('[data-candidate-trigger]')).not.toBeNull());
+    // Right-click inside the candidate mask (0.25, 0.25 → top-left quadrant).
+    fireEvent.contextMenu(layer, { clientX: 100, clientY: 75 });
+    await new Promise((r) => setTimeout(r, 0));
+    // Neither the original event (stopPropagation'd by handleContextMenu) nor
+    // the re-dispatched one (guard must stop it too) may reach the parent.
+    expect(outerContextMenu).not.toHaveBeenCalled();
+  });
+
   it('new plain click while a candidate exists starts a fresh decode (one more call)', async () => {
     const { findByTestId } = render(
       <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,

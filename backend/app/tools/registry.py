@@ -81,6 +81,8 @@ def _classify_exception(exc: Exception) -> ToolResponseEnvelope | None:
         return _err("invalid_input", str(exc), retryable=False)
     if cls_name == "_MissingContext":
         return _err("missing_context", str(exc), retryable=True, recovery_hint="call prepare_image then analyze_context")
+    if cls_name == "_ProposalFailed":
+        return _err("proposal_failed", str(exc), retryable=True, recovery_hint="rephrase the prompt and try again")
     return None
 
 

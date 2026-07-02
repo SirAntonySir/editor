@@ -79,7 +79,11 @@ Replaces the parallel per-op loop in `_handle_llm_path`.
 
 ### 3. Fallback — never spawn garbage
 
-- Keep the keyword→preset match as a degraded mode; journal its use.
+- Keep the keyword→preset match as a degraded mode; journal its use. The
+  fallback path **skips the LLM resolver entirely**: preset params are
+  curated values already, and when the planner just failed on an unhealthy
+  API, two more timeout-length attempts would park the per-session write
+  lock for nothing. The build loop ships the clamped preset priors directly.
 - **Delete the "first preset in dict order" branch.** If the planner failed
   AND no keyword matches, raise `_ProposalFailed` ("couldn't compose widgets
   for this prompt — try rephrasing"). `tools/registry.py`

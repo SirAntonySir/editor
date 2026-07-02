@@ -77,3 +77,6 @@ class RuntimeConfig(BaseModel):
     max_tokens_refine: int = 1024
     max_tokens_classify: int = 512
     max_tokens_short: int = 128
+    # STACK_RESOLVE — params for EVERY op of a proposed stack in one call
+    # (up to 6 widgets × 5 ops × ~10 params; 2048 would truncate mid-JSON)
+    max_tokens_stack_resolve: int = 4096

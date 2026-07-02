@@ -28,6 +28,13 @@ class _MissingContext(Exception):
     pass
 
 
+class _ProposalFailed(Exception):
+    """Mapped to proposal_failed in the envelope by the registry. Raised when
+    neither the LLM path nor the keyword fallback can produce a stack — the
+    user gets a visible error instead of an arbitrary preset widget."""
+    pass
+
+
 class _Input(BaseModel):
     model_config = camel_config(extra="forbid")
     intent: str = Field(min_length=1)
@@ -419,17 +426,25 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             ctx.model_dump(mode="json", by_alias=True),
         )
 
-        plan_result = await asyncio.to_thread(
-            anthropic.plan_widget_stack,
-            intent=input.intent,
-            scope=input.scope,
-            image_context=image_context,
-            existing_widgets=[
-                {"op_id": w.op_id or "unknown"} for w in doc.widgets.values()
-            ],
-            registry=reg,
-            session_id=doc.session_id,
-        )
+        from app.services.event_journal import write_event
+
+        try:
+            plan_result = await asyncio.to_thread(
+                anthropic.plan_widget_stack,
+                intent=input.intent,
+                scope=input.scope,
+                image_context=image_context,
+                existing_widgets=[
+                    {"op_id": w.op_id or "unknown"} for w in doc.widgets.values()
+                ],
+                registry=reg,
+                session_id=doc.session_id,
+            )
+        except Exception as exc:  # noqa: BLE001 — planner exhausted its retry
+            write_event(doc.session_id, "proposal.health", {
+                "stage": "plan", "event": "planner_failed", "detail": str(exc)[:500],
+            })
+            plan_result = {"plan": []}
 
         raw_plan = plan_result.get("plan") or []
         # Old-shape → new-shape transform (back-compat).
@@ -437,61 +452,63 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
         # Dedup within and across widgets.
         plan_entries = _dedup_plan(plan_entries)
 
-        # Fallback if nothing remains: keyword preset.
+        # Degraded mode: keyword preset. If not even that matches, fail
+        # visibly — an arbitrary widget erodes trust more than an error.
+        used_fallback = False
         if not plan_entries:
             fallback_ops = self._fallback_plan(input.intent, reg)
+            if not fallback_ops:
+                write_event(doc.session_id, "proposal.health", {
+                    "stage": "fallback", "event": "proposal_failed",
+                })
+                raise _ProposalFailed(
+                    "couldn't compose widgets for this prompt — try rephrasing"
+                )
+            write_event(doc.session_id, "proposal.health", {
+                "stage": "fallback", "event": "fallback_keyword_hit",
+            })
+            used_fallback = True
             plan_entries = [{
                 "widget_name": None, "category": None,
                 "ops": [{"op_id": op["op_id"], "rationale": "",
                          "starting_params": op.get("starting_params")} for op in fallback_ops],
-            }] if fallback_ops else []
+            }]
 
-        # Phase 2: resolve each (entry_index, op) in parallel.
-        # Per-op timeout — without it, a single hung Anthropic call would
-        # keep the surrounding gather (and the per-session write lock the
-        # tool registry holds around this handler) parked forever, which
-        # is the H19 audit deadlock. The timeout falls back to
-        # `anthropic_timeout_s` so the failure mode matches the SDK's
-        # own timeout: a slow op is dropped, the rest of the stack still
-        # resolves, and the lock is released.
-        from app.config import get_app_config
-        op_timeout_s = get_app_config().runtime.anthropic_timeout_s
-
-        async def _resolve_one(entry_index: int, op_entry: dict) -> tuple[int, str, dict] | None:
-            op_id = op_entry.get("op_id")
-            if op_id not in reg.ops:
-                return None
-            op = reg.ops[op_id]
-            try:
-                params = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        anthropic.resolve_widget_params,
-                        op=op, intent=input.intent,
-                        rationale=op_entry.get("rationale", ""),
-                        starting_params=op_entry.get("starting_params") or {},
-                        image_context=image_context, session_id=doc.session_id,
-                    ),
-                    timeout=op_timeout_s,
-                )
-            except asyncio.TimeoutError:
-                print(f"[propose_stack] resolve timed out for {op_id} after {op_timeout_s}s")
-                return None
-            except Exception as exc:    # noqa: BLE001
-                print(f"[propose_stack] resolve failed for {op_id}: {exc}")
-                return None
-            return (entry_index, op_id, params)
-
-        flat_ops = [
-            (i, op) for i, entry in enumerate(plan_entries) for op in entry["ops"]
-        ]
-        resolved_flat = [r for r in await asyncio.gather(
-            *(_resolve_one(i, op) for i, op in flat_ops)
-        ) if r is not None]
-
-        # Group resolved params by entry_index, preserving op order within each entry.
+        # Phase 2: resolve the WHOLE stack in one call so the model can
+        # budget overlapping ops (exposure + shadows) instead of each op
+        # independently applying a full-strength fix. The wait_for guards
+        # the per-session write lock the tool registry holds around this
+        # handler (H19 audit deadlock): the SDK timeout bounds each attempt
+        # and the resolver retries once, so 2× + margin covers the worst case.
+        #
+        # The keyword fallback skips the resolver: its preset params are
+        # curated values already, and if the planner just failed on an
+        # unhealthy API, two more timeout-length attempts would park the
+        # per-session lock for nothing. The build loop below ships the
+        # clamped preset priors directly.
         by_entry: dict[int, list[tuple[str, dict]]] = {}
-        for entry_index, op_id, params in resolved_flat:
-            by_entry.setdefault(entry_index, []).append((op_id, params))
+        if not used_fallback:
+            from app.config import get_app_config
+            stack_timeout_s = get_app_config().runtime.anthropic_timeout_s * 2 + 5
+            try:
+                by_entry = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        anthropic.resolve_stack_params,
+                        plan_entries=plan_entries,
+                        intent=input.intent,
+                        image_context=image_context,
+                        registry=reg,
+                        session_id=doc.session_id,
+                    ),
+                    timeout=stack_timeout_s,
+                )
+            except Exception as exc:  # noqa: BLE001 — includes TimeoutError
+                write_event(doc.session_id, "proposal.health", {
+                    "stage": "resolve", "event": "resolver_failed", "detail": str(exc)[:500],
+                })
+                raise _ProposalFailed(
+                    "couldn't resolve adjustment values for this prompt — try again"
+                ) from exc
 
         # Prefer scope-supplied layer ids (image_node-rooted scope), fall back
         # to the explicit input.layer_ids the client shipped for non-image-node
@@ -505,11 +522,27 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             parent_widget_id=None,
         )
 
+        from app.services.anthropic_client import clamp_op_params
+
         widgets: list[Widget] = []
         for entry_index, entry in enumerate(plan_entries):
-            ops_for_entry = by_entry.get(entry_index, [])
+            resolved_for_entry = dict(by_entry.get(entry_index, []))
+            # Walk the PLAN's ops (not the response's) so plan order is kept
+            # and an op the model omitted still ships, with its planner
+            # priors clamped to schema instead of silently vanishing.
+            ops_for_entry: list[tuple[str, dict]] = []
+            for op_entry in entry["ops"]:
+                op_id = op_entry.get("op_id")
+                if op_id not in reg.ops:
+                    continue
+                params = resolved_for_entry.get(op_id)
+                if params is None:
+                    params = clamp_op_params(
+                        reg.ops[op_id], op_entry.get("starting_params") or {},
+                    )
+                ops_for_entry.append((op_id, params))
             if not ops_for_entry:
-                continue   # all ops failed resolution — drop the widget
+                continue   # nothing valid planned for this entry
             widget = _build_widget_multi(
                 widget_name=entry.get("widget_name"),
                 category=entry.get("category"),
@@ -527,16 +560,14 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
         return _Output(widgets=[w.model_dump(mode="json", by_alias=True) for w in widgets])
 
     def _fallback_plan(self, intent: str, registry) -> list[dict]:
-        """Keyword match intent to a preset, else first preset's ops."""
+        """Keyword match intent to a preset. No match → empty: the caller
+        raises _ProposalFailed rather than spawning an arbitrary preset
+        (the old "first preset in dict order" branch actively eroded trust)."""
         lower = intent.lower()
         for preset_id, preset in registry.presets.items():
             if preset_id in lower or any(tag in lower for tag in preset.semantic_tags):
                 return [{"op_id": p.op_id, "starting_params": p.params}
                         for p in preset.ops]
-        if registry.presets:
-            first = next(iter(registry.presets.values()))
-            return [{"op_id": p.op_id, "starting_params": p.params}
-                    for p in first.ops]
         return []
 
     def _handle_preset_spawn(

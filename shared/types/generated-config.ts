@@ -27,6 +27,7 @@ export const RUNTIME = {
   maxTokensRefine: 1024,
   maxTokensClassify: 512,
   maxTokensShort: 128,
+  maxTokensStackResolve: 4096,
 } as const;
 export type RUNTIMEType = typeof RUNTIME;
 

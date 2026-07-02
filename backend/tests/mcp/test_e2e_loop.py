@@ -71,6 +71,10 @@ class _FakeClaude:
     def resolve_widget_params(self, *, op, intent, rationale, starting_params, image_context, session_id=None):
         return {k: p.default for k, p in op.params.items()}
 
+    def resolve_stack_params(self, *, plan_entries, intent, image_context, registry, session_id=None):
+        # Empty map → propose_stack fills every op from clamped priors/defaults.
+        return {}
+
     def resolve_fused_tool(self, template_id, prompt_payload, response_schema, session_id=None):
         # Still needed by refine_widget which calls the fused framework on re-tune.
         return {

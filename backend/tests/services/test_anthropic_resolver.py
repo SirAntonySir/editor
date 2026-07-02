@@ -1,10 +1,25 @@
-"""Resolver method tests — Phase 2 per-op param resolution."""
+"""Resolver method tests — Phase 2 param resolution.
+
+Two resolvers live here: the single-op `resolve_widget_params` (kept for
+refine_widget) and the holistic `resolve_stack_params` (used by propose_stack
+so overlapping ops share one effect budget).
+"""
 from unittest.mock import MagicMock
 
 import pytest
 
 from app.registry.loader import reload_registry
 from app.services.anthropic_client import AnthropicClient
+
+
+def _tool_response(tool_name: str, payload: dict) -> MagicMock:
+    block = MagicMock()
+    block.type = "tool_use"
+    block.name = tool_name  # `name` is a MagicMock ctor kwarg — set as attr
+    block.input = payload
+    resp = MagicMock()
+    resp.content = [block]
+    return resp
 
 
 def test_resolve_widget_params_returns_typed_dict(monkeypatch):
@@ -138,3 +153,118 @@ class TestResolverPromptCacheShape:
         sys_text = call["system"][0]["text"]
         assert "OP: blur" not in sys_text
         assert "INTENT:" not in sys_text
+
+
+# ---------------------------------------------------------------------------
+# Holistic stack resolver — resolve_stack_params
+# ---------------------------------------------------------------------------
+
+
+_PLAN_TWO_ENTRIES = [
+    {"widget_name": "Brighter", "category": "tone",
+     "ops": [
+         {"op_id": "light", "rationale": "small exposure lift", "starting_params": {}},
+         {"op_id": "levels", "rationale": "gentle inBlack drop", "starting_params": {"inBlack": 8}},
+     ]},
+    {"widget_name": "Film grain", "category": "texture",
+     "ops": [{"op_id": "grain", "rationale": "fine", "starting_params": {}}]},
+]
+
+
+class TestResolveStackParams:
+    @pytest.fixture
+    def client(self):
+        return AnthropicClient(api_key="test", model="claude-opus-4-7")
+
+    def test_binds_and_clamps_by_entry_index(self, client, monkeypatch):
+        reg = reload_registry()
+        light_defaults = {k: p.default for k, p in reg.ops["light"].params.items()}
+        fake = _tool_response("emit_stack_params", {
+            "entries": [
+                {"entry_index": 0, "ops": [
+                    {"op_id": "light", "params": {**light_defaults, "exposure": 9999}},
+                ]},
+                {"entry_index": 1, "ops": [
+                    {"op_id": "grain", "params": {}},
+                ]},
+            ],
+        })
+        monkeypatch.setattr(client._client.messages, "create",
+                            MagicMock(return_value=fake))
+
+        by_entry = client.resolve_stack_params(
+            plan_entries=_PLAN_TWO_ENTRIES, intent="brighten",
+            image_context={}, registry=reg, session_id=None,
+        )
+        assert set(by_entry.keys()) == {0, 1}
+        light = dict(by_entry[0])["light"]
+        lo, hi = reg.ops["light"].params["exposure"].range
+        assert light["exposure"] == hi  # clamped, not 9999
+        grain = dict(by_entry[1])["grain"]
+        # Empty params object → all registry defaults.
+        assert grain == {k: p.default for k, p in reg.ops["grain"].params.items()}
+
+    def test_drops_unknown_entries_and_unplanned_ops(self, client, monkeypatch):
+        reg = reload_registry()
+        fake = _tool_response("emit_stack_params", {
+            "entries": [
+                {"entry_index": 7, "ops": [{"op_id": "light", "params": {}}]},   # unknown index
+                {"entry_index": 0, "ops": [
+                    {"op_id": "vignette", "params": {}},   # not planned for entry 0
+                    {"op_id": "nonsense", "params": {}},   # not an op at all
+                    {"op_id": "light", "params": {}},
+                ]},
+            ],
+        })
+        monkeypatch.setattr(client._client.messages, "create",
+                            MagicMock(return_value=fake))
+
+        by_entry = client.resolve_stack_params(
+            plan_entries=_PLAN_TWO_ENTRIES, intent="brighten",
+            image_context={}, registry=reg, session_id=None,
+        )
+        assert set(by_entry.keys()) == {0}
+        assert [op_id for op_id, _ in by_entry[0]] == ["light"]
+
+    def test_retries_then_raises_without_tool_block(self, client, monkeypatch):
+        reg = reload_registry()
+        text_only = MagicMock()
+        text_only.content = [MagicMock(text="no tool call here")]
+        spy = MagicMock(return_value=text_only)
+        monkeypatch.setattr(client._client.messages, "create", spy)
+
+        with pytest.raises(RuntimeError, match="emit_stack_params"):
+            client.resolve_stack_params(
+                plan_entries=_PLAN_TWO_ENTRIES, intent="brighten",
+                image_context={}, registry=reg, session_id=None,
+            )
+        assert spy.call_count == 2  # initial + 1 retry
+
+    def test_prompt_shape_budget_instruction_and_cache_marks(self, client, monkeypatch):
+        """The whole point of the holistic resolver: the model must be told to
+        budget overlapping axes, see the full plan + schemas in user content,
+        and keep the image-context block cache-marked."""
+        reg = reload_registry()
+        spy = MagicMock(return_value=_tool_response(
+            "emit_stack_params", {"entries": []}))
+        monkeypatch.setattr(client._client.messages, "create", spy)
+
+        client.resolve_stack_params(
+            plan_entries=_PLAN_TWO_ENTRIES, intent="brighten the photo",
+            image_context={"subjects": ["fish"]}, registry=reg, session_id=None,
+        )
+        kwargs = spy.call_args.kwargs
+        assert kwargs["tool_choice"] == {"type": "tool", "name": "emit_stack_params"}
+        sys_text = kwargs["system"][0]["text"]
+        assert "COMBINED effect" in sys_text
+        assert "Budget overlapping axes" in sys_text
+        user_content = kwargs["messages"][0]["content"]
+        ctx_block = next(b for b in user_content if "IMAGE CONTEXT" in b["text"])
+        assert ctx_block.get("cache_control") == {"type": "ephemeral"}
+        stack_blob = "\n".join(b["text"] for b in user_content)
+        assert "PLAN:" in stack_blob
+        assert "PARAM SCHEMAS" in stack_blob
+        assert "INTENT: brighten the photo" in stack_blob
+        # Both planned ops' schemas ride along; unplanned ops don't.
+        assert "'light'" in stack_blob and "'levels'" in stack_blob
+        assert "'vignette'" not in stack_blob

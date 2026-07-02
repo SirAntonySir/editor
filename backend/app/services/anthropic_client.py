@@ -31,6 +31,7 @@ MAX_TOKENS_COMPOSE = _runtime.max_tokens_compose
 MAX_TOKENS_REFINE = _runtime.max_tokens_refine
 MAX_TOKENS_CLASSIFY = _runtime.max_tokens_classify
 MAX_TOKENS_SHORT = _runtime.max_tokens_short
+MAX_TOKENS_STACK_RESOLVE = _runtime.max_tokens_stack_resolve
 
 logger = logging.getLogger(__name__)
 
@@ -359,9 +360,18 @@ conceptually. Each widget becomes ONE card on the user's canvas they can
 independently refine.
 
 Rules:
-- Group conceptually-related ops into the same widget. Use the `category`
-  field as a strong default: ops with the same category usually belong
+- A widget is ONE perceptual intention the user would name out loud
+  ("lift the shadows", "warm it up"). Group ops into the same widget only
+  when a user would refine them together as a single unit. The `category`
+  field is a strong default: ops with the same category usually belong
   together unless you have a specific reason to split.
+  BAD grouping: levels (tonal fade) + grain (texture) in one widget just
+  because both feel "vintage" — a user refining grain does not expect the
+  blacks to move.
+- Prefer the MINIMUM set of ops that achieves the intent. Never add a
+  second op that pushes the same perceptual axis as one already planned
+  (e.g. light exposure AND levels brightening) — overlapping ops multiply
+  and overshoot.
 - Give each widget a short, descriptive `widget_name` (2–4 words) describing
   the EFFECT, not the op (e.g. "Lifted blacks", not "Levels op").
 - Prefer raw ops over presets unless the intent matches a preset closely.
@@ -376,7 +386,7 @@ Rules:
   dial axis (e.g., "winter sunset" = season + time-of-day, "vintage stormy"
   = age + weather). Prefer ONE dial when the intent fits a single axis.
 - Order widgets by intent priority (most defining effect first).
-- Return strict JSON. Do not include markdown fences.
+- Emit the plan via the `emit_plan` tool.
 
 Example for "vintage film":
 {
@@ -426,6 +436,99 @@ _FLESH_BINDING_TOOL = {
         },
     },
 }
+
+
+_PLAN_TOOL = {
+    "name": "emit_plan",
+    "description": "Emit the planned widget stack for the user's intent.",
+    "input_schema": {
+        "type": "object",
+        "required": ["plan"],
+        "properties": {
+            "plan": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["ops"],
+                    "properties": {
+                        "widget_name": {"type": "string"},
+                        "category": {"type": "string"},
+                        "ops": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["op_id"],
+                                "properties": {
+                                    "op_id": {"type": "string"},
+                                    "rationale": {"type": "string"},
+                                    "starting_params": {"type": "object"},
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            "overall_rationale": {"type": "string"},
+        },
+    },
+}
+
+
+_STACK_PARAMS_TOOL = {
+    "name": "emit_stack_params",
+    "description": (
+        "Emit resolved parameter values for every op of every entry in the "
+        "planned stack. entry_index refers to the plan entry the op belongs to."
+    ),
+    "input_schema": {
+        "type": "object",
+        "required": ["entries"],
+        "properties": {
+            "entries": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["entry_index", "ops"],
+                    "properties": {
+                        "entry_index": {"type": "integer"},
+                        "ops": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["op_id", "params"],
+                                "properties": {
+                                    "op_id": {"type": "string"},
+                                    "params": {"type": "object"},
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+}
+
+
+def clamp_op_params(op, raw: dict) -> dict:
+    """Clamp LLM-emitted params to the op's schema: scalars snap to their
+    declared range, missing/invalid values fall back to the registry default.
+    Shared by the per-op resolver (refine_widget) and the stack resolver."""
+    resolved: dict = {}
+    for key, param in op.params.items():
+        if key not in raw:
+            resolved[key] = param.default
+            continue
+        val = raw[key]
+        if param.type == "scalar" and param.range:
+            lo, hi = param.range
+            try:
+                resolved[key] = max(lo, min(hi, float(val)))
+            except (TypeError, ValueError):
+                resolved[key] = param.default
+        else:
+            resolved[key] = val
+    return resolved
 
 
 class AnthropicClient:
@@ -1182,41 +1285,61 @@ class AnthropicClient:
                         f"SCOPE: {scope}\n"
                         f"IMAGE CONTEXT: {image_context}\n"
                         f"EXISTING WIDGETS (avoid duplicating): {existing_widgets}\n\n"
-                        "Return JSON in this exact shape:\n"
-                        '{\n'
-                        '  "plan": [\n'
-                        '    {\n'
-                        '      "widget_name": "<2-4 words describing the effect>",\n'
-                        '      "category": "<tone|color|detail|texture|effect>",\n'
-                        '      "ops": [\n'
-                        '        {"op_id": "<id from catalog>", "rationale": "<one line>", "starting_params": {<optional>}}\n'
-                        '      ]\n'
-                        '    }\n'
-                        '  ],\n'
-                        '  "overall_rationale": "<one sentence>"\n'
-                        '}'
+                        "Call emit_plan with the planned stack. category is one of "
+                        "tone|color|detail|texture|effect|mood."
                     ),
                 },
             ],
         }]
 
-        response = self._messages_create(
-            model=self._model,
-            max_tokens=MAX_TOKENS_ANALYZE,
-            system=[{
-                "type": "text",
-                "text": _PLANNER_SYSTEM_PROMPT,
-                "cache_control": {"type": "ephemeral"},
-            }],
-            messages=messages,
-        )
-        _log_cache_stats("plan_widget_stack", session_id, response)
-        text = response.content[0].text
+        last_error: Exception | None = None
+        for attempt in range(2):  # initial + 1 retry
+            try:
+                response = self._messages_create(
+                    model=self._model,
+                    max_tokens=MAX_TOKENS_ANALYZE,
+                    system=[{
+                        "type": "text",
+                        "text": _PLANNER_SYSTEM_PROMPT,
+                        "cache_control": {"type": "ephemeral"},
+                    }],
+                    tools=[_PLAN_TOOL],
+                    tool_choice={"type": "tool", "name": "emit_plan"},
+                    messages=messages,
+                )
+            except Exception as exc:  # noqa: BLE001 — transport gave up
+                last_error = exc
+                self._journal_proposal_health(
+                    session_id, "plan", "planner_retry", str(exc), attempt,
+                )
+                continue
+            _log_cache_stats("plan_widget_stack", session_id, response)
+            for block in response.content:
+                if getattr(block, "type", None) == "tool_use" and block.name == "emit_plan":
+                    return dict(block.input)
+            last_error = RuntimeError("Anthropic did not emit emit_plan tool call")
+            self._journal_proposal_health(
+                session_id, "plan", "planner_retry", str(last_error), attempt,
+            )
+        raise RuntimeError(f"plan_widget_stack failed after retries: {last_error}") from last_error
+
+    @staticmethod
+    def _journal_proposal_health(
+        session_id: str | None, stage: str, event: str, detail: str, attempt: int,
+    ) -> None:
+        """Journal a proposal-pipeline health event (spec: holistic stack
+        resolution §4). Only the retry events are written here — terminal
+        failures are journaled by the propose_stack handler, which owns the
+        fallback decision. Never let telemetry break the call itself."""
+        if session_id is None or attempt != 0:
+            return  # attempt 1 exhausts the loop — the caller journals the failure
         try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            # Trigger fallback path in _handle_llm_path
-            return {"plan": []}
+            from app.services.event_journal import write_event
+            write_event(session_id, "proposal.health", {
+                "stage": stage, "event": event, "detail": detail[:500],
+            })
+        except Exception:  # noqa: BLE001
+            logger.warning("proposal.health journal write failed", exc_info=True)
 
     # ------------------------------------------------------------------
     # Phase 2 resolver: per-op numeric param resolution
@@ -1289,23 +1412,157 @@ a strong prior if provided. Do not include markdown fences."""
         )
         _log_cache_stats(f"resolve_widget_params/{op.id}", session_id, response)
         raw = json.loads(response.content[0].text)
+        return clamp_op_params(op, raw)
 
-        # Clamp scalars to range, fall back to default on missing/invalid.
-        resolved: dict = {}
-        for key, param in op.params.items():
-            if key not in raw:
-                resolved[key] = param.default
+    # ------------------------------------------------------------------
+    # Holistic stack resolver: all ops of a proposed stack in ONE call
+    # ------------------------------------------------------------------
+
+    _RESOLVE_STACK_SYSTEM_PROMPT = """You are resolving numeric parameter values for an ENTIRE
+stack of photo-editing operations at once, given the user's intent and image
+context.
+
+The stack's COMBINED effect must achieve the intent. Budget overlapping axes:
+if two ops both raise brightness (e.g. exposure and a shadows lift), split the
+correction between them — never let each op independently achieve the full
+intent on its own. Prefer restrained values; the user can push further.
+
+Use each op's starting_params as a strong prior if provided. Emit one
+emit_stack_params call covering every (entry_index, op_id) in the plan."""
+
+    def resolve_stack_params(
+        self,
+        *,
+        plan_entries: list[dict],
+        intent: str,
+        image_context: dict,
+        registry,
+        session_id: str | None = None,
+    ) -> dict[int, list[tuple[str, dict]]]:
+        """Resolve params for every op of the planned stack in one call.
+
+        Replaces the N-parallel `resolve_widget_params` calls propose_stack
+        used to fire: each of those saw only its own op, so overlapping ops
+        (exposure + shadows) each applied a full-strength fix and the stack
+        overshot. Here the model sees the whole plan and budgets the total.
+
+        Returns {entry_index: [(op_id, clamped_params), ...]} for the ops the
+        model emitted, validated against the plan + registry. Omitted ops are
+        NOT filled here — the caller falls back to clamped starting_params.
+        Raises RuntimeError after two failed attempts.
+        """
+        plan_summary = [
+            {
+                "entry_index": i,
+                "widget_name": entry.get("widget_name"),
+                "ops": [
+                    {
+                        "op_id": op.get("op_id"),
+                        "rationale": op.get("rationale", ""),
+                        "starting_params": op.get("starting_params") or {},
+                    }
+                    for op in entry.get("ops", [])
+                ],
+            }
+            for i, entry in enumerate(plan_entries)
+        ]
+        planned_op_ids = {
+            op.get("op_id")
+            for entry in plan_entries for op in entry.get("ops", [])
+            if op.get("op_id") in registry.ops
+        }
+        params_specs = {
+            op_id: {
+                k: {
+                    "type": p.type,
+                    **({"range": list(p.range)} if p.range else {}),
+                    **({"unit": p.unit} if p.unit else {}),
+                    **({"values": p.values} if p.values else {}),
+                    "default": p.default,
+                }
+                for k, p in registry.ops[op_id].params.items()
+            }
+            for op_id in sorted(planned_op_ids)
+        }
+        stack_text = (
+            f"PLAN: {plan_summary}\n"
+            f"PARAM SCHEMAS (per op_id): {params_specs}\n"
+            f"INTENT: {intent}\n\n"
+            "Resolve params for every (entry_index, op_id) above."
+        )
+
+        last_error: Exception | None = None
+        for attempt in range(2):  # initial + 1 retry
+            try:
+                response = self._messages_create(
+                    model=self._model,
+                    max_tokens=MAX_TOKENS_STACK_RESOLVE,
+                    system=[{
+                        "type": "text",
+                        "text": self._RESOLVE_STACK_SYSTEM_PROMPT,
+                        "cache_control": {"type": "ephemeral"},
+                    }],
+                    tools=[_STACK_PARAMS_TOOL],
+                    tool_choice={"type": "tool", "name": "emit_stack_params"},
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": f"IMAGE CONTEXT: {image_context}",
+                                "cache_control": {"type": "ephemeral"},
+                            },
+                            {"type": "text", "text": stack_text},
+                        ],
+                    }],
+                )
+            except Exception as exc:  # noqa: BLE001 — transport gave up
+                last_error = exc
+                self._journal_proposal_health(
+                    session_id, "resolve", "resolver_retry", str(exc), attempt,
+                )
                 continue
-            val = raw[key]
-            if param.type == "scalar" and param.range:
-                lo, hi = param.range
-                try:
-                    resolved[key] = max(lo, min(hi, float(val)))
-                except (TypeError, ValueError):
-                    resolved[key] = param.default
-            else:
-                resolved[key] = val
-        return resolved
+            _log_cache_stats("resolve_stack_params", session_id, response)
+            for block in response.content:
+                if getattr(block, "type", None) == "tool_use" and block.name == "emit_stack_params":
+                    return self._bind_stack_params(
+                        block.input, plan_entries, registry,
+                    )
+            last_error = RuntimeError("Anthropic did not emit emit_stack_params tool call")
+            self._journal_proposal_health(
+                session_id, "resolve", "resolver_retry", str(last_error), attempt,
+            )
+        raise RuntimeError(f"resolve_stack_params failed after retries: {last_error}") from last_error
+
+    @staticmethod
+    def _bind_stack_params(
+        raw: dict, plan_entries: list[dict], registry,
+    ) -> dict[int, list[tuple[str, dict]]]:
+        """Bind an emit_stack_params payload back onto the plan: drop unknown
+        entry indices / op ids, drop ops that weren't planned for that entry,
+        clamp everything to the op schema."""
+        planned_by_entry: dict[int, set[str]] = {
+            i: {op.get("op_id") for op in entry.get("ops", [])}
+            for i, entry in enumerate(plan_entries)
+        }
+        by_entry: dict[int, list[tuple[str, dict]]] = {}
+        for entry in raw.get("entries") or []:
+            idx = entry.get("entry_index")
+            if idx not in planned_by_entry:
+                continue
+            for op_result in entry.get("ops") or []:
+                op_id = op_result.get("op_id")
+                if op_id not in registry.ops or op_id not in planned_by_entry[idx]:
+                    continue
+                params = op_result.get("params")
+                if not isinstance(params, dict):
+                    params = {}
+                clamped = clamp_op_params(registry.ops[op_id], params)
+                slot = by_entry.setdefault(idx, [])
+                if any(existing == op_id for existing, _ in slot):
+                    continue  # first emission wins on duplicates
+                slot.append((op_id, clamped))
+        return by_entry
 
     def augment_context_soft_fields(
         self,

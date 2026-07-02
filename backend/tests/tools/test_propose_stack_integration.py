@@ -6,7 +6,37 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.registry.loader import get_registry, reload_registry
-from app.tools.widgets.propose_stack import ProposeStackTool, _Input
+from app.tools.widgets.propose_stack import ProposeStackTool, _Input, _ProposalFailed
+
+
+def _defaults_for(op_id: str) -> dict:
+    op = get_registry().ops[op_id]
+    return {k: p.default for k, p in op.params.items()}
+
+
+def _stack_resolver_all_defaults(*, plan_entries, **_):
+    """Fake resolve_stack_params: every planned op resolved to registry defaults."""
+    return {
+        i: [(op["op_id"], _defaults_for(op["op_id"]))
+            for op in entry["ops"] if op.get("op_id") in get_registry().ops]
+        for i, entry in enumerate(plan_entries)
+    }
+
+
+def _patch_client(monkeypatch, *, plan, stack_resolver=None):
+    from app.services import anthropic_client as ac
+    monkeypatch.setattr(
+        ac.AnthropicClient, "plan_widget_stack",
+        MagicMock(return_value=plan) if not callable(plan) else MagicMock(side_effect=plan),
+    )
+    monkeypatch.setattr(
+        ac.AnthropicClient, "resolve_stack_params",
+        MagicMock(side_effect=stack_resolver or _stack_resolver_all_defaults),
+    )
+    monkeypatch.setattr(
+        "app.api.deps.get_anthropic_client",
+        lambda: ac.AnthropicClient(api_key="test", model="claude-opus-4-7"),
+    )
 
 
 @pytest.mark.asyncio
@@ -14,7 +44,7 @@ async def test_vintage_intent_spawns_multi_widget_stack(make_doc, monkeypatch):
     doc = make_doc(with_image_context=True)
     tool = ProposeStackTool()
 
-    # Fake planner returns 5-op stack.
+    # Fake planner returns 5-op stack (old flat shape).
     fake_plan = {
         "plan": [
             {"op_id": "levels",     "rationale": "lifted blacks"},
@@ -25,28 +55,7 @@ async def test_vintage_intent_spawns_multi_widget_stack(make_doc, monkeypatch):
         ],
         "overall_rationale": "vintage film recipe",
     }
-
-    # Fake resolver returns sensible per-op params (all defaults).
-    def fake_resolve(*, op, **_):
-        return {k: p.default for k, p in op.params.items()}
-
-    from app.services import anthropic_client as ac
-
-    monkeypatch.setattr(
-        ac.AnthropicClient,
-        "plan_widget_stack",
-        MagicMock(return_value=fake_plan),
-    )
-    monkeypatch.setattr(
-        ac.AnthropicClient,
-        "resolve_widget_params",
-        MagicMock(side_effect=fake_resolve),
-    )
-    # Ensure deps.get_anthropic_client returns a real-looking instance.
-    monkeypatch.setattr(
-        "app.api.deps.get_anthropic_client",
-        lambda: ac.AnthropicClient(api_key="test", model="claude-opus-4-7"),
-    )
+    _patch_client(monkeypatch, plan=fake_plan)
 
     out = await tool.handler(doc, _Input(
         intent="make it look like a vintage film",
@@ -63,24 +72,13 @@ async def test_planner_empty_falls_back_to_keyword_preset(make_doc, monkeypatch)
     doc = make_doc(with_image_context=True)
     tool = ProposeStackTool()
 
-    from app.services import anthropic_client as ac
+    # Degraded mode must NOT burn more LLM calls — the resolver is skipped
+    # and preset params ship directly.
+    def _resolver_must_not_run(**_):
+        raise AssertionError("fallback path must not call resolve_stack_params")
 
-    monkeypatch.setattr(
-        ac.AnthropicClient,
-        "plan_widget_stack",
-        MagicMock(return_value={"plan": []}),
-    )
-    monkeypatch.setattr(
-        ac.AnthropicClient,
-        "resolve_widget_params",
-        MagicMock(side_effect=lambda *, op, **_: {
-            k: p.default for k, p in op.params.items()
-        }),
-    )
-    monkeypatch.setattr(
-        "app.api.deps.get_anthropic_client",
-        lambda: ac.AnthropicClient(api_key="test", model="claude-opus-4-7"),
-    )
+    _patch_client(monkeypatch, plan={"plan": []},
+                  stack_resolver=_resolver_must_not_run)
 
     reg = reload_registry()
     assert "vintage" in reg.presets   # presets must be loaded
@@ -92,6 +90,105 @@ async def test_planner_empty_falls_back_to_keyword_preset(make_doc, monkeypatch)
     ))
     # Fallback used → at least one widget from the vintage preset
     assert len(out.widgets) >= 1
+
+
+@pytest.mark.asyncio
+async def test_no_keyword_match_raises_instead_of_arbitrary_preset(make_doc, monkeypatch):
+    """The old fallback spawned the FIRST preset in dict order when nothing
+    matched — an arbitrary, unrelated widget. Now the proposal fails visibly."""
+    doc = make_doc(with_image_context=True)
+    tool = ProposeStackTool()
+
+    _patch_client(monkeypatch, plan={"plan": []})
+    reload_registry()
+
+    with pytest.raises(_ProposalFailed):
+        await tool.handler(doc, _Input(
+            intent="qqqq zzzz",   # matches no preset id / semantic tag
+            scope={"kind": "global"},
+            origin="mcp_user_prompt",
+        ))
+
+
+@pytest.mark.asyncio
+async def test_planner_exception_still_reaches_keyword_fallback(make_doc, monkeypatch):
+    """plan_widget_stack raising (both structured-output attempts failed) must
+    degrade to the keyword preset, not crash the tool."""
+    doc = make_doc(with_image_context=True)
+    tool = ProposeStackTool()
+
+    def _boom(**_):
+        raise RuntimeError("planner down")
+
+    _patch_client(monkeypatch, plan=_boom)
+    reload_registry()
+
+    out = await tool.handler(doc, _Input(
+        intent="make it vintage",
+        scope={"kind": "global"},
+        origin="mcp_user_prompt",
+    ))
+    assert len(out.widgets) >= 1
+
+
+@pytest.mark.asyncio
+async def test_resolver_failure_raises_proposal_failed(make_doc, monkeypatch):
+    """Total resolver failure fails the whole proposal visibly instead of
+    dropping ops piecemeal."""
+    doc = make_doc(with_image_context=True)
+    tool = ProposeStackTool()
+
+    def _boom(**_):
+        raise RuntimeError("resolver down")
+
+    _patch_client(
+        monkeypatch,
+        plan={"plan": [{"op_id": "levels", "rationale": "lift"}]},
+        stack_resolver=_boom,
+    )
+
+    with pytest.raises(_ProposalFailed):
+        await tool.handler(doc, _Input(
+            intent="brighten", scope={"kind": "global"}, origin="mcp_user_prompt",
+        ))
+
+
+@pytest.mark.asyncio
+async def test_omitted_op_ships_with_clamped_priors(make_doc, monkeypatch):
+    """If the stack resolver omits an op that was planned, the widget still
+    ships it — with the planner's starting_params clamped to schema — instead
+    of the op silently vanishing."""
+    doc = make_doc(with_image_context=True)
+    tool = ProposeStackTool()
+
+    fake_plan = {
+        "plan": [
+            {"widget_name": "Warm fade", "category": "color",
+             "ops": [
+                 {"op_id": "color", "rationale": "desat",
+                  "starting_params": {"saturation": -15}},
+                 {"op_id": "splitTone", "rationale": "teal/orange",
+                  "starting_params": {}},
+             ]},
+        ],
+        "overall_rationale": "vintage",
+    }
+
+    # Resolver only answers for splitTone; color is omitted.
+    def _partial_resolver(*, plan_entries, **_):
+        return {0: [("splitTone", _defaults_for("splitTone"))]}
+
+    _patch_client(monkeypatch, plan=fake_plan, stack_resolver=_partial_resolver)
+
+    out = await tool.handler(doc, _Input(
+        intent="vintage", scope={"kind": "global"}, origin="mcp_user_prompt",
+    ))
+    assert len(out.widgets) == 1
+    nodes = out.widgets[0]["nodes"]
+    assert len(nodes) == 2
+    color_node = next(n for n in nodes if n["opId"] == "color")
+    # Prior survived, rest are defaults.
+    assert color_node["params"]["saturation"] == -15
 
 
 @pytest.mark.asyncio
@@ -115,17 +212,7 @@ async def test_vintage_produces_multi_op_widget(make_doc, monkeypatch):
         ],
         "overall_rationale": "vintage film",
     }
-
-    def fake_resolve(*, op, **_):
-        return {k: p.default for k, p in op.params.items()}
-
-    from app.services import anthropic_client as ac
-    monkeypatch.setattr(ac.AnthropicClient, "plan_widget_stack",
-                        MagicMock(return_value=fake_plan))
-    monkeypatch.setattr(ac.AnthropicClient, "resolve_widget_params",
-                        MagicMock(side_effect=fake_resolve))
-    monkeypatch.setattr("app.api.deps.get_anthropic_client",
-                        lambda: ac.AnthropicClient(api_key="test", model="claude-opus-4-7"))
+    _patch_client(monkeypatch, plan=fake_plan)
 
     out = await tool.handler(doc, _Input(
         intent="make it look like a vintage film",
@@ -161,17 +248,7 @@ async def test_old_shape_plan_response_back_compat(make_doc, monkeypatch):
         ],
         "overall_rationale": "back-compat shape",
     }
-
-    def fake_resolve(*, op, **_):
-        return {k: p.default for k, p in op.params.items()}
-
-    from app.services import anthropic_client as ac
-    monkeypatch.setattr(ac.AnthropicClient, "plan_widget_stack",
-                        MagicMock(return_value=fake_plan))
-    monkeypatch.setattr(ac.AnthropicClient, "resolve_widget_params",
-                        MagicMock(side_effect=fake_resolve))
-    monkeypatch.setattr("app.api.deps.get_anthropic_client",
-                        lambda: ac.AnthropicClient(api_key="test", model="claude-opus-4-7"))
+    _patch_client(monkeypatch, plan=fake_plan)
 
     out = await tool.handler(doc, _Input(
         intent="t", scope={"kind": "global"}, origin="mcp_user_prompt",
@@ -185,17 +262,17 @@ async def test_old_shape_plan_response_back_compat(make_doc, monkeypatch):
 # ---------------------------------------------------------------------------
 # Cost regression — propose_stack strips heavy image_context fields
 # ---------------------------------------------------------------------------
-# Locks the cleanup that took ~7 parallel resolver calls × 32 k tokens of
-# binary mask data + 256-bin histograms down to ~4 k useful tokens each.
-# If a future code change reintroduces those fields into the LLM call,
-# the next session of editing a single image costs ~$0.85 instead of
-# ~$0.10 and nobody notices until the bill arrives. Fail loudly here.
+# Locks the cleanup that took the resolver calls' 32 k tokens of binary mask
+# data + 256-bin histograms down to ~4 k useful tokens. If a future code
+# change reintroduces those fields into the LLM call, the next session of
+# editing a single image costs ~$0.85 instead of ~$0.10 and nobody notices
+# until the bill arrives. Fail loudly here.
 
 
 @pytest.mark.asyncio
 async def test_propose_stack_strips_heavy_fields_before_llm(make_doc, monkeypatch):
     """End-to-end: a doc with an enriched image_context (mask_png_base64,
-    histograms, region_stats) must reach the planner + resolvers WITHOUT
+    histograms, region_stats) must reach the planner + stack resolver WITHOUT
     those fields. We capture the kwargs the Anthropic client was called
     with and assert key absences."""
     from app.schemas.enriched_context import EnrichedImageContext
@@ -231,7 +308,7 @@ async def test_propose_stack_strips_heavy_fields_before_llm(make_doc, monkeypatc
 
     # Capture every call into plan + resolve.
     plan_kwargs: dict = {}
-    resolve_kwargs_list: list[dict] = []
+    resolve_kwargs: dict = {}
 
     def capture_plan(**kwargs):
         plan_kwargs.update(kwargs)
@@ -243,13 +320,13 @@ async def test_propose_stack_strips_heavy_fields_before_llm(make_doc, monkeypatc
             "overall_rationale": "dreamy underwater",
         }
 
-    def capture_resolve(*, op, **kwargs):
-        resolve_kwargs_list.append({"op_id": op.id, **kwargs})
-        return {k: p.default for k, p in op.params.items()}
+    def capture_resolve(*, plan_entries, **kwargs):
+        resolve_kwargs.update(kwargs)
+        return _stack_resolver_all_defaults(plan_entries=plan_entries)
 
     monkeypatch.setattr(ac.AnthropicClient, "plan_widget_stack",
                         MagicMock(side_effect=capture_plan))
-    monkeypatch.setattr(ac.AnthropicClient, "resolve_widget_params",
+    monkeypatch.setattr(ac.AnthropicClient, "resolve_stack_params",
                         MagicMock(side_effect=capture_resolve))
     monkeypatch.setattr("app.api.deps.get_anthropic_client",
                         lambda: ac.AnthropicClient(api_key="test", model="claude-opus-4-7"))
@@ -260,7 +337,6 @@ async def test_propose_stack_strips_heavy_fields_before_llm(make_doc, monkeypatc
         origin="mcp_user_prompt",
     ))
     assert len(out.widgets) == 2
-    assert len(resolve_kwargs_list) == 2
 
     # ── plan call ──────────────────────────────────────────────────────
     plan_ctx = plan_kwargs["image_context"]
@@ -276,23 +352,21 @@ async def test_propose_stack_strips_heavy_fields_before_llm(make_doc, monkeypatc
         )
         assert "paths" not in r
 
-    # ── resolver calls ────────────────────────────────────────────────
+    # ── stack resolver call ───────────────────────────────────────────
     # The fat fixture is ~30 KB; the slim should be ~1 KB. Pin the bound.
     fat_size = len(str(fat_ctx.model_dump(mode="json", by_alias=True)))
-    for r_kwargs in resolve_kwargs_list:
-        ctx = r_kwargs["image_context"]
-        # Heavy keys absent — same check at every resolver call.
-        regions = ctx.get("candidateRegions") or ctx.get("candidate_regions") or []
-        for region in regions:
-            assert "maskPngBase64" not in region and "mask_png_base64" not in region
-            assert "paths" not in region
-        assert "lumaHistogram" not in ctx and "luma_histogram" not in ctx
-        # And the size collapsed (sanity bound — if this trips, the helper
-        # silently regressed even though the named keys are gone).
-        assert len(str(ctx)) < fat_size * 0.2, (
-            f"Resolver image_context is {len(str(ctx))} chars — close to "
-            f"the original {fat_size}. Token cost ~unchanged."
-        )
+    ctx = resolve_kwargs["image_context"]
+    regions = ctx.get("candidateRegions") or ctx.get("candidate_regions") or []
+    for region in regions:
+        assert "maskPngBase64" not in region and "mask_png_base64" not in region
+        assert "paths" not in region
+    assert "lumaHistogram" not in ctx and "luma_histogram" not in ctx
+    # And the size collapsed (sanity bound — if this trips, the helper
+    # silently regressed even though the named keys are gone).
+    assert len(str(ctx)) < fat_size * 0.2, (
+        f"Resolver image_context is {len(str(ctx))} chars — close to "
+        f"the original {fat_size}. Token cost ~unchanged."
+    )
 
     # ── narrative survives ───────────────────────────────────────────
     # We dropped histograms but kept the actionable summary fields.

@@ -29,7 +29,7 @@ def fake_client() -> MagicMock:
     # the EnrichedImageContext. We give problems=[] so no autonomous suggestion
     # widgets are minted (keeps the test deterministic).
     fake.augment_context_soft_fields.return_value = _build_soft_fields_stub()
-    # propose_stack (now used by the panel shim) uses plan_widget_stack + resolve_widget_params.
+    # propose_stack (now used by the panel shim) uses plan_widget_stack + resolve_stack_params.
     # Pin it to a single light op so the test is deterministic and panel_bindings > 0.
     from app.registry.loader import get_registry
     fake.plan_widget_stack.return_value = {
@@ -38,6 +38,10 @@ def fake_client() -> MagicMock:
     }
     reg = get_registry()
     light_op = reg.ops["light"]
+    fake.resolve_stack_params.return_value = {
+        0: [("light", {k: p.default for k, p in light_op.params.items()})],
+    }
+    # refine_widget still resolves per-op.
     fake.resolve_widget_params.return_value = {k: p.default for k, p in light_op.params.items()}
     return fake
 

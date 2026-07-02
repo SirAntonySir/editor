@@ -187,12 +187,43 @@ def read_per_node_images(sid: str) -> dict[str, tuple[bytes, str]]:
         stem = path.stem
         if stem == "image":
             continue  # primary, owned by save_session/load_session
+        if stem.startswith("genfill-"):
+            continue  # generated asset (write_asset), not an image node
         ext = path.suffix.lstrip(".")
         mime = _MIME_FOR_EXT.get(ext)
         if mime is None:
             continue
         out[stem] = (path.read_bytes(), mime)
     return out
+
+
+# ------------------------------------------------------------------
+# Generated assets (genfill results). Stored as <asset_id>.png in the
+# session dir. Asset ids are namespaced ("genfill-<widget_id>") so the
+# per-node image scan can exclude them (see read_per_node_images).
+# ------------------------------------------------------------------
+
+
+def write_asset(sid: str, asset_id: str, data: bytes) -> None:
+    d = _session_dir(sid)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{asset_id}.png").write_bytes(data)
+
+
+def read_asset(sid: str, asset_id: str) -> bytes | None:
+    p = _session_dir(sid) / f"{asset_id}.png"
+    try:
+        return p.read_bytes()
+    except OSError:
+        return None
+
+
+def delete_asset(sid: str, asset_id: str) -> None:
+    p = _session_dir(sid) / f"{asset_id}.png"
+    try:
+        p.unlink()
+    except OSError:
+        pass
 
 
 def save_context(sid: str, context: dict[str, Any]) -> None:

@@ -17,6 +17,15 @@ services:
     region: frankfurt        # closest Render region to Munich
     numInstances: 1          # in-memory state — do NOT scale past 1
     healthCheckPath: /health
+    # Persistent disk for session state + event journals (.sessions/). Render's
+    # default filesystem is ephemeral, so WITHOUT this every deploy/restart wipes
+    # the study logs. Mounted at /var/editor-sessions; SESSIONS_DIR points here.
+    # (A disk pins the service to one instance + stop-start deploys — already the
+    # case here.)
+    disk:
+      name: editor-sessions
+      mountPath: /var/editor-sessions
+      sizeGB: 2
     # Auto-deploy backend changes on push to main. NOTE: the service is stateful
     # (in-memory sessions + SSE), so a deploy restarts it and drops any active
     # session — fine for the study (each participant starts fresh), and it stops
@@ -34,3 +43,5 @@ services:
         sync: false          # e.g. https://<your-app>.vercel.app,app://bundle
       - key: ANTHROPIC_MODEL
         value: claude-opus-4-7
+      - key: SESSIONS_DIR
+        value: /var/editor-sessions   # persist session state + logs on the disk above

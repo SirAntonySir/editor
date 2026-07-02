@@ -14,6 +14,7 @@ and hands plain bytes + dicts here.
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,7 +42,12 @@ class DiskRecord:
 # different cwd. parents[2] from `app/services/disk_session_io.py` is
 # `backend/`, regardless of how the process was launched.
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
-SESSIONS_DIR = _BACKEND_ROOT / ".sessions"
+# `SESSIONS_DIR` env override lets a hosted deploy point session state (incl. the
+# event journals) at a PERSISTENT disk, so it survives restarts/redeploys —
+# Render's default filesystem is ephemeral, and without this every deploy wipes
+# the study logs. Unset (local dev / tests) → the canonical `backend/.sessions`.
+_ENV_SESSIONS_DIR = os.environ.get("SESSIONS_DIR", "").strip()
+SESSIONS_DIR = Path(_ENV_SESSIONS_DIR) if _ENV_SESSIONS_DIR else _BACKEND_ROOT / ".sessions"
 
 
 def _session_dir(sid: str) -> Path:

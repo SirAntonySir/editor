@@ -92,10 +92,11 @@ def test_get_document_rehydrates_enriched_context():
 
 
 def test_prune_disk_removes_old_records(tmp_path, monkeypatch):
-    """prune_disk removes sessions whose created_at exceeds max_age, keeps
-    fresh ones."""
+    """prune_disk removes sessions whose *last activity* (file mtime, not
+    meta.json created_at) exceeds max_age, keeps fresh ones."""
     monkeypatch.setattr("app.services.disk_session_io.SESSIONS_DIR", tmp_path)
     import json
+    import os
     import time as _t
 
     sid_old = "old-sid"
@@ -107,6 +108,10 @@ def test_prune_disk_removes_old_records(tmp_path, monkeypatch):
             json.dumps({"mime_type": "image/jpeg", "created_at": ts}),
         )
         (d / "image.jpg").write_bytes(b"x")
+        # prune_disk reads last-activity mtimes, not created_at — age the
+        # files themselves so the old session actually looks old.
+        os.utime(d / "meta.json", (ts, ts))
+        os.utime(d / "image.jpg", (ts, ts))
 
     from app.services.session_store import SessionStore
     pruned = SessionStore(ttl_seconds=1).prune_disk(max_age_seconds=3600)

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render as rtlRender, fireEvent, waitFor } from '@testing-library/react';
+import { render as rtlRender, fireEvent, waitFor, screen } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { SegmentHitLayer } from './SegmentHitLayer';
 
@@ -164,6 +164,38 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
     // Neither the original event (stopPropagation'd by handleContextMenu) nor
     // the re-dispatched one (guard must stop it too) may reach the parent.
     expect(outerContextMenu).not.toHaveBeenCalled();
+  });
+
+  it('pressing a candidate-menu item does not start a lasso through the portal', async () => {
+    // React portals propagate events through the REACT tree, not the DOM
+    // tree: the menu content is a React child of the hit layer, so its
+    // pointerdown re-enters handlePointerDown — and in lasso mode that
+    // started a freehand draw THROUGH the open menu (hint flipped to
+    // "release to close", crosshair, path drawn under the menu).
+    if (!HTMLElement.prototype.setPointerCapture) {
+      HTMLElement.prototype.setPointerCapture = () => {};
+    }
+    useEditorStore.getState().setObjectSelectTool('lasso');
+    try {
+      const { findByTestId, queryByTestId } = render(
+        <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,
+      );
+      const layer = await findByTestId('segment-hit-layer');
+      stubRect(layer);
+      // Inject a candidate without SAM.
+      fireEvent(window, new CustomEvent('segment-hit:external-candidate', {
+        detail: { imageNodeId: 'in-1', mask: fakeMask(), origin: 'client_lasso' },
+      }));
+      await waitFor(() => expect(layer.querySelector('[data-candidate-trigger]')).not.toBeNull());
+      // Open the candidate menu via the re-dispatch path.
+      fireEvent.contextMenu(layer, { clientX: 100, clientY: 75 });
+      const item = await screen.findByText('Extract to new layer');
+      // Left-press the menu item — must NOT arm a lasso draw.
+      fireEvent.pointerDown(item, { button: 0, clientX: 620, clientY: 200, pointerId: 1 });
+      expect(queryByTestId('lasso-draft-hint')).toBeNull();
+    } finally {
+      useEditorStore.getState().setObjectSelectTool('point');
+    }
   });
 
   it('new plain click while a candidate exists starts a fresh decode (one more call)', async () => {

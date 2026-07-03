@@ -7,6 +7,7 @@ from app.schemas.widget import MaskRecord
 from app.services import disk_session_io as dio
 from app.services.replicate_client import GenfillResult
 from app.state.document import DEFAULT_IMAGE_NODE_ID
+from app.tools.widgets.delete_widget import DeleteWidgetTool
 from app.tools.widgets.genfill import (
     GenfillCreateTool, GenfillRegenerateTool, _run_generation,
 )
@@ -236,3 +237,21 @@ def test_regenerate_refuses_while_generating(make_doc):
         asyncio.run(regen.handler(doc, regen.input_schema.model_validate(
             {"widgetId": out.widget_id, "prompt": "again"})))
     assert exc_info.value.__class__.__name__ == "_InvalidInput"
+
+
+def test_delete_widget_removes_genfill_asset(make_doc, tmp_path, monkeypatch):
+    monkeypatch.setattr(dio, "SESSIONS_DIR", tmp_path)
+    doc = _doc_with_image(make_doc)
+    _add_mask(doc)
+    tool, store, bus, rep, _ = _make_tool(doc)
+    out = asyncio.run(tool.handler(doc, tool.input_schema.model_validate(
+        {"imageNodeId": DEFAULT_IMAGE_NODE_ID, "maskId": "m1", "prompt": "a boat",
+         "origin": "tool_invoked"})))
+    asyncio.run(_run_generation(store, bus, rep, doc.session_id, out.widget_id))
+    asset_id = f"genfill-{out.widget_id}"
+    assert dio.read_asset(doc.session_id, asset_id) is not None
+    # Dismiss via the real delete_widget tool → asset gone.
+    delete = DeleteWidgetTool()
+    asyncio.run(delete.handler(doc, delete.input_schema.model_validate(
+        {"widgetId": out.widget_id, "suppressSimilar": False})))
+    assert dio.read_asset(doc.session_id, asset_id) is None

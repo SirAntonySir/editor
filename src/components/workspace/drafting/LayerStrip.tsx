@@ -5,6 +5,7 @@ import { usePreferencesStore } from '@/store/preferences-store';
 import { editorDocument } from '@/core/document';
 import { LayerThumb } from '@/components/ui/LayerThumb';
 import { createSelectionFromLayer } from '@/lib/segmentation/object-actions';
+import { spawnGenfillFromLayer } from '@/lib/genfill-spawn';
 
 const MENU_ITEM = 'text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none';
 // Destructive items: red text + red-tinted hover, so a delete reads as a delete.
@@ -178,6 +179,12 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
                   onSelect={() => createSelectionFromLayer(layer.id, imageNodeId, { invert: true })}
                 >
                   Create inverted selection
+                </ContextMenu.Item>
+                <ContextMenu.Item
+                  className={MENU_ITEM}
+                  onSelect={() => void spawnGenfillFromLayer(layer.id, imageNodeId)}
+                >
+                  Generative fill…
                 </ContextMenu.Item>
                 {/* Move (not copy) this layer onto its own image node. Only
                     meaningful when the node has other layers to leave behind. */}

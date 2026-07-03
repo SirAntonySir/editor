@@ -10,6 +10,7 @@ import {
   extractObjectToLayer,
   convertObjectToLayerMask,
 } from '@/lib/segmentation/object-actions';
+import { spawnGenfillFromMask } from '@/lib/genfill-spawn';
 import { toast } from '@/components/ui/Toast';
 import type { DecodedMask, SamPoint } from '@/lib/segmentation/mobile-sam-types';
 
@@ -87,7 +88,7 @@ export async function materializeCandidate(
   return maskId;
 }
 
-export type CandidateVerb = 'extract-node' | 'extract-layer' | 'convert-mask';
+export type CandidateVerb = 'extract-node' | 'extract-layer' | 'convert-mask' | 'genfill';
 
 /** Run a committing verb on a live selection: materialize the mask, then run
  *  the matching object action with the new id. Returns the new mask id, or null
@@ -103,6 +104,7 @@ export async function runCandidateVerb(
   if (verb === 'extract-node') extractObjectToImageNode(id, ctx.imageNodeId);
   else if (verb === 'extract-layer') extractObjectToLayer(id, ctx.imageNodeId);
   else if (verb === 'convert-mask') convertObjectToLayerMask(id, ctx.imageNodeId);
+  else if (verb === 'genfill') await spawnGenfillFromMask(id, ctx.imageNodeId);
   return id;
 }
 

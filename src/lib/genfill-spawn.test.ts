@@ -16,8 +16,20 @@ vi.mock('@/components/ui/Toast', () => ({ toast: { info: vi.fn() } }));
 describe('spawnGenfillFromMask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useAiSession.setState({ sessionId: 's1' });
+    // Canonical session id lives on useBackendState (set on connection);
+    // useAiSession.sessionId is only populated after AI analysis runs.
+    useBackendState.getState().reset();
+    useBackendState.getState().setSessionId('s1');
     useBackendState.getState().setSseStatus('open');
+    useAiSession.setState({ sessionId: null });
+  });
+
+  it('uses the backend session id even when AI analysis has not run', async () => {
+    // Regression: requireSession() previously read only useAiSession.sessionId,
+    // which stays null until analysis — genfill wrongly showed "session not ready".
+    const id = await spawnGenfillFromMask('m1', 'in-default');
+    expect(id).toBe('w_gf_1');
+    expect(backendTools.genfill_create).toHaveBeenCalledWith('s1', expect.objectContaining({ maskId: 'm1' }));
   });
 
   it('calls genfill_create with the mask and empty prompt (compose)', async () => {
@@ -49,6 +61,7 @@ describe('spawnGenfillFromMask', () => {
   });
 
   it('refuses without a session', async () => {
+    useBackendState.getState().setSessionId(null);
     useAiSession.setState({ sessionId: null });
     const id = await spawnGenfillFromMask('m1', 'in-default');
     expect(id).toBeNull();

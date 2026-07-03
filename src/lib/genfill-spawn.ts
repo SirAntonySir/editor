@@ -15,7 +15,11 @@ function requireSession(): string | null {
     toast.info('Backend disconnected — generative fill unavailable.');
     return null;
   }
-  const sessionId = useAiSession.getState().sessionId;
+  // Canonical session id lives on useBackendState (set on connection).
+  // useAiSession.sessionId only mirrors it AFTER AI analysis runs, so read
+  // the backend store first and fall back to the AI store.
+  const sessionId =
+    useBackendState.getState().sessionId ?? useAiSession.getState().sessionId;
   if (!sessionId) {
     toast.info('Backend session not ready.');
     return null;

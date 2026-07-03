@@ -11,7 +11,7 @@ import { spawnRegistryOp, spawnRegistryPreset } from '@/lib/toolrail-spawn';
 import { PromptEditor, type PromptEditorHandle } from '@/components/ui/PromptEditor';
 import { RegionSuggestions } from './RegionSuggestions';
 import { rankElements, type PaletteElement } from '@/lib/region-suggest';
-import { docToPlainText, serializePromptDoc, type PromptDoc } from '@/lib/prompt-doc';
+import { docToPlainText, serializePromptDoc, extractObjectIds, type PromptDoc } from '@/lib/prompt-doc';
 import { submitAgentPrompt } from '@/lib/palette-submit';
 import { usePaletteRuntime } from '@/store/palette-runtime';
 import { useMenuActions } from '@/lib/menu-actions';
@@ -21,7 +21,10 @@ import { objectOwnership } from '@/lib/segmentation/object-ownership';
 import { useSmartMatch } from '@/hooks/useSmartMatch';
 import { useAsk } from '@/hooks/useAsk';
 import { useAiAccess } from '@/lib/ai-access';
+import { useBackendState } from '@/store/backend-state-slice';
+import { spawnGenfillFromMask } from '@/lib/genfill-spawn';
 import { CommandPaletteAskView } from './CommandPaletteAskView';
+import { CommandPaletteGenfillView } from './CommandPaletteGenfillView';
 import {
   buildAdjustmentSections,
   buildPresetSections,
@@ -50,7 +53,7 @@ const STATIC_REGISTRY_SECTIONS: PaletteSection[] = [
   ...buildPreferencesSections(),
 ];
 
-type PaletteMode = 'agent' | 'ask';
+type PaletteMode = 'agent' | 'ask' | 'genfill';
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -95,6 +98,31 @@ export function CommandPalette() {
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   const setActiveImageNode = useEditorStore((s) => s.setActiveImageNode);
   const menuActions = useMenuActions();
+  const masksIndex = useBackendState((s) => s.snapshot?.masksIndex);
+
+  /** Genfill mode resolves the FIRST attached region chip whose id is a
+   *  materialized mask (in masksIndex) to a target {maskId, imageNodeId}.
+   *  Named-region chips without a real mask (region:ai:*) don't resolve in v1. */
+  const genfillTarget = useMemo(() => {
+    const idx = masksIndex ?? [];
+    if (idx.length === 0) return null;
+    const candidateIds = [
+      ...extractObjectIds(
+        doc.filter((s): s is Extract<PromptDoc[number], { kind: 'chip' }> => s.kind === 'chip'),
+      ),
+      ...extractObjectIds(attachedContext),
+    ];
+    for (const id of candidateIds) {
+      const summary = idx.find((m) => m.id === id);
+      if (summary) {
+        return {
+          maskId: summary.id,
+          imageNodeId: summary.imageNodeId ?? activeImageNodeId ?? 'in-default',
+        };
+      }
+    }
+    return null;
+  }, [masksIndex, doc, attachedContext, activeImageNodeId]);
 
   // Subscribe to AI context + object ownership so the Regions section stays
   // fresh while the palette is open.
@@ -366,7 +394,7 @@ export function CommandPalette() {
   }
   // Control condition has no Ask mode — if the flag flips to false while the
   // palette sits in Ask (e.g. admin toggle mid-session), snap back to Agent.
-  if (!aiAccess && mode === 'ask') setMode('agent');
+  if (!aiAccess && (mode === 'ask' || mode === 'genfill')) setMode('agent');
 
   // Broadcast open/close so CommandTrigger can hide itself and Framer's
   // shared-layout morph (layoutId="command-palette-shell") has only one
@@ -505,6 +533,25 @@ export function CommandPalette() {
           return;
         }
       }
+      // Genfill mode: Enter spawns a genfill widget (already generating) for
+      // the resolved region + typed prompt. Requires a resolvable region chip
+      // AND a non-empty prompt; otherwise the view shows the hint and Enter
+      // no-ops.
+      if (mode === 'genfill') {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const prompt = query.trim();
+          if (!genfillTarget || !prompt) return;
+          void spawnGenfillFromMask(
+            genfillTarget.maskId,
+            genfillTarget.imageNodeId,
+            prompt,
+            'mcp_user_prompt',
+          );
+          setOpen(false);
+        }
+        return;
+      }
       // Ask mode: Enter submits to the LLM and pins the markdown response
       // in the body. Arrow keys and Tab keep their Agent-mode semantics
       // disabled — there's nothing to navigate in Ask mode.
@@ -552,6 +599,7 @@ export function CommandPalette() {
       suggest,
       acceptSuggestion,
       closeSuggest,
+      genfillTarget,
     ],
   );
 
@@ -601,7 +649,7 @@ export function CommandPalette() {
   const askPending = ask.state.status === 'pending';
   const searchIconNode = pending || askPending ? (
     <Loader2 size={14} className="text-[var(--color-ai)] animate-spin" />
-  ) : mode === 'ask' ? (
+  ) : mode === 'ask' || mode === 'genfill' ? (
     <Sparkles size={14} className="text-[var(--color-ai)] ai-glow-pulse" />
   ) : isIdle ? (
     <Search size={14} className="text-text-secondary" />
@@ -699,7 +747,9 @@ export function CommandPalette() {
                     onCaretWordChange={handleCaretWord}
                     disabled={mode === 'agent' && !!pending}
                     placeholder={
-                      mode === 'ask'
+                      mode === 'genfill'
+                        ? 'Describe what to generate in the region…'
+                        : mode === 'ask'
                         ? ask.state.status === 'pending'
                           ? `Answering "${ask.state.query}"…`
                           : 'Ask anything about this photo…'
@@ -754,6 +804,8 @@ export function CommandPalette() {
                     Same fix shape as HistoryDropdown. */}
                 {mode === 'ask' ? (
                   <CommandPaletteAskView state={ask.state} pendingQueryDraft={query} />
+                ) : mode === 'genfill' ? (
+                  <CommandPaletteGenfillView hasRegion={!!genfillTarget} draft={query} />
                 ) : (
                 <div className="flex-1 min-h-0 overflow-hidden">
                 <ScrollArea className="h-full" viewportClassName="py-1">
@@ -832,6 +884,12 @@ export function CommandPalette() {
                     <>
                       <span>↵ ask</span>
                       <span>⇥ target</span>
+                      <span>esc close</span>
+                    </>
+                  ) : mode === 'genfill' ? (
+                    <>
+                      <span>↵ generate</span>
+                      <span>@ region</span>
                       <span>esc close</span>
                     </>
                   ) : (
@@ -1104,6 +1162,12 @@ function ModeToggle({
         onClick={() => onChange('ask')}
         label="Ask"
         title="Get a grounded answer about the photo"
+      />
+      <ModeButton
+        active={mode === 'genfill'}
+        onClick={() => onChange('genfill')}
+        label="Fill"
+        title="Generative fill — replace an attached region with AI-generated content"
       />
     </div>
   );

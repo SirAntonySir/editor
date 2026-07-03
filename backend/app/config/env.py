@@ -23,6 +23,9 @@ class EnvSettings(BaseSettings):
     # cost. Q&A doesn't need Opus reasoning but benefits from Sonnet's
     # better grounded-narrative output over Haiku.
     anthropic_sonnet_model: str = "claude-sonnet-4-6"
+    # Replicate API token for image-generation models (bria/genfill). Empty =
+    # genfill tools return a typed `not_configured` error instead of raising.
+    replicate_api_token: str = ""
     host: str = "127.0.0.1"
     port: int = 8787
     # Empty by default so a fresh prod install doesn't accidentally accept

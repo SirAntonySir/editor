@@ -343,6 +343,39 @@ class ResolvedNumbers(BaseModel):
     reasoning: str | None = None
 
 
+GenfillStatus = Literal["compose", "generating", "ready", "error"]
+GenfillErrorKindLit = Literal["moderation", "timeout", "api_error", "not_configured"]
+
+
+class GenfillResultInfo(BaseModel):
+    model_config = camel_config(extra="forbid")
+    asset_id: str = Field(min_length=1)
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+
+
+class GenfillError(BaseModel):
+    model_config = camel_config(extra="forbid")
+    kind: GenfillErrorKindLit
+    message: str
+
+
+class GenfillState(BaseModel):
+    """State block for generative-fill widgets. Genfill widgets carry NO
+    operation-graph nodes and NO bindings — they produce pixels, not shader
+    params. The WebGL pipeline never sees them; the frontend renders a
+    bespoke body from this block and creates a new layer at Accept."""
+    model_config = camel_config(extra="forbid")
+    status: GenfillStatus
+    prompt: str = ""
+    negative_prompt: str | None = None
+    seed: int = 0
+    mask_id: str = Field(min_length=1)
+    image_node_id: str = Field(min_length=1)
+    result: GenfillResultInfo | None = None
+    error: GenfillError | None = None
+
+
 class Widget(BaseModel):
     model_config = camel_config(extra="forbid")
     id: str = Field(min_length=1)
@@ -382,6 +415,10 @@ class Widget(BaseModel):
     # entries whose dismissal aged past the bounded history window. Cleared
     # in restore_widget.
     dismissed_at_revision: int | None = None
+    # Generative-fill state block. Non-None marks this widget as a genfill
+    # widget (bespoke frontend body, no op-graph nodes, pixels land on a new
+    # layer at accept). See docs/superpowers/specs/2026-07-02-genfill-widget-design.md.
+    genfill: GenfillState | None = None
 
 
 # ------------------------------------------------------------------

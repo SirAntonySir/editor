@@ -53,6 +53,13 @@ class DeleteWidgetTool(BackendTool[_Input, _Output]):
         w = doc.widgets.get(input.widget_id)
         if w is None:
             raise _UnknownWidget(input.widget_id)
+        # Genfill widgets own a generated PNG asset on disk — drop it when the
+        # widget is dismissed so cancelled generations don't accumulate. (It
+        # would otherwise die with the session dir, but cleaning eagerly keeps
+        # the session small.)
+        if w.genfill is not None:
+            from app.services import disk_session_io
+            disk_session_io.delete_asset(doc.session_id, f"genfill-{input.widget_id}")
         rule = None
         if input.suppress_similar:
             rule = DismissalRule(

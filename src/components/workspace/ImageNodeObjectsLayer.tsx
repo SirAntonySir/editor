@@ -11,6 +11,7 @@ import {
   extractObjectToLayer,
   deleteObject,
 } from '@/lib/segmentation/object-actions';
+import { spawnGenfillFromMask } from '@/lib/genfill-spawn';
 
 interface ImageNodeObjectsLayerProps {
   imageNodeId: string;
@@ -260,6 +261,12 @@ function ObjectLabel({
             onSelect={() => extractObjectToImageNode(obj.id, imageNodeId)}
           >
             Extract to Image Node
+          </ContextMenu.Item>
+          <ContextMenu.Item
+            className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"
+            onSelect={() => void spawnGenfillFromMask(obj.id, imageNodeId)}
+          >
+            Generative fill…
           </ContextMenu.Item>
           <ContextMenu.Separator className="my-1 h-px bg-separator" />
           <ContextMenu.Item

@@ -16,6 +16,7 @@ Validation of inbound image bytes is shared with the MCP path via
 must enforce the same MIME + size guards.
 """
 
+import re
 import uuid
 from typing import Any
 
@@ -181,3 +182,19 @@ async def set_session_context(
     except SessionNotFound:
         raise HTTPException(status_code=404, detail="unknown or expired session")
     return {"session_id": sid}
+
+
+# Genfill result assets. Namespaced ids only — this is NOT a general file
+# server; anything outside the genfill-<widget_id> pattern 404s.
+_ASSET_ID_RE = re.compile(r"^genfill-[A-Za-z0-9_-]+$")
+
+
+@router.get("/session/{sid}/assets/{asset_id}")
+async def get_session_asset(sid: str, asset_id: str) -> Response:
+    """Serve a generated asset (genfill result PNG)."""
+    if not _ASSET_ID_RE.fullmatch(asset_id):
+        raise HTTPException(status_code=404, detail="unknown asset")
+    data = disk_session_io.read_asset(sid, asset_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="unknown asset")
+    return Response(content=data, media_type="image/png")

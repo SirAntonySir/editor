@@ -231,3 +231,16 @@ describe('CommandPalette — inline context chips', () => {
     expect(chips.length).toBe(1);
   });
 });
+
+describe('CommandPalette — generative fill mode', () => {
+  it('exposes a Fill pill and shows the attach-a-region hint when switched', async () => {
+    useEditorStore.getState().addImageNode(['l1']);
+    render(<CommandPalette />);
+    open();
+    const fill = screen.getByRole('button', { name: 'Fill' });
+    expect(fill).toBeDefined();
+    await userEvent.click(fill);
+    // No region chip attached → the view tells the user to attach one.
+    expect(screen.getByText(/attach a region to fill/i)).toBeDefined();
+  });
+});

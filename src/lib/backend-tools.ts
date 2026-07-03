@@ -208,6 +208,24 @@ export const backendTools = {
   propose_mask(sessionId: string, input: ProposeMaskInput) {
     return invokeTool<ProposeMaskOutput>('propose_mask', sessionId, input as unknown as Record<string, unknown>);
   },
+  genfill_create(sessionId: string, args: {
+    imageNodeId: string;
+    maskId: string;
+    prompt: string;
+    negativePrompt?: string;
+    seed?: number;
+    origin: 'tool_invoked' | 'mcp_user_prompt';
+  }) {
+    return invokeTool<{ widgetId: string }>('genfill_create', sessionId, args);
+  },
+  genfill_regenerate(sessionId: string, args: {
+    widgetId: string;
+    prompt?: string;
+    negativePrompt?: string;
+    seed?: number;
+  }) {
+    return invokeTool<{ widgetId: string }>('genfill_regenerate', sessionId, args);
+  },
   delete_mask(sessionId: string, input: DeleteMaskInput) {
     return invokeTool<DeleteMaskOutput>('delete_mask', sessionId, input as unknown as Record<string, unknown>);
   },

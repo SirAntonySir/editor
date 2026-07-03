@@ -277,3 +277,38 @@ def test_delete_widget_removes_genfill_asset(make_doc, tmp_path, monkeypatch):
     asyncio.run(delete.handler(doc, delete.input_schema.model_validate(
         {"widgetId": out.widget_id, "suppressSimilar": False})))
     assert dio.read_asset(doc.session_id, asset_id) is None
+
+
+def test_binary_mask_from_rgba_with_opaque_alpha_uses_luminance():
+    # Regression: frontend masks (mask-png.ts) carry the mask in RGB
+    # (white=fill) with alpha=255 EVERYWHERE. Preferring the alpha channel
+    # turned every mask all-white and Bria rejected it with 400.
+    from PIL import Image
+    from app.tools.widgets.genfill import _binary_mask_png
+
+    img = Image.new("RGBA", (2, 1))
+    img.putpixel((0, 0), (255, 255, 255, 255))  # in the mask
+    img.putpixel((1, 0), (0, 0, 0, 255))        # outside, but alpha still 255
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+
+    binary = Image.open(io.BytesIO(_binary_mask_png(buf.getvalue())))
+    assert binary.getpixel((0, 0)) == 255
+    assert binary.getpixel((1, 0)) == 0  # was 255 before the fix
+
+
+def test_binary_mask_from_alpha_carried_png_still_uses_alpha():
+    # Alpha-carried masks (extractLayerFromMask-style, varying alpha) must
+    # keep using the alpha channel.
+    from PIL import Image
+    from app.tools.widgets.genfill import _binary_mask_png
+
+    img = Image.new("RGBA", (2, 1))
+    img.putpixel((0, 0), (255, 255, 255, 255))  # opaque → in
+    img.putpixel((1, 0), (255, 255, 255, 0))    # transparent → out
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+
+    binary = Image.open(io.BytesIO(_binary_mask_png(buf.getvalue())))
+    assert binary.getpixel((0, 0)) == 255
+    assert binary.getpixel((1, 0)) == 0

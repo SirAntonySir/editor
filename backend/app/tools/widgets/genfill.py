@@ -61,10 +61,22 @@ def _png_dims(data: bytes) -> tuple[int, int]:
 
 
 def _binary_mask_png(mask_png: bytes) -> bytes:
-    """Convert a stored mask PNG (alpha-carried or grayscale) into the strict
-    binary black/white L-mode PNG that Bria expects (white=255 → generate)."""
+    """Convert a stored mask PNG into the strict binary black/white L-mode PNG
+    that Bria expects (white=255 → generate).
+
+    Channel choice: frontend masks (mask-png.ts) carry the mask in RGB
+    (white=fill) with a UNIFORMLY opaque alpha — for those the alpha channel
+    is useless and thresholding it yields an all-white mask (Bria 400s).
+    Use alpha only when it actually varies; otherwise threshold luminance."""
     img = _PILImage.open(io.BytesIO(mask_png))
-    channel = img.getchannel("A") if "A" in img.getbands() else img.convert("L")
+    channel = None
+    if "A" in img.getbands():
+        alpha = img.getchannel("A")
+        lo, hi = alpha.getextrema()
+        if lo != hi:  # alpha varies → it carries the mask
+            channel = alpha
+    if channel is None:
+        channel = img.convert("L")
     binary = channel.point(lambda v: 255 if v >= 128 else 0)
     out = io.BytesIO()
     binary.save(out, format="PNG")

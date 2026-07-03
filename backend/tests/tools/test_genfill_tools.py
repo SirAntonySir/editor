@@ -97,6 +97,28 @@ def _doc_with_image(make_doc):
     return doc
 
 
+def test_create_falls_back_to_default_node_when_frontend_id_has_no_bytes(make_doc, tmp_path, monkeypatch):
+    # Regression: the frontend numbers image nodes in-1, in-2, … (never
+    # in-default), but the backend stores the primary image under in-default.
+    # genfill must fall back to the primary image instead of reading b"" and
+    # raising UnidentifiedImageError.
+    monkeypatch.setattr(dio, "SESSIONS_DIR", tmp_path)
+    doc = _doc_with_image(make_doc)  # image only under in-default
+    _add_mask(doc)  # mask sized to the 2x2 image
+    tool, store, bus, rep, scheduled = _make_tool(doc)
+    out = asyncio.run(tool.handler(doc, tool.input_schema.model_validate(
+        {"imageNodeId": "in-1", "maskId": "m1", "prompt": "a boat",
+         "origin": "tool_invoked"})))
+    w = doc.widgets[out.widget_id]
+    assert w.genfill.status == "generating"
+    # Widget keeps the frontend node id (for layer placement)…
+    assert w.genfill.image_node_id == "in-1"
+    # …but generation reads the primary image and succeeds.
+    asyncio.run(_run_generation(store, bus, rep, doc.session_id, out.widget_id))
+    assert doc.widgets[out.widget_id].genfill.status == "ready"
+    assert rep.calls and rep.calls[0]["image_bytes"] == _image_png_2x2()
+
+
 def test_create_compose_widget_empty_prompt(make_doc):
     doc = _doc_with_image(make_doc)
     _add_mask(doc)

@@ -27,7 +27,7 @@ from app.schemas.widget import (
     WidgetOrigin, WidgetPreview,
 )
 from app.services import disk_session_io
-from app.state.document import SessionDocument
+from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 
 try:
@@ -71,8 +71,27 @@ def _binary_mask_png(mask_png: bytes) -> bytes:
     return out.getvalue()
 
 
+def _resolve_image(doc: SessionDocument, image_node_id: str) -> tuple[bytes, str]:
+    """Resolve the source image bytes + mime for a genfill target node.
+
+    The frontend numbers image nodes in-1, in-2, … while the backend stores a
+    single-image session's primary image under in-default. When the requested
+    node has no bytes on the backend (the common single-image case), fall back
+    to the primary image — mirroring how analyze_context hardcodes in-default.
+    The widget still records the frontend node id for layer placement."""
+    data = doc.get_image_bytes(image_node_id)
+    mime = doc.get_mime_type(image_node_id)
+    if not data:
+        data = doc.get_image_bytes(DEFAULT_IMAGE_NODE_ID)
+        mime = doc.get_mime_type(DEFAULT_IMAGE_NODE_ID)
+    if not data:
+        raise _InvalidInput(f"genfill: no image bytes for node {image_node_id!r}")
+    return data, mime
+
+
 def _assert_aspect_match(doc: SessionDocument, image_node_id: str, mask) -> None:
-    iw, ih = _png_dims(doc.get_image_bytes(image_node_id))
+    image_bytes, _ = _resolve_image(doc, image_node_id)
+    iw, ih = _png_dims(image_bytes)
     if ih == 0 or mask.height == 0:
         raise _InvalidInput("genfill: degenerate image or mask dimensions")
     if abs((iw / ih) - (mask.width / mask.height)) > 0.02:
@@ -99,8 +118,7 @@ async def _run_generation(store, bus, replicate, session_id: str, widget_id: str
         if w is None or w.genfill is None:
             return
         g = w.genfill
-        image_bytes = doc.get_image_bytes(g.image_node_id)
-        image_mime = doc.get_mime_type(g.image_node_id)
+        image_bytes, image_mime = _resolve_image(doc, g.image_node_id)
         mask = doc.masks.get(g.mask_id)
         if mask is None:
             return

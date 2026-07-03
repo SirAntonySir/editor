@@ -279,3 +279,46 @@ describe('convertObjectToLayerMask', () => {
     expect(useEditorStore.getState().imageNodes[nodeId].layerIds).toEqual(['L1']);
   });
 });
+
+// ─── deleteObject / renameObject — session-id resolution ────────────────────
+// Regression: both read ONLY useAiSession.sessionId, which is null until the
+// user runs AI analyze. The optimistic local update ran (mask vanished from
+// the UI) but the backend call silently bailed — so every masksIndex refresh
+// brought all "deleted" masks back. Session id must resolve from
+// useBackendState first, exactly like materializeCandidate does.
+
+describe('deleteObject / renameObject session resolution', () => {
+  it('deleteObject reaches the backend when only useBackendState has a session', async () => {
+    const { useBackendState } = await import('@/store/backend-state-slice');
+    const { useAiSession } = await import('@/hooks/useImageContext');
+    const { backendTools } = await import('@/lib/backend-tools');
+    const { deleteObject } = await import('./object-actions');
+
+    useAiSession.setState({ sessionId: null });
+    useBackendState.setState({ sessionId: 'tool-sess' });
+    const spy = vi.spyOn(backendTools, 'delete_mask')
+      .mockResolvedValue({ ok: true, output: { ok: true } } as never);
+
+    await deleteObject('m-1');
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith('tool-sess', { maskId: 'm-1' });
+  });
+
+  it('renameObject reaches the backend when only useBackendState has a session', async () => {
+    const { useBackendState } = await import('@/store/backend-state-slice');
+    const { useAiSession } = await import('@/hooks/useImageContext');
+    const { backendTools } = await import('@/lib/backend-tools');
+    const { renameObject } = await import('./object-actions');
+
+    useAiSession.setState({ sessionId: null });
+    useBackendState.setState({ sessionId: 'tool-sess' });
+    const spy = vi.spyOn(backendTools, 'rename_mask')
+      .mockResolvedValue({ ok: true, output: { ok: true } } as never);
+
+    await renameObject('m-1', 'sky');
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith('tool-sess', { maskId: 'm-1', label: 'sky' });
+  });
+});

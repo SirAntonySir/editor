@@ -18,14 +18,26 @@ import { extractLayerFromMask, duplicateLayer } from '@/store/segment-actions';
 import { toast } from '@/components/ui/Toast';
 import { UI } from '@/config';
 
+/** Canonical tool-session id. useBackendState carries it from the moment the
+ *  backend connects; useAiSession only mirrors it after the user runs AI
+ *  analyze. Reading the AI store alone made deleteObject/renameObject bail
+ *  SILENTLY pre-analyze — the optimistic UI update ran, the backend call
+ *  didn't, and every masksIndex refresh resurrected the "deleted" masks. */
+function toolSessionId(): string | null {
+  return useBackendState.getState().sessionId ?? useAiSession.getState().sessionId;
+}
+
 /** Trim, optimistic local update, then backend rename_mask. Caller is
  *  responsible for whatever inline-edit UI sourced the new label. */
 export async function renameObject(maskId: string, label: string): Promise<void> {
   const trimmed = label.trim();
   if (!trimmed) return;
   useBackendState.getState().pushMaskRename(maskId, trimmed);
-  const sessionId = useAiSession.getState().sessionId;
-  if (!sessionId) return;
+  const sessionId = toolSessionId();
+  if (!sessionId) {
+    toast.info('Rename not saved — backend session not ready.');
+    return;
+  }
   const env = await backendTools.rename_mask(sessionId, { maskId, label: trimmed });
   if (!env.ok) toast.info(`Rename failed: ${env.error?.message ?? 'unknown error'}`);
 }
@@ -279,8 +291,11 @@ export function extractObjectToLayer(
  *  reset activeObjectId locally, then ask the backend to drop the mask. */
 export async function deleteObject(maskId: string): Promise<void> {
   useBackendState.getState().pushMaskDeleted(maskId);
-  const sessionId = useAiSession.getState().sessionId;
-  if (!sessionId) return;
+  const sessionId = toolSessionId();
+  if (!sessionId) {
+    toast.info('Delete not saved — backend session not ready.');
+    return;
+  }
   const env = await backendTools.delete_mask(sessionId, { maskId });
   if (!env.ok) toast.info(`Delete failed: ${env.error?.message ?? 'unknown error'}`);
 }

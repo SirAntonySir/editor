@@ -62,6 +62,60 @@ function truncate(s: string, n: number): string {
   return s.length <= n ? s : `${s.slice(0, n - 1)}…`;
 }
 
+/** Aspect ratios equal within a small tolerance. Bria returns the SAME
+ *  framing at a capped resolution, so aspect match (not exact dims) is the
+ *  correct gate for scale-then-clip. Exported for tests + the widget body. */
+export function genfillAspectMatches(
+  a: { width: number; height: number },
+  b: { width: number; height: number },
+): boolean {
+  if (a.height === 0 || b.height === 0) return false;
+  return Math.abs(a.width / a.height - b.width / b.height) < 0.02;
+}
+
+/** Source-image dimensions for an image node: the first image layer's canvas. */
+export function genfillNodeDims(
+  imageNodeId: string,
+): { width: number; height: number } | null {
+  const editor = useEditorStore.getState();
+  const node = editor.imageNodes[imageNodeId];
+  const layerId = node?.layerIds.find(
+    (lid) => editor.layers.find((l) => l.id === lid)?.type === 'image',
+  );
+  const canvas = layerId ? pixelStore.get(layerId) : null;
+  return canvas ? { width: canvas.width, height: canvas.height } : null;
+}
+
+/** Register the accepted pixels as a new layer ON the source image node —
+ *  addLayer alone leaves the layer orphaned (no node's layerIds references
+ *  it, so it never renders). Mirrors extractObjectToLayer's attach step.
+ *  Exported for tests (canvas-free). */
+export function __attachGenfillLayer(
+  imageNodeId: string,
+  layerId: string,
+  name: string,
+): void {
+  editorDocument.workspace.batch('Genfill layer', () => {
+    const editor = useEditorStore.getState();
+    editor.addLayer({
+      id: layerId,
+      type: 'genfill',
+      name,
+      visible: true,
+      opacity: 1,
+      blendMode: 'normal',
+      locked: false,
+    });
+    useEditorStore.setState((s) => {
+      const node = s.imageNodes[imageNodeId];
+      if (node && !node.layerIds.includes(layerId)) {
+        node.layerIds.push(layerId);
+      }
+    });
+    editor.setActiveLayer(layerId);
+  });
+}
+
 export async function acceptGenfill(
   widgetId: string,
   opts: { clip: boolean },
@@ -82,10 +136,19 @@ export async function acceptGenfill(
     return null;
   }
 
-  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+  // Bria caps output resolution, so the result usually comes back SMALLER
+  // than the source at the same aspect ratio. Normalize to source dimensions
+  // so the layer aligns pixel-for-pixel on the image node; only keep the raw
+  // result size when the aspect genuinely differs (can't align — no scaling).
+  const nodeDims = genfillNodeDims(g.imageNodeId);
+  const scaleToSource = !!nodeDims && genfillAspectMatches(bitmap, nodeDims);
+  const width = scaleToSource ? nodeDims.width : bitmap.width;
+  const height = scaleToSource ? nodeDims.height : bitmap.height;
+
+  const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
-  ctx.drawImage(bitmap, 0, 0);
+  ctx.drawImage(bitmap, 0, 0, width, height);
 
   if (opts.clip) {
     const mask = maskStore.get(g.maskId);
@@ -100,19 +163,7 @@ export async function acceptGenfill(
   pixelStore.register(newId, canvas);
   persistCanvasSource(newId, canvas);
 
-  editorDocument.workspace.batch('Genfill layer', () => {
-    const editor = useEditorStore.getState();
-    editor.addLayer({
-      id: newId,
-      type: 'genfill',
-      name: `Genfill: ${truncate(g.prompt, 32)}`,
-      visible: true,
-      opacity: 1,
-      blendMode: 'normal',
-      locked: false,
-    });
-    editor.setActiveLayer(newId);
-  });
+  __attachGenfillLayer(g.imageNodeId, newId, `Genfill: ${truncate(g.prompt, 32)}`);
 
   const env = await backendTools.accept_widget(snapshot.sessionId, { widgetId });
   if (!env.ok) {

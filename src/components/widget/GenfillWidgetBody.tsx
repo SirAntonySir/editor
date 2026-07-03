@@ -2,27 +2,17 @@ import { useMemo, useState } from 'react';
 import { Pin, RefreshCw, Sparkles } from 'lucide-react';
 import type { Widget } from '@/types/widget';
 import { backendTools } from '@/lib/backend-tools';
-import { acceptGenfill, discardGenfill } from '@/store/genfill-actions';
+import {
+  acceptGenfill,
+  discardGenfill,
+  genfillAspectMatches,
+  genfillNodeDims,
+} from '@/store/genfill-actions';
 import { genfillAssetUrl } from '@/lib/genfill-asset';
 import { useBackendState } from '@/store/backend-state-slice';
-import { useEditorStore } from '@/store';
-import { pixelStore } from '@/core/pixel-store';
 
 interface GenfillWidgetBodyProps {
   widget: Widget;
-}
-
-/** Image-node reference dimensions: the first image layer's canvas. Used to
- *  decide whether the result can be clipped by the input mask (dims must
- *  match exactly — never silently rescale). */
-function imageNodeDims(imageNodeId: string): { width: number; height: number } | null {
-  const editor = useEditorStore.getState();
-  const node = editor.imageNodes[imageNodeId];
-  const layerId = node?.layerIds.find(
-    (lid) => editor.layers.find((l) => l.id === lid)?.type === 'image',
-  );
-  const canvas = layerId ? pixelStore.get(layerId) : null;
-  return canvas ? { width: canvas.width, height: canvas.height } : null;
 }
 
 export function GenfillWidgetBody({ widget }: GenfillWidgetBodyProps) {
@@ -36,15 +26,18 @@ export function GenfillWidgetBody({ widget }: GenfillWidgetBodyProps) {
   const [busy, setBusy] = useState(false);
 
   const dims = useMemo(
-    () => (g ? imageNodeDims(g.imageNodeId) : null),
+    () => (g ? genfillNodeDims(g.imageNodeId) : null),
     [g],
   );
   if (!g || !sessionId) return null;
 
   const generating = g.status === 'generating';
+  // Bria caps output resolution but preserves framing, so accept scales the
+  // result to source dimensions whenever the ASPECT matches. Clipping is only
+  // impossible when the aspect genuinely differs (nothing to align against).
   const dimsMatch =
     g.status === 'ready' && !!g.result && !!dims &&
-    g.result.width === dims.width && g.result.height === dims.height;
+    genfillAspectMatches(g.result, dims);
 
   const submit = async (seed?: number) => {
     if (!prompt.trim() || generating) return;
@@ -173,7 +166,7 @@ export function GenfillWidgetBody({ widget }: GenfillWidgetBodyProps) {
             />
             Clip to region
             {!dimsMatch && (
-              <span className="text-[10px] text-text-secondary">(dimensions differ)</span>
+              <span className="text-[10px] text-text-secondary">(aspect ratio differs)</span>
             )}
           </label>
           <div className="flex items-center justify-end gap-1.5">

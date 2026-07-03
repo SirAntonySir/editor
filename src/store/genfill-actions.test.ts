@@ -12,7 +12,7 @@ vi.mock('@/lib/backend-tools', () => ({
 }));
 vi.mock('@/components/ui/Toast', () => ({ toast: { info: vi.fn() } }));
 
-const { acceptGenfill, discardGenfill, __clipCanvasWithMask } = await import('./genfill-actions');
+const { acceptGenfill, discardGenfill, __clipCanvasWithMask, __attachGenfillLayer, genfillAspectMatches } = await import('./genfill-actions');
 
 function makeGenfillWidget(g: Partial<GenfillState>): Widget {
   return {
@@ -89,5 +89,29 @@ describe.skipIf(typeof OffscreenCanvas === 'undefined')('__clipCanvasWithMask', 
     const out = ctx.getImageData(0, 0, 2, 1).data;
     expect(out[3]).toBe(255);  // left alpha kept
     expect(out[7]).toBe(0);    // right alpha cleared
+  });
+});
+
+describe('genfillAspectMatches', () => {
+  it('matches same aspect at different resolutions (Bria downscales output)', () => {
+    expect(genfillAspectMatches({ width: 2816, height: 1536 }, { width: 1408, height: 768 })).toBe(true);
+  });
+
+  it('rejects genuinely different aspect ratios and degenerate dims', () => {
+    expect(genfillAspectMatches({ width: 100, height: 50 }, { width: 100, height: 100 })).toBe(false);
+    expect(genfillAspectMatches({ width: 100, height: 0 }, { width: 100, height: 100 })).toBe(false);
+  });
+});
+
+describe('__attachGenfillLayer', () => {
+  it('adds the layer AND registers it on the image node (regression: orphaned layer)', async () => {
+    const { useEditorStore } = await import('@/store');
+    useEditorStore.getState().resetWorkspace();
+    const nodeId = useEditorStore.getState().addImageNode(['L1']);
+    __attachGenfillLayer(nodeId, 'gf-layer-1', 'Genfill: test');
+    const s = useEditorStore.getState();
+    expect(s.layers.find((l) => l.id === 'gf-layer-1')?.type).toBe('genfill');
+    expect(s.imageNodes[nodeId].layerIds).toContain('gf-layer-1');
+    expect(s.activeLayerId).toBe('gf-layer-1');
   });
 });

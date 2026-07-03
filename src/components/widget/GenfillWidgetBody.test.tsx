@@ -7,6 +7,13 @@ import type { Widget, GenfillState, SessionStateSnapshot } from '@/types/widget'
 vi.mock('@/store/genfill-actions', () => ({
   acceptGenfill: vi.fn(),
   discardGenfill: vi.fn(),
+  // Pure helpers: use real-shaped fakes so the body's aspect gating logic
+  // still runs. No image node is registered in these tests → dims null.
+  genfillNodeDims: vi.fn(() => null),
+  genfillAspectMatches: vi.fn(
+    (a: { width: number; height: number }, b: { width: number; height: number }) =>
+      b.height !== 0 && a.height !== 0 && Math.abs(a.width / a.height - b.width / b.height) < 0.02,
+  ),
 }));
 vi.mock('@/lib/backend-tools', () => ({
   backendTools: { genfill_regenerate: vi.fn(async () => ({ ok: true })) },
@@ -60,14 +67,14 @@ describe('GenfillWidgetBody', () => {
     expect(screen.getByRole('button', { name: /discard/i })).toBeTruthy();
   });
 
-  it('clip toggle is disabled when result dims differ from the image node', () => {
+  it('clip toggle is disabled when the source dims are unknown or aspect differs', () => {
     render(<GenfillWidgetBody widget={widgetWith({
       status: 'ready', prompt: 'a boat',
       result: { assetId: 'genfill-w_gf_1', width: 100, height: 50 },
     })} />);
     // No image node registered → dims null → toggle disabled, hint shown.
     expect((screen.getByLabelText(/clip to region/i) as HTMLInputElement).disabled).toBe(true);
-    expect(screen.getByText(/dimensions differ/i)).toBeTruthy();
+    expect(screen.getByText(/aspect ratio differs/i)).toBeTruthy();
   });
 
   it('error state shows message and Retry', () => {

@@ -58,6 +58,10 @@ interface WidgetShellHeaderProps {
    *  Popover.Trigger asChild element. The supplied node MUST be a single
    *  button-shaped element. */
   whyButton?: ReactNode;
+  /** Genfill widgets own their Accept/Discard (with the clip toggle) inside
+   *  the body, so the header's Refine / Why / Apply(✓) decision affordances
+   *  are suppressed — the header ✗ remains as a quick discard. */
+  suppressDecision?: boolean;
 }
 
 function isAiVariant(widget: Widget): boolean {
@@ -114,6 +118,7 @@ export function WidgetShellHeader({
   applyDisabled,
   showAiAffordances,
   whyButton,
+  suppressDecision = false,
 }: WidgetShellHeaderProps) {
   // `dirty` is kept in the prop interface as a hook for future affordances;
   // the legacy edit-state dot has been removed in favour of slider-level
@@ -159,7 +164,7 @@ export function WidgetShellHeader({
           Eye · Apply ✓ · Close ✗ — Apply and Close are placed
           adjacent at the trailing edge so the accept/reject pair reads as
           a single decision unit. */}
-      {expanded && showAiAffordances && (
+      {expanded && showAiAffordances && !suppressDecision && (
         <>
           <Tooltip label="Refine — ask the AI to reshape this widget">
             <button
@@ -204,6 +209,7 @@ export function WidgetShellHeader({
           in line with the flat register. Apply's tint (AI violet for AI
           widgets, accent for tool) is the only visual signal that it's
           the primary action. */}
+      {!suppressDecision && (
       <Tooltip label="Apply this widget">
         <button
           type="button"
@@ -222,6 +228,7 @@ export function WidgetShellHeader({
           <Check size={12} strokeWidth={2.5} aria-hidden />
         </button>
       </Tooltip>
+      )}
       <Tooltip label="Discard widget">
         <button
           type="button"

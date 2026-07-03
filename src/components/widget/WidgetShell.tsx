@@ -16,6 +16,7 @@ import { HslWidgetBody, isHslWidget } from './HslWidgetBody';
 import { LevelsWidgetBody, isFullLevelsWidget } from './LevelsWidgetBody';
 import { CurvesWidgetBody, isCurvesWidget } from './CurvesWidgetBody';
 import { CompoundWidgetBody } from './CompoundWidgetBody';
+import { GenfillWidgetBody } from './GenfillWidgetBody';
 import { WidgetAutoButton } from './WidgetAutoButton';
 import { WidgetHistoryStepper } from './WidgetHistoryStepper';
 import { loadRegistry } from '@/lib/registry/loader';
@@ -235,6 +236,7 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
         onApply={handleApply}
         applyDisabled={offline}
         showAiAffordances={showAiAffordances}
+        suppressDecision={!!widget.genfill}
         whyButton={
           <WhyPopover open={whyOpen} widget={widget} onOpenChange={setWhyOpen}>
             <button
@@ -252,7 +254,8 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
           </WhyPopover>
         }
       />
-      {isExpanded && (
+      {isExpanded && widget.genfill && <GenfillWidgetBody widget={widget} />}
+      {isExpanded && !widget.genfill && (
         <>
           {/* Per-widget history stepper — ‹ n/N › walks this widget's timeline,
               restoring each step (synced to global history). Renders nothing

@@ -29,14 +29,20 @@ export async function restorePixelSources(sessionId: string): Promise<void> {
   let missingBlob = 0;
   let decodeFailed = 0;
   for (const layer of layers) {
-    if (layer.type !== 'image') continue;
+    // Try EVERY layer, not just type 'image' — runtime-created pixel layers
+    // (genfill results, extracted cutouts) persist sources under their own
+    // type and were previously skipped here, so they came back empty after
+    // reload. A missing blob is only suspicious for 'image' layers; other
+    // types may legitimately have no persisted source.
     let bitmap: ImageBitmap | null = null;
     const tLayer = performance.now();
     try {
       const blob = await getSource(sessionId, layer.id);
       if (!blob) {
-        missingBlob += 1;
-        console.warn('[reload] no blob for layer', layer.id, '— putSource at openImage/addImage may not have run, or IDB was cleared');
+        if (layer.type === 'image') {
+          missingBlob += 1;
+          console.warn('[reload] no blob for layer', layer.id, '— putSource at openImage/addImage may not have run, or IDB was cleared');
+        }
         continue;
       }
       console.log('[reload] got blob for layer', layer.id, { bytes: blob.size, type: blob.type });

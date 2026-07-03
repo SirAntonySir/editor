@@ -22,31 +22,11 @@ function persistCanvasSource(layerId: string, canvas: OffscreenCanvas): void {
     .catch((err) => console.warn('[segment-actions] persist source failed:', err));
 }
 
-/**
- * Compute the inclusive pixel bbox of the white (255) region in a mask.
- * Returns null when the mask is empty. Exported so the SAM-commit flow
- * can match a freshly-painted mask against AI-named regions by bbox
- * overlap (auto-naming).
- */
-export function computeMaskBbox(
-  data: Uint8Array, width: number, height: number,
-): { minX: number; minY: number; maxX: number; maxY: number } | null {
-  let minX = width;
-  let minY = height;
-  let maxX = -1;
-  let maxY = -1;
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      if (data[y * width + x] !== 255) continue;
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
-    }
-  }
-  if (maxX < 0) return null;
-  return { minX, minY, maxX, maxY };
-}
+// Moved to @/lib/mask-bbox (DOM-free module); imported for local use and
+// re-exported so the SAM-commit flow and other importers keep working.
+import { computeMaskBbox } from '@/lib/mask-bbox';
+
+export { computeMaskBbox };
 
 /**
  * Extract the masked region of a layer into a fresh, fully independent layer.

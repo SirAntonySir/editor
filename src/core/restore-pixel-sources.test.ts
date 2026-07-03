@@ -66,7 +66,10 @@ describe('restorePixelSources', () => {
     vi.unstubAllGlobals();
   });
 
-  it('skips non-image layers', async () => {
+  it('restores non-image layers that have a stored blob (genfill, extracted cutouts)', async () => {
+    // Regression: runtime-created pixel layers persist sources under their own
+    // type ('genfill', …). The restorer used to skip everything except 'image',
+    // so those layers came back empty after reload.
     const registerSpy = vi.spyOn(pixelStore, 'register');
     vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 1, height: 1, close: () => {} } as unknown as ImageBitmap)));
     vi.stubGlobal('OffscreenCanvas', class {
@@ -75,12 +78,16 @@ describe('restorePixelSources', () => {
       getContext() { return { drawImage: () => {} }; }
     });
 
-    await putSource('s1', 'l1', pngBlob());
-    useEditorStore.setState({ layers: [layer('l1', 'adjustment' as Layer['type'])] });
+    await putSource('s1', 'g1', pngBlob());
+    useEditorStore.setState({
+      layers: [layer('g1', 'genfill' as Layer['type']), layer('a1', 'adjustment' as Layer['type'])],
+    });
 
     await restorePixelSources('s1');
 
-    expect(registerSpy).not.toHaveBeenCalled();
+    // g1 has a blob → restored; a1 has none → silently skipped.
+    expect(registerSpy).toHaveBeenCalledTimes(1);
+    expect(registerSpy.mock.calls[0][0]).toBe('g1');
 
     vi.unstubAllGlobals();
   });

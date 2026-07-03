@@ -21,6 +21,9 @@ vi.mock('@/lib/backend-tools', () => ({
 vi.mock('@/lib/genfill-asset', () => ({
   genfillAssetUrl: () => 'http://x/asset.png',
 }));
+vi.mock('./GenfillRegionPreview', () => ({
+  GenfillRegionPreview: () => <div data-testid="genfill-region-preview-stub" />,
+}));
 
 function widgetWith(genfill: Partial<GenfillState>): Widget {
   return {
@@ -61,7 +64,7 @@ describe('GenfillWidgetBody', () => {
       status: 'ready', prompt: 'a boat',
       result: { assetId: 'genfill-w_gf_1', width: 100, height: 50 },
     })} />);
-    expect(screen.getByRole('img')).toBeTruthy();
+    expect(screen.getByTestId('genfill-region-preview-stub')).toBeTruthy();
     expect(screen.getByLabelText(/clip to region/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: /accept/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /discard/i })).toBeTruthy();

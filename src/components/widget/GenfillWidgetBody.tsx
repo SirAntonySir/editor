@@ -8,7 +8,7 @@ import {
   genfillAspectMatches,
   genfillNodeDims,
 } from '@/store/genfill-actions';
-import { genfillAssetUrl } from '@/lib/genfill-asset';
+import { GenfillRegionPreview } from './GenfillRegionPreview';
 import { useBackendState } from '@/store/backend-state-slice';
 
 interface GenfillWidgetBodyProps {
@@ -132,11 +132,7 @@ export function GenfillWidgetBody({ widget }: GenfillWidgetBodyProps) {
         />
       )}
       {g.status === 'ready' && g.result && (
-        <img
-          src={genfillAssetUrl(sessionId, g.result.assetId)}
-          alt={g.prompt}
-          className="w-full rounded-[3px] border border-separator"
-        />
+        <GenfillRegionPreview widget={widget} sessionId={sessionId} />
       )}
       {g.status === 'error' && g.error && (
         <div className="text-[11px] text-[var(--color-danger,#e5484d)] flex items-center justify-between gap-2">

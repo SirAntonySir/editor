@@ -228,18 +228,22 @@ class SessionDocument(BaseModel):
         defense-in-depth — a no-op for params already present, a fresh seed
         for ones that aren't."""
         for node in widget.nodes:
-            ops = self.canonical.setdefault(node.layer_id, {}).setdefault(node.type, {})
-            for pkey, pval in node.params.items():
-                if pkey not in ops:
-                    ops[pkey] = pval
+            target_layers = node.layer_ids if node.layer_ids else [node.layer_id]
+            for layer in target_layers:
+                ops = self.canonical.setdefault(layer, {}).setdefault(node.type, {})
+                for pkey, pval in node.params.items():
+                    if pkey not in ops:
+                        ops[pkey] = pval
 
     def _reset_canonical_from_widget(self, widget: Widget) -> None:
         """Inverse of _seed_canonical_from_widget: clear exactly the param keys
         the widget owns, pruning emptied slots. A sibling param on the same
         (layer, op) set by another view survives."""
         for node in widget.nodes:
-            for pkey in node.params:
-                clear_param_value(self.canonical, node.layer_id, node.type, pkey)
+            target_layers = node.layer_ids if node.layer_ids else [node.layer_id]
+            for layer in target_layers:
+                for pkey in node.params:
+                    clear_param_value(self.canonical, layer, node.type, pkey)
 
     def add_widget(self, widget: Widget) -> list[StateEvent]:
         if widget.id in self.widgets:

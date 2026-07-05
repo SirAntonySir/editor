@@ -21,6 +21,10 @@ import type { NodeProps } from '@xyflow/react';
 import { WidgetNode, type WidgetNodeData } from './WidgetNode';
 import { TetherEdge, type TetherEdgeType } from './TetherEdge';
 import { pickTetherHandles } from './tether-handles';
+import {
+  isValidTetherConnection, parseLayerHandle, imageNodeForLayer,
+} from '@/lib/workspace-connect';
+import type { Edge } from '@xyflow/react';
 import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
 import { InfoNode, type InfoNodeData } from './InfoNode';
 import type { Widget } from '@/types/widget';
@@ -168,8 +172,20 @@ export function CanvasWorkspace() {
   const documentMeta = useEditorStore((s) => s.documentMeta);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   const snapshotWidgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
+  const tetherEdges = useEditorStore((s) => s.tetherEdges);
   const setActiveImageNode = useEditorStore((s) => s.setActiveImageNode);
   const addImageNode = useEditorStore((s) => s.addImageNode);
+  const syncWidgetTethers = useEditorStore((s) => s.syncWidgetTethers);
+  const addWidgetTarget = useEditorStore((s) => s.addWidgetTarget);
+  const retargetWidget = useEditorStore((s) => s.retargetWidget);
+  const removeWidgetTarget = useEditorStore((s) => s.removeWidgetTarget);
+
+  // Reconcile the optimistic tetherEdges mirror against the backend snapshot
+  // (widget.nodes[].layerIds). Runs when widgets or node membership change;
+  // does NOT depend on tetherEdges, so it never loops on its own write.
+  useEffect(() => {
+    syncWidgetTethers(snapshotWidgets);
+  }, [snapshotWidgets, imageNodes, syncWidgetTethers]);
 
   // Auto-create an ImageNode for the current document's layers on first mount
   // when no nodes exist yet. Ensures the workspace shows the open image immediately.
@@ -318,35 +334,15 @@ export function CanvasWorkspace() {
       rfLookup.set(n.id, { position: n.position, size: { w, h } });
     }
 
-    for (const w of snapshotWidgets) {
-      if (w.status !== 'active') continue;
-      const widgetNode = widgetNodes[w.id];
-      if (!widgetNode) continue; // no canvas footprint without a tether
-      const rfWidget = rfLookup.get(w.id);
-      if (!rfWidget) continue;
+    // Widget tethers: one edge per (widget, layer) target, from the optimistic
+    // tetherEdges mirror (reconciled from the snapshot by syncWidgetTethers).
+    // The target is the specific per-layer RAIL handle; pickTetherHandles picks
+    // only the widget's OUTLET side (its target-handle result is discarded).
+    for (const te of Object.values(tetherEdges)) {
+      const rfWidget = rfLookup.get(te.widgetNodeId);
+      const rfTarget = rfLookup.get(te.targetImageNodeId);
+      if (!rfWidget || !rfTarget) continue;
 
-      let targetId: string | null = null;
-      const layerId = w.nodes[0]?.layerId;
-      if (layerId) {
-        for (const n of Object.values(imageNodes)) {
-          if (n.layerIds.includes(layerId)) { targetId = n.id; break; }
-        }
-      }
-      if (!targetId && activeImageNodeId && imageNodes[activeImageNodeId]) {
-        targetId = activeImageNodeId;
-      }
-      if (!targetId) continue;
-
-      const rfTarget = rfLookup.get(targetId);
-      if (!rfTarget) continue;
-
-      // Route each edge to the image's nearest edge (see pickTetherHandles).
-      // Re-picks whenever local `nodes` state changes (drag, resize, mount).
-      // Use the widget's full bounding box centre, not a header-band approximation —
-      // otherwise the picker treats a widget that is visually below the image as if
-      // it were inside the image's vertical band (because the header centre is
-      // still inside the image bbox) and routes to a left/right handle instead of
-      // top/bottom.
       const widgetCenter = {
         x: rfWidget.position.x + rfWidget.size.w / 2,
         y: rfWidget.position.y + rfWidget.size.h / 2,
@@ -357,16 +353,18 @@ export function CanvasWorkspace() {
         x1: rfTarget.position.x + rfTarget.size.w,
         y1: rfTarget.position.y + rfTarget.size.h,
       };
-      const { sourceHandle, targetHandle } = pickTetherHandles(widgetCenter, imageBounds);
+      const { sourceHandle } = pickTetherHandles(widgetCenter, imageBounds);
       out.push({
-        id: `auto-${w.id}`,
-        source: w.id,
-        target: targetId,
+        id: te.id,
+        source: te.widgetNodeId,
+        target: te.targetImageNodeId,
         sourceHandle,
-        targetHandle,
+        targetHandle: `layer-tether-${te.layerId}`,
+        // Only the target end reconnects — the source is always the widget.
+        reconnectable: 'target',
         type: 'tether',
-        data: { scopeKind: 'layer' as const },
-        selectable: false,
+        data: { scopeKind: 'layer' as const, widgetId: te.widgetNodeId, layerId: te.layerId },
+        selectable: true, // selectable so ⌫ can remove a single target
       });
     }
 
@@ -437,7 +435,7 @@ export function CanvasWorkspace() {
       });
     }
     return out;
-  }, [snapshotWidgets, imageNodes, widgetNodes, infoNodes, activeImageNodeId, nodes]);
+  }, [tetherEdges, imageNodes, infoNodes, nodes]);
 
   // Persist every node in `draggedNodes` back to the store. React Flow fires
   // drag-stop with the full array of nodes that moved — for a single drag it's
@@ -547,9 +545,76 @@ export function CanvasWorkspace() {
     [setActiveImageNode],
   );
 
-  const onConnect = useCallback((_: Connection) => {
-    // Manual edge dragging is disabled in v1; ignore.
+  // ─── Tether connect / reconnect / delete ───────────────────────────
+  // All three write to the optimistic tetherEdges mirror for instant feedback
+  // AND call the backend update_widget_targets tool (the source of truth). The
+  // snapshot round-trip + syncWidgetTethers reconcile.
+  const sid = () => useBackendState.getState().sessionId;
+
+  const isValidConnection = useCallback((conn: Connection | Edge): boolean => {
+    const st = useEditorStore.getState();
+    const widgetIds = new Set(
+      useBackendState.getState().snapshot?.widgets
+        .filter((w) => w.status === 'active').map((w) => w.id) ?? [],
+    );
+    return isValidTetherConnection(conn, { widgetIds, tetherEdges: st.tetherEdges });
   }, []);
+
+  const onConnect = useCallback((conn: Connection) => {
+    if (!isValidConnection(conn)) return;
+    const layerId = parseLayerHandle(conn.targetHandle);
+    const widgetId = conn.source;
+    if (!layerId || !widgetId) return;
+    const imageNodeId = conn.target ?? imageNodeForLayer(useEditorStore.getState().imageNodes, layerId);
+    if (!imageNodeId) return;
+    addWidgetTarget(widgetId, imageNodeId, layerId);
+    const s = sid();
+    if (s) void backendTools.update_widget_targets(s, { widgetId, op: 'add', layerId });
+  }, [isValidConnection, addWidgetTarget]);
+
+  // Reconnect: dragging a tether's TARGET end to another rail handle.
+  const reconnectDone = useRef(false);
+  const onReconnectStart = useCallback(() => { reconnectDone.current = false; }, []);
+
+  const onReconnect = useCallback((oldEdge: Edge, conn: Connection) => {
+    if (!isValidConnection(conn)) return;
+    const newLayerId = parseLayerHandle(conn.targetHandle);
+    const data = oldEdge.data as { widgetId?: string; layerId?: string } | undefined;
+    const widgetId = data?.widgetId ?? oldEdge.source;
+    const fromLayerId = data?.layerId;
+    if (!newLayerId || !widgetId || !fromLayerId) return;
+    const imageNodeId = conn.target ?? imageNodeForLayer(useEditorStore.getState().imageNodes, newLayerId);
+    if (!imageNodeId) return;
+    reconnectDone.current = true;
+    retargetWidget(oldEdge.id, imageNodeId, newLayerId);
+    const s = sid();
+    if (s) void backendTools.update_widget_targets(s, { widgetId, op: 'retarget', layerId: newLayerId, fromLayerId });
+  }, [isValidConnection, retargetWidget]);
+
+  // Dropped on empty space → remove that one target.
+  const onReconnectEnd = useCallback((_e: unknown, edge: Edge) => {
+    if (reconnectDone.current) return;
+    if (!edge.id.startsWith('te-')) return;
+    const data = edge.data as { widgetId?: string; layerId?: string } | undefined;
+    const widgetId = data?.widgetId ?? edge.source;
+    const layerId = data?.layerId;
+    removeWidgetTarget(edge.id);
+    const s = sid();
+    if (s && widgetId && layerId) void backendTools.update_widget_targets(s, { widgetId, op: 'remove', layerId });
+  }, [removeWidgetTarget]);
+
+  // Select a tether + ⌫ → remove that one target.
+  const onEdgesDelete = useCallback((deleted: Edge[]) => {
+    const s = sid();
+    for (const edge of deleted) {
+      if (!edge.id.startsWith('te-')) continue; // ignore info/extracted edges
+      const data = edge.data as { widgetId?: string; layerId?: string } | undefined;
+      const widgetId = data?.widgetId ?? edge.source;
+      const layerId = data?.layerId;
+      removeWidgetTarget(edge.id);
+      if (s && widgetId && layerId) void backendTools.update_widget_targets(s, { widgetId, op: 'remove', layerId });
+    }
+  }, [removeWidgetTarget]);
 
   return (
     <div className="w-full h-full">
@@ -565,6 +630,13 @@ export function CanvasWorkspace() {
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         onConnect={onConnect}
+        isValidConnection={isValidConnection}
+        onReconnectStart={onReconnectStart}
+        onReconnect={onReconnect}
+        onReconnectEnd={onReconnectEnd}
+        onEdgesDelete={onEdgesDelete}
+        edgesReconnectable
+        reconnectRadius={12}
         proOptions={{ hideAttribution: true }}
         minZoom={0.05}
         maxZoom={4}

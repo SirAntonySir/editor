@@ -27,6 +27,10 @@ class Node(BaseModel):
     inputs: list[str] = Field(default_factory=list)  # node IDs
     layer_id: str  # which frontend layer this node renders into
     layer_ids: list[str] | None = None  # populated for image_node-scope nodes
+    # How layer_ids is interpreted at render time:
+    #   "composite" — merge the listed layers, apply the op once (crop/rotate, image_node).
+    #   "replicate" — apply the op's params to each listed layer independently (multi-target widgets).
+    layer_ids_mode: Literal["composite", "replicate"] = "composite"
     widget_id: str | None = None  # originating Widget id (for delete_widget cleanup); None for canonical nodes
 
 

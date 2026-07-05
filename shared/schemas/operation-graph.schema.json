@@ -33,6 +33,15 @@
           "default": null,
           "title": "Layerids"
         },
+        "layerIdsMode": {
+          "default": "composite",
+          "enum": [
+            "composite",
+            "replicate"
+          ],
+          "title": "Layeridsmode",
+          "type": "string"
+        },
         "params": {
           "additionalProperties": {
             "anyOf": [

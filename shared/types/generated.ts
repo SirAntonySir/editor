@@ -800,6 +800,7 @@ export interface Node {
   inputs: string[];
   layerId: string;
   layerIds: string[] | null;
+  layerIdsMode: "composite" | "replicate";
   params: {
     [k: string]:
       | number

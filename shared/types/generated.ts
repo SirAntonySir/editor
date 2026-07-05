@@ -41,7 +41,7 @@ export type ControlSchema =
 /**
  * Discriminated union over the scope kinds.
  */
-export type Scope = GlobalScope | NamedRegionScope | MaskScope | ImageNodeScope | ReplicateScope;
+export type Scope = GlobalScope | NamedRegionScope | MaskScope | ImageNodeScope;
 
 export interface Widget {
   bindings: ControlBinding[];
@@ -330,21 +330,6 @@ export interface ImageNodeScope {
   imageNodeId: string;
   kind: "image_node";
   layerIds: string[];
-}
-/**
- * Apply one op's params to each target (imageNode, layer) independently.
- *
- * Distinct from ImageNodeScope's composite semantic — replicate never merges
- * layers; the same params land on every target layer separately, and targets
- * may span multiple image nodes.
- */
-export interface ReplicateScope {
-  kind: "replicate";
-  targets: ReplicateTarget[];
-}
-export interface ReplicateTarget {
-  imageNodeId: string;
-  layerId: string;
 }
 export interface WidgetOrigin {
   anchor: string | null;

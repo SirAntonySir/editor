@@ -1270,14 +1270,6 @@
           ],
           "default": null
         },
-        "layerIdsMode": {
-          "default": "composite",
-          "enum": [
-            "composite",
-            "replicate"
-          ],
-          "type": "string"
-        },
         "params": {
           "additionalProperties": {
             "anyOf": [
@@ -1327,7 +1319,6 @@
         "inputs",
         "layerId",
         "layerIds",
-        "layerIdsMode",
         "params",
         "scope",
         "type",

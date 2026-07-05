@@ -59,9 +59,10 @@ describe('tetherWorkspaceWidgetOnEngage', () => {
     const edges = Object.values(editor.tetherEdges);
     expect(edges).toHaveLength(1);
     expect(edges[0]).toMatchObject({
-      id: `te-${w.id}`,
+      id: `te-${w.id}-layer-a`,
       widgetNodeId: w.id,
       targetImageNodeId: nodeId,
+      layerId: 'layer-a',
       scope: { kind: 'layer', layerId: 'layer-a' },
     });
   });

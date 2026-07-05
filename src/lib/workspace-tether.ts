@@ -1,7 +1,6 @@
 import type { Widget } from '@/types/widget';
 import { useEditorStore } from '@/store';
 import { nextSpawnPositionFor, pickSpawnSide, type PlacedRect, type Viewport } from '@/components/workspace/workspace-layout';
-import type { TetherEdgeState } from '@/types/workspace';
 import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
 import { editorDocument } from '@/core/document';
 
@@ -75,23 +74,16 @@ function buildTetherForWidget(widget: Widget, viewport?: Viewport): void {
     side,
   );
 
-  // Build edge scope from the widget's WidgetNode.layer_id. Widgets without
-  // a layer_id (truly global widgets with no layer affinity) fall through to
-  // a node-wide tether.
-  const edgeScope: TetherEdgeState['scope'] = widgetLayerId
-    ? { kind: 'layer', layerId: widgetLayerId }
-    : { kind: 'node' };
-
   // SSE-driven placement: consolidate position + edge into a single history
   // snapshot so undo can roll the widget back to the pre-placement state.
+  // Seed exactly ONE tether target (the widget's own layer). Multi-target
+  // growth happens later via drag → update_widget_targets. Truly-global
+  // widgets (no layer_id) get no rail tether — the rail connects by layer.
   editorDocument.workspace.batch('Tether widget', () => {
     editor.setWidgetPosition(widget.id, pos);
-    editor.setEdge({
-      id: `te-${widget.id}`,
-      widgetNodeId: widget.id,
-      targetImageNodeId,
-      scope: edgeScope,
-    });
+    if (widgetLayerId) {
+      editor.addWidgetTarget(widget.id, targetImageNodeId, widgetLayerId);
+    }
   });
 
   // Spawn expanded so the user can interact with the controls immediately.

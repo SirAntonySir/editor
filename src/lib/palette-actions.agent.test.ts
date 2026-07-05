@@ -24,18 +24,25 @@ vi.mock('@/lib/segmentation/object-actions', () => ({
   extractObjectToLayer: (...a: unknown[]) => extractLayerMock(...a),
 }));
 
+// Client-side SAM: assert it's invoked for maskless (segmentable) regions.
+const segmentMock = vi.fn();
+vi.mock('@/lib/segmentation/segment-region', () => ({
+  segmentRegionFromPoint: (...a: unknown[]) => segmentMock(...a),
+}));
+
 // Default region-extraction choice for tests that attach a committed-mask chip;
 // individual tests override by passing a getChoice to runAgentTurn.
 const chooseNode = async () => 'node' as const;
 
 const { useBackendState } = await import('@/store/backend-state-slice');
-const { runAgentTurn, AGENT_LOOP_TOOLS } = await import('./palette-actions.agent');
+const { runAgentTurn, runAgentTurnForRegion, AGENT_LOOP_TOOLS } = await import('./palette-actions.agent');
 
 beforeEach(() => {
   useBackendState.getState().setSessionId('sid-1');
   maskHasSet.clear();
   extractMock.mockReset();
   extractLayerMock.mockReset();
+  segmentMock.mockReset();
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, tool_calls: 2 }), { status: 200 })));
 });
 
@@ -131,5 +138,61 @@ describe('runAgentTurn', () => {
     const body = lastBody();
     expect(body.forced_targets).toEqual([]);
     expect(body.attached_objects).toEqual([]);
+  });
+});
+
+describe('runAgentTurnForRegion', () => {
+  async function setRegions(regions: unknown[]) {
+    const { useAiSession } = await import('@/hooks/useImageContext');
+    useAiSession.setState({ context: { candidateRegions: regions } as never });
+  }
+
+  it('extracts a precomputed AI region to a node and fires the agent turn', async () => {
+    const { useEditorStore } = await import('@/store');
+    const nodeId = useEditorStore.getState().addImageNode(['l-1']);
+    useEditorStore.getState().setActiveImageNode(nodeId);
+    await setRegions([{ label: 'sky', maskRef: 'm-sky' }]);
+    maskHasSet.add('m-sky');
+    extractMock.mockReturnValue({ imageNodeId: 'node-new', layerId: 'L1' });
+
+    const out = await runAgentTurnForRegion('fix the sky', 'sky', async () => 'node');
+    expect(out.extracted).toBe(true);
+    expect(extractMock).toHaveBeenCalledWith('m-sky', nodeId);
+    const body = lastBody();
+    expect(body.intent).toBe('fix the sky');
+    expect(body.forced_targets).toEqual([{ image_node_id: 'node-new', layer_ids: ['L1'] }]);
+  });
+
+  it('segments a maskless AI region via its point, then extracts', async () => {
+    const { useEditorStore } = await import('@/store');
+    const nodeId = useEditorStore.getState().addImageNode(['l-1']);
+    useEditorStore.getState().setActiveImageNode(nodeId);
+    await setRegions([{ label: 'car', representativePoint: [0.5, 0.5] }]);
+    segmentMock.mockResolvedValue('m-car');
+    extractMock.mockReturnValue({ imageNodeId: 'node-car', layerId: 'Lc' });
+
+    const out = await runAgentTurnForRegion('fix the car', 'car', async () => 'node');
+    expect(segmentMock).toHaveBeenCalledWith(nodeId, [0.5, 0.5], 'car');
+    expect(extractMock).toHaveBeenCalledWith('m-car', nodeId);
+    expect(out.extracted).toBe(true);
+  });
+
+  it('reports not-extracted (no agent turn) when the user denies', async () => {
+    const { useEditorStore } = await import('@/store');
+    const nodeId = useEditorStore.getState().addImageNode(['l-1']);
+    useEditorStore.getState().setActiveImageNode(nodeId);
+    await setRegions([{ label: 'sky', maskRef: 'm-sky' }]);
+    maskHasSet.add('m-sky');
+
+    const out = await runAgentTurnForRegion('fix the sky', 'sky', async () => 'deny');
+    expect(out.extracted).toBe(false);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('reports not-extracted when the region is unknown', async () => {
+    await setRegions([]);
+    const out = await runAgentTurnForRegion('fix the sky', 'sky', async () => 'node');
+    expect(out.extracted).toBe(false);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });

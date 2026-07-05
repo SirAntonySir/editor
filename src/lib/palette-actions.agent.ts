@@ -171,3 +171,48 @@ export async function runAgentTurn(
     active_node: activeNodePayload,
   });
 }
+
+/** Accept-time mirror of {@link runAgentTurn} for a single autonomous region.
+ *  Feeds one `region:ai:<label>` chip through the same approval-gated extract
+ *  path (Extract → Node / Layer / ✕), then re-plans adjustments on the extracted
+ *  node. `extracted` is false when the user denies, the region can't be resolved,
+ *  or extraction fails — the caller then does a plain in-place accept instead of
+ *  running an agent turn against the whole node. */
+export async function runAgentTurnForRegion(
+  intent: string,
+  label: string,
+  getChoice: RegionChoiceFn = (l) => useRegionExtractionApproval.getState().request(l),
+): Promise<{ extracted: boolean; ok: boolean; toolCalls: number }> {
+  const sid = useBackendState.getState().sessionId;
+  if (!sid) return { extracted: false, ok: false, toolCalls: 0 };
+
+  const editor = useEditorStore.getState();
+  const activeNodeId = editor.activeImageNodeId;
+  const activeNode = activeNodeId ? editor.imageNodes[activeNodeId] : undefined;
+  const candidateRegions = useAiSession.getState().context?.candidateRegions ?? [];
+
+  const { forcedTargets, fallbackIds } = await resolveAttachedRegions(
+    [`region:ai:${label}`],
+    candidateRegions,
+    activeNodeId,
+    getChoice,
+  );
+
+  // Nothing was baked into a node (deny / unresolved / extraction failure) —
+  // signal the caller to fall back to a plain in-place accept.
+  if (forcedTargets.length === 0) return { extracted: false, ok: true, toolCalls: 0 };
+
+  const activeNodePayload =
+    activeNodeId && activeNode
+      ? { image_node_id: activeNodeId, layer_ids: activeNode.layerIds }
+      : null;
+
+  const res = await backendTools.agentTurn(sid, {
+    intent,
+    attached_objects: fallbackIds,
+    forced_targets: dedupeForcedTargets(forcedTargets),
+    client_tools: serializeForAgentLoop(AGENT_LOOP_TOOLS),
+    active_node: activeNodePayload,
+  });
+  return { extracted: true, ...res };
+}

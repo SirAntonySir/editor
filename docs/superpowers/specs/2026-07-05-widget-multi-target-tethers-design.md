@@ -70,10 +70,20 @@ Rejected alternatives:
 
 ### 1. Per-layer rail handles
 
-- In `LayerStrip.tsx`, each layer row renders a React Flow `<Handle>` on the thumbnail's outer
-  (left) edge, id `layer-tether-${layerId}`. It serves as the **target** for incoming widget
-  tethers (and, if simplest, a matching source is not needed on the image side — the widget is
-  always the source).
+- In `LayerStrip.tsx`, each layer row gains a React Flow `<Handle>` as a **dedicated outer-left
+  port** — a new leftmost element in the row, *before* the existing eye toggle:
+  `[○ port] [👁 eye] [01 ordinal] [thumbnail]`. Id `layer-tether-${layerId}`. It serves as the
+  **target** for incoming widget tethers (the widget is always the source; no image-side source
+  handle needed).
+- **Port placement (decision A):** the port sits at the row's outer-left edge, *not* on the
+  thumbnail. The **eye toggle is 100% unchanged** — same position, same per-layer visibility
+  behavior. Tethers arrive at the far-left port, clear of the eye/ordinal, giving a consistent
+  left entry point. (Rejected B: port on the thumbnail edge with the eye relocated to a hover
+  overlay — cleaner "tether-on-avatar" read, but changes eye behavior and competes with thumbnail
+  imagery.)
+- **Latent at rest:** the port is `opacity: 0` when idle so the rail looks identical to today; it
+  fades in on row-hover and while a connection is being dragged. Connected ports render solid
+  (tether endpoint).
 - The 8 node-body handles are **retired for widget tethers**. (They may remain for info/extracted
   edges — see Scope Boundaries.)
 - Single-layer photos → exactly one handle; behavior for the common case is unchanged.
@@ -122,15 +132,36 @@ re-derive:
    op naturally replicates across photos with shared params, applied separately — no compositing.
    Kept distinct from the `layerIds` composite-then-apply pass, which is unchanged.
 
-### 5. Backend (Engine SSoT) — main unknown
+### 5. Backend (Engine SSoT) — investigated, feasible, bounded
 
-The op/scope model in `backend/` must represent a multi-`(node,layer)` **replicate** target set,
-separate from the existing composite `layerIds`. **This has not yet been inspected.** The first
-task of the implementation plan is to read the backend scope/op model and confirm feasibility;
-the design assumes a single op node carrying a replicate target set with shared params.
+Investigation (2026-07-05) confirmed the feature is feasible but needs more than a param tweak.
+Findings and required changes:
+
+- **Cross-node representation.** `ImageNodeScope` (`backend/app/schemas/widget.py`) already carries
+  `layer_ids: list[str]` but is pinned to a **single** `image_node_id`, so it cannot span photos.
+  Introduce a distinct **`ReplicateScope`** (widget schema) whose target is a set of layer ids
+  (layer ids are globally unique; the owning image node is resolvable frontend-side for edge
+  rendering). Keeping it a separate variant avoids colliding with the existing composite
+  `layer_ids` semantic used by crop/rotate transforms.
+- **Canonical write path drops plural targets — must fan out.** Three spots only use
+  `node.layer_id` (first layer): `_seed_canonical_from_widget` and `_reset_canonical_from_widget`
+  (`backend/app/state/document.py` ~L217–242) and `set_widget_param.py` (~L90). Each must iterate
+  the full replicate target set.
+- **Graph projection strips `layer_ids` for regular ops.** `project_to_graph` in
+  `backend/app/state/operations.py` (~L72–84) sets `layer_ids=None` for canonical-derived nodes
+  (only crop/rotate transforms preserve it). Regular replicate ops must carry their target set
+  through, tagged so the renderer applies **per-layer independently**, not composite.
+- **No scope-mutation tools exist — net-new.** There is no `retarget` / `add_target` /
+  `remove_target` / `update_scope` tool; only param + lifecycle tools. Reconnect / add-target /
+  remove-target each need a new backend tool (or one parameterized `update_widget_targets` tool),
+  plus corresponding `backend-tools.ts` frontend calls.
+- **Shared types.** `scripts/gen-shared-types.py` regenerates the TS mirror; run `gen:types:check`
+  (part of `npm run check`) after backend schema edits.
 
 ## Decisions (defaults, approved)
 
+- **Port placement (A):** dedicated outer-left port per row; the eye toggle stays exactly where and
+  how it is today. Port is latent (`opacity: 0`) at rest, fades in on hover / during connect.
 - **Orphaned widget:** removing the last target keeps the widget on canvas, marked visually
   "unbound" (muted/dashed), rather than auto-deleting. Non-destructive; re-wirable.
 - **Feature scope:** only **widget→layer** tethers move to the rail. **Info-node** and
@@ -169,4 +200,10 @@ the design assumes a single op node carrying a replicate target set with shared 
 - `src/types/scope.ts` — replicate target-set scope
 - `src/lib/image-node-renderer.ts` + `select-pipeline-nodes` — replicate per-layer matching
 - `src/lib/workspace-tether.ts` — spawn seeds one target
-- `backend/` — replicate scope/op model (feasibility TBD, first plan task)
+- `src/lib/backend-tools.ts` — new target-mutation calls (retarget / add / remove)
+- `backend/app/schemas/widget.py` — new `ReplicateScope` variant
+- `backend/app/state/document.py` — fan out canonical seed/reset over all target layers
+- `backend/app/state/operations.py` — preserve `layer_ids` (replicate-tagged) in graph projection
+- `backend/app/tools/widgets/set_widget_param.py` — write param to all target layers
+- `backend/app/tools/widgets/` — new `update_widget_targets` tool (retarget/add/remove)
+- `scripts/gen-shared-types.py` / `npm run gen:types:check` — regenerate TS mirror

@@ -37,8 +37,27 @@ class ImageNodeScope(BaseModel):
     layer_ids: list[str] = Field(default_factory=list)
 
 
+class ReplicateTarget(BaseModel):
+    model_config = camel_config(extra="forbid")
+    image_node_id: str = Field(min_length=1)
+    layer_id: str = Field(min_length=1)
+
+
+class ReplicateScope(BaseModel):
+    """Apply one op's params to each target (imageNode, layer) independently.
+
+    Distinct from ImageNodeScope's composite semantic — replicate never merges
+    layers; the same params land on every target layer separately, and targets
+    may span multiple image nodes.
+    """
+
+    model_config = camel_config(extra="forbid")
+    kind: Literal["replicate"]
+    targets: list[ReplicateTarget] = Field(default_factory=list)
+
+
 _ScopeAny = Annotated[
-    Union[GlobalScope, NamedRegionScope, MaskScope, ImageNodeScope],
+    Union[GlobalScope, NamedRegionScope, MaskScope, ImageNodeScope, ReplicateScope],
     Field(discriminator="kind"),
 ]
 

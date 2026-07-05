@@ -1802,6 +1802,53 @@
       "title": "RegionStats",
       "type": "object"
     },
+    "ReplicateScope": {
+      "additionalProperties": false,
+      "description": "Apply one op's params to each target (imageNode, layer) independently.\n\nDistinct from ImageNodeScope's composite semantic \u2014 replicate never merges\nlayers; the same params land on every target layer separately, and targets\nmay span multiple image nodes.",
+      "properties": {
+        "kind": {
+          "const": "replicate",
+          "enum": [
+            "replicate"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/ReplicateTarget"
+          },
+          "title": "Targets",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ReplicateScope",
+      "type": "object"
+    },
+    "ReplicateTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "imageNodeId": {
+          "minLength": 1,
+          "title": "Imagenodeid",
+          "type": "string"
+        },
+        "layerId": {
+          "minLength": 1,
+          "title": "Layerid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "imageNodeId",
+        "layerId"
+      ],
+      "title": "ReplicateTarget",
+      "type": "object"
+    },
     "ResolvedNumbers": {
       "additionalProperties": false,
       "description": "One attempt's tunable values + optional reasoning. Used both by the\nfused-tool framework (Plan 2) and by Widget.rejected_attempts for the\nrepeat-widget anchor log.",
@@ -2464,7 +2511,8 @@
           "global": "#/$defs/GlobalScope",
           "image_node": "#/$defs/ImageNodeScope",
           "mask": "#/$defs/MaskScope",
-          "named_region": "#/$defs/NamedRegionScope"
+          "named_region": "#/$defs/NamedRegionScope",
+          "replicate": "#/$defs/ReplicateScope"
         },
         "propertyName": "kind"
       },
@@ -2480,6 +2528,9 @@
         },
         {
           "$ref": "#/$defs/ImageNodeScope"
+        },
+        {
+          "$ref": "#/$defs/ReplicateScope"
         }
       ],
       "title": "Scope"

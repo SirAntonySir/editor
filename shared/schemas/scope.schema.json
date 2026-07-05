@@ -96,6 +96,53 @@
       ],
       "title": "NamedRegionScope",
       "type": "object"
+    },
+    "ReplicateScope": {
+      "additionalProperties": false,
+      "description": "Apply one op's params to each target (imageNode, layer) independently.\n\nDistinct from ImageNodeScope's composite semantic \u2014 replicate never merges\nlayers; the same params land on every target layer separately, and targets\nmay span multiple image nodes.",
+      "properties": {
+        "kind": {
+          "const": "replicate",
+          "enum": [
+            "replicate"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/ReplicateTarget"
+          },
+          "title": "Targets",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ReplicateScope",
+      "type": "object"
+    },
+    "ReplicateTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "imageNodeId": {
+          "minLength": 1,
+          "title": "Imagenodeid",
+          "type": "string"
+        },
+        "layerId": {
+          "minLength": 1,
+          "title": "Layerid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "imageNodeId",
+        "layerId"
+      ],
+      "title": "ReplicateTarget",
+      "type": "object"
     }
   },
   "description": "Discriminated union over the scope kinds.",
@@ -104,7 +151,8 @@
       "global": "#/$defs/GlobalScope",
       "image_node": "#/$defs/ImageNodeScope",
       "mask": "#/$defs/MaskScope",
-      "named_region": "#/$defs/NamedRegionScope"
+      "named_region": "#/$defs/NamedRegionScope",
+      "replicate": "#/$defs/ReplicateScope"
     },
     "propertyName": "kind"
   },
@@ -120,6 +168,9 @@
     },
     {
       "$ref": "#/$defs/ImageNodeScope"
+    },
+    {
+      "$ref": "#/$defs/ReplicateScope"
     }
   ],
   "title": "Scope"

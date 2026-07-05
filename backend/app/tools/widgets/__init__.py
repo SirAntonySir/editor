@@ -12,6 +12,7 @@ from .restore_widget import RestoreWidgetTool
 from .set_param import SetParamTool
 from .set_widget_param import SetWidgetParamTool
 from .unlock_widget_param import UnlockWidgetParamTool
+from .update_widget_targets import UpdateWidgetTargetsTool
 
 
 def register_all_widget_tools(registry: BackendToolRegistry) -> None:
@@ -23,6 +24,7 @@ def register_all_widget_tools(registry: BackendToolRegistry) -> None:
     registry.register(AcceptWidgetTool())
     registry.register(SetWidgetParamTool())
     registry.register(UnlockWidgetParamTool())
+    registry.register(UpdateWidgetTargetsTool())
     registry.register(SetParamTool())
     # Genfill tools are constructed WITH deps: they schedule background
     # generation that outlives the handler and must re-acquire the session

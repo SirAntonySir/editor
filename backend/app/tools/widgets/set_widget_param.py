@@ -88,7 +88,7 @@ class SetWidgetParamTool(BackendTool[_Input, _Output]):
         node.params[binding.target.param_key] = input.value
         # Canonical write: the op_graph now projects from here. Replicate widgets
         # carry layer_ids — write to every target layer, not just the anchor.
-        target_layers = node.layer_ids or [node.layer_id]
+        target_layers = node.layer_ids if node.layer_ids is not None else [node.layer_id]
         for layer in target_layers:
             doc.set_param(layer, node.type, binding.target.param_key, input.value)
 

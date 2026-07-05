@@ -19,8 +19,6 @@ export function GenfillWidgetBody({ widget }: GenfillWidgetBodyProps) {
   const g = widget.genfill;
   const sessionId = useBackendState((s) => s.snapshot?.sessionId);
   const [prompt, setPrompt] = useState(g?.prompt ?? '');
-  const [negative, setNegative] = useState(g?.negativePrompt ?? '');
-  const [negativeOpen, setNegativeOpen] = useState(false);
   const [clip, setClip] = useState(true);
   const [seedPinned, setSeedPinned] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -32,9 +30,9 @@ export function GenfillWidgetBody({ widget }: GenfillWidgetBodyProps) {
   if (!g || !sessionId) return null;
 
   const generating = g.status === 'generating';
-  // Bria caps output resolution but preserves framing, so accept scales the
-  // result to source dimensions whenever the ASPECT matches. Clipping is only
-  // impossible when the aspect genuinely differs (nothing to align against).
+  // The model caps output resolution but preserves framing, so accept scales
+  // the result to source dimensions whenever the ASPECT matches. Clipping is
+  // only impossible when the aspect genuinely differs (nothing to align against).
   const dimsMatch =
     g.status === 'ready' && !!g.result && !!dims &&
     genfillAspectMatches(g.result, dims);
@@ -45,7 +43,6 @@ export function GenfillWidgetBody({ widget }: GenfillWidgetBodyProps) {
     await backendTools.genfill_regenerate(sessionId, {
       widgetId: widget.id,
       prompt: prompt.trim(),
-      negativePrompt: negative.trim() || undefined,
       ...(seed !== undefined ? { seed } : {}),
     });
     setBusy(false);
@@ -71,25 +68,6 @@ export function GenfillWidgetBody({ widget }: GenfillWidgetBodyProps) {
         autoFocus={g.status === 'compose'}
         className="w-full bg-transparent text-[12px] text-text-primary border border-separator rounded-[3px] px-2 py-1 outline-none focus:border-[var(--color-accent)]"
       />
-      {/* Negative prompt (collapsed) */}
-      {negativeOpen ? (
-        <input
-          value={negative}
-          onChange={(e) => setNegative(e.target.value)}
-          placeholder="Negative prompt (what to avoid)…"
-          disabled={generating || busy}
-          className="w-full bg-transparent text-[12px] text-text-secondary border border-separator rounded-[3px] px-2 py-1 outline-none focus:border-[var(--color-accent)]"
-        />
-      ) : (
-        <button
-          type="button"
-          className="self-start text-[10px] text-text-secondary hover:text-text-primary"
-          onClick={() => setNegativeOpen(true)}
-        >
-          + Negative prompt
-        </button>
-      )}
-
       {/* Compose: Generate. Otherwise seed row + regenerate. */}
       {g.status === 'compose' ? (
         <button

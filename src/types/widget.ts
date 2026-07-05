@@ -209,13 +209,12 @@ export interface GenfillErrorInfo {
   message: string;
 }
 
-/** State block for generative-fill widgets (Replicate bria/genfill).
+/** State block for generative-fill widgets (Replicate flux-fill-pro).
  *  Non-null marks the widget as genfill: bespoke body, no op-graph nodes,
- *  pixels land on a NEW layer at Accept. */
+ *  pixels land on a NEW layer at Accept. FLUX Fill has no negative prompt. */
 export interface GenfillState {
   status: GenfillStatus;
   prompt: string;
-  negativePrompt?: string | null;
   seed: number;
   maskId: string;
   imageNodeId: string;

@@ -41,7 +41,7 @@ class _FakeReplicate:
         self.result = result
         self.calls: list[dict] = []
 
-    async def run_bria_genfill(self, **kwargs):
+    async def run_flux_fill(self, **kwargs):
         self.calls.append(kwargs)
         return self.result
 

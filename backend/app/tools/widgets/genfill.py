@@ -1,10 +1,12 @@
-"""Generative-fill tools — Replicate bria/genfill.
+"""Generative-fill tools — Replicate black-forest-labs/flux-fill-pro.
 
 genfill_create: mint a genfill widget (compose when the prompt is empty,
 generating otherwise) and return immediately; the Replicate call runs as an
 asyncio background task so the session write lock is never held across the
 network round-trip (5–60 s). genfill_regenerate: re-run generation on an
-existing genfill widget with an updated prompt/negative_prompt/seed.
+existing genfill widget with an updated prompt/seed. (FLUX Fill has no
+negative prompt — steering happens through the prompt alone; the deprecated
+GenfillState.negative_prompt field survives only so old sessions still load.)
 
 Spec: docs/superpowers/specs/2026-07-02-genfill-widget-design.md
 """
@@ -62,7 +64,7 @@ def _png_dims(data: bytes) -> tuple[int, int]:
 
 def _binary_mask_png(mask_png: bytes) -> bytes:
     """Convert a stored mask PNG into the strict binary black/white L-mode PNG
-    that Bria expects (white=255 → generate).
+    that FLUX Fill expects (white=255 → inpaint, black → preserve).
 
     Channel choice: frontend masks (mask-png.ts) carry the mask in RGB
     (white=fill) with a UNIFORMLY opaque alpha — for those the alpha channel
@@ -135,11 +137,11 @@ async def _run_generation(store, bus, replicate, session_id: str, widget_id: str
         if mask is None:
             return
         mask_png = _binary_mask_png(base64.b64decode(mask.png_b64))
-        prompt, negative, seed = g.prompt, g.negative_prompt, g.seed
+        prompt, seed = g.prompt, g.seed
 
-    result = await replicate.run_bria_genfill(
+    result = await replicate.run_flux_fill(
         image_bytes=image_bytes, image_mime=image_mime, mask_png=mask_png,
-        prompt=prompt, negative_prompt=negative, seed=seed,
+        prompt=prompt, seed=seed,
     )
 
     async with store.with_document_lock(session_id) as doc:
@@ -200,7 +202,6 @@ class _CreateInput(BaseModel):
     image_node_id: str = Field(min_length=1)
     mask_id: str = Field(min_length=1)
     prompt: str = ""
-    negative_prompt: str | None = None
     seed: int | None = None
     origin: Literal["tool_invoked", "mcp_user_prompt"] = "tool_invoked"
 
@@ -244,7 +245,6 @@ class GenfillCreateTool(_GenfillToolBase, BackendTool[_CreateInput, _CreateOutpu
             genfill=GenfillState(
                 status="generating" if prompt else "compose",
                 prompt=prompt,
-                negative_prompt=input.negative_prompt,
                 seed=input.seed if input.seed is not None else _random_seed(),
                 mask_id=input.mask_id,
                 image_node_id=input.image_node_id,
@@ -260,7 +260,6 @@ class _RegenInput(BaseModel):
     model_config = camel_config(extra="forbid")
     widget_id: str = Field(min_length=1)
     prompt: str | None = None
-    negative_prompt: str | None = None
     seed: int | None = None
 
 
@@ -288,12 +287,10 @@ class GenfillRegenerateTool(_GenfillToolBase, BackendTool[_RegenInput, _CreateOu
         prompt = (input.prompt if input.prompt is not None else w.genfill.prompt).strip()
         if not prompt:
             raise _InvalidInput("genfill: prompt must not be empty")
-        negative = (input.negative_prompt if input.negative_prompt is not None
-                    else w.genfill.negative_prompt)
         seed = input.seed if input.seed is not None else _random_seed()
         w.genfill = w.genfill.model_copy(update={
             "status": "generating", "prompt": prompt,
-            "negative_prompt": negative, "seed": seed, "error": None,
+            "seed": seed, "error": None,
         })
         w.intent = prompt
         doc.update_widget(w)

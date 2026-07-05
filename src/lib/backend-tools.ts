@@ -212,7 +212,6 @@ export const backendTools = {
     imageNodeId: string;
     maskId: string;
     prompt: string;
-    negativePrompt?: string;
     seed?: number;
     origin: 'tool_invoked' | 'mcp_user_prompt';
   }) {
@@ -221,7 +220,6 @@ export const backendTools = {
   genfill_regenerate(sessionId: string, args: {
     widgetId: string;
     prompt?: string;
-    negativePrompt?: string;
     seed?: number;
   }) {
     return invokeTool<{ widgetId: string }>('genfill_regenerate', sessionId, args);

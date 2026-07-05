@@ -1,9 +1,13 @@
-"""Async client for Replicate's sync-mode prediction API (bria/genfill).
+"""Async client for Replicate's sync-mode prediction API (FLUX Fill pro).
 
 One purpose: image+mask+prompt in, PNG bytes out, with a typed error
 taxonomy instead of exceptions. The API token comes from EnvSettings
 (REPLICATE_API_TOKEN); an empty token yields `not_configured` so the
 genfill tools degrade cleanly on unconfigured deploys.
+
+Model: black-forest-labs/flux-fill-pro. Mask semantics match ours: white =
+inpaint, black = preserve. Unlike the previous bria/genfill there is no
+negative_prompt — steering happens through the prompt alone.
 """
 
 from __future__ import annotations
@@ -14,7 +18,7 @@ from typing import Literal
 
 import httpx
 
-BRIA_GENFILL_URL = "https://api.replicate.com/v1/models/bria/genfill/predictions"
+FLUX_FILL_URL = "https://api.replicate.com/v1/models/black-forest-labs/flux-fill-pro/predictions"
 
 GenfillErrorKind = Literal["moderation", "timeout", "api_error", "not_configured"]
 
@@ -49,14 +53,13 @@ class ReplicateClient:
         self._timeout = timeout_s
         self._transport = transport
 
-    async def run_bria_genfill(
+    async def run_flux_fill(
         self,
         *,
         image_bytes: bytes,
         image_mime: str,
         mask_png: bytes,
         prompt: str,
-        negative_prompt: str | None,
         seed: int,
     ) -> GenfillResult:
         if not self._token:
@@ -67,10 +70,10 @@ class ReplicateClient:
             "mask": _data_uri(mask_png, "image/png"),
             "prompt": prompt,
             "seed": seed,
-            "sync": True,
+            # Default is jpg; the result gets composited back as a layer, so
+            # keep it lossless.
+            "output_format": "png",
         }}
-        if negative_prompt:
-            payload["input"]["negative_prompt"] = negative_prompt
         headers = {"Authorization": f"Bearer {self._token}", "Prefer": "wait=60"}
 
         async with httpx.AsyncClient(
@@ -80,7 +83,7 @@ class ReplicateClient:
             # billed per attempt and must NOT be retried.
             for attempt in (0, 1):
                 try:
-                    resp = await client.post(BRIA_GENFILL_URL, json=payload, headers=headers)
+                    resp = await client.post(FLUX_FILL_URL, json=payload, headers=headers)
                     break
                 except httpx.TimeoutException as exc:
                     return _fail(seed, "timeout", str(exc))
@@ -94,8 +97,12 @@ class ReplicateClient:
             body = resp.json()
             if body.get("status") == "failed" or body.get("error"):
                 msg = str(body.get("error") or "prediction failed")
+                # FLUX phrases content rejections as "flagged as sensitive" /
+                # safety-tolerance violations; Bria said "moderation". Cover both.
+                lowered = msg.lower()
                 kind: GenfillErrorKind = (
-                    "moderation" if "moderat" in msg.lower() or "nsfw" in msg.lower()
+                    "moderation"
+                    if any(k in lowered for k in ("moderat", "nsfw", "sensitive", "safety"))
                     else "api_error"
                 )
                 return _fail(seed, kind, msg)

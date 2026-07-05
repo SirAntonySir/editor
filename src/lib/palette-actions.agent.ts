@@ -176,8 +176,9 @@ export async function runAgentTurn(
  *  Feeds one `region:ai:<label>` chip through the same approval-gated extract
  *  path (Extract → Node / Layer / ✕), then re-plans adjustments on the extracted
  *  node. `extracted` is false when the user denies, the region can't be resolved,
- *  or extraction fails — the caller then does a plain in-place accept instead of
- *  running an agent turn against the whole node. */
+ *  or extraction fails — the caller then falls back to its default handling
+ *  (e.g. materialising the suggestion on the full image) instead of running an
+ *  agent turn against the whole node. */
 export async function runAgentTurnForRegion(
   intent: string,
   label: string,

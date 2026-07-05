@@ -108,7 +108,9 @@ git commit -m "feat(backend): add ReplicateScope widget scope variant"
 
 ---
 
-### Task 2: `Node.layer_ids_mode` on the operation graph
+### Task 2: `Node.layer_ids_mode` on the operation graph — ❌ DROPPED (reverted during execution)
+
+> Execution proved replicate rendering works entirely via the canonical fan-out (Tasks 3–4), which projects to independent per-layer nodes. The mode marker is never read, so the field was reverted (commit `2a4d7f1`). Kept below for history.
 
 **Files:**
 - Modify: `backend/app/schemas/operation_graph.py` (`Node`, ~L21–30)
@@ -234,7 +236,9 @@ git commit -m "feat(backend): set_widget_param writes to all target layers"
 
 ---
 
-### Task 5: Preserve `layer_ids` + mode in graph projection
+### Task 5: Preserve `layer_ids` + mode in graph projection — ❌ DROPPED
+
+> Unnecessary: canonical fan-out (Task 3) already makes `project_to_graph` emit one independent per-layer node per target (`canon:L1:basic`, `canon:L2:basic`), which the existing renderer applies. Verified during execution. Kept below for history.
 
 **Files:**
 - Modify: `backend/app/state/operations.py` (`project_to_graph` regular-op branch ~L56–84; `_widget_scope_to_graph_scope` ~L11–24)
@@ -708,7 +712,9 @@ git commit -m "feat(canvas): delete tether removes one target; last→unbound wi
 
 ## Phase F — Renderer replicate semantics
 
-### Task 17: Per-layer pass applies replicate nodes independently
+### Task 17: Per-layer pass applies replicate nodes independently — ❌ DROPPED
+
+> Unnecessary: replicate ops project as plain single-layer nodes (`layer_ids=None`), which the existing per-layer pass already matches by `layer_id` and applies — including across image nodes (each node filters the global node list by its own layers). No renderer change needed. Kept below for history.
 
 **Files:**
 - Modify: `src/lib/image-node-renderer.ts` (per-layer filter and composite filter — the `!Array.isArray(n.layerIds)` / `.every(...)` branches)

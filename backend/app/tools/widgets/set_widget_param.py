@@ -86,8 +86,11 @@ class SetWidgetParamTool(BackendTool[_Input, _Output]):
 
         binding.value = input.value
         node.params[binding.target.param_key] = input.value
-        # Canonical write: the op_graph now projects from here.
-        doc.set_param(node.layer_id, node.type, binding.target.param_key, input.value)
+        # Canonical write: the op_graph now projects from here. Replicate widgets
+        # carry layer_ids — write to every target layer, not just the anchor.
+        target_layers = node.layer_ids or [node.layer_id]
+        for layer in target_layers:
+            doc.set_param(layer, node.type, binding.target.param_key, input.value)
 
         # Compound widget driver-recompute / implicit lock.
         # - Driver param change: recompute the bundle via the registry's anchor
@@ -107,7 +110,8 @@ class SetWidgetParamTool(BackendTool[_Input, _Output]):
                 # `_OrphanBinding` above.
                 for bkey, bvalue in derived.items():
                     node.params[bkey] = bvalue
-                    doc.set_param(node.layer_id, node.type, bkey, bvalue)
+                    for layer in target_layers:
+                        doc.set_param(layer, node.type, bkey, bvalue)
                     bbind = next((b for b in w.bindings if b.param_key == bkey), None)
                     if bbind is not None:
                         bbind.value = bvalue

@@ -460,3 +460,25 @@ html, body, #root {
   color: var(--color-text-secondary);
   pointer-events: none;
 }
+
+/* Per-layer tether port (LayerStrip). The rail is the ONLY connection surface
+ * for widget tethers — one port per layer thumbnail. Latent by default so the
+ * rail looks unchanged at rest; fades in on row hover or while a connection is
+ * being dragged. Overrides React Flow's default handle chrome. */
+.react-flow__handle.layer-tether-port {
+  width: 10px;
+  height: 10px;
+  min-width: 10px;
+  min-height: 10px;
+  left: -7px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  border: 2px solid var(--color-accent);
+  opacity: 0;
+  transition: opacity var(--duration-fast, 120ms) ease;
+}
+.group:hover > .react-flow__handle.layer-tether-port,
+.react-flow__handle.layer-tether-port.connectionindicator,
+.react-flow__handle.layer-tether-port.connecting {
+  opacity: 1;
+}

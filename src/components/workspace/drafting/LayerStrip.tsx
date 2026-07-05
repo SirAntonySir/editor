@@ -1,4 +1,5 @@
 import * as ContextMenu from '@radix-ui/react-context-menu';
+import { Handle, Position } from '@xyflow/react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
@@ -72,6 +73,17 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
           <ContextMenu.Root key={layer.id}>
             <ContextMenu.Trigger asChild>
               <div className={`group relative flex items-center gap-1.5 ${isVisible ? '' : 'opacity-50'}`}>
+                {/* Per-layer tether port — the ONLY connection surface for
+                    widget tethers. Latent (see .layer-tether-port in index.css):
+                    invisible at rest, fades in on row hover / while connecting.
+                    The eye toggle beside it is unchanged (placement A). */}
+                <Handle
+                  type="target"
+                  position={Position.Left}
+                  id={`layer-tether-${layer.id}`}
+                  className="layer-tether-port"
+                  aria-label={`Connect a widget to layer ${ordinal}`}
+                />
                 {/* Hover/focus label — floats to the LEFT of the marker (the
                     strip sits in the left margin) so it never overlaps the
                     photo. Quiet at rest, revealed on hover. */}

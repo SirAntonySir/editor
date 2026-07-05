@@ -192,6 +192,16 @@ export const backendTools = {
   set_param(sessionId: string, args: { layerId: string; op: string; param: string; value: ControlValue }) {
     return invokeTool<{ ok: boolean }>('set_param', sessionId, args);
   },
+  /** Add / remove / retarget a layer in a widget's replicate target set —
+   *  the backend half of workspace tether connect / reconnect / delete. */
+  update_widget_targets(sessionId: string, args: {
+    widgetId: string;
+    op: 'add' | 'remove' | 'retarget';
+    layerId: string;
+    fromLayerId?: string;
+  }) {
+    return invokeTool<{ ok: boolean }>('update_widget_targets', sessionId, args);
+  },
   set_image_node_transform(sessionId: string, args: {
     imageNodeId: string;
     layerIds: string[];

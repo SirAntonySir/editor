@@ -178,6 +178,22 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
         }),
       );
     }
+    // Autonomous local-region suggestions mirror the Cmd+K palette on accept:
+    // extract the region into its own SAM image node (same Extract → Node/Layer
+    // chooser) and re-plan adjustments on it. Falls back to a plain in-place
+    // accept when the user denies or the region can't be resolved/extracted.
+    if (widget.scope.kind === 'named_region') {
+      logWidgetUndoDiag('apply(extract_region)', { widgetId: widget.id });
+      // Dynamic import: the extraction/agent stack (SAM, compositor) is heavy
+      // and only needed on accept — keep it out of the widget's module graph.
+      const { runAgentTurnForRegion } = await import('@/lib/palette-actions.agent');
+      const { extracted } = await runAgentTurnForRegion(widget.intent, widget.scope.label);
+      if (extracted) {
+        void backendTools.delete_widget(sessionId, { widgetId: widget.id, suppressSimilar: false });
+        return;
+      }
+    }
+
     logWidgetUndoDiag('apply(accept_widget)', { widgetId: widget.id });
     void backendTools.accept_widget(sessionId, { widgetId: widget.id });
   }

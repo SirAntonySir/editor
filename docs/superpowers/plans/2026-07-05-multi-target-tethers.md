@@ -51,7 +51,9 @@
 
 ## Phase A — Backend replicate model
 
-### Task 1: `ReplicateScope` widget schema variant
+### Task 1: `ReplicateScope` widget schema variant — ❌ DROPPED (reverted during execution)
+
+> `node.layer_ids` is a flat, cross-node-capable list already treated as the authoritative target set by `propose_stack` (`input.layer_ids`) and `refine_widget`. A separate scope variant duplicated it, so it was reverted (commit `4680411`). Target set = `node.layer_ids`. Kept below for history.
 
 **Files:**
 - Modify: `backend/app/schemas/widget.py` (Scope union ~L12–48)
@@ -280,7 +282,9 @@ git commit -m "feat(backend): project replicate ops with layer_ids + replicate m
 
 ---
 
-### Task 6: `propose_stack` maps `ReplicateScope` → widget-node targets
+### Task 6: `propose_stack` maps `ReplicateScope` → widget-node targets — ❌ DROPPED
+
+> `propose_stack` already accepts `input.layer_ids` → `node.layer_ids` (line 518), and multi-target growth happens via the Task 7 mutation tool, not at propose time. No change needed. Kept below for history.
 
 **Files:**
 - Modify: `backend/app/tools/widgets/propose_stack.py` (scope→layer extraction ~L513–519; `_build_widget_multi` ~L184–237)

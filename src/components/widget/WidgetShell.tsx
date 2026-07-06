@@ -33,6 +33,10 @@ export const WIDGET_SHELL_MIN_WIDTH = 226;
 // Long titles truncate with ellipsis (.widget-title-ellipsis utility).
 export const WIDGET_COLLAPSED_WIDTH = 226;
 
+// Genfill widgets render two side-by-side before/after previews, so they need a
+// wider expanded floor than the shared default. Collapsed pill is unchanged.
+export const GENFILL_MIN_WIDTH = 420;
+
 interface WidgetShellProps {
   widget: Widget;
   selected?: boolean;
@@ -217,7 +221,7 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
       className={`overlay w-fit ${showAiAffordances ? 'widget-shell-ai' : ''} ${selected && !showAiAffordances ? 'workspace-node-selected' : ''} ${hovered ? 'border-accent' : ''} ${hidden ? 'opacity-60' : ''}`}
       style={
         isExpanded
-          ? { minWidth: `${WIDGET_SHELL_MIN_WIDTH}px` }
+          ? { minWidth: `${widget.genfill ? GENFILL_MIN_WIDTH : WIDGET_SHELL_MIN_WIDTH}px` }
           : { width: `${WIDGET_COLLAPSED_WIDTH}px` }
       }
       onMouseEnter={() => setHoveredWidget(widget.id)}

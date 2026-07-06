@@ -237,7 +237,9 @@ class GenfillCreateTool(_GenfillToolBase, BackendTool[_CreateInput, _CreateOutpu
         widget_id = f"w_gf_{uuid.uuid4().hex[:8]}"
         widget = Widget(
             id=widget_id,
-            intent=prompt or "Generative fill",
+            # Constant title — the prompt lives on genfill.prompt (and the body
+            # input), never the header, so a long prompt can't widen the node.
+            intent="Generative fill",
             scope=Scope.model_validate({"kind": "mask", "maskId": input.mask_id}),
             origin=WidgetOrigin(kind=input.origin, prompt=prompt or None,
                                 anchor=f"mask:{input.mask_id}"),

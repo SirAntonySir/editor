@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import type { ReactNode } from 'react';
-import { WidgetShell, WIDGET_COLLAPSED_WIDTH } from './WidgetShell';
+import { WidgetShell, WIDGET_COLLAPSED_WIDTH, WIDGET_SHELL_MIN_WIDTH, GENFILL_MIN_WIDTH } from './WidgetShell';
 import { makeAiWidget, makeToolWidget, makeHslWidget } from './__fixtures__/widgets';
 import { useEditorStore } from '@/store';
 import { backendTools } from '@/lib/backend-tools';
@@ -64,6 +64,23 @@ describe('WidgetShell', () => {
     renderInFlow(<WidgetShell widget={makeAiWidget()} />);
     fireEvent.click(screen.getByRole('button', { name: /toggle widget/i }));
     expect(screen.getByRole('button', { name: /apply widget/i })).toBeInTheDocument();
+  });
+
+  it('genfill widget expands to the wider GENFILL_MIN_WIDTH', () => {
+    const w = makeToolWidget({
+      genfill: { status: 'compose', prompt: '', seed: 1, maskId: 'm1', imageNodeId: 'in-1' },
+    } as never);
+    useEditorStore.getState().toggleWidgetExpanded(w.id);
+    const { container } = renderInFlow(<WidgetShell widget={w} />);
+    const shell = container.querySelector('.overlay') as HTMLElement;
+    expect(shell.style.minWidth).toBe(`${GENFILL_MIN_WIDTH}px`);
+  });
+
+  it('non-genfill widget expands to the default WIDGET_SHELL_MIN_WIDTH', () => {
+    useEditorStore.getState().toggleWidgetExpanded('w-tool-1');
+    const { container } = renderInFlow(<WidgetShell widget={makeToolWidget()} />);
+    const shell = container.querySelector('.overlay') as HTMLElement;
+    expect(shell.style.minWidth).toBe(`${WIDGET_SHELL_MIN_WIDTH}px`);
   });
 
   it('Apply calls backendTools.accept_widget', () => {

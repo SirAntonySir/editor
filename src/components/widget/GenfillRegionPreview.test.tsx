@@ -72,15 +72,23 @@ describe('GenfillRegionPreview', () => {
     //   x = 16*2-16 = 16, y = 12*2-16 = 8, w = 32*2+32 = 96, h = 24*2+32 = 80
     expect(canvas.width).toBe(96);
     expect(canvas.height).toBe(80);
-    // Display scale = node.size.w / node.sourceSize.w = 0.5 → CSS halves it.
-    expect(canvas.style.width).toBe('48px');
-    expect(canvas.style.height).toBe('40px');
+    // Split-width layout: each canvas fills its half via CSS, keeping the crop
+    // aspect ratio (96/80 = 1.2) rather than a fixed display-scaled size.
+    expect(canvas.style.width).toBe('100%');
+    expect(canvas.style.aspectRatio).toBe('1.2');
   });
 
-  it('offers Before and After, defaulting to After', () => {
+  it('shows both before and after previews side by side (no toggle)', () => {
     render(<GenfillRegionPreview widget={readyWidget()} sessionId="s1" />);
-    expect((screen.getByRole('button', { name: 'After' })).getAttribute('aria-pressed')).toBe('true');
-    expect((screen.getByRole('button', { name: 'Before' })).getAttribute('aria-pressed')).toBe('false');
+    const canvases = document.querySelectorAll(
+      '[data-testid="genfill-region-preview"] canvas',
+    );
+    expect(canvases.length).toBe(2);
+    expect(screen.getByText('Before')).toBeTruthy();
+    expect(screen.getByText('After')).toBeTruthy();
+    // The old mode-toggle buttons are gone.
+    expect(screen.queryByRole('button', { name: 'Before' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'After' })).toBeNull();
   });
 
   it('renders nothing when the mask is gone', () => {

@@ -3,7 +3,6 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Loader2, AlertCircle, Sparkles, ArrowRight, Image as ImageIcon, Command as CommandIcon, X as XIcon, SquareDashed } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
-import { ScrollArea } from '@/components/ui/ScrollArea';
 import { pixelStore } from '@/core/pixel-store';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
@@ -718,12 +717,12 @@ export function CommandPalette() {
                 // perceives "mouse wheel doesn't work". Forward the deltaY to
                 // the Radix viewport when the event originated outside it.
                 onWheel={(e) => {
-                  const viewport = e.currentTarget.querySelector(
-                    '[data-radix-scroll-area-viewport]',
+                  const list = e.currentTarget.querySelector(
+                    '[data-atelier-results]',
                   ) as HTMLElement | null;
-                  if (!viewport) return;
-                  if (viewport.contains(e.target as Node)) return; // already inside — Radix handles it
-                  viewport.scrollBy({ top: e.deltaY });
+                  if (!list) return;
+                  if (list.contains(e.target as Node)) return; // already over the list — it scrolls natively
+                  list.scrollBy({ top: e.deltaY });
                 }}
               >
                 <Dialog.Title className="sr-only">Command palette</Dialog.Title>
@@ -809,32 +808,24 @@ export function CommandPalette() {
                   </div>
                 )}
 
-                {/* Results: registry-driven sections, then the AI command.
-                    Wrapped in the project's Radix ScrollArea so the overlay
-                    scrollbar renders the same in light + dark mode as the
-                    history dropdown — the previous plain `overflow-y-auto`
-                    surfaced the native browser scrollbar which read as a
-                    light-grey track in dark mode. The flex-1/min-h-0 outer
-                    box gives the Viewport an explicit height. */}
-                {/* Wrap the ScrollArea in a definite-height container so
-                    Radix's Viewport gets a real height to clip against.
-                    `flex-1 min-h-0` alone leaves the ScrollArea Root as
-                    auto-height inside Dialog.Content — Viewport then has
-                    no overflow to scroll, even though content is bigger.
-                    Same fix shape as HistoryDropdown. */}
+                {/* Results: registry-driven sections, then the AI command. */}
                 {mode === 'ask' ? (
                   <CommandPaletteAskView state={ask.state} pendingQueryDraft={query} />
                 ) : mode === 'genfill' ? (
                   <CommandPaletteGenfillView hasRegion={!!genfillTarget} draft={query} />
                 ) : (
-                // Explicit max-height gives the ScrollArea a DEFINITE bound to clip
-                // against. `flex-1` alone relied on the shell resolving its own
-                // height, but the shell is a Framer `layoutId` element with only a
-                // `max-h` (no definite height), so under the shared-layout size
-                // animation `flex-1` never bounded and the viewport had nothing to
-                // scroll. The own max-h engages the overlay scrollbar regardless.
-                <div className="flex-1 min-h-0 overflow-hidden max-h-[min(34rem,66vh)]">
-                <ScrollArea className="h-full" viewportClassName="py-1">
+                // Native overflow scroll. Radix ScrollArea's Viewport uses
+                // height:100%, which only resolves when an ANCESTOR has a definite
+                // height — the shell has only max-height (+ a Framer layoutId), so
+                // the percentage collapsed to content-height and the viewport never
+                // became scrollable (overflow-hidden just clipped it). A plain
+                // overflow-y-auto + max-h sizes to content up to the cap, then
+                // scrolls, regardless of the ancestor chain. macOS overlay
+                // scrollbars reserve no width; `.atelier-scroll` styles the rest.
+                <div
+                  data-atelier-results
+                  className="atelier-scroll min-h-0 overflow-y-auto max-h-[min(34rem,66vh)] py-1"
+                >
                   {primarySections.map((section, sIdx) => (
                     <div key={section.id}>
                       <SectionHeader title={section.title} />
@@ -900,7 +891,6 @@ export function CommandPalette() {
                   {flat.length === 0 && (
                     <div className="px-2 py-1.5 text-xs text-text-secondary">No matches.</div>
                   )}
-                </ScrollArea>
                 </div>
                 )}
 

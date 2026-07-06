@@ -73,6 +73,26 @@ def test_refines_reverts_toggles_renames_and_duration():
     assert _by_part(compute_study_measures(_timeline()))["creative"]["renames"] == 1
 
 
+def test_baseline_no_widget_layer_yields_full_manual_share():
+    """Widget-layer gated off (aiAccess=false): all editing flows through the
+    inspector as canonical.updated (sliders + preset set_param) with NO
+    tool_invoked / mcp widget.created events. manual_edit_share must be 1.0 —
+    the classifier must not assume manual edits arrive as widgets."""
+    evs = [
+        _ev(200, "study.block", {"block": 2, "part": "corrective", "condition": "ai_off", "action": "start"}),
+        _ev(201, "canonical.updated"),  # inspector slider
+        _ev(202, "canonical.updated"),  # preset applied to canonical via set_param
+        _ev(203, "canonical.updated"),  # another inspector edit
+        _ev(210, "study.block", {"block": 2, "part": "corrective", "action": "end"}),
+    ]
+    part = _by_part(compute_study_measures(evs))["corrective"]
+    assert part["condition"] == "ai_off"
+    assert part["manual_edits"] == 3
+    assert part["ai_edits"] == 0
+    assert part["manual_edit_share"] == 1.0
+    assert part["coexistent_widgets_max"] == 0
+
+
 def test_share_is_none_when_no_edits():
     evs = [
         _ev(1, "study.block", {"block": 1, "part": "sky", "condition": "ai_off", "action": "start"}),

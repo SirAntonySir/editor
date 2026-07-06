@@ -55,7 +55,7 @@ describe('serializeAllManifests', () => {
     LlmToolRegistry.clear();
     registerAllToolManifests();
     const tools = serializeAllManifests();
-    expect(tools.length).toBe(14);
+    expect(tools.length).toBe(13);
     for (const t of tools) {
       expect(typeof t.name).toBe('string');
       expect(typeof t.description).toBe('string');

@@ -19,7 +19,6 @@ vi.mock('@/hooks/useImageContext', () => ({
 vi.mock('./object-actions', () => ({
   extractObjectToImageNode: vi.fn(() => ({ imageNodeId: 'n2', layerId: 'L2' })),
   extractObjectToLayer: vi.fn(() => 'L3'),
-  convertObjectToLayerMask: vi.fn(),
 }));
 
 const { backendTools } = await import('@/lib/backend-tools');
@@ -82,7 +81,6 @@ describe('runCandidateVerb', () => {
   beforeEach(() => {
     (objectActions.extractObjectToImageNode as ReturnType<typeof vi.fn>).mockClear();
     (objectActions.extractObjectToLayer as ReturnType<typeof vi.fn>).mockClear();
-    (objectActions.convertObjectToLayerMask as ReturnType<typeof vi.fn>).mockClear();
   });
 
   it('materializes then extracts to image node with the new mask id', async () => {
@@ -94,11 +92,6 @@ describe('runCandidateVerb', () => {
   it('materializes then extracts to a new in-place layer', async () => {
     await runCandidateVerb('extract-layer', sel, ctx);
     expect(objectActions.extractObjectToLayer).toHaveBeenCalledWith('new-mask', 'in-1');
-  });
-
-  it('materializes then converts to layer mask', async () => {
-    await runCandidateVerb('convert-mask', sel, ctx);
-    expect(objectActions.convertObjectToLayerMask).toHaveBeenCalledWith('new-mask', 'in-1');
   });
 
   it('returns null and runs no action when materialize fails', async () => {

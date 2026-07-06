@@ -8,7 +8,6 @@ import { objectOwnership } from '@/lib/segmentation/object-ownership';
 import {
   extractObjectToImageNode,
   extractObjectToLayer,
-  convertObjectToLayerMask,
 } from '@/lib/segmentation/object-actions';
 import { spawnGenfillFromMask } from '@/lib/genfill-spawn';
 import { toast } from '@/components/ui/Toast';
@@ -88,7 +87,7 @@ export async function materializeCandidate(
   return maskId;
 }
 
-export type CandidateVerb = 'extract-node' | 'extract-layer' | 'convert-mask' | 'genfill';
+export type CandidateVerb = 'extract-node' | 'extract-layer' | 'genfill';
 
 /** Run a committing verb on a live selection: materialize the mask, then run
  *  the matching object action with the new id. Returns the new mask id, or null
@@ -103,7 +102,6 @@ export async function runCandidateVerb(
   if (!id) return null;
   if (verb === 'extract-node') extractObjectToImageNode(id, ctx.imageNodeId);
   else if (verb === 'extract-layer') extractObjectToLayer(id, ctx.imageNodeId);
-  else if (verb === 'convert-mask') convertObjectToLayerMask(id, ctx.imageNodeId);
   else if (verb === 'genfill') await spawnGenfillFromMask(id, ctx.imageNodeId);
   return id;
 }

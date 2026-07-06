@@ -90,7 +90,6 @@ export function ClientToolApproval() {
  *  chip reads as a permission grant rather than a raw tool name. */
 function describeTool(name: string): string {
   if (name === 'select_object') return 'Allow to select object';
-  if (name === 'convert_object_to_layer_mask') return 'Allow to convert object to a layer mask';
   // Fallback: humanise the snake_case tool name → "Allow to select object".
   return `Allow to ${name.replace(/_/g, ' ')}`;
 }

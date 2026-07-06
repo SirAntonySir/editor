@@ -20,7 +20,6 @@ import {
   Scissors,
   Sparkles,
   SquareArrowOutUpRight,
-  SquareStack,
   Trash2,
 } from 'lucide-react';
 import { useEditorStore } from '@/store';
@@ -34,7 +33,6 @@ import { editorDocument } from '@/core/document';
 import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { toast } from '@/components/ui/Toast';
 import {
-  convertObjectToLayerMask,
   extractObjectToImageNode,
   deleteObject,
   startObjectRename,
@@ -104,11 +102,11 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   // the app-wide doctrine: tools disabled when sseStatus !== 'open'.
   const offline = useBackendState((s) => s.sseStatus !== 'open');
 
-  function openPaletteOnThisImage(mode: 'ask' | 'agent') {
+  function openPaletteOnThisImage(mode: 'ask' | 'edit') {
     // Open the palette directly in the given mode. The image-node's first
     // layer name rides as an attached context chip so the LLM call grounds on
     // "this image" rather than the active selection at palette-open time.
-    // 'ask' answers questions; 'agent' drives edits (widget proposals).
+    // 'ask' answers questions; 'edit' drives edits (widget proposals).
     const node = useEditorStore.getState().imageNodes[id];
     const firstLayerId = node?.layerIds[0];
     const firstLayer = firstLayerId
@@ -313,7 +311,7 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
       {/* AI group: hidden entirely when offline (no session → items would
           no-op) or in the study control condition. Progression: before
           analysis only "Analyze with AI" shows; once this node has image
-          context, Ask + Agent replace it (both ground on the context). */}
+          context, Ask + Edit replace it (both ground on the context). */}
       {aiAccess && !offline && (
         <>
           {!isAnalysed && (
@@ -340,11 +338,11 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
               </Item>
               <Item
                 className={itemClass}
-                onSelect={() => openPaletteOnThisImage('agent')}
+                onSelect={() => openPaletteOnThisImage('edit')}
               >
                 <span className="flex items-center gap-1.5">
                   <Bot size={11} className="text-[var(--color-ai)]" />
-                  <span>Edit with Agent</span>
+                  <span>Edit with Atelier</span>
                 </span>
               </Item>
             </>
@@ -404,15 +402,6 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
             <span className="flex items-center gap-1.5">
               <Pencil size={11} className="text-text-secondary" />
               <span>Rename</span>
-            </span>
-          </Item>
-          <Item
-            className={itemClass}
-            onSelect={() => convertObjectToLayerMask(selectedObject.id, id)}
-          >
-            <span className="flex items-center gap-1.5">
-              <SquareStack size={11} className="text-text-secondary" />
-              <span>Convert to Layer Mask</span>
             </span>
           </Item>
           <Item

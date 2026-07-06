@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Loader2, AlertCircle } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { useBackendState } from '@/store/backend-state-slice';
-import { useAiAccess } from '@/lib/ai-access';
 import { usePaletteRuntime } from '@/store/palette-runtime';
 
 /** Trim a prompt for the pill label so a long sentence doesn't blow out the bar. */
@@ -21,7 +20,6 @@ function truncate(text: string, max = 34): string {
  *  carries the shared id at any time. */
 export function CommandTrigger() {
   const sseStatus = useBackendState((s) => s.sseStatus);
-  const aiAccess = useAiAccess();
   const disabled = sseStatus !== 'open';
   const [paletteOpen, setPaletteOpen] = useState(false);
   // An Agent turn submitted from the palette keeps running after the palette
@@ -84,7 +82,7 @@ export function CommandTrigger() {
           ) : (
             <>
               <Plus size={15} className="shrink-0" />
-              <span className="flex-1 text-left">{aiAccess ? 'Search tools or ask AI…' : 'Search tools…'}</span>
+              <span className="flex-1 text-left">Search Atelier…</span>
               <Kbd keys={['mod', 'K']} />
             </>
           )}

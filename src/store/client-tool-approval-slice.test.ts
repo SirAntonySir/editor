@@ -7,7 +7,7 @@ describe('client-tool-approval-slice', () => {
   it('enqueues and removes pending mutate requests by id', () => {
     const s = useClientToolApproval.getState();
     s.enqueue({ requestId: 'r1', name: 'extract_object_to_image_node', input: { maskId: 'm1' } });
-    s.enqueue({ requestId: 'r2', name: 'convert_object_to_layer_mask', input: { maskId: 'm2' } });
+    s.enqueue({ requestId: 'r2', name: 'select_object', input: { maskId: 'm2' } });
     expect(useClientToolApproval.getState().pending.map((p) => p.requestId)).toEqual(['r1', 'r2']);
 
     s.remove('r1');

@@ -5,7 +5,6 @@ import { objectOwnership } from '@/lib/segmentation/object-ownership';
 
 vi.mock('@/lib/segmentation/object-actions', () => ({
   extractObjectToImageNode: vi.fn(),
-  convertObjectToLayerMask: vi.fn(),
   selectInvertedObject: vi.fn(),
   renameObject: vi.fn(),
   deleteObject: vi.fn(),

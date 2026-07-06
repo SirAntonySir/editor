@@ -102,7 +102,6 @@ export const AGENT_LOOP_TOOLS: string[] = [
   'get_active_selection',
   'select_object',
   'extract_object_to_image_node',
-  'convert_object_to_layer_mask',
 ];
 
 /** Run an agentic palette turn. Deterministically extracts each attached region

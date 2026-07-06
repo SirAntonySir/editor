@@ -146,9 +146,11 @@ describe('tetherWorkspaceWidget — origin filter (regression)', () => {
     const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 5000, y: 5000 });
     useEditorStore.getState().setActiveImageNode(nodeId);
 
+    // Real backend genfill widgets carry NO op-graph nodes (see GenfillState);
+    // the tether must resolve from `genfill.imageNodeId`, not a node's layerId.
     const w = makeWidget('w_gf', {
       origin: { kind: 'tool_invoked' },
-      nodes: [{ id: 'n1', type: 'genfill', params: {}, scope: { kind: 'global' }, inputs: [], widgetId: 'w_gf', layerId: 'layer-a' }],
+      nodes: [],
       genfill: { status: 'compose', prompt: '', seed: 1, maskId: 'm1', imageNodeId: nodeId },
     } as never);
     tetherWorkspaceWidget(w, { pan: { x: 0, y: 0 }, zoom: 1, screen: { w: 1000, h: 800 } });

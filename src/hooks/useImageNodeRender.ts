@@ -13,7 +13,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '@xyflow/react';
-import { useBackendState } from '@/store/backend-state-slice';
+import { useShallow } from 'zustand/react/shallow';
+import { useBackendState, type OptimisticPatch } from '@/store/backend-state-slice';
 import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
@@ -27,6 +28,38 @@ const EMPTY_WIDGETS: Widget[] = [];
 
 /** Quantized render scales (powers of 1/2). */
 const RENDER_SCALES = [0.0625, 0.125, 0.25, 0.5, 1.0] as const;
+
+/** A stable string signature of the optimistic patches that affect the given
+ *  layers, so an image-node render effect can depend on ONLY the live-preview
+ *  edits relevant to its own layers instead of the whole (per-tick-churning)
+ *  optimistic map. The map is keyed by op-graph node id; per-layer canonical
+ *  keys are `canon:<layerId>:<op>`, from which the layer is read directly. */
+function scopedOptimisticSignature(
+  optimistic: Map<string, OptimisticPatch>,
+  layerIds: string[],
+): string {
+  if (optimistic.size === 0) return '';
+  const layerSet = new Set(layerIds);
+  let sig = '';
+  for (const [key, patch] of optimistic) {
+    let relevant: boolean;
+    if (key.startsWith('canon:')) {
+      const rest = key.slice('canon:'.length);
+      const i = rest.indexOf(':');
+      relevant = i > 0 && layerSet.has(rest.slice(0, i));
+    } else {
+      // Non-canonical key (e.g. a node-scope adjustment id) can't be attributed
+      // to a layer from the key alone — include it so a live preview is never
+      // missed. Rare, so the occasional spurious repaint is an acceptable trade.
+      relevant = true;
+    }
+    if (!relevant) continue;
+    sig += `${key}#${patch.baseRevision}#`;
+    for (const b of patch.bindings) sig += `${b.paramKey}=${JSON.stringify(b.value)},`;
+    sig += ';';
+  }
+  return sig;
+}
 
 /**
  * Snap an effective scale (target screen pixels / source pixels) up to the
@@ -66,9 +99,17 @@ export function useImageNodeRender({
   const opGraph = useBackendState((s) => s.snapshot?.operationGraph);
   const widgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
   // Re-render when adjustment params or raw pixels change. The optimistic Map
-  // identity changes on every applyOptimistic (immer reproduces the map), so
-  // depending on it re-fires the effect for live slider preview.
-  const optimistic = useBackendState((s) => s.optimistic);
+  // identity changes on EVERY applyOptimistic (immer reproduces the map), so
+  // subscribing to the whole map used to re-composite every image node on the
+  // canvas for any widget's slider drag. Instead we subscribe to a SIGNATURE of
+  // only the optimistic entries relevant to THIS node's layers — the map is
+  // keyed by op-graph node id (`canon:<layerId>:<op>`), so relevance is read
+  // straight off the key. The effect reads the live map via getState() at paint
+  // time (rendering is unchanged); the signature only governs WHEN it re-fires,
+  // so an unrelated node's slider no longer triggers this node's WebGL pass.
+  const optimisticSignature = useBackendState((s) =>
+    scopedOptimisticSignature(s.optimistic, layerIds),
+  );
   const pixelVersion = useEditorStore((s) => s.pixelVersion);
   // Re-render when selection / mask overlays change. `maskStore` is not
   // reactive — these store fields are the SSoT the painters branch on, so
@@ -107,43 +148,34 @@ export function useImageNodeRender({
   // Effective output dims derived from the snapshot's rotate + crop nodes for
   // this image-node. The visible canvas is sized to these; `applyGeometry`
   // inside the renderer then maps the internal (source-dims) composite onto it.
-  const rotateAngle = useBackendState((s) => {
-    const node = s.snapshot?.operationGraph.nodes.find(
-      (n) => n.id === `transform:${imageNodeId}:rotate`,
-    );
-    if (!node) return null;
-    return (node.params.angle as number) ?? null;
-  });
-  const cropRectX = useBackendState((s) => {
-    const node = s.snapshot?.operationGraph.nodes.find(
-      (n) => n.id === `transform:${imageNodeId}:crop`,
-    );
-    if (!node) return null;
-    const p = node.params as { x?: number; w?: number; h?: number };
-    return p.w != null && p.h != null ? (p.x ?? 0) : null;
-  });
-  const cropRectY = useBackendState((s) => {
-    const node = s.snapshot?.operationGraph.nodes.find(
-      (n) => n.id === `transform:${imageNodeId}:crop`,
-    );
-    if (!node) return null;
-    const p = node.params as { y?: number; w?: number; h?: number };
-    return p.w != null && p.h != null ? (p.y ?? 0) : null;
-  });
-  const cropRectW = useBackendState((s) => {
-    const node = s.snapshot?.operationGraph.nodes.find(
-      (n) => n.id === `transform:${imageNodeId}:crop`,
-    );
-    if (!node) return null;
-    return (node.params as { w?: number }).w ?? null;
-  });
-  const cropRectH = useBackendState((s) => {
-    const node = s.snapshot?.operationGraph.nodes.find(
-      (n) => n.id === `transform:${imageNodeId}:crop`,
-    );
-    if (!node) return null;
-    return (node.params as { h?: number }).h ?? null;
-  });
+  // One `useShallow` selector (single op-graph scan for both transform nodes)
+  // instead of five separate subscriptions each re-scanning the whole graph —
+  // returns primitives so it only re-renders when a transform value changes.
+  const { rotateAngle, cropRectX, cropRectY, cropRectW, cropRectH } = useBackendState(
+    useShallow((s) => {
+      const nodes = s.snapshot?.operationGraph.nodes;
+      let rotate: OperationNode | undefined;
+      let crop: OperationNode | undefined;
+      const rotateId = `transform:${imageNodeId}:rotate`;
+      const cropId = `transform:${imageNodeId}:crop`;
+      if (nodes) {
+        for (const n of nodes) {
+          if (n.id === rotateId) rotate = n;
+          else if (n.id === cropId) crop = n;
+          if (rotate && crop) break;
+        }
+      }
+      const cp = crop?.params as { x?: number; y?: number; w?: number; h?: number } | undefined;
+      const hasCrop = cp?.w != null && cp?.h != null;
+      return {
+        rotateAngle: rotate ? ((rotate.params.angle as number) ?? null) : null,
+        cropRectX: hasCrop ? (cp!.x ?? 0) : null,
+        cropRectY: hasCrop ? (cp!.y ?? 0) : null,
+        cropRectW: hasCrop ? cp!.w! : null,
+        cropRectH: hasCrop ? cp!.h! : null,
+      };
+    }),
+  );
 
   const cropRect: { x: number; y: number; w: number; h: number } | null =
     cropRectW != null && cropRectH != null
@@ -205,6 +237,11 @@ export function useImageNodeRender({
       }
     });
   }, [imageNodeId, mirrorChildrenKey]);
+
+  // Tracks the pixelVersion at the last paint, so the render effect can tell a
+  // raw-pixel change (needs a GPU source re-upload) from a param-only change
+  // (reuse the texture already uploaded).
+  const lastPixelVersionRef = useRef<number | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -271,6 +308,17 @@ export function useImageNodeRender({
     const extraNodes: OperationNode[] = [...previewById.values()];
     for (const id of hiddenCanonNodeIds) hiddenNodeIds.add(id);
 
+    // Read the live optimistic map non-reactively at paint time. The effect's
+    // re-fire is gated by `optimisticSignature` (scoped to this node's layers),
+    // but the render applies the FULL map — irrelevant patches are filtered out
+    // per-layer downstream, so passing all of them stays correctness-identical.
+    const optimistic = useBackendState.getState().optimistic;
+    // Only re-upload the layer source texture to the GPU when the raw pixels
+    // actually changed since the last paint; a param-only change reuses the
+    // texture (see RenderImageNodeCompositeArgs.sourceDirty).
+    const sourceDirty = lastPixelVersionRef.current !== pixelVersion;
+    lastPixelVersionRef.current = pixelVersion;
+
     renderImageNodeComposite({
       canvas,
       imageNodeId,
@@ -286,6 +334,7 @@ export function useImageNodeRender({
       overrideRotate: previewActive && cropPreview ? cropPreview.rotate : undefined,
       overrideCrop:   previewActive && cropPreview ? cropPreview.crop   : undefined,
       renderScale,
+      sourceDirty,
     });
     // Publish post-render so listeners (Info-tab live mechanical, etc.) see
     // the composite. Always publish — the bus consumer filters by active id.
@@ -332,7 +381,7 @@ export function useImageNodeRender({
     renderScale,
     opGraph,
     widgets,
-    optimistic,
+    optimisticSignature,
     pixelVersion,
     activeObjectId,
     hoveredObjectId,

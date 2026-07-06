@@ -48,6 +48,29 @@ describe('WidgetNode tether handles', () => {
   });
 });
 
+describe('WidgetNode tether handle anchoring', () => {
+  it('leaves the outlets to React Flow (no inline anchor overrides)', () => {
+    // Regression: the outlets used inline top/left (e.g. top:scaledH, left:scaledW)
+    // that fought React Flow's per-position transforms and, more importantly, RF's
+    // rule that an edge anchors to a handle's OUTER edge — pushing the tether a
+    // full handle-size off the visible dot. RF's default positioning centres each
+    // handle on its border; the dot is sized to fill the handle (see .tether-outlet
+    // in index.css) so the edge plugs into the dot rim instead of floating past it.
+    render(
+      <ReactFlowProvider>
+        <WidgetNode id="w-anchor" data={{ widget: makeAiWidget() }} selected={false} />
+      </ReactFlowProvider>,
+    );
+    for (const side of ['top', 'bottom', 'left', 'right']) {
+      const el = document.querySelector(`[data-handleid="tether-out-${side}"]`) as HTMLElement | null;
+      expect(el, `tether-out-${side} should mount`).toBeTruthy();
+      expect(el!.style.top, `${side} has no inline top`).toBe('');
+      expect(el!.style.left, `${side} has no inline left`).toBe('');
+      expect(el!.style.transform, `${side} has no inline transform`).toBe('');
+    }
+  });
+});
+
 describe('WidgetNode LOD behavior', () => {
   afterEach(() => {
     chromeVisibleMock.mockReturnValue(true); // reset

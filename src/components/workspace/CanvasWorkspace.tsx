@@ -6,8 +6,10 @@ import {
   useReactFlow,
   useNodesInitialized,
   applyNodeChanges,
+  applyEdgeChanges,
   type Node,
   type NodeChange,
+  type EdgeChange,
   type Connection,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -51,8 +53,9 @@ const edgeTypes = { tether: TetherEdge };
 
 /**
  * Listens for Delete/Backspace and removes selected image and widget nodes.
- * Edges are auto-derived from active widgets (see CanvasWorkspace) and
- * therefore not user-deletable. Rendered as a child of `<ReactFlow>` so
+ * Selected widget tethers (edges) are deleted by React Flow's own built-in
+ * Delete handling, which fires `onEdgesDelete` (see CanvasWorkspace); this
+ * handler only covers nodes. Rendered as a child of `<ReactFlow>` so
  * `useReactFlow` returns *this* flow's instance.
  */
 function WorkspaceKeyHandler() {
@@ -307,7 +310,7 @@ export function CanvasWorkspace() {
   // Edges are auto-derived from active widgets. Each widget gets one edge to
   // the image node it belongs to: resolve via the first node's layerId and
   // fall back to the active image node.
-  const edges = useMemo<TetherEdgeType[]>(() => {
+  const derivedEdges = useMemo<TetherEdgeType[]>(() => {
     const out: TetherEdgeType[] = [];
 
     // Build a quick lookup of React Flow's current node positions + measured dims.
@@ -436,6 +439,26 @@ export function CanvasWorkspace() {
     }
     return out;
   }, [tetherEdges, imageNodes, infoNodes, nodes]);
+
+  // Local RF edge state mirrors the derived edges. React Flow owns edge
+  // `selected` state (needed so a click can select a tether and ⌫ can delete
+  // it), but our edges are re-derived from the store on every render — which
+  // would wipe that flag. So we mirror the same selection-preservation dance
+  // the nodes use: keep a local copy, apply React Flow's change events to it,
+  // and re-graft `selected` by id when the derived geometry updates.
+  const [edges, setEdges] = useState<TetherEdgeType[]>(derivedEdges);
+  useEffect(() => {
+    setEdges((prev) => {
+      const selectedIds = new Set(prev.filter((e) => e.selected).map((e) => e.id));
+      return selectedIds.size === 0
+        ? derivedEdges
+        : derivedEdges.map((e) => (selectedIds.has(e.id) ? { ...e, selected: true } : e));
+    });
+  }, [derivedEdges]);
+
+  const onEdgesChange = useCallback((changes: EdgeChange[]) => {
+    setEdges((prev) => applyEdgeChanges(changes, prev) as TetherEdgeType[]);
+  }, []);
 
   // Persist every node in `draggedNodes` back to the store. React Flow fires
   // drag-stop with the full array of nodes that moved — for a single drag it's
@@ -624,6 +647,7 @@ export function CanvasWorkspace() {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onSelectionDragStop={onSelectionDragStop}
@@ -636,7 +660,8 @@ export function CanvasWorkspace() {
         onReconnectEnd={onReconnectEnd}
         onEdgesDelete={onEdgesDelete}
         edgesReconnectable
-        reconnectRadius={12}
+        reconnectRadius={20}
+        connectionRadius={30}
         proOptions={{ hideAttribution: true }}
         minZoom={0.05}
         maxZoom={4}

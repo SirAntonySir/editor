@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { computeEffectiveSize, applyGeometry, getInternalCanvas, clearInternalCanvasCache } from './image-node-geometry';
+import { computeEffectiveSize, applyGeometry, getInternalCanvas, getMemoisedScratchCanvas, clearInternalCanvasCache } from './image-node-geometry';
 
 describe('computeEffectiveSize', () => {
   const source = { w: 800, h: 600 };
@@ -404,5 +404,47 @@ describe('internal-canvas cache', () => {
     const b2 = getInternalCanvas('in-2', 800, 600);
     expect(b1).not.toBe(a1);
     expect(b2).toBe(a2);
+  });
+});
+
+describe('scratch-canvas cache (multi-layer LOD)', () => {
+  beforeEach(() => {
+    clearInternalCanvasCache();
+  });
+
+  function makeSource(): HTMLCanvasElement {
+    const c = document.createElement('canvas');
+    c.width = 16;
+    c.height = 16;
+    return c;
+  }
+
+  it('returns a DISTINCT scratch canvas per layer on the same image node', () => {
+    // Regression: a single scratch per image-node gave every layer the same
+    // canvas identity. At renderScale < 1 with sourceDirty=false (pure zoom),
+    // the WebGL pipeline skips re-upload when identity matches — so the top
+    // layer rendered the bottom layer's texture and only the bottom showed.
+    // Distinct per-layer scratch objects restore the per-layer upload that
+    // already works at renderScale === 1.
+    const srcA = makeSource();
+    const srcB = makeSource();
+    const a = getMemoisedScratchCanvas('in-1', 'layer-a', srcA, 8, 8);
+    const b = getMemoisedScratchCanvas('in-1', 'layer-b', srcB, 8, 8);
+    expect(a).not.toBe(b);
+  });
+
+  it('reuses the same scratch instance for the same (node, layer)', () => {
+    const src = makeSource();
+    const a = getMemoisedScratchCanvas('in-1', 'layer-a', src, 8, 8);
+    const b = getMemoisedScratchCanvas('in-1', 'layer-a', src, 8, 8);
+    expect(a).toBe(b);
+  });
+
+  it('clearInternalCanvasCache(id) drops that node’s per-layer scratch entries', () => {
+    const src = makeSource();
+    const a = getMemoisedScratchCanvas('in-1', 'layer-a', src, 8, 8);
+    clearInternalCanvasCache('in-1');
+    const b = getMemoisedScratchCanvas('in-1', 'layer-a', src, 8, 8);
+    expect(b).not.toBe(a);
   });
 });

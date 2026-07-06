@@ -65,6 +65,29 @@ describe('syncWidgetTethers', () => {
     expect(Object.keys(te)).toHaveLength(3);
   });
 
+  it('tethers a genfill widget (no op-graph nodes) via genfill.imageNodeId', () => {
+    const store = useEditorStore.getState();
+    const nodeA = store.addImageNode(['L1', 'L2'], { x: 0, y: 0 });
+
+    // Real genfill widgets carry an empty `nodes` array; the tether must come
+    // from `genfill.imageNodeId` → that node's first layer, and must survive
+    // this full rebuild rather than being wiped.
+    const genfillWidget = {
+      id: 'gf1',
+      status: 'active',
+      nodes: [],
+      genfill: { status: 'compose', prompt: '', seed: 1, maskId: 'm1', imageNodeId: nodeA },
+    } as unknown as Widget;
+
+    store.syncWidgetTethers([genfillWidget]);
+
+    const te = useEditorStore.getState().tetherEdges;
+    expect(te['te-gf1-L1']).toMatchObject({
+      targetImageNodeId: nodeA, layerId: 'L1', widgetNodeId: 'gf1',
+    });
+    expect(Object.keys(te)).toHaveLength(1);
+  });
+
   it('drops targets that no longer resolve and inactive widgets', () => {
     const store = useEditorStore.getState();
     store.addImageNode(['L1'], { x: 0, y: 0 });

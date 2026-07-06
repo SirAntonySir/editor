@@ -464,21 +464,90 @@ html, body, #root {
 /* Per-layer tether port (LayerStrip). The rail is the ONLY connection surface
  * for widget tethers — one port per layer thumbnail. Latent by default so the
  * rail looks unchanged at rest; fades in on row hover or while a connection is
- * being dragged. Overrides React Flow's default handle chrome. */
+ * being dragged. Overrides React Flow's default handle chrome.
+ *
+ * The handle ELEMENT is an oversized (22px) transparent hit target so the port
+ * is easy to grab and easy to drop a tether onto; the visible 10px dot is drawn
+ * as a centered ::after, so the generous hitbox never enlarges the dot itself.
+ * `translate(-50%, -50%)` (from RF's handle-left rule) keeps it centered on the
+ * `left` anchor regardless of size. */
 .react-flow__handle.layer-tether-port {
-  width: 10px;
-  height: 10px;
-  min-width: 10px;
-  min-height: 10px;
-  left: -7px;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  left: -9px;
+  border: none;
+  background: transparent;
   border-radius: 999px;
-  background: var(--color-surface);
-  border: 2px solid var(--color-accent);
   opacity: 0;
   transition: opacity var(--duration-fast, 120ms) ease;
 }
+.react-flow__handle.layer-tether-port::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  border: 2px solid var(--color-accent);
+  transition: transform var(--duration-fast, 120ms) ease,
+              background var(--duration-fast, 120ms) ease;
+}
+/* Reveal on row hover, when the port is an available connection target, or when
+ * a connection is being dragged from / to it. */
 .group:hover > .react-flow__handle.layer-tether-port,
 .react-flow__handle.layer-tether-port.connectionindicator,
-.react-flow__handle.layer-tether-port.connecting {
+.react-flow__handle.layer-tether-port.connectingfrom,
+.react-flow__handle.layer-tether-port.connectingto {
   opacity: 1;
+}
+
+/* Release-to-connect affordance. While dragging a tether, RF tags the handle
+ * under the pointer that would form a VALID connection with `.connectingto
+ * .valid`. That handle fills solid and pulses an expanding accent ring, so the
+ * user can see the drop will land before they let go. Shared by the widget
+ * outlets below via `.tether-outlet`. */
+@keyframes tether-connect-pulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 8px color-mix(in srgb, var(--color-accent) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 0%, transparent); }
+}
+.react-flow__handle.layer-tether-port.connectingto.valid::after {
+  background: var(--color-accent);
+  transform: translate(-50%, -50%) scale(1.35);
+  animation: tether-connect-pulse 0.85s ease-out infinite;
+}
+
+/* Widget tether outlets — one connection point per widget side. The handle
+ * ELEMENT is itself the visible dot (surface fill + accent ring), so React
+ * Flow's edge anchor — which sits on a handle's OUTER edge — lands on the dot's
+ * rim and the tether plugs into the dot instead of floating a half-handle past
+ * it. Always visible on the border so the affordance is discoverable at rest
+ * (grab to start / reconnect a tether); the one that would receive a valid drop
+ * fills + pulses (same cue as the layer ports). z-index lifts the dot above the
+ * WidgetShell sibling so it isn't painted behind the widget and its hitbox wins
+ * hit-testing where it overlaps the shell body. */
+.react-flow__handle.tether-outlet {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  min-height: 14px;
+  background: var(--color-surface);
+  border: 2px solid var(--color-accent);
+  border-radius: 999px;
+  opacity: 1;
+  z-index: 6;
+  transition: background var(--duration-fast, 120ms) ease;
+}
+.react-flow__handle.tether-outlet.connectingto.valid {
+  background: var(--color-accent);
+  animation: tether-connect-pulse 0.85s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__handle.layer-tether-port.connectingto.valid::after,
+  .react-flow__handle.tether-outlet.connectingto.valid::after { animation: none; }
 }

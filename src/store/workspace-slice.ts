@@ -442,6 +442,25 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       const next: Record<string, TetherEdgeState> = {};
       for (const w of widgets) {
         if (w.status !== 'active') continue;
+        // Genfill widgets have NO op-graph nodes; their target image node is on
+        // `genfill.imageNodeId`. Emit a tether to that node's first layer here
+        // too, otherwise this full-rebuild would wipe the edge seeded at spawn
+        // on the next snapshot reconcile.
+        if (w.genfill) {
+          const inId = w.genfill.imageNodeId;
+          const layerId = state.imageNodes[inId]?.layerIds[0];
+          if (layerId) {
+            const id = `te-${w.id}-${layerId}`;
+            next[id] = {
+              id,
+              widgetNodeId: w.id,
+              targetImageNodeId: inId,
+              layerId,
+              scope: { kind: 'layer', layerId },
+            };
+          }
+          continue;
+        }
         const node = w.nodes[0];
         if (!node) continue;
         const layerIds =

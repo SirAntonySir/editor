@@ -132,7 +132,7 @@ describe('renderImageNodeComposite', () => {
       widgets: [],
     });
 
-    expect(pipelineSetSourceCanvas).toHaveBeenCalledWith(fakeWorking);
+    expect(pipelineSetSourceCanvas).toHaveBeenCalledWith(fakeWorking, true);
     expect(pipelineRenderSync).toHaveBeenCalledTimes(1);
     const firstCall = pipelineRenderSync.mock.calls[0];
     const adjustments = firstCall[0] as unknown as { type: string }[];
@@ -650,6 +650,40 @@ describe('renderImageNodeComposite', () => {
       renderScale: 1,
     });
 
-    expect(pipelineSetSourceCanvas).toHaveBeenCalledWith(fakeWorking);
+    expect(pipelineSetSourceCanvas).toHaveBeenCalledWith(fakeWorking, true);
+  });
+
+  it('forwards sourceDirty=false to the per-layer source upload so an unchanged texture is not re-uploaded', () => {
+    setLayers([{ id: 'L1', visible: true, opacity: 1, blendMode: 'normal', order: 0 }]);
+    const visible = makeCanvas();
+
+    renderImageNodeComposite({
+      canvas: visible,
+      imageNodeId: 'in-dirty',
+      layerIds: ['L1'],
+      sourceWidth: 8,
+      sourceHeight: 8,
+      opGraph: {
+        id: 'g',
+        userGoal: '',
+        nodes: [
+          {
+            id: 'n1',
+            type: 'basic',
+            params: { exposure: 0.5 },
+            scope: { kind: 'global' },
+            inputs: [],
+            layerId: 'L1',
+          },
+        ],
+        panelBindings: [],
+        metadata: {},
+      },
+      widgets: [],
+      renderScale: 1,
+      sourceDirty: false,
+    });
+
+    expect(pipelineSetSourceCanvas).toHaveBeenCalledWith(fakeWorking, false);
   });
 });

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import type { Widget, MaskSummary } from '@/types/widget';
 import { backendTools } from '@/lib/backend-tools';
 import { logWidgetUndoDiag } from '@/lib/widget-undo-diag';
-import { useBackendState } from '@/store/backend-state-slice';
+import { useBackendState, type OptimisticPatch } from '@/store/backend-state-slice';
 import { useWidgetExpansion } from '@/hooks/useWidgetExpansion';
 import { useHoveredWidget } from '@/hooks/useHoveredWidget';
 import { useEditorStore } from '@/store';
@@ -48,7 +49,24 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
   const { isExpanded, toggle } = useWidgetExpansion(widget.id);
   const { hoveredWidgetId, setHoveredWidget } = useHoveredWidget();
   const sessionId = useBackendState((s) => s.sessionId);
-  const optimistic = useBackendState((s) => s.optimistic);
+  // Subscribe to ONLY this widget's optimistic entries (keyed by canonical
+  // op-graph node id — see canonIdFor below). The optimistic map's identity
+  // changes on every slider tick of ANY widget; subscribing to the whole map
+  // re-rendered every shell on the canvas per tick. `useShallow` keeps the
+  // returned record stable-by-value, so an unrelated widget's edit — which
+  // leaves this widget's patch refs untouched — no longer re-renders this shell.
+  const scopedOptimistic = useBackendState(
+    useShallow((s) => {
+      const out: Record<string, OptimisticPatch> = {};
+      for (const b of widget.bindings) {
+        const node = widget.nodes.find((n) => n.id === b.target.nodeId);
+        const key = node ? `canon:${node.layerId}:${node.type}` : b.target.nodeId;
+        const patch = s.optimistic.get(key);
+        if (patch) out[key] = patch;
+      }
+      return out;
+    }),
+  );
   const allMasks = useBackendState((s) => s.snapshot?.masksIndex ?? EMPTY_MASKS);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   // Soft filter: hide masks scoped to a different ImageNode. Legacy / global
@@ -110,7 +128,7 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
     return node ? `canon:${node.layerId}:${node.type}` : b.target.nodeId;
   }
   function readOptimistic(b: Widget['bindings'][number]): Widget['bindings'][number]['value'] | undefined {
-    const patch = optimistic.get(canonIdFor(b));
+    const patch = scopedOptimistic[canonIdFor(b)];
     if (!patch) return undefined;
     const p = patch.bindings.find((p) => p.paramKey === b.target.paramKey);
     return p?.value;

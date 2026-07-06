@@ -119,6 +119,19 @@ export interface RenderImageNodeCompositeArgs {
    */
   bakePerLayerOnly?: boolean;
   /**
+   * Whether the layer SOURCE pixels changed since the last paint. When false
+   * (the common case — only an adjustment param moved), the per-layer WebGL
+   * source upload is skipped: the pipeline's `sourceIdentity` guard reuses the
+   * texture already on the GPU instead of re-`texImage2D`-ing the full source
+   * (~64 MB for a 4 K layer, or a full uint16→float normalise for RAW) every
+   * frame. Driven by `pixelVersion` in the caller. Defaults to `true` so any
+   * caller that doesn't track pixel dirtiness stays correct (always re-uploads).
+   * The node-scope composite-then-apply pass always uploads regardless — its
+   * `internal` canvas keeps its identity but its pixels are re-composited each
+   * frame.
+   */
+  sourceDirty?: boolean;
+  /**
    * Skip the overlay pass (selection chrome, mask fills/outlines, segmentation
    * highlights). Set by export / bake callers that want the clean composite —
    * per-layer adjustments + node-scope + geometry — WITHOUT any of the editor's
@@ -210,6 +223,7 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
   const { canvas: visible, layerIds, opGraph, widgets, optimistic } = args;
   const hiddenNodeIds = args.hiddenNodeIds ?? new Set<string>();
   const bypassAdjustments = args.bypassAdjustments ?? false;
+  const sourceDirty = args.sourceDirty ?? true;
   const visibleCtx = visible.getContext('2d');
   if (!visibleCtx) return;
 
@@ -314,13 +328,13 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
       const tw = renderScale < 1 ? scaledW : source.width;
       const th = renderScale < 1 ? scaledH : source.height;
       const hi = hiBitStore.getDownscaled(layerId, tw, th);
-      if (hi && PipelineManager.setHiBitSource(hi)) {
+      if (hi && PipelineManager.setHiBitSource(hi, sourceDirty)) {
         rendered = PipelineManager.renderSync(adjustments);
       } else {
         const pipelineInput = renderScale < 1
-          ? getMemoisedScratchCanvas(args.imageNodeId, source, scaledW, scaledH)
+          ? getMemoisedScratchCanvas(args.imageNodeId, layerId, source, scaledW, scaledH)
           : source;
-        PipelineManager.setSourceCanvas(pipelineInput);
+        PipelineManager.setSourceCanvas(pipelineInput, sourceDirty);
         rendered = PipelineManager.renderSync(adjustments);
       }
     } else {
@@ -329,9 +343,9 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
       // dims. Without this, every shader pass runs at full source resolution
       // even when the visible canvas is tiny — defeating the LOD entirely.
       const pipelineInput = renderScale < 1
-        ? getMemoisedScratchCanvas(args.imageNodeId, source, scaledW, scaledH)
+        ? getMemoisedScratchCanvas(args.imageNodeId, layerId, source, scaledW, scaledH)
         : source;
-      PipelineManager.setSourceCanvas(pipelineInput);
+      PipelineManager.setSourceCanvas(pipelineInput, sourceDirty);
       rendered = PipelineManager.renderSync(adjustments);
     }
 

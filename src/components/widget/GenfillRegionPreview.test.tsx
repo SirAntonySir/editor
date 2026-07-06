@@ -70,10 +70,13 @@ describe('GenfillRegionPreview', () => {
     expect(canvas).not.toBeNull();
     // Mask bbox → source px (×2) with 16px pad, clamped:
     //   x = 16*2-16 = 16, y = 12*2-16 = 8, w = 32*2+32 = 96, h = 24*2+32 = 80
-    expect(canvas.width).toBe(96);
-    expect(canvas.height).toBe(80);
+    // Backing is then scaled to the node's flow scale (size/sourceSize = 0.5),
+    // so it tracks the on-canvas size instead of the full generated resolution:
+    //   96*0.5 = 48, 80*0.5 = 40.
+    expect(canvas.width).toBe(48);
+    expect(canvas.height).toBe(40);
     // Split-width layout: each canvas fills its half via CSS, keeping the crop
-    // aspect ratio (96/80 = 1.2) rather than a fixed display-scaled size.
+    // aspect ratio (48/40 = 1.2) rather than a fixed display-scaled size.
     expect(canvas.style.width).toBe('100%');
     expect(canvas.style.aspectRatio).toBe('1.2');
   });

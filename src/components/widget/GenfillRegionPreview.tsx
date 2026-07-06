@@ -16,6 +16,13 @@ interface GenfillRegionPreviewProps {
  *  sliver of untouched context around the filled region. */
 const PAD_SRC_PX = 16;
 
+/** Absolute cap on the preview canvas backing (longest edge, px). A safety net
+ *  so a source image node shown near 1:1 — or a large generated result — can't
+ *  balloon the canvas (and, via the widget's max-content sizing, the whole
+ *  widget) to full resolution. The image-node flow scale below does the real
+ *  scaling; this just bounds the worst case. */
+const MAX_PREVIEW_BACKING_PX = 384;
+
 interface CropRect {
   x: number;
   y: number;
@@ -57,6 +64,26 @@ export function GenfillRegionPreview({ widget, sessionId }: GenfillRegionPreview
     [g],
   );
 
+  // Scale the preview to the SAME flow scale as its source image node (display
+  // px per source px), so the crop reads as a 1:1 magnifier and — crucially —
+  // the canvas backing tracks the on-canvas size instead of the full generated
+  // resolution (which used to blow the widget up, since WidgetNode sizes the
+  // shell to `max-content`). Clamped to ≤ 1 (never upscale).
+  const nodeScale = useEditorStore((s) => {
+    const n = g ? s.imageNodes[g.imageNodeId] : undefined;
+    return n && n.sourceSize.w > 0 ? Math.min(1, n.size.w / n.sourceSize.w) : 1;
+  });
+
+  // Backing-store dims: source-crop pixels down-scaled by the node's flow scale,
+  // then bounded by the absolute cap. The `drawImage` calls already downsample
+  // into this, so a smaller canvas just yields a smaller (crisp) preview.
+  const backing = useMemo(() => {
+    if (!geometry) return { w: 1, h: 1 };
+    const { w, h } = geometry.rect;
+    const scale = Math.min(nodeScale, MAX_PREVIEW_BACKING_PX / Math.max(w, h), 1);
+    return { w: Math.max(1, Math.round(w * scale)), h: Math.max(1, Math.round(h * scale)) };
+  }, [geometry, nodeScale]);
+
   useEffect(() => {
     const result = g?.result;
     if (!g || !geometry || !result) return;
@@ -73,8 +100,8 @@ export function GenfillRegionPreview({ widget, sessionId }: GenfillRegionPreview
       );
       const src = layerId ? pixelStore.get(layerId) : null;
       if (src) {
-        bctx.clearRect(0, 0, rect.w, rect.h);
-        bctx.drawImage(src, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+        bctx.clearRect(0, 0, backing.w, backing.h);
+        bctx.drawImage(src, rect.x, rect.y, rect.w, rect.h, 0, 0, backing.w, backing.h);
       }
     }
 
@@ -90,11 +117,11 @@ export function GenfillRegionPreview({ widget, sessionId }: GenfillRegionPreview
           // The result is the same framing at (usually) a capped resolution —
           // map the source-space crop into result pixels.
           const r = bitmap.width / srcDims.width;
-          actx.clearRect(0, 0, rect.w, rect.h);
+          actx.clearRect(0, 0, backing.w, backing.h);
           actx.drawImage(
             bitmap,
             rect.x * r, rect.y * r, rect.w * r, rect.h * r,
-            0, 0, rect.w, rect.h,
+            0, 0, backing.w, backing.h,
           );
           bitmap.close();
         } catch (err) {
@@ -105,7 +132,7 @@ export function GenfillRegionPreview({ widget, sessionId }: GenfillRegionPreview
       })();
     }
     return () => { cancelled = true; };
-  }, [g, geometry, sessionId]);
+  }, [g, geometry, backing, sessionId]);
 
   if (!g || !geometry) return null;
   // Split the content width: each preview is flex-1 and keeps the crop's aspect
@@ -120,8 +147,8 @@ export function GenfillRegionPreview({ widget, sessionId }: GenfillRegionPreview
         </span>
         <canvas
           ref={beforeRef}
-          width={geometry.rect.w}
-          height={geometry.rect.h}
+          width={backing.w}
+          height={backing.h}
           style={{ width: '100%', aspectRatio: `${aspect}` }}
           className="rounded-[3px] border border-separator"
         />
@@ -132,8 +159,8 @@ export function GenfillRegionPreview({ widget, sessionId }: GenfillRegionPreview
         </span>
         <canvas
           ref={afterRef}
-          width={geometry.rect.w}
-          height={geometry.rect.h}
+          width={backing.w}
+          height={backing.h}
           style={{ width: '100%', aspectRatio: `${aspect}` }}
           className="rounded-[3px] border border-separator"
         />

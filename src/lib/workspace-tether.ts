@@ -29,10 +29,17 @@ function buildTetherForWidget(widget: Widget, viewport?: Viewport): void {
   // first node — locate the ImageNode containing that layer. Fall back to
   // the active image node if the layer can't be resolved.
   const firstNode = widget.nodes[0];
-  const widgetLayerId = firstNode?.layerId ?? null;
+  let widgetLayerId = firstNode?.layerId ?? null;
 
   let targetImageNodeId: string | null = null;
-  if (widgetLayerId) {
+  if (widget.genfill) {
+    // Genfill widgets carry NO op-graph nodes (see GenfillState) — their target
+    // is recorded on `genfill.imageNodeId`. Tether to that image node's first
+    // layer so the provenance edge back to the source is drawn, exactly like a
+    // node-backed widget. Without this, genfill widgets spawn edge-less.
+    targetImageNodeId = widget.genfill.imageNodeId;
+    widgetLayerId = imageNodes[targetImageNodeId]?.layerIds[0] ?? null;
+  } else if (widgetLayerId) {
     for (const n of Object.values(imageNodes)) {
       if (n.layerIds.includes(widgetLayerId)) {
         targetImageNodeId = n.id;

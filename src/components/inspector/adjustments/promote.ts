@@ -1,6 +1,7 @@
 import { backendTools } from '@/lib/backend-tools';
 import { useEditorStore } from '@/store';
 import { scopeFromSelection } from '@/lib/scope-from-selection';
+import { getAiAccess } from '@/lib/ai-access';
 
 /** Spawn a canvas widget for a tool (the per-section Pin / ↗ open on canvas).
  * Editing a section writes canonical directly; this is the optional promote
@@ -16,6 +17,9 @@ import { scopeFromSelection } from '@/lib/scope-from-selection';
  * Migrated from propose_widget to proposeStack using forced_ops. */
 export function promoteToCanvas(sessionId: string | null, toolId: string, layerId: string | null): void {
   if (!sessionId || !layerId) return;
+  // Study baseline gates OFF the AI parametric widget layer — the frontend
+  // never opts itself into spawning a canvas widget (see ai-access.ts).
+  if (!getAiAccess()) return;
   const scope = scopeFromSelection(useEditorStore.getState().activeObjectId);
   void backendTools.proposeStack(sessionId, {
     intent: toolId,
@@ -41,6 +45,7 @@ export function promoteSingleParamToCanvas(
   paramKey: string,
 ): void {
   if (!sessionId || !layerId) return;
+  if (!getAiAccess()) return;
   useEditorStore.getState().queuePinRequest(layerId, opAdjustmentType, [paramKey]);
   const scope = scopeFromSelection(useEditorStore.getState().activeObjectId);
   void backendTools.proposeStack(sessionId, {

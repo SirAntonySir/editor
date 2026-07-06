@@ -31,6 +31,7 @@ import { HslSectionBody } from './HslSectionBody';
 import { LevelsSectionBody } from './LevelsSectionBody';
 import { HslOpenOnCanvasButton } from './HslOpenOnCanvasButton';
 import { promoteToCanvas } from './promote';
+import { useAiAccess } from '@/lib/ai-access';
 import { CompoundWidgetBody } from '@/components/widget/CompoundWidgetBody';
 import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';
 import { autoParamsForOp } from '@/lib/auto-tune';
@@ -47,6 +48,7 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
   const toggle = useEditorStore((s) => s.toggleSectionExpanded);
   const sessionId = useBackendState((s) => s.sessionId);
   const offline = useBackendState((s) => s.sseStatus !== 'open');
+  const aiAccess = useAiAccess();
   const canonical = useBackendState((s) => {
     const id = layerId ? `canon:${layerId}:${def.adjustmentType}` : '';
     return (s.snapshot?.operationGraph.nodes.find((n) => n.id === id)?.params ?? EMPTY_PARAMS) as Record<string, unknown>;
@@ -144,7 +146,7 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
   // No `border-b` here anymore — separators are owned by the accordion as
   // group dividers, not per-tool. See AdjustmentsAccordion.
   return (
-    <div className={hidden ? 'opacity-60' : undefined}>
+    <div data-section-id={def.id} className={hidden ? 'opacity-60' : undefined}>
       <div className="w-full flex items-center gap-2 px-2.5 py-2">
         <button
           type="button"
@@ -210,7 +212,10 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
         >
           {hidden ? <EyeOff size={13} aria-hidden /> : <Eye size={13} aria-hidden />}
         </button>
-        {isHsl ? (
+        {/* Pin / "open on canvas" — the AI parametric widget layer. Hidden in
+            the study baseline (aiAccess=false); all editing stays in the
+            inspector. promote.ts also no-ops defensively. */}
+        {aiAccess && (isHsl ? (
           <HslOpenOnCanvasButton
             sessionId={sessionId}
             layerId={layerId}
@@ -227,7 +232,7 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
           >
             <Pin size={13} aria-hidden />
           </button>
-        )}
+        ))}
       </div>
       {expanded && layerId && (
         def.adjustmentType === 'curves' ? (

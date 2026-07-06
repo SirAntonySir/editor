@@ -40,7 +40,18 @@ export function spawnToolWidget(toolName: string): boolean {
 /**
  * Resolve session + active image node + layer for a Cmd+K spawn.
  * Returns null when the click should be gated out (user is shown a toast).
+ *
+ * Exported as {@link resolveSpawnContext} so the baseline command-palette
+ * launcher (aiAccess=false) can target the SAME layer/scope the widget path
+ * would, then route into the inspector instead of spawning a widget.
  */
+export function resolveSpawnContext(): {
+  sid: string;
+  layerId: string;
+  scope: Scope;
+} | null {
+  return _resolveSpawnContext();
+}
 function _resolveSpawnContext(): {
   sid: string;
   layerId: string;

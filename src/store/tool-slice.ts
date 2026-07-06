@@ -15,6 +15,11 @@ export interface ToolSlice {
   toolConfigs: Record<string, unknown>;
   expandedWidgetIds: Set<string>;
   expandedSectionIds: Set<string>;
+  /** Adjustments-accordion section id (== ProcessingDefinition.id) that the UI
+   *  should scroll into view once. Set by the command-palette baseline launcher
+   *  (aiAccess=false routes op rows into the inspector instead of spawning a
+   *  canvas widget); the AdjustmentsAccordion consumes + clears it. */
+  sectionScrollTarget: string | null;
   hoveredWidgetId: string | null;
   cropPreview: { crop: { x: number; y: number; w: number; h: number } | null;
                  rotate: { angle: number; flip_h: boolean; flip_v: boolean } | null } | null;
@@ -60,6 +65,14 @@ export interface ToolSlice {
   /** Force a widget open (used when a widget spawns — it spawns expanded). */
   expandWidget: (widgetId: string) => void;
   toggleSectionExpanded: (sectionId: string) => void;
+  /** Force a section open (idempotent). Used by the baseline command-palette
+   *  launcher so picking an op row deterministically opens its inspector
+   *  section instead of spawning a canvas widget. */
+  expandSection: (sectionId: string) => void;
+  /** Request the AdjustmentsAccordion scroll a section into view. */
+  scrollToSection: (sectionId: string) => void;
+  /** Clear the pending scroll target (called by the accordion after scrolling). */
+  consumeSectionScroll: () => void;
   collapseAllWidgets: () => void;
   setHoveredWidget: (widgetId: string | null) => void;
   markParamTouched: (key: string) => void;
@@ -72,6 +85,7 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   toolConfigs: {},
   expandedWidgetIds: new Set<string>(),
   expandedSectionIds: new Set<string>(),
+  sectionScrollTarget: null,
   hiddenWidgetIds: new Set<string>(),
   hiddenCanonNodeIds: new Set<string>(),
   hoveredWidgetId: null,
@@ -174,6 +188,21 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
       } else {
         state.expandedSectionIds.add(sectionId);
       }
+    }),
+
+  expandSection: (sectionId) =>
+    set((state) => {
+      state.expandedSectionIds.add(sectionId);
+    }),
+
+  scrollToSection: (sectionId) =>
+    set((state) => {
+      state.sectionScrollTarget = sectionId;
+    }),
+
+  consumeSectionScroll: () =>
+    set((state) => {
+      state.sectionScrollTarget = null;
     }),
 
   markParamTouched: (key) =>

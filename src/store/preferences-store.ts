@@ -60,6 +60,9 @@ export interface PreferencesState {
   showCrop: () => void;
   /** Open the sidebar and select the Layer tab. */
   showLayer: () => void;
+  /** Open the sidebar (Inspector → Adjustments). Used by the baseline
+   *  command-palette launcher to route an op/preset row into the inspector. */
+  showAdjustments: () => void;
 }
 
 export const SIDEBAR_MIN_WIDTH = 200;
@@ -110,6 +113,8 @@ export const usePreferencesStore = create<PreferencesState>()(
       showImageContext: () => set({ rightSidebarCollapsed: false, inspectorTab: 'info' }),
       showCrop: () => set({ rightSidebarCollapsed: false, inspectorTab: 'crop' }),
       showLayer: () => set({ rightSidebarCollapsed: false, inspectorTab: 'layer' }),
+      showAdjustments: () =>
+        set({ rightSidebarCollapsed: false, rightSidebarTab: 'inspector', inspectorTab: 'adjustments' }),
     }),
     {
       name: 'editor-preferences',

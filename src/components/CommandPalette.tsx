@@ -8,6 +8,7 @@ import { pixelStore } from '@/core/pixel-store';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { spawnRegistryOp, spawnRegistryPreset } from '@/lib/toolrail-spawn';
+import { routeOpToInspector, routePresetToInspector } from '@/lib/palette-inspector-route';
 import { PromptEditor, type PromptEditorHandle } from '@/components/ui/PromptEditor';
 import { RegionSuggestions } from './RegionSuggestions';
 import { rankElements, type PaletteElement } from '@/lib/region-suggest';
@@ -400,7 +401,9 @@ export function CommandPalette() {
   }
   // Control condition has no Ask mode — if the flag flips to false while the
   // palette sits in Ask (e.g. admin toggle mid-session), snap back to Agent.
-  if (!aiAccess && (mode === 'ask' || mode === 'genfill')) setMode('agent');
+  // Genfill is EXEMPT: it produces pixels, not a parametric widget, so it stays
+  // available in both conditions.
+  if (!aiAccess && mode === 'ask') setMode('agent');
 
   // Broadcast open/close so CommandTrigger can hide itself and Framer's
   // shared-layout morph (layoutId="command-palette-shell") has only one
@@ -463,13 +466,17 @@ export function CommandPalette() {
     async (cmd: PaletteCommand | undefined) => {
       if (!cmd) return;
       if (cmd.kind === 'op' && cmd.opId) {
-        spawnRegistryOp(cmd.opId, cmd.label);
+        // Baseline (aiAccess=false): route into the sidebar inspector instead
+        // of spawning a tool_invoked canvas widget (the manipulated variable).
+        if (aiAccess) spawnRegistryOp(cmd.opId, cmd.label);
+        else routeOpToInspector(cmd.opId);
         resetPalette();
         setOpen(false);
         return;
       }
       if (cmd.kind === 'preset' && cmd.presetId) {
-        spawnRegistryPreset(cmd.presetId, cmd.label);
+        if (aiAccess) spawnRegistryPreset(cmd.presetId, cmd.label);
+        else routePresetToInspector(cmd.presetId);
         resetPalette();
         setOpen(false);
         return;
@@ -506,7 +513,7 @@ export function CommandPalette() {
         setOpen(false);
       }
     },
-    [doc, attachedContext, resetPalette, acceptSuggestion],
+    [doc, attachedContext, resetPalette, acceptSuggestion, aiAccess],
   );
 
   const onKeyDown = useCallback(
@@ -725,13 +732,16 @@ export function CommandPalette() {
                     when it has content so an empty padded strip never shows.
                     The target chip now lives on the input row below. No
                     separator: it visually fuses with the input row. */}
-                {(aiAccess || attachedContext.length > 0) && (
+                {/* The mode toggle always renders — in the control condition it
+                    offers Agent + Fill (genfill stays in both conditions); Ask is
+                    hidden there. */}
+                {(
                   <div
                     className={`flex items-center gap-1 px-2 py-1 flex-wrap${
                       pending || ask.state.status === 'pending' ? ' ai-shimmer' : ''
                     }`}
                   >
-                    {aiAccess && <ModeToggle mode={mode} onChange={setMode} />}
+                    <ModeToggle mode={mode} onChange={setMode} aiAccess={aiAccess} />
                     {attachedContext.length > 0 && (
                       <InlineContextChips
                         items={attachedContext}
@@ -1151,9 +1161,12 @@ function CommandRow({
 function ModeToggle({
   mode,
   onChange,
+  aiAccess,
 }: {
   mode: PaletteMode;
   onChange: (m: PaletteMode) => void;
+  /** Control condition (false) hides Ask; Agent + Fill remain. */
+  aiAccess: boolean;
 }) {
   return (
     <div className="inline-flex flex-none items-center rounded-[3px] bg-surface-secondary p-px text-[10px]">
@@ -1163,12 +1176,14 @@ function ModeToggle({
         label="Agent"
         title="Search tools and ask the agent to act"
       />
-      <ModeButton
-        active={mode === 'ask'}
-        onClick={() => onChange('ask')}
-        label="Ask"
-        title="Get a grounded answer about the photo"
-      />
+      {aiAccess && (
+        <ModeButton
+          active={mode === 'ask'}
+          onClick={() => onChange('ask')}
+          label="Ask"
+          title="Get a grounded answer about the photo"
+        />
+      )}
       <ModeButton
         active={mode === 'genfill'}
         onClick={() => onChange('genfill')}

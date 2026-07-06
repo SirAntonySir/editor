@@ -255,4 +255,22 @@ describe('CommandPalette — generative fill mode', () => {
     // No region chip attached → the view tells the user to attach one.
     expect(screen.getByText(/attach a region to fill/i)).toBeDefined();
   });
+
+  it('keeps Fill available but hides Ask when aiAccess is false (widget-layer gate)', () => {
+    // Generative fill produces pixels, not a parametric widget, so it stays in
+    // BOTH study conditions. Ask mode remains gated off in the control condition.
+    useEditorStore.getState().addImageNode(['l1']);
+    useBackendState.setState({
+      snapshot: {
+        sessionId: 's1', imageContext: null, widgets: [], masksIndex: [],
+        operationGraph: { id: 'g', userGoal: null, reasoning: null, nodes: [], panelBindings: [], metadata: {} },
+        revision: 1, aiAccess: false,
+      } as never,
+    });
+    render(<CommandPalette />);
+    open();
+    expect(screen.getByRole('button', { name: 'Agent' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Fill' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Ask' })).toBeNull();
+  });
 });

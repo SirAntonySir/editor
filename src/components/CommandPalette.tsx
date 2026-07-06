@@ -54,7 +54,7 @@ const STATIC_REGISTRY_SECTIONS: PaletteSection[] = [
   ...buildPreferencesSections(),
 ];
 
-type PaletteMode = 'agent' | 'ask' | 'genfill';
+type PaletteMode = 'edit' | 'ask' | 'genfill';
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -78,7 +78,7 @@ export function CommandPalette() {
   /** Agent mode (default) drives the registry-driven palette. Ask mode swaps
    *  the results scroll for an LLM-answered markdown view. Toggled by the
    *  pill in the input row. */
-  const [mode, setMode] = useState<PaletteMode>('agent');
+  const [mode, setMode] = useState<PaletteMode>('edit');
   // Study control condition: strip the palette's AI affordances (Ask mode,
   // "send as a prompt" row, smart-match) but keep the static op/preset/menu
   // search so both study conditions share a keyboard search surface.
@@ -389,21 +389,20 @@ export function CommandPalette() {
     setSuggest({ regions: [], index: 0, anchor: null });
     setActiveIndex(0);
     setAttachedContext([]);
-    setMode('agent');
+    setMode('edit');
     ask.reset();
   }, [ask]);
-  // Drop a previous Ask answer the moment the user toggles back to Agent
+  // Drop a previous Ask answer the moment the user toggles back to Edit
   // (or vice versa) so the body doesn't flash stale state for one frame.
   const [lastMode, setLastMode] = useState(mode);
   if (lastMode !== mode) {
     setLastMode(mode);
     ask.reset();
   }
-  // Control condition has no Ask mode — if the flag flips to false while the
-  // palette sits in Ask (e.g. admin toggle mid-session), snap back to Agent.
-  // Genfill is EXEMPT: it produces pixels, not a parametric widget, so it stays
-  // available in both conditions.
-  if (!aiAccess && mode === 'ask') setMode('agent');
+  // All three modes (Edit · Ask · Fill) are available in BOTH study conditions —
+  // the mode row is identical so it never leaks the condition. What differs by
+  // aiAccess lives BELOW the toggle (Edit spawns widgets vs routes to the
+  // inspector; the "send as a prompt" AI row + smart_match are gated).
 
   // Broadcast open/close so CommandTrigger can hide itself and Framer's
   // shared-layout morph (layoutId="command-palette-shell") has only one
@@ -732,16 +731,21 @@ export function CommandPalette() {
                     when it has content so an empty padded strip never shows.
                     The target chip now lives on the input row below. No
                     separator: it visually fuses with the input row. */}
-                {/* The mode toggle always renders — in the control condition it
-                    offers Agent + Fill (genfill stays in both conditions); Ask is
-                    hidden there. */}
+                {/* Brand + mode toggle. The toggle renders the same three modes
+                    (Edit · Ask · Fill) in both study conditions. */}
                 {(
                   <div
-                    className={`flex items-center gap-1 px-2 py-1 flex-wrap${
+                    className={`flex items-center gap-2 px-2 py-1 flex-wrap${
                       pending || ask.state.status === 'pending' ? ' ai-shimmer' : ''
                     }`}
                   >
-                    <ModeToggle mode={mode} onChange={setMode} aiAccess={aiAccess} />
+                    <span
+                      aria-hidden
+                      className="select-none font-[var(--font-display,Fraunces)] italic text-[12px] text-text-secondary pl-0.5 pr-1"
+                    >
+                      Atelier
+                    </span>
+                    <ModeToggle mode={mode} onChange={setMode} />
                     {attachedContext.length > 0 && (
                       <InlineContextChips
                         items={attachedContext}
@@ -761,7 +765,7 @@ export function CommandPalette() {
                     initialDoc={doc}
                     onChange={(d) => { setDoc(d); if (usePaletteRuntime.getState().error) usePaletteRuntime.getState().clearError(); }}
                     onCaretWordChange={handleCaretWord}
-                    disabled={mode === 'agent' && !!pending}
+                    disabled={mode === 'edit' && !!pending}
                     placeholder={
                       mode === 'genfill'
                         ? 'Describe what to generate in the region…'
@@ -773,7 +777,7 @@ export function CommandPalette() {
                           ? pendingPhase === 'analyze'
                             ? `Analyzing image first — then "${pending}"…`
                             : `Sending "${pending}"…`
-                          : aiAccess ? 'Search tools or ask AI…' : 'Search tools…'
+                          : 'Search adjustments or type an intent…'
                     }
                   />
                   {targetLabel && (
@@ -823,7 +827,13 @@ export function CommandPalette() {
                 ) : mode === 'genfill' ? (
                   <CommandPaletteGenfillView hasRegion={!!genfillTarget} draft={query} />
                 ) : (
-                <div className="flex-1 min-h-0 overflow-hidden">
+                // Explicit max-height gives the ScrollArea a DEFINITE bound to clip
+                // against. `flex-1` alone relied on the shell resolving its own
+                // height, but the shell is a Framer `layoutId` element with only a
+                // `max-h` (no definite height), so under the shared-layout size
+                // animation `flex-1` never bounded and the viewport had nothing to
+                // scroll. The own max-h engages the overlay scrollbar regardless.
+                <div className="flex-1 min-h-0 overflow-hidden max-h-[min(34rem,66vh)]">
                 <ScrollArea className="h-full" viewportClassName="py-1">
                   {primarySections.map((section, sIdx) => (
                     <div key={section.id}>
@@ -1155,35 +1165,31 @@ function CommandRow({
   );
 }
 
-/** Two-position pill that flips the palette between Agent (registry-driven
- *  command list) and Ask (LLM markdown answer). Sits flush-left in the
- *  input row so the active mode is the first thing the eye lands on. */
+/** Mode pill: Edit (registry-driven command list / inspector launcher), Ask
+ *  (LLM markdown answer), Fill (generative fill). All three render in both study
+ *  conditions so the row never leaks the condition. Sits flush-left in the input
+ *  row so the active mode is the first thing the eye lands on. */
 function ModeToggle({
   mode,
   onChange,
-  aiAccess,
 }: {
   mode: PaletteMode;
   onChange: (m: PaletteMode) => void;
-  /** Control condition (false) hides Ask; Agent + Fill remain. */
-  aiAccess: boolean;
 }) {
   return (
     <div className="inline-flex flex-none items-center rounded-[3px] bg-surface-secondary p-px text-[10px]">
       <ModeButton
-        active={mode === 'agent'}
-        onClick={() => onChange('agent')}
-        label="Agent"
-        title="Search tools and ask the agent to act"
+        active={mode === 'edit'}
+        onClick={() => onChange('edit')}
+        label="Edit"
+        title="Search adjustments and presets, or type an intent"
       />
-      {aiAccess && (
-        <ModeButton
-          active={mode === 'ask'}
-          onClick={() => onChange('ask')}
-          label="Ask"
-          title="Get a grounded answer about the photo"
-        />
-      )}
+      <ModeButton
+        active={mode === 'ask'}
+        onClick={() => onChange('ask')}
+        label="Ask"
+        title="Get a grounded answer about the photo"
+      />
       <ModeButton
         active={mode === 'genfill'}
         onClick={() => onChange('genfill')}

@@ -256,9 +256,10 @@ describe('CommandPalette — generative fill mode', () => {
     expect(screen.getByText(/attach a region to fill/i)).toBeDefined();
   });
 
-  it('keeps Fill available but hides Ask when aiAccess is false (widget-layer gate)', () => {
-    // Generative fill produces pixels, not a parametric widget, so it stays in
-    // BOTH study conditions. Ask mode remains gated off in the control condition.
+  it('shows Edit · Ask · Fill in BOTH conditions (mode row identical, no condition leak)', () => {
+    // Atelier: the mode toggle no longer varies by aiAccess. Ask is un-gated
+    // (AI Q&A, no widgets); Fill is exempt (pixels). What differs is BELOW the
+    // toggle (Edit spawns widgets vs routes to inspector, etc.).
     useEditorStore.getState().addImageNode(['l1']);
     useBackendState.setState({
       snapshot: {
@@ -269,8 +270,10 @@ describe('CommandPalette — generative fill mode', () => {
     });
     render(<CommandPalette />);
     open();
-    expect(screen.getByRole('button', { name: 'Agent' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Ask' })).toBeDefined();
     expect(screen.getByRole('button', { name: 'Fill' })).toBeDefined();
-    expect(screen.queryByRole('button', { name: 'Ask' })).toBeNull();
+    // The old "Agent" label is gone.
+    expect(screen.queryByRole('button', { name: 'Agent' })).toBeNull();
   });
 });

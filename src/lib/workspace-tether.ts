@@ -60,19 +60,22 @@ function buildTetherForWidget(widget: Widget, viewport?: Viewport): void {
     })),
   ];
 
-  // Pick side based on viewport. Default to LEFT when viewport unavailable.
+  // Genfill widgets spawn at the VIEWPORT CENTER (where the user's attention is)
+  // rather than the collision-aware beside-image slot — the edge back to the
+  // source keeps the provenance clear. Falls back to beside-image placement when
+  // no viewport is available (e.g. headless / first paint).
   const targetRect: PlacedRect = { position: targetNode.position, size: targetNode.size };
-  const side: 'left' | 'right' = viewport
-    ? pickSpawnSide(targetRect, viewport)
-    : 'left';
-
-  const pos = nextSpawnPositionFor(
-    targetRect,
-    WIDGET_SPAWN_SIZE,
-    'widget',
-    occupied,
-    side,
-  );
+  let pos;
+  if (widget.genfill && viewport) {
+    // Screen center → flow coords: flow = (screen - pan) / zoom. Offset by half
+    // the widget footprint so the widget is centered, not its top-left corner.
+    const cx = (viewport.screen.w / 2 - viewport.pan.x) / viewport.zoom;
+    const cy = (viewport.screen.h / 2 - viewport.pan.y) / viewport.zoom;
+    pos = { x: cx - WIDGET_SPAWN_SIZE.w / 2, y: cy - WIDGET_SPAWN_SIZE.h / 2 };
+  } else {
+    const side: 'left' | 'right' = viewport ? pickSpawnSide(targetRect, viewport) : 'left';
+    pos = nextSpawnPositionFor(targetRect, WIDGET_SPAWN_SIZE, 'widget', occupied, side);
+  }
 
   // SSE-driven placement: consolidate position + edge into a single history
   // snapshot so undo can roll the widget back to the pre-placement state.

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pin, RefreshCw, Sparkles } from 'lucide-react';
+import { Command, Pin, RefreshCw, Sparkles } from 'lucide-react';
 import type { Widget } from '@/types/widget';
 import { backendTools } from '@/lib/backend-tools';
 import {
@@ -54,6 +54,24 @@ export function GenfillWidgetBody({ widget }: GenfillWidgetBodyProps) {
     setBusy(false);
   };
 
+  // Move this fill's context (target region + typed prompt) into Cmd+K in
+  // genfill mode, then dismiss the widget — continue composing there.
+  const continueInPalette = () => {
+    if (!g) return;
+    const label =
+      useBackendState.getState().snapshot?.masksIndex?.find((m) => m.id === g.maskId)?.label
+      ?? 'Region';
+    window.dispatchEvent(new CustomEvent('spawn-palette:open', {
+      detail: {
+        mode: 'genfill',
+        promptText: prompt,
+        // `region:object:<maskId>` so the palette's genfillTarget resolves.
+        attachContext: [{ label, value: g.maskId, sourceId: `region:object:${g.maskId}` }],
+      },
+    }));
+    void backendTools.delete_widget(sessionId, { widgetId: widget.id, suppressSimilar: false });
+  };
+
   return (
     <div className="px-1.5 py-1 flex flex-col gap-1.5">
       {/* Prompt */}
@@ -68,6 +86,16 @@ export function GenfillWidgetBody({ widget }: GenfillWidgetBodyProps) {
         autoFocus={g.status === 'compose'}
         className="w-full bg-transparent text-[12px] text-text-primary border border-separator rounded-[3px] px-2 py-1 outline-none focus:border-[var(--color-accent)]"
       />
+      {/* Hand off to the command palette (genfill mode) and close this widget. */}
+      {(g.status === 'compose' || g.status === 'ready') && (
+        <button
+          type="button"
+          onClick={continueInPalette}
+          className="self-start inline-flex items-center gap-1 text-[10px] text-text-secondary hover:text-text-primary"
+        >
+          <Command size={10} aria-hidden /> Continue in command palette
+        </button>
+      )}
       {/* Compose: Generate. Otherwise seed row + regenerate. */}
       {g.status === 'compose' ? (
         <button

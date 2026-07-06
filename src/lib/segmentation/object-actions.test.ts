@@ -9,18 +9,13 @@ import { pixelStore } from '@/core/pixel-store';
 // behaviour under test is how the NEW image-node is sized, not the bake.
 vi.mock('@/store/segment-actions', () => ({
   extractLayerFromMask: vi.fn(() => 'cut-layer'),
-  duplicateLayer: vi.fn(),
 }));
 
 const {
   extractObjectToImageNode,
   extractObjectToLayer,
   selectInvertedObject,
-  convertObjectToLayerMask,
 } = await import('./object-actions');
-
-// Pull the mocked module so individual tests can configure return values.
-const { duplicateLayer } = await import('@/store/segment-actions');
 
 beforeEach(() => {
   useEditorStore.getState().resetWorkspace();
@@ -181,102 +176,6 @@ describe('selectInvertedObject', () => {
 
     expect(captured).toBeNull();
     expect(useEditorStore.getState().activeObjectId).toBeNull();
-  });
-});
-
-// ─── convertObjectToLayerMask ────────────────────────────────────────────────
-
-describe('convertObjectToLayerMask', () => {
-  it('duplicates the source layer and masks the duplicate, leaving the original untouched', () => {
-    const editor = useEditorStore.getState();
-    // Seed: image-node 'in-1' with layerIds = ['L1'].
-    const nodeId = editor.addImageNode(['L1'], { x: 0, y: 0 }, { w: 100, h: 100 });
-    // Add the layer to the store so isRealLayer check passes.
-    editor.addLayer({
-      id: 'L1',
-      type: 'image',
-      name: 'Background',
-      visible: true,
-      opacity: 1,
-      blendMode: 'normal',
-      locked: false,
-    });
-
-    // duplicateLayer mock should return the new layer id and actually add it.
-    const dupId = 'L1_dup';
-    vi.mocked(duplicateLayer).mockImplementation(() => {
-      editor.addLayer({
-        id: dupId,
-        type: 'image',
-        name: 'Background copy',
-        visible: true,
-        opacity: 1,
-        blendMode: 'normal',
-        locked: false,
-      });
-      return dupId;
-    });
-
-    const maskRef = maskStore.register({
-      layerId: 'L1',
-      label: 'Subject',
-      width: 2,
-      height: 2,
-      data: new Uint8Array(4).fill(255),
-      source: 'sam-point',
-      createdAt: 0,
-    });
-
-    convertObjectToLayerMask(maskRef, nodeId);
-
-    const state = useEditorStore.getState();
-
-    // Original L1 must have no layerMask.
-    const original = state.layers.find((l) => l.id === 'L1');
-    expect(original?.layerMask).toBeUndefined();
-
-    // Duplicate must have the mask applied.
-    const dup = state.layers.find((l) => l.id === dupId);
-    expect(dup?.layerMask).toBe(maskRef);
-
-    // Image-node must include the new layer.
-    expect(state.imageNodes[nodeId].layerIds).toContain(dupId);
-    // The masked duplicate becomes the active edit layer so a following
-    // adjustment lands on it (the "convert then adjust" flow).
-    expect(state.activeLayerId).toBe(dupId);
-  });
-
-  it('is a no-op if duplicateLayer fails', () => {
-    const editor = useEditorStore.getState();
-    const nodeId = editor.addImageNode(['L1'], { x: 0, y: 0 }, { w: 100, h: 100 });
-    editor.addLayer({
-      id: 'L1',
-      type: 'image',
-      name: 'Background',
-      visible: true,
-      opacity: 1,
-      blendMode: 'normal',
-      locked: false,
-    });
-
-    vi.mocked(duplicateLayer).mockReturnValue(null);
-
-    const maskRef = maskStore.register({
-      layerId: 'L1',
-      width: 2,
-      height: 2,
-      data: new Uint8Array(4).fill(255),
-      source: 'sam-point',
-      createdAt: 0,
-    });
-
-    convertObjectToLayerMask(maskRef, nodeId);
-
-    // Original layer must remain untouched.
-    const original = useEditorStore.getState().layers.find((l) => l.id === 'L1');
-    expect(original?.layerMask).toBeUndefined();
-    // Node should still have only L1.
-    expect(useEditorStore.getState().imageNodes[nodeId].layerIds).toEqual(['L1']);
   });
 });
 

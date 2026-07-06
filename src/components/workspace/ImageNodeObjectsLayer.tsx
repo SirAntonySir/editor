@@ -6,7 +6,6 @@ import { maskStore } from '@/core/mask-store';
 import {
   renameObject,
   selectInvertedObject,
-  convertObjectToLayerMask,
   extractObjectToImageNode,
   extractObjectToLayer,
   deleteObject,
@@ -87,32 +86,100 @@ function appendContour(
   }
 }
 
-function paintAllOutlines(
+/** Resolve the theme's `--color-accent` token to concrete sRGB bytes. The mask
+ *  fill writes per-pixel RGBA and the stroke needs a plain colour, so the oklch
+ *  token is rasterized through a 1×1 canvas to get real bytes. Falls back to a
+ *  warm accent red if the token is missing / the color syntax is unsupported. */
+function resolveAccentRgb(): [number, number, number] {
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue('--color-accent')
+    .trim();
+  if (raw) {
+    const probe = document.createElement('canvas');
+    probe.width = 1;
+    probe.height = 1;
+    const pctx = probe.getContext('2d');
+    if (pctx) {
+      pctx.fillStyle = raw;
+      pctx.fillRect(0, 0, 1, 1);
+      const [r, g, b] = pctx.getImageData(0, 0, 1, 1).data;
+      return [r, g, b];
+    }
+  }
+  return [214, 69, 47];
+}
+
+/** Paint one object's translucent fill. The mask is drawn at its native
+ *  resolution into a scratch canvas (per-pixel accent + alpha) then bilinearly
+ *  upscaled onto the display canvas, so the fill edge reads as a soft curve —
+ *  the same treatment the live segmentation preview uses. */
+function paintMaskFill(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  canvasH: number,
+  obj: ImageObject,
+  rgb: [number, number, number],
+  alpha: number,
+): void {
+  const { data, width, height } = obj.mask;
+  const off = document.createElement('canvas');
+  off.width = width;
+  off.height = height;
+  const octx = off.getContext('2d');
+  if (!octx) return;
+  const img = octx.createImageData(width, height);
+  const [r, g, b] = rgb;
+  for (let i = 0; i < data.length; i++) {
+    const j = i * 4;
+    img.data[j] = r;
+    img.data[j + 1] = g;
+    img.data[j + 2] = b;
+    img.data[j + 3] = data[i] === 255 ? alpha : 0;
+  }
+  octx.putImageData(img, 0, 0);
+  ctx.drawImage(off, 0, 0, canvasW, canvasH);
+}
+
+/** Paint every committed object mask like the live segmentation preview — a
+ *  translucent fill plus a soft blurred outline — but tinted with the system
+ *  accent (`--color-accent`) instead of the AI violet. A faint dark underlay
+ *  keeps the outline legible over any photo content. */
+function paintObjectMasks(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
   canvasH: number,
   objects: ImageObject[],
 ): void {
   ctx.clearRect(0, 0, canvasW, canvasH);
+  if (objects.length === 0) return;
+
+  const rgb = resolveAccentRgb();
+  const [r, g, b] = rgb;
+
+  // Translucent accent fill per object (bilinear upscale → soft edges).
+  const FILL_ALPHA = 110;
+  ctx.imageSmoothingEnabled = true;
+  for (const obj of objects) {
+    paintMaskFill(ctx, canvasW, canvasH, obj, rgb, FILL_ALPHA);
+  }
+
+  // Soft accent outline traced via marching squares, over a dark underlay.
   const path = new Path2D();
   for (const obj of objects) {
     appendContour(path, obj.mask, canvasW, canvasH);
   }
-  // Marching-ants outline over arbitrary image content: deliberately
-  // *not* themed. The black-then-white stroke pair guarantees contrast
-  // against both bright and dark areas of the underlying photo. Theme
-  // tokens (which target chrome, not image overlays) would lose
-  // visibility on light-on-light or dark-on-dark images.
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  ctx.lineWidth = 2;
   ctx.setLineDash([]);
-  ctx.strokeStyle = 'rgba(0,0,0,0.40)';
+  // Blur rounds the boundary and softens the seam against the upscaled fill.
+  ctx.filter = 'blur(0.7px)';
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = 'rgba(0,0,0,0.30)';
   ctx.stroke(path);
-  ctx.lineWidth = 1.25;
-  ctx.setLineDash([4, 3]);
-  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = `rgb(${r}, ${g}, ${b})`;
   ctx.stroke(path);
+  ctx.filter = 'none';
 }
 
 function ObjectLabel({
@@ -246,12 +313,6 @@ function ObjectLabel({
           </ContextMenu.Item>
           <ContextMenu.Item
             className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"
-            onSelect={() => convertObjectToLayerMask(obj.id, imageNodeId)}
-          >
-            Convert to Layer Mask
-          </ContextMenu.Item>
-          <ContextMenu.Item
-            className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"
             onSelect={() => extractObjectToLayer(obj.id, imageNodeId)}
           >
             Extract to new layer
@@ -295,7 +356,7 @@ export function ImageNodeObjectsLayer({
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    paintAllOutlines(ctx, canvas.width, canvas.height, objects);
+    paintObjectMasks(ctx, canvas.width, canvas.height, objects);
   }, [objects, widthPx, heightPx]);
 
   if (objects.length === 0) return null;

@@ -607,13 +607,6 @@ export function SegmentHitLayer({
               <ContextMenu.Item
                 className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none data-[disabled]:opacity-40 data-[disabled]:cursor-default"
                 disabled={!sessionId}
-                onSelect={() => void runVerb('convert-mask')}
-              >
-                Convert to Layer Mask
-              </ContextMenu.Item>
-              <ContextMenu.Item
-                className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none data-[disabled]:opacity-40 data-[disabled]:cursor-default"
-                disabled={!sessionId}
                 onSelect={() => void runVerb('genfill')}
               >
                 Generative fill…

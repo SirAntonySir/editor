@@ -3,7 +3,7 @@
  * ContextMenu and the image-node ContextMenu. Each helper is a thin wrapper
  * around the relevant backend tool + optimistic local state update.
  *
- * All four mirror the menu items in `ImageNodeObjectsLayer`. The image-node
+ * These mirror the menu items in `ImageNodeObjectsLayer`. The image-node
  * menu calls these directly; the label menu wraps them with the inline
  * editing state needed for in-place rename.
  */
@@ -14,7 +14,7 @@ import { useAiSession } from '@/hooks/useImageContext';
 import { backendTools } from '@/lib/backend-tools';
 import { maskStore } from '@/core/mask-store';
 import { pixelStore } from '@/core/pixel-store';
-import { extractLayerFromMask, duplicateLayer } from '@/store/segment-actions';
+import { extractLayerFromMask } from '@/store/segment-actions';
 import { toast } from '@/components/ui/Toast';
 import { UI } from '@/config';
 
@@ -119,55 +119,6 @@ export function createSelectionFromLayer(
       },
     }),
   );
-}
-
-/** Apply the mask as a layer's `layerMask`. The mask's `layerId` points at
- *  the owning layer; LayerCompositor reads `layer.layerMask` and multiplies
- *  alpha at render time. AI-proposed masks carry a synthetic 'ai-proposed'
- *  sentinel instead of a real id — when that's the case, fall back to the
- *  active layer (when it lives on the image node) or the node's first layer. */
-export function convertObjectToLayerMask(
-  maskId: string,
-  sourceImageNodeId?: string,
-): void {
-  const mask = maskStore.get(maskId);
-  if (!mask) {
-    toast.info('Convert to Layer Mask: mask no longer exists.');
-    return;
-  }
-  const editor = useEditorStore.getState();
-  const isRealLayer = editor.layers.some((l) => l.id === mask.layerId);
-  let sourceLayerId: string | undefined;
-  if (isRealLayer) {
-    sourceLayerId = mask.layerId;
-  } else if (sourceImageNodeId) {
-    const node = editor.imageNodes[sourceImageNodeId];
-    if (node) {
-      sourceLayerId =
-        editor.activeLayerId && node.layerIds.includes(editor.activeLayerId)
-          ? editor.activeLayerId
-          : node.layerIds[0];
-    }
-  }
-  if (!sourceLayerId) {
-    toast.info('Convert to Layer Mask: no target layer available.');
-    return;
-  }
-  const newLayerId = duplicateLayer(sourceLayerId);
-  if (!newLayerId) {
-    toast.info('Convert to Layer Mask: could not duplicate the source layer.');
-    return;
-  }
-  editor.updateLayer(newLayerId, { layerMask: maskId });
-  if (sourceImageNodeId) {
-    useEditorStore.setState((s) => {
-      const node = s.imageNodes[sourceImageNodeId];
-      if (node && !node.layerIds.includes(newLayerId)) {
-        node.layerIds.push(newLayerId);
-      }
-    });
-  }
-  toast.info(`Applied "${mask.label ?? 'object'}" as layer mask on a new layer.`);
 }
 
 /** Bake the masked pixels into a new layer and place it on a new ImageNode

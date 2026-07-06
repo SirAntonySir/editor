@@ -20,7 +20,6 @@ import {
   Scissors,
   Sparkles,
   SquareArrowOutUpRight,
-  SquareStack,
   Trash2,
 } from 'lucide-react';
 import { useEditorStore } from '@/store';
@@ -34,7 +33,6 @@ import { editorDocument } from '@/core/document';
 import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { toast } from '@/components/ui/Toast';
 import {
-  convertObjectToLayerMask,
   extractObjectToImageNode,
   deleteObject,
   startObjectRename,
@@ -404,15 +402,6 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
             <span className="flex items-center gap-1.5">
               <Pencil size={11} className="text-text-secondary" />
               <span>Rename</span>
-            </span>
-          </Item>
-          <Item
-            className={itemClass}
-            onSelect={() => convertObjectToLayerMask(selectedObject.id, id)}
-          >
-            <span className="flex items-center gap-1.5">
-              <SquareStack size={11} className="text-text-secondary" />
-              <span>Convert to Layer Mask</span>
             </span>
           </Item>
           <Item

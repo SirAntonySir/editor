@@ -8,7 +8,6 @@ import { useSegmentExtractDrag } from '@/hooks/useSegmentExtractDrag';
 import {
   renameObject,
   selectInvertedObject,
-  convertObjectToLayerMask,
   extractObjectToImageNode,
   deleteObject,
 } from '@/lib/segmentation/object-actions';
@@ -78,8 +77,8 @@ function placeMarkers(objects: ImageObject[], heightPx: number): PlacedMarker[] 
  * the central move of Direction A.
  *
  * The right-click ContextMenu on each marker exposes the same Rename /
- * Convert to Layer Mask / Extract to Image Node / Delete actions the
- * classic surface had, so muscle memory transfers.
+ * Extract to Image Node / Delete actions the classic surface had, so
+ * muscle memory transfers.
  */
 export function ObjectMarkers({ imageNodeId, widthPx, heightPx, marginWidth }: ObjectMarkersProps) {
   const objects = useImageNodeObjects(imageNodeId);
@@ -330,12 +329,6 @@ function ObjectMarker({ obj, index, imageNodeId, top, onHover }: ObjectMarkerPro
             onSelect={() => selectInvertedObject(obj.id, imageNodeId)}
           >
             Select Inverted
-          </ContextMenu.Item>
-          <ContextMenu.Item
-            className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"
-            onSelect={() => convertObjectToLayerMask(obj.id, imageNodeId)}
-          >
-            Convert to Layer Mask
           </ContextMenu.Item>
           <ContextMenu.Item
             className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"

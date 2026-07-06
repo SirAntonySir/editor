@@ -54,7 +54,7 @@ describe('ClientToolApproval', () => {
   });
 
   it('Deny posts denied without running the tool', async () => {
-    useClientToolApproval.getState().enqueue({ requestId: 'r2', name: 'convert_object_to_layer_mask', input: { maskId: 'm2' } });
+    useClientToolApproval.getState().enqueue({ requestId: 'r2', name: 'select_object', input: { maskId: 'm2' } });
     render(<ClientToolApproval />);
     fireEvent.click(screen.getByRole('button', { name: /deny/i }));
     await waitFor(() => {

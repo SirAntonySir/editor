@@ -2,12 +2,22 @@ import { it, expect, vi, beforeEach } from 'vitest';
 import { promoteToCanvas } from './promote';
 import { backendTools } from '@/lib/backend-tools';
 import { useEditorStore } from '@/store';
+import { useBackendState } from '@/store/backend-state-slice';
 
 vi.mock('@/lib/backend-tools', () => ({ backendTools: { proposeStack: vi.fn().mockResolvedValue({ ok: true }) } }));
 
 beforeEach(() => {
   vi.clearAllMocks();
   useEditorStore.getState().clearSelection();
+  // Default: no snapshot → getAiAccess() defaults true. Reset so a prior test's
+  // aiAccess=false doesn't leak into the widget-layer-enabled cases.
+  useBackendState.setState({ snapshot: null });
+});
+
+it('no-ops when aiAccess is false (widget layer gated off in the baseline)', () => {
+  useBackendState.setState({ snapshot: { aiAccess: false } as never });
+  promoteToCanvas('s1', 'light', 'L1');
+  expect(backendTools.proposeStack).not.toHaveBeenCalled();
 });
 
 it('builds the tool_invoked proposeStack call targeting the active layer only', () => {

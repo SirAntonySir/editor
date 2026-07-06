@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useEditorStore } from '@/store';
 import { ProcessingRegistry } from '@/lib/processing-registry';
 import { ScrollArea } from '@/components/ui/ScrollArea';
@@ -33,6 +34,21 @@ function sectionDef(def: ProcessingDefinition): ProcessingDefinition {
 
 export function AdjustmentsAccordion() {
   const layerId = useEditorStore((s) => s.activeLayerId);
+  // Baseline command-palette launcher can request a section be scrolled into
+  // view (aiAccess=false routes op/preset rows here instead of spawning a
+  // canvas widget). Consume the request after scrolling.
+  const scrollTarget = useEditorStore((s) => s.sectionScrollTarget);
+  const consumeSectionScroll = useEditorStore((s) => s.consumeSectionScroll);
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!scrollTarget) return;
+    const raf = requestAnimationFrame(() => {
+      const el = containerRef.current?.querySelector(`[data-section-id="${scrollTarget}"]`);
+      (el as HTMLElement | null)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      consumeSectionScroll();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [scrollTarget, consumeSectionScroll]);
 
   // Build the ordered list of (def, isLastInGroup) tuples so the renderer can
   // decide where to drop separators. Defs not in TOOL_GROUPS are ignored —
@@ -45,7 +61,7 @@ export function AdjustmentsAccordion() {
   ).filter((g) => g.length > 0);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
+    <div ref={containerRef} className="flex flex-col flex-1 min-h-0">
       <EditTargetPreview />
       <ScrollArea className="flex-1 min-h-0">
       <div className="text-[9px] uppercase tracking-wide text-text-secondary px-2.5 pt-2 pb-1">

@@ -5,6 +5,7 @@ import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { toast } from '@/components/ui/Toast';
 import { promoteSingleParamToCanvas } from './promote';
+import { useAiAccess } from '@/lib/ai-access';
 import type { Widget } from '@/types/widget';
 
 interface Props {
@@ -41,6 +42,7 @@ export function SliderPinMenu({
   const widgetNodes = useEditorStore((s) => s.widgetNodes);
   const pinnedWidgetParams = useEditorStore((s) => s.pinnedWidgetParams);
   const setPinnedWidgetParams = useEditorStore((s) => s.setPinnedWidgetParams);
+  const aiAccess = useAiAccess();
 
   // Candidate widgets to append to. Constraints:
   //   - Same op / layer (so the param applies).
@@ -76,6 +78,9 @@ export function SliderPinMenu({
   const handlePinNew = () => {
     promoteSingleParamToCanvas(sessionId, toolId, opAdjustmentType, layerId, paramKey);
   };
+
+  // The per-slider pin is the AI widget layer — hidden in the study baseline.
+  if (!aiAccess) return null;
 
   return (
     <DropdownMenu.Root>

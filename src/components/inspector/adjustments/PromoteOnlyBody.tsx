@@ -2,6 +2,7 @@ import { ArrowUpRight } from 'lucide-react';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { promoteToCanvas } from './promote';
+import { useAiAccess } from '@/lib/ai-access';
 
 interface PromoteOnlyBodyProps {
   toolId: string;
@@ -11,6 +12,10 @@ export function PromoteOnlyBody({ toolId }: PromoteOnlyBodyProps) {
   const sessionId = useBackendState((s) => s.sessionId);
   const offline = useBackendState((s) => s.sseStatus !== 'open');
   const layerId = useEditorStore((s) => s.activeLayerId);
+  const aiAccess = useAiAccess();
+
+  // "Open on canvas" is the AI widget layer — gated off in the study baseline.
+  if (!aiAccess) return null;
 
   return (
     <div className="px-2.5 py-2">

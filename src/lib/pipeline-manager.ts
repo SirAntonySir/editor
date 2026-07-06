@@ -35,9 +35,9 @@ class PipelineManagerImpl {
    * Used by adjustment layers — pixel-less layers whose adjustments transform
    * the accumulated composite of layers below them.
    */
-  setSourceCanvas(canvas: HTMLCanvasElement | OffscreenCanvas): void {
+  setSourceCanvas(canvas: HTMLCanvasElement | OffscreenCanvas, dirty = true): void {
     this.currentLayerId = null;
-    this.getPipeline().setSource(canvas);
+    this.getPipeline().setSource(canvas, dirty);
   }
 
   /** Whether the GPU supports the high-bit-depth (RGBA16F) float path. */
@@ -51,9 +51,9 @@ class PipelineManagerImpl {
    * the layer's 8-bit canvas over it. Returns false when float is unsupported
    * (caller falls back to `setSourceCanvas`).
    */
-  setHiBitSource(img: HiBitImage): boolean {
+  setHiBitSource(img: HiBitImage, dirty = true): boolean {
     this.currentLayerId = null;
-    return this.getPipeline().setHiBitSource(img);
+    return this.getPipeline().setHiBitSource(img, dirty);
   }
 
   requestRender(adjustments: Adjustment[]): void {

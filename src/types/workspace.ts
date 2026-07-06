@@ -116,6 +116,10 @@ export interface TetherEdgeState {
   id: string;
   widgetNodeId: string;
   targetImageNodeId: string;
+  /** The specific layer this tether lands on (the rail thumbnail handle).
+   *  One edge per (widget, layer) target — a widget replicated across N layers
+   *  has N tether edges. Mirrors an entry in the widget's node `layerIds`. */
+  layerId: string;
   scope:
     | { kind: 'layer'; layerId: string }
     | { kind: 'node' };

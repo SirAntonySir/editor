@@ -168,6 +168,11 @@ export interface WidgetNode {
   inputs: string[];
   widgetId: string;
   layerId?: string;
+  /** Replicate target set: the layers this node applies to independently.
+   *  Absent → implicit single target (`layerId`). One tether edge is drawn per
+   *  entry. Mirrors backend `WidgetNode.layer_ids` (JSON `null` reads as absent
+   *  and is handled with `?? [layerId]` at every use site). */
+  layerIds?: string[];
 }
 
 export type WidgetOriginKind =
@@ -209,13 +214,12 @@ export interface GenfillErrorInfo {
   message: string;
 }
 
-/** State block for generative-fill widgets (Replicate bria/genfill).
+/** State block for generative-fill widgets (Replicate flux-fill-pro).
  *  Non-null marks the widget as genfill: bespoke body, no op-graph nodes,
- *  pixels land on a NEW layer at Accept. */
+ *  pixels land on a NEW layer at Accept. FLUX Fill has no negative prompt. */
 export interface GenfillState {
   status: GenfillStatus;
   prompt: string;
-  negativePrompt?: string | null;
   seed: number;
   maskId: string;
   imageNodeId: string;

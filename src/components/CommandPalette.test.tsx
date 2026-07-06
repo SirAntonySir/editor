@@ -188,6 +188,18 @@ describe('CommandPalette execution', () => {
   // the strip.
 });
 
+describe('CommandPalette — promptText seed', () => {
+  it('seeds the prompt doc from a promptText open detail (genfill hand-off)', () => {
+    render(<CommandPalette />);
+    act(() => {
+      window.dispatchEvent(new CustomEvent('spawn-palette:open', {
+        detail: { mode: 'genfill', promptText: 'a red boat' },
+      }));
+    });
+    expect(screen.getByText('a red boat')).toBeDefined();
+  });
+});
+
 describe('CommandPalette — inline context chips', () => {
   it('renders attached context chips inside the input row (not above it)', async () => {
     render(<CommandPalette />);

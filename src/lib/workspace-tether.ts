@@ -1,7 +1,6 @@
 import type { Widget } from '@/types/widget';
 import { useEditorStore } from '@/store';
 import { nextSpawnPositionFor, pickSpawnSide, type PlacedRect, type Viewport } from '@/components/workspace/workspace-layout';
-import type { TetherEdgeState } from '@/types/workspace';
 import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
 import { editorDocument } from '@/core/document';
 
@@ -30,10 +29,17 @@ function buildTetherForWidget(widget: Widget, viewport?: Viewport): void {
   // first node — locate the ImageNode containing that layer. Fall back to
   // the active image node if the layer can't be resolved.
   const firstNode = widget.nodes[0];
-  const widgetLayerId = firstNode?.layerId ?? null;
+  let widgetLayerId = firstNode?.layerId ?? null;
 
   let targetImageNodeId: string | null = null;
-  if (widgetLayerId) {
+  if (widget.genfill) {
+    // Genfill widgets carry NO op-graph nodes (see GenfillState) — their target
+    // is recorded on `genfill.imageNodeId`. Tether to that image node's first
+    // layer so the provenance edge back to the source is drawn, exactly like a
+    // node-backed widget. Without this, genfill widgets spawn edge-less.
+    targetImageNodeId = widget.genfill.imageNodeId;
+    widgetLayerId = imageNodes[targetImageNodeId]?.layerIds[0] ?? null;
+  } else if (widgetLayerId) {
     for (const n of Object.values(imageNodes)) {
       if (n.layerIds.includes(widgetLayerId)) {
         targetImageNodeId = n.id;
@@ -61,37 +67,33 @@ function buildTetherForWidget(widget: Widget, viewport?: Viewport): void {
     })),
   ];
 
-  // Pick side based on viewport. Default to LEFT when viewport unavailable.
+  // Genfill widgets spawn at the VIEWPORT CENTER (where the user's attention is)
+  // rather than the collision-aware beside-image slot — the edge back to the
+  // source keeps the provenance clear. Falls back to beside-image placement when
+  // no viewport is available (e.g. headless / first paint).
   const targetRect: PlacedRect = { position: targetNode.position, size: targetNode.size };
-  const side: 'left' | 'right' = viewport
-    ? pickSpawnSide(targetRect, viewport)
-    : 'left';
-
-  const pos = nextSpawnPositionFor(
-    targetRect,
-    WIDGET_SPAWN_SIZE,
-    'widget',
-    occupied,
-    side,
-  );
-
-  // Build edge scope from the widget's WidgetNode.layer_id. Widgets without
-  // a layer_id (truly global widgets with no layer affinity) fall through to
-  // a node-wide tether.
-  const edgeScope: TetherEdgeState['scope'] = widgetLayerId
-    ? { kind: 'layer', layerId: widgetLayerId }
-    : { kind: 'node' };
+  let pos;
+  if (widget.genfill && viewport) {
+    // Screen center → flow coords: flow = (screen - pan) / zoom. Offset by half
+    // the widget footprint so the widget is centered, not its top-left corner.
+    const cx = (viewport.screen.w / 2 - viewport.pan.x) / viewport.zoom;
+    const cy = (viewport.screen.h / 2 - viewport.pan.y) / viewport.zoom;
+    pos = { x: cx - WIDGET_SPAWN_SIZE.w / 2, y: cy - WIDGET_SPAWN_SIZE.h / 2 };
+  } else {
+    const side: 'left' | 'right' = viewport ? pickSpawnSide(targetRect, viewport) : 'left';
+    pos = nextSpawnPositionFor(targetRect, WIDGET_SPAWN_SIZE, 'widget', occupied, side);
+  }
 
   // SSE-driven placement: consolidate position + edge into a single history
   // snapshot so undo can roll the widget back to the pre-placement state.
+  // Seed exactly ONE tether target (the widget's own layer). Multi-target
+  // growth happens later via drag → update_widget_targets. Truly-global
+  // widgets (no layer_id) get no rail tether — the rail connects by layer.
   editorDocument.workspace.batch('Tether widget', () => {
     editor.setWidgetPosition(widget.id, pos);
-    editor.setEdge({
-      id: `te-${widget.id}`,
-      widgetNodeId: widget.id,
-      targetImageNodeId,
-      scope: edgeScope,
-    });
+    if (widgetLayerId) {
+      editor.addWidgetTarget(widget.id, targetImageNodeId, widgetLayerId);
+    }
   });
 
   // Spawn expanded so the user can interact with the controls immediately.

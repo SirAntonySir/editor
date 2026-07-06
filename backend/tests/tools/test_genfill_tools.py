@@ -41,7 +41,7 @@ class _FakeReplicate:
         self.result = result
         self.calls: list[dict] = []
 
-    async def run_bria_genfill(self, **kwargs):
+    async def run_flux_fill(self, **kwargs):
         self.calls.append(kwargs)
         return self.result
 
@@ -144,6 +144,9 @@ def test_create_generating_widget_schedules_task(make_doc):
     assert w.genfill.prompt == "a boat"
     assert w.genfill.seed > 0
     assert scheduled == [(doc.session_id, out.widget_id)]
+    # The title is a constant — the prompt lives on genfill.prompt, not the
+    # widget intent (so a long prompt can't widen the node header).
+    assert w.intent == "Generative fill"
 
 
 def test_create_unknown_mask_raises(make_doc):

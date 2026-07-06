@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import type { Widget, MaskSummary } from '@/types/widget';
 import { backendTools } from '@/lib/backend-tools';
 import { logWidgetUndoDiag } from '@/lib/widget-undo-diag';
-import { useBackendState } from '@/store/backend-state-slice';
+import { useBackendState, type OptimisticPatch } from '@/store/backend-state-slice';
 import { useWidgetExpansion } from '@/hooks/useWidgetExpansion';
 import { useHoveredWidget } from '@/hooks/useHoveredWidget';
 import { useEditorStore } from '@/store';
@@ -33,6 +34,10 @@ export const WIDGET_SHELL_MIN_WIDTH = 226;
 // Long titles truncate with ellipsis (.widget-title-ellipsis utility).
 export const WIDGET_COLLAPSED_WIDTH = 226;
 
+// Genfill widgets render two side-by-side before/after previews, so they need a
+// wider expanded floor than the shared default. Collapsed pill is unchanged.
+export const GENFILL_MIN_WIDTH = 420;
+
 interface WidgetShellProps {
   widget: Widget;
   selected?: boolean;
@@ -44,7 +49,24 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
   const { isExpanded, toggle } = useWidgetExpansion(widget.id);
   const { hoveredWidgetId, setHoveredWidget } = useHoveredWidget();
   const sessionId = useBackendState((s) => s.sessionId);
-  const optimistic = useBackendState((s) => s.optimistic);
+  // Subscribe to ONLY this widget's optimistic entries (keyed by canonical
+  // op-graph node id — see canonIdFor below). The optimistic map's identity
+  // changes on every slider tick of ANY widget; subscribing to the whole map
+  // re-rendered every shell on the canvas per tick. `useShallow` keeps the
+  // returned record stable-by-value, so an unrelated widget's edit — which
+  // leaves this widget's patch refs untouched — no longer re-renders this shell.
+  const scopedOptimistic = useBackendState(
+    useShallow((s) => {
+      const out: Record<string, OptimisticPatch> = {};
+      for (const b of widget.bindings) {
+        const node = widget.nodes.find((n) => n.id === b.target.nodeId);
+        const key = node ? `canon:${node.layerId}:${node.type}` : b.target.nodeId;
+        const patch = s.optimistic.get(key);
+        if (patch) out[key] = patch;
+      }
+      return out;
+    }),
+  );
   const allMasks = useBackendState((s) => s.snapshot?.masksIndex ?? EMPTY_MASKS);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   // Soft filter: hide masks scoped to a different ImageNode. Legacy / global
@@ -106,7 +128,7 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
     return node ? `canon:${node.layerId}:${node.type}` : b.target.nodeId;
   }
   function readOptimistic(b: Widget['bindings'][number]): Widget['bindings'][number]['value'] | undefined {
-    const patch = optimistic.get(canonIdFor(b));
+    const patch = scopedOptimistic[canonIdFor(b)];
     if (!patch) return undefined;
     const p = patch.bindings.find((p) => p.paramKey === b.target.paramKey);
     return p?.value;
@@ -178,22 +200,6 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
         }),
       );
     }
-    // Autonomous local-region suggestions mirror the Cmd+K palette on accept:
-    // extract the region into its own SAM image node (same Extract → Node/Layer
-    // chooser) and re-plan adjustments on it. Falls back to a plain in-place
-    // accept when the user denies or the region can't be resolved/extracted.
-    if (widget.scope.kind === 'named_region') {
-      logWidgetUndoDiag('apply(extract_region)', { widgetId: widget.id });
-      // Dynamic import: the extraction/agent stack (SAM, compositor) is heavy
-      // and only needed on accept — keep it out of the widget's module graph.
-      const { runAgentTurnForRegion } = await import('@/lib/palette-actions.agent');
-      const { extracted } = await runAgentTurnForRegion(widget.intent, widget.scope.label);
-      if (extracted) {
-        void backendTools.delete_widget(sessionId, { widgetId: widget.id, suppressSimilar: false });
-        return;
-      }
-    }
-
     logWidgetUndoDiag('apply(accept_widget)', { widgetId: widget.id });
     void backendTools.accept_widget(sessionId, { widgetId: widget.id });
   }
@@ -233,7 +239,7 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
       className={`overlay w-fit ${showAiAffordances ? 'widget-shell-ai' : ''} ${selected && !showAiAffordances ? 'workspace-node-selected' : ''} ${hovered ? 'border-accent' : ''} ${hidden ? 'opacity-60' : ''}`}
       style={
         isExpanded
-          ? { minWidth: `${WIDGET_SHELL_MIN_WIDTH}px` }
+          ? { minWidth: `${widget.genfill ? GENFILL_MIN_WIDTH : WIDGET_SHELL_MIN_WIDTH}px` }
           : { width: `${WIDGET_COLLAPSED_WIDTH}px` }
       }
       onMouseEnter={() => setHoveredWidget(widget.id)}

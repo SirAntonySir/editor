@@ -1,9 +1,15 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useEditorStore } from '@/store';
 import { LayerRow } from './LayerRow';
+import { copyLayerToNewImageNode, moveLayerToNewImageNode } from '@/lib/layer-node-actions';
 import type { Layer } from '@/store/layer-slice';
+
+vi.mock('@/lib/layer-node-actions', () => ({
+  copyLayerToNewImageNode: vi.fn(),
+  moveLayerToNewImageNode: vi.fn(),
+}));
 
 const BASE_LAYER: Layer = {
   id: 'L1',
@@ -28,7 +34,8 @@ function getLayer(): Layer {
 }
 
 beforeEach(() => {
-  useEditorStore.setState({ layers: [], activeLayerId: null });
+  useEditorStore.setState({ layers: [], activeLayerId: null, imageNodes: {} });
+  vi.clearAllMocks();
   cleanup();
 });
 
@@ -128,6 +135,55 @@ describe('LayerRow — delete', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /delete photo\.jpg/i }));
     expect(useEditorStore.getState().layers.find((l) => l.id === 'L1')).toBeUndefined();
+  });
+});
+
+describe('LayerRow — right-click: layer → image node', () => {
+  function seedNode(layerIds: string[]) {
+    useEditorStore.setState({
+      imageNodes: {
+        'in-1': {
+          id: 'in-1', layerIds,
+          position: { x: 0, y: 0 }, size: { w: 100, h: 100 }, sourceSize: { w: 100, h: 100 },
+        },
+      } as never,
+    });
+  }
+
+  it('Copy item calls copyLayerToNewImageNode with the layer + owning node id', async () => {
+    seedLayer();
+    seedNode(['L1', 'L2']);
+    const { container } = render(<LayerRow layer={getLayer()} isActive imageNodeId="in-1" />);
+
+    fireEvent.contextMenu(container.firstElementChild!);
+    const copyItem = await screen.findByRole('menuitem', { name: /new image node via copy/i });
+    await userEvent.click(copyItem);
+
+    expect(copyLayerToNewImageNode).toHaveBeenCalledWith('L1', 'in-1');
+  });
+
+  it('Cut is enabled on a multi-layer node and calls moveLayerToNewImageNode', async () => {
+    seedLayer();
+    seedNode(['L1', 'L2']);
+    const { container } = render(<LayerRow layer={getLayer()} isActive imageNodeId="in-1" />);
+
+    fireEvent.contextMenu(container.firstElementChild!);
+    const cutItem = await screen.findByRole('menuitem', { name: /new image node via cut/i });
+    await userEvent.click(cutItem);
+
+    expect(moveLayerToNewImageNode).toHaveBeenCalledWith('L1', 'in-1');
+  });
+
+  it('Cut is disabled (no-op) when the node has a single layer', async () => {
+    seedLayer();
+    seedNode(['L1']);
+    const { container } = render(<LayerRow layer={getLayer()} isActive imageNodeId="in-1" />);
+
+    fireEvent.contextMenu(container.firstElementChild!);
+    const cutItem = await screen.findByRole('menuitem', { name: /new image node via cut/i });
+    expect(cutItem).toHaveAttribute('data-disabled');
+    await userEvent.click(cutItem);
+    expect(moveLayerToNewImageNode).not.toHaveBeenCalled();
   });
 });
 

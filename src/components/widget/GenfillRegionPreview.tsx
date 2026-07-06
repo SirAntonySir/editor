@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { Widget } from '@/types/widget';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
@@ -15,6 +15,13 @@ interface GenfillRegionPreviewProps {
 /** Padding around the mask bbox, in SOURCE pixels, so the comparison shows a
  *  sliver of untouched context around the filled region. */
 const PAD_SRC_PX = 16;
+
+/** Absolute cap on the preview canvas backing (longest edge, px). A safety net
+ *  so a source image node shown near 1:1 — or a large generated result — can't
+ *  balloon the canvas (and, via the widget's max-content sizing, the whole
+ *  widget) to full resolution. The image-node flow scale below does the real
+ *  scaling; this just bounds the worst case. */
+const MAX_PREVIEW_BACKING_PX = 384;
 
 interface CropRect {
   x: number;
@@ -49,101 +56,115 @@ function cropRectFor(
  *  the preview reads as a magnifier over the exact spot being filled. */
 export function GenfillRegionPreview({ widget, sessionId }: GenfillRegionPreviewProps) {
   const g = widget.genfill;
-  const [mode, setMode] = useState<'before' | 'after'>('after');
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  // Subscribe to the node so display-size changes rescale the preview live.
-  const node = useEditorStore((s) => (g ? s.imageNodes[g.imageNodeId] : undefined));
+  const beforeRef = useRef<HTMLCanvasElement>(null);
+  const afterRef = useRef<HTMLCanvasElement>(null);
 
   const geometry = useMemo(
     () => (g ? cropRectFor(g.maskId, g.imageNodeId) : null),
     [g],
   );
 
+  // Scale the preview to the SAME flow scale as its source image node (display
+  // px per source px), so the crop reads as a 1:1 magnifier and — crucially —
+  // the canvas backing tracks the on-canvas size instead of the full generated
+  // resolution (which used to blow the widget up, since WidgetNode sizes the
+  // shell to `max-content`). Clamped to ≤ 1 (never upscale).
+  const nodeScale = useEditorStore((s) => {
+    const n = g ? s.imageNodes[g.imageNodeId] : undefined;
+    return n && n.sourceSize.w > 0 ? Math.min(1, n.size.w / n.sourceSize.w) : 1;
+  });
+
+  // Backing-store dims: source-crop pixels down-scaled by the node's flow scale,
+  // then bounded by the absolute cap. The `drawImage` calls already downsample
+  // into this, so a smaller canvas just yields a smaller (crisp) preview.
+  const backing = useMemo(() => {
+    if (!geometry) return { w: 1, h: 1 };
+    const { w, h } = geometry.rect;
+    const scale = Math.min(nodeScale, MAX_PREVIEW_BACKING_PX / Math.max(w, h), 1);
+    return { w: Math.max(1, Math.round(w * scale)), h: Math.max(1, Math.round(h * scale)) };
+  }, [geometry, nodeScale]);
+
   useEffect(() => {
-    const canvas = canvasRef.current;
     const result = g?.result;
-    if (!canvas || !g || !geometry || !result) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return; // jsdom / headless — geometry still testable
+    if (!g || !geometry || !result) return;
     const { rect, srcDims } = geometry;
     let cancelled = false;
 
-    const drawBefore = () => {
+    // BEFORE — the source crop (sync). jsdom returns a null ctx, so drawing is
+    // skipped there; the two canvases still render for the geometry tests.
+    const bctx = beforeRef.current?.getContext('2d') ?? null;
+    if (bctx) {
       const editor = useEditorStore.getState();
       const layerId = editor.imageNodes[g.imageNodeId]?.layerIds.find(
         (lid) => editor.layers.find((l) => l.id === lid)?.type === 'image',
       );
       const src = layerId ? pixelStore.get(layerId) : null;
-      if (!src) return;
-      ctx.clearRect(0, 0, rect.w, rect.h);
-      ctx.drawImage(src, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
-    };
-
-    const drawAfter = async () => {
-      try {
-        const resp = await fetch(genfillAssetUrl(sessionId, result.assetId));
-        if (!resp.ok || cancelled) return;
-        const bitmap = await createImageBitmap(await resp.blob());
-        if (cancelled) { bitmap.close(); return; }
-        // The result is the same framing at (usually) a capped resolution —
-        // map the source-space crop into result pixels.
-        const r = bitmap.width / srcDims.width;
-        ctx.clearRect(0, 0, rect.w, rect.h);
-        ctx.drawImage(
-          bitmap,
-          rect.x * r, rect.y * r, rect.w * r, rect.h * r,
-          0, 0, rect.w, rect.h,
-        );
-        bitmap.close();
-      } catch (err) {
-        // Asset fetch/decode failure leaves the last-drawn frame in place —
-        // the widget's error surface, not the preview, reports hard failures.
-        console.warn('[genfill] region preview draw failed:', err);
+      if (src) {
+        bctx.clearRect(0, 0, backing.w, backing.h);
+        bctx.drawImage(src, rect.x, rect.y, rect.w, rect.h, 0, 0, backing.w, backing.h);
       }
-    };
+    }
 
-    if (mode === 'before') drawBefore();
-    else void drawAfter();
+    // AFTER — the generated result crop (async fetch + decode).
+    const actx = afterRef.current?.getContext('2d') ?? null;
+    if (actx) {
+      void (async () => {
+        try {
+          const resp = await fetch(genfillAssetUrl(sessionId, result.assetId));
+          if (!resp.ok || cancelled) return;
+          const bitmap = await createImageBitmap(await resp.blob());
+          if (cancelled) { bitmap.close(); return; }
+          // The result is the same framing at (usually) a capped resolution —
+          // map the source-space crop into result pixels.
+          const r = bitmap.width / srcDims.width;
+          actx.clearRect(0, 0, backing.w, backing.h);
+          actx.drawImage(
+            bitmap,
+            rect.x * r, rect.y * r, rect.w * r, rect.h * r,
+            0, 0, backing.w, backing.h,
+          );
+          bitmap.close();
+        } catch (err) {
+          // Asset fetch/decode failure leaves the last-drawn frame in place —
+          // the widget's error surface, not the preview, reports hard failures.
+          console.warn('[genfill] region preview draw failed:', err);
+        }
+      })();
+    }
     return () => { cancelled = true; };
-  }, [g, geometry, mode, sessionId]);
+  }, [g, geometry, backing, sessionId]);
 
   if (!g || !geometry) return null;
-  // Same scale as the image node on canvas: display px per source px.
-  const displayScale = node ? node.size.w / node.sourceSize.w : 1;
-  const cssW = geometry.rect.w * displayScale;
-  const cssH = geometry.rect.h * displayScale;
+  // Split the content width: each preview is flex-1 and keeps the crop's aspect
+  // ratio via CSS, so the two sit side by side and scale to fit their half.
+  const aspect = geometry.rect.w / geometry.rect.h;
 
   return (
-    <div data-testid="genfill-region-preview" className="flex flex-col gap-1">
-      <div className="inline-flex self-start items-center rounded-[3px] bg-surface-secondary p-px text-[10px]">
-        <button
-          type="button"
-          aria-pressed={mode === 'before'}
-          onClick={() => setMode('before')}
-          className={`px-1.5 py-px rounded-[3px] transition-colors leading-tight ${
-            mode === 'before' ? 'bg-surface text-text-primary' : 'text-text-secondary hover:text-text-primary'
-          }`}
-        >
+    <div data-testid="genfill-region-preview" className="flex gap-1.5">
+      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+        <span className="font-[var(--font-mono)] text-[9px] tracking-[0.14em] uppercase text-text-secondary">
           Before
-        </button>
-        <button
-          type="button"
-          aria-pressed={mode === 'after'}
-          onClick={() => setMode('after')}
-          className={`px-1.5 py-px rounded-[3px] transition-colors leading-tight ${
-            mode === 'after' ? 'bg-surface text-text-primary' : 'text-text-secondary hover:text-text-primary'
-          }`}
-        >
-          After
-        </button>
+        </span>
+        <canvas
+          ref={beforeRef}
+          width={backing.w}
+          height={backing.h}
+          style={{ width: '100%', aspectRatio: `${aspect}` }}
+          className="rounded-[3px] border border-separator"
+        />
       </div>
-      <canvas
-        ref={canvasRef}
-        width={geometry.rect.w}
-        height={geometry.rect.h}
-        style={{ width: `${cssW}px`, height: `${cssH}px` }}
-        className="rounded-[3px] border border-separator"
-      />
+      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+        <span className="font-[var(--font-mono)] text-[9px] tracking-[0.14em] uppercase text-text-secondary">
+          After
+        </span>
+        <canvas
+          ref={afterRef}
+          width={backing.w}
+          height={backing.h}
+          style={{ width: '100%', aspectRatio: `${aspect}` }}
+          className="rounded-[3px] border border-separator"
+        />
+      </div>
     </div>
   );
 }

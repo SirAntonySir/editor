@@ -32,16 +32,11 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
   const dimmed = activeLayerId != null && widgetLayerId != null && widgetLayerId !== activeLayerId;
   const dimClass = dimmed ? 'opacity-40 hover:opacity-100 transition-opacity' : '';
 
-  // Anchor the left/right edge handles to the node's vertical centre so
-  // tethers connect at the middle of the side, matching the image node (whose
-  // handles use React Flow's centered default) rather than pinning to the
-  // header band.
-  const sideY = '50%';
-
-  // Measure the WidgetShell's natural (UNSCALED) CSS box so the bottom + right
-  // source handles can anchor at its actual extent. transform:scale doesn't
-  // change the layout box, so offsetWidth/Height stay natural; we multiply by
-  // `scale` for handle positions + the outer footprint React Flow measures.
+  // Measure the WidgetShell's natural (UNSCALED) CSS box so the outer footprint
+  // React Flow measures matches the scaled shell. transform:scale doesn't change
+  // the layout box, so offsetWidth/Height stay natural; we multiply by `scale`.
+  // The handles themselves are positioned by React Flow's default per-position
+  // rules (centred on each border of that measured box) — see the Handle block.
   const innerRef = useRef<HTMLDivElement | null>(null);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number }>({
     w: 226, // WIDGET_SHELL_MIN_WIDTH fallback (kept literal to avoid an import cycle)
@@ -67,30 +62,16 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
 
   return (
     <>
-      <Handle
-        type="source"
-        position={Position.Top}
-        id="tether-out-top"
-        style={{ left: '50%', top: 0, opacity: 0 }}
-      />
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        id="tether-out-bottom"
-        style={{ left: '50%', top: `${scaledH}px`, opacity: 0 }}
-      />
-      <Handle
-        type="source"
-        position={Position.Left}
-        id="tether-out-left"
-        style={{ top: sideY, left: 0, opacity: 0 }}
-      />
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="tether-out-right"
-        style={{ top: sideY, left: `${scaledW}px`, opacity: 0 }}
-      />
+      {/* Tether outlets, one per side. Positioned entirely by React Flow's
+          default per-position rules, which centre each handle on the matching
+          border of the measured node box (scaledW × scaledH via the .group
+          wrapper below). RF anchors the edge to a handle's OUTER edge, so the
+          .tether-outlet dot is sized to fill the handle (index.css) — the edge
+          plugs into the dot's rim rather than floating a half-handle past it. */}
+      <Handle type="source" position={Position.Top} id="tether-out-top" className="tether-outlet" />
+      <Handle type="source" position={Position.Bottom} id="tether-out-bottom" className="tether-outlet" />
+      <Handle type="source" position={Position.Left} id="tether-out-left" className="tether-outlet" />
+      <Handle type="source" position={Position.Right} id="tether-out-right" className="tether-outlet" />
       {chromeVisible ? (
         // Outer box carries the SCALED footprint React Flow measures; the shell
         // inside is uniformly scaled from its top-left. `group` so the resize

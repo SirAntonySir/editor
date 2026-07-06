@@ -74,12 +74,7 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
   const [sticky, setSticky] = useState(false);
   const infoOpen = hover || sticky;
 
-  function handleAllow() {
-    logWidgetUndoDiag('allow:before', { widgetId: widget.id });
-    const { x, y, zoom } = rf.getViewport();
-    const screen = { w: window.innerWidth, h: window.innerHeight };
-    tetherWorkspaceWidgetOnEngage(widget, { pan: { x, y }, zoom, screen });
-    addAccepted(widget.id);
+  function recordAllowed() {
     recordDecision({
       id: widget.id,
       intent: widget.intent,
@@ -87,6 +82,49 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
       decision: 'allowed',
       decidedAt: Date.now(),
     });
+  }
+
+  async function handleAllow() {
+    logWidgetUndoDiag('allow:before', { widgetId: widget.id });
+
+    // Local-region suggestions mirror the Cmd+K palette: rather than
+    // materialising the adjustment over the full image, extract the region
+    // into its own SAM image node (same Extract → Node/Layer chooser) and
+    // re-plan adjustments on it. Falls back to the full-image materialisation
+    // below when the region can't be extracted (chooser deny / unresolved /
+    // no active image node).
+    if (widget.scope.kind === 'named_region') {
+      // Dynamic import: the extraction/agent stack (SAM, compositor) is heavy
+      // and only needed on allow — keep it out of the dock's module graph.
+      const { runAgentTurnForRegion } = await import('@/lib/palette-actions.agent');
+      const { extracted } = await runAgentTurnForRegion(widget.intent, widget.scope.label);
+      if (extracted) {
+        // The agent re-proposed on the extracted node; retire the original
+        // whole-image suggestion so it doesn't double up. Mark it accepted
+        // BEFORE resolving it out of pending: `useAutoTetherAiSuggestions`
+        // tethers any autonomous widget that is active-in-snapshot && !pending
+        // && !accepted, so without this guard it would tether the original
+        // onto the full image in the window before delete_widget's SSE lands —
+        // producing a second (whole-image) adjustment.
+        addAccepted(widget.id);
+        if (sessionId) {
+          void backendTools.delete_widget(sessionId, {
+            widgetId: widget.id,
+            suppressSimilar: false,
+          });
+        }
+        recordAllowed();
+        resolve(widget.id);
+        logWidgetUndoDiag('allow:after(extracted)', { widgetId: widget.id });
+        return;
+      }
+    }
+
+    const { x, y, zoom } = rf.getViewport();
+    const screen = { w: window.innerWidth, h: window.innerHeight };
+    tetherWorkspaceWidgetOnEngage(widget, { pan: { x, y }, zoom, screen });
+    addAccepted(widget.id);
+    recordAllowed();
     resolve(widget.id);
     logWidgetUndoDiag('allow:after', { widgetId: widget.id });
   }

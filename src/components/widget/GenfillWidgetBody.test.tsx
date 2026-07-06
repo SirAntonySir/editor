@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { GenfillWidgetBody } from './GenfillWidgetBody';
+import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 import type { Widget, GenfillState, SessionStateSnapshot } from '@/types/widget';
 
@@ -16,7 +17,10 @@ vi.mock('@/store/genfill-actions', () => ({
   ),
 }));
 vi.mock('@/lib/backend-tools', () => ({
-  backendTools: { genfill_regenerate: vi.fn(async () => ({ ok: true })) },
+  backendTools: {
+    genfill_regenerate: vi.fn(async () => ({ ok: true })),
+    delete_widget: vi.fn(),
+  },
 }));
 vi.mock('@/lib/genfill-asset', () => ({
   genfillAssetUrl: () => 'http://x/asset.png',
@@ -95,5 +99,27 @@ describe('GenfillWidgetBody', () => {
       error: { kind: 'not_configured', message: 'Replicate not configured' },
     })} />);
     expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
+  });
+
+  it('Continue in command palette hands off region + prompt and closes the widget', () => {
+    const events: CustomEvent[] = [];
+    const handler = (e: Event) => events.push(e as CustomEvent);
+    window.addEventListener('spawn-palette:open', handler);
+    render(<GenfillWidgetBody widget={widgetWith({
+      status: 'ready', prompt: 'a boat',
+      result: { assetId: 'genfill-w_gf_1', width: 100, height: 50 },
+    })} />);
+    fireEvent.click(screen.getByRole('button', { name: /continue in command palette/i }));
+    window.removeEventListener('spawn-palette:open', handler);
+
+    expect(events).toHaveLength(1);
+    expect(events[0].detail).toMatchObject({
+      mode: 'genfill',
+      promptText: 'a boat',
+      attachContext: [{ value: 'm1', sourceId: 'region:object:m1' }],
+    });
+    expect(backendTools.delete_widget).toHaveBeenCalledWith('s1', {
+      widgetId: 'w_gf_1', suppressSimilar: false,
+    });
   });
 });

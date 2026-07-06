@@ -368,6 +368,9 @@ class GenfillState(BaseModel):
     model_config = camel_config(extra="forbid")
     status: GenfillStatus
     prompt: str = ""
+    # DEPRECATED — bria/genfill era. FLUX Fill pro has no negative prompt;
+    # nothing writes or reads this anymore. Kept so persisted sessions from
+    # before the model switch still validate (extra="forbid").
     negative_prompt: str | None = None
     seed: int = 0
     mask_id: str = Field(min_length=1)

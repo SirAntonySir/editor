@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import type { ReactNode } from 'react';
-import { WidgetShell, WIDGET_COLLAPSED_WIDTH } from './WidgetShell';
-import { makeAiWidget, makeToolWidget, makeHslWidget, makeGlobalWidget } from './__fixtures__/widgets';
+import { WidgetShell, WIDGET_COLLAPSED_WIDTH, WIDGET_SHELL_MIN_WIDTH, GENFILL_MIN_WIDTH } from './WidgetShell';
+import { makeAiWidget, makeToolWidget, makeHslWidget } from './__fixtures__/widgets';
 import { useEditorStore } from '@/store';
 import { backendTools } from '@/lib/backend-tools';
-import { runAgentTurnForRegion } from '@/lib/palette-actions.agent';
 
 function flowWrapper({ children }: { children: ReactNode }) {
   return <ReactFlowProvider>{children}</ReactFlowProvider>;
@@ -23,10 +22,6 @@ vi.mock('@/lib/backend-tools', () => ({
     delete_widget: vi.fn(),
     refine_widget: vi.fn(),
   },
-}));
-
-vi.mock('@/lib/palette-actions.agent', () => ({
-  runAgentTurnForRegion: vi.fn(),
 }));
 
 const mockApplyOptimistic = vi.fn();
@@ -53,8 +48,6 @@ describe('WidgetShell', () => {
     const ids = Array.from(useEditorStore.getState().hiddenWidgetIds);
     for (const id of ids) useEditorStore.getState().toggleWidgetHidden(id);
     vi.clearAllMocks();
-    // Default: region can't be extracted, so accept falls back to accept_widget.
-    vi.mocked(runAgentTurnForRegion).mockResolvedValue({ extracted: false, ok: true, toolCalls: 0 });
   });
 
   it('renders as collapsed strip by default with Apply + Close on the pill', () => {
@@ -73,35 +66,28 @@ describe('WidgetShell', () => {
     expect(screen.getByRole('button', { name: /apply widget/i })).toBeInTheDocument();
   });
 
-  it('Apply on a named_region widget with no extraction falls back to accept_widget', async () => {
+  it('genfill widget expands to the wider GENFILL_MIN_WIDTH', () => {
+    const w = makeToolWidget({
+      genfill: { status: 'compose', prompt: '', seed: 1, maskId: 'm1', imageNodeId: 'in-1' },
+    } as never);
+    useEditorStore.getState().toggleWidgetExpanded(w.id);
+    const { container } = renderInFlow(<WidgetShell widget={w} />);
+    const shell = container.querySelector('.overlay') as HTMLElement;
+    expect(shell.style.minWidth).toBe(`${GENFILL_MIN_WIDTH}px`);
+  });
+
+  it('non-genfill widget expands to the default WIDGET_SHELL_MIN_WIDTH', () => {
+    useEditorStore.getState().toggleWidgetExpanded('w-tool-1');
+    const { container } = renderInFlow(<WidgetShell widget={makeToolWidget()} />);
+    const shell = container.querySelector('.overlay') as HTMLElement;
+    expect(shell.style.minWidth).toBe(`${WIDGET_SHELL_MIN_WIDTH}px`);
+  });
+
+  it('Apply calls backendTools.accept_widget', () => {
     useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
     renderInFlow(<WidgetShell widget={makeAiWidget()} />);
     fireEvent.click(screen.getByRole('button', { name: /apply widget/i }));
-    await waitFor(() =>
-      expect(backendTools.accept_widget).toHaveBeenCalledWith('s-1', { widgetId: 'w-ai-1' }),
-    );
-    expect(runAgentTurnForRegion).toHaveBeenCalledWith('Warm up shadows', 'sky');
-  });
-
-  it('Apply on a named_region widget that extracts supersedes it via delete_widget', async () => {
-    vi.mocked(runAgentTurnForRegion).mockResolvedValue({ extracted: true, ok: true, toolCalls: 2 });
-    useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
-    renderInFlow(<WidgetShell widget={makeAiWidget()} />);
-    fireEvent.click(screen.getByRole('button', { name: /apply widget/i }));
-    await waitFor(() =>
-      expect(backendTools.delete_widget).toHaveBeenCalledWith('s-1', { widgetId: 'w-ai-1', suppressSimilar: false }),
-    );
-    expect(backendTools.accept_widget).not.toHaveBeenCalled();
-  });
-
-  it('Apply on a global-scope widget accepts directly (no extraction)', async () => {
-    useEditorStore.getState().toggleWidgetExpanded('w-global-1');
-    renderInFlow(<WidgetShell widget={makeGlobalWidget()} />);
-    fireEvent.click(screen.getByRole('button', { name: /apply widget/i }));
-    await waitFor(() =>
-      expect(backendTools.accept_widget).toHaveBeenCalledWith('s-1', { widgetId: 'w-global-1' }),
-    );
-    expect(runAgentTurnForRegion).not.toHaveBeenCalled();
+    expect(backendTools.accept_widget).toHaveBeenCalledWith('s-1', { widgetId: 'w-ai-1' });
   });
 
   it('Close (×) calls backendTools.delete_widget', () => {

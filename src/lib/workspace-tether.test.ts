@@ -59,9 +59,10 @@ describe('tetherWorkspaceWidgetOnEngage', () => {
     const edges = Object.values(editor.tetherEdges);
     expect(edges).toHaveLength(1);
     expect(edges[0]).toMatchObject({
-      id: `te-${w.id}`,
+      id: `te-${w.id}-layer-a`,
       widgetNodeId: w.id,
       targetImageNodeId: nodeId,
+      layerId: 'layer-a',
       scope: { kind: 'layer', layerId: 'layer-a' },
     });
   });
@@ -137,5 +138,28 @@ describe('tetherWorkspaceWidget — origin filter (regression)', () => {
     const editor = useEditorStore.getState();
     expect(editor.widgetNodes[w.id]?.position).toBeDefined();
     expect(Object.values(editor.tetherEdges)).toHaveLength(1);
+  });
+
+  it('genfill widget spawns at the viewport center + tethers to source', () => {
+    // Image node placed FAR from the viewport so a beside-image placement would
+    // land nowhere near center — proving the genfill widget re-centers.
+    const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 5000, y: 5000 });
+    useEditorStore.getState().setActiveImageNode(nodeId);
+
+    // Real backend genfill widgets carry NO op-graph nodes (see GenfillState);
+    // the tether must resolve from `genfill.imageNodeId`, not a node's layerId.
+    const w = makeWidget('w_gf', {
+      origin: { kind: 'tool_invoked' },
+      nodes: [],
+      genfill: { status: 'compose', prompt: '', seed: 1, maskId: 'm1', imageNodeId: nodeId },
+    } as never);
+    tetherWorkspaceWidget(w, { pan: { x: 0, y: 0 }, zoom: 1, screen: { w: 1000, h: 800 } });
+
+    const editor = useEditorStore.getState();
+    // Flow-space screen center (500, 400) minus half the 226×220 spawn footprint.
+    expect(editor.widgetNodes[w.id]?.position).toEqual({ x: 500 - 113, y: 400 - 110 });
+    const edges = Object.values(editor.tetherEdges);
+    expect(edges).toHaveLength(1);
+    expect(edges[0]).toMatchObject({ layerId: 'layer-a', targetImageNodeId: nodeId });
   });
 });

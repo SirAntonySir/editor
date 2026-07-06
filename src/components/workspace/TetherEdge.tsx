@@ -7,6 +7,10 @@ export interface TetherEdgeData extends Record<string, unknown> {
   /** 'extracted' renders a calm, semi-transparent grey provenance connector
    *  from an extracted image node back to its source (not the accent tether). */
   variant?: 'extracted';
+  /** For widget tethers: the (widget, layer) target this edge represents, so
+   *  reconnect / delete handlers don't have to parse the edge id. */
+  widgetId?: string;
+  layerId?: string;
 }
 
 export type TetherEdgeType = Edge<TetherEdgeData, 'tether'>;
@@ -27,6 +31,7 @@ export function TetherEdge({
   sourcePosition,
   targetPosition,
   data,
+  selected,
 }: EdgeProps<TetherEdgeType>) {
   // Tether edges live in canvas space (Figma model). Stroke width, corner
   // radius, and endpoint dot size are constants in canvas units; React Flow's
@@ -63,16 +68,18 @@ export function TetherEdge({
     ? 'color-mix(in srgb, var(--color-text-secondary) 55%, transparent)'
     : 'var(--color-accent)';
   const dashArray = isExtracted ? '4 3' : isNodeScope ? '3 3' : '5 1';
+  // Selected widget tethers read heavier + solid so the ⌫-target is obvious.
+  const strokeWidth = selected ? STROKE_WIDTH * 1.8 : STROKE_WIDTH;
   return (
     <>
       <BaseEdge
         id={id}
         path={path}
-        strokeDasharray={dashArray}
-        className={isExtracted ? undefined : 'tether-march'}
+        strokeDasharray={selected ? undefined : dashArray}
+        className={isExtracted || selected ? undefined : 'tether-march'}
         style={{
           stroke,
-          strokeWidth: STROKE_WIDTH,
+          strokeWidth,
           fill: 'none',
           ['--march-shift' as string]: String(DASH_SUM),
         }}

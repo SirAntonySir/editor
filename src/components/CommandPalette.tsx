@@ -326,7 +326,13 @@ export function CommandPalette() {
       const detail = (e as CustomEvent<{
         attachContext?: Array<Omit<AttachedContextItem, 'id'>>;
         mode?: PaletteMode;
+        /** Seed the prompt doc with plain text (e.g. a genfill widget handing
+         *  its typed prompt to the palette). Replaces the current doc. */
+        promptText?: string;
       }>).detail;
+      if (detail?.promptText !== undefined) {
+        setDoc(detail.promptText ? [{ kind: 'text', text: detail.promptText }] : []);
+      }
       // Honour an explicit mode in the open event — image-node right-click
       // and the AI menu's "Ask about the image" both open the palette
       // directly in Ask mode. Plain Cmd+K omits this and stays in Agent.

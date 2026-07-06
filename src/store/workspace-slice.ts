@@ -9,6 +9,7 @@ import type {
   WidgetNodeState,
   WorkspaceViewport,
 } from '@/types/workspace';
+import type { Widget } from '@/types/widget';
 import { UI } from '@/config';
 
 /** Default source dims when the caller doesn't pass any (e.g. unit tests). */
@@ -176,6 +177,19 @@ export interface WorkspaceSlice {
    */
   setEdge: (edge: TetherEdgeState) => void;
   unbindEdge: (edgeId: string) => void;
+  /** Optimistically add a (widget → layer) tether target. Instant canvas
+   *  feedback; the backend `update_widget_targets` call + `syncWidgetTethers`
+   *  reconcile against the snapshot. Idempotent per (widget, layer). */
+  addWidgetTarget: (widgetId: string, imageNodeId: string, layerId: string) => void;
+  /** Move a tether's target end to a different layer/photo (reconnect). */
+  retargetWidget: (edgeId: string, imageNodeId: string, layerId: string) => void;
+  /** Remove a single tether target — one edge, other targets untouched. */
+  removeWidgetTarget: (edgeId: string) => void;
+  /** Rebuild all widget tethers from the snapshot's active widgets. Reconciles
+   *  the optimistic tetherEdges mirror against the backend source of truth
+   *  (widget.nodes[0].layerIds ?? [layerId]). Resolves each layer to its
+   *  owning image node; drops targets that don't resolve. */
+  syncWidgetTethers: (widgets: Widget[]) => void;
   /**
    * Mirror the currently active image node id derived from selection-slice.
    * The workspace slice does not own selection state.
@@ -388,6 +402,86 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
   unbindEdge: (edgeId) =>
     set((state) => {
       delete state.tetherEdges[edgeId];
+    }),
+
+  addWidgetTarget: (widgetId, imageNodeId, layerId) =>
+    set((state) => {
+      const id = `te-${widgetId}-${layerId}`;
+      if (state.tetherEdges[id]) return; // idempotent per (widget, layer)
+      state.tetherEdges[id] = {
+        id,
+        widgetNodeId: widgetId,
+        targetImageNodeId: imageNodeId,
+        layerId,
+        scope: { kind: 'layer', layerId },
+      };
+    }),
+
+  retargetWidget: (edgeId, imageNodeId, layerId) =>
+    set((state) => {
+      const prev = state.tetherEdges[edgeId];
+      if (!prev) return;
+      delete state.tetherEdges[edgeId];
+      const id = `te-${prev.widgetNodeId}-${layerId}`;
+      state.tetherEdges[id] = {
+        id,
+        widgetNodeId: prev.widgetNodeId,
+        targetImageNodeId: imageNodeId,
+        layerId,
+        scope: { kind: 'layer', layerId },
+      };
+    }),
+
+  removeWidgetTarget: (edgeId) =>
+    set((state) => {
+      delete state.tetherEdges[edgeId];
+    }),
+
+  syncWidgetTethers: (widgets) =>
+    set((state) => {
+      const next: Record<string, TetherEdgeState> = {};
+      for (const w of widgets) {
+        if (w.status !== 'active') continue;
+        // Genfill widgets have NO op-graph nodes; their target image node is on
+        // `genfill.imageNodeId`. Emit a tether to that node's first layer here
+        // too, otherwise this full-rebuild would wipe the edge seeded at spawn
+        // on the next snapshot reconcile.
+        if (w.genfill) {
+          const inId = w.genfill.imageNodeId;
+          const layerId = state.imageNodes[inId]?.layerIds[0];
+          if (layerId) {
+            const id = `te-${w.id}-${layerId}`;
+            next[id] = {
+              id,
+              widgetNodeId: w.id,
+              targetImageNodeId: inId,
+              layerId,
+              scope: { kind: 'layer', layerId },
+            };
+          }
+          continue;
+        }
+        const node = w.nodes[0];
+        if (!node) continue;
+        const layerIds =
+          node.layerIds ?? (node.layerId ? [node.layerId] : []);
+        for (const layerId of layerIds) {
+          let targetImageNodeId: string | null = null;
+          for (const n of Object.values(state.imageNodes)) {
+            if (n.layerIds.includes(layerId)) { targetImageNodeId = n.id; break; }
+          }
+          if (!targetImageNodeId) continue;
+          const id = `te-${w.id}-${layerId}`;
+          next[id] = {
+            id,
+            widgetNodeId: w.id,
+            targetImageNodeId,
+            layerId,
+            scope: { kind: 'layer', layerId },
+          };
+        }
+      }
+      state.tetherEdges = next;
     }),
 
   setRejoinTargetNodeId: (id) =>

@@ -228,18 +228,28 @@ class SessionDocument(BaseModel):
         defense-in-depth — a no-op for params already present, a fresh seed
         for ones that aren't."""
         for node in widget.nodes:
-            ops = self.canonical.setdefault(node.layer_id, {}).setdefault(node.type, {})
-            for pkey, pval in node.params.items():
-                if pkey not in ops:
-                    ops[pkey] = pval
+            # None → implicit single target (anchor). [] → explicit zero targets
+            # (an "unbound" widget after its last target was removed): apply to
+            # nothing. Only a populated list fans out.
+            target_layers = node.layer_ids if node.layer_ids is not None else [node.layer_id]
+            for layer in target_layers:
+                ops = self.canonical.setdefault(layer, {}).setdefault(node.type, {})
+                for pkey, pval in node.params.items():
+                    if pkey not in ops:
+                        ops[pkey] = pval
 
     def _reset_canonical_from_widget(self, widget: Widget) -> None:
         """Inverse of _seed_canonical_from_widget: clear exactly the param keys
         the widget owns, pruning emptied slots. A sibling param on the same
         (layer, op) set by another view survives."""
         for node in widget.nodes:
-            for pkey in node.params:
-                clear_param_value(self.canonical, node.layer_id, node.type, pkey)
+            # None → implicit single target (anchor). [] → explicit zero targets
+            # (an "unbound" widget after its last target was removed): apply to
+            # nothing. Only a populated list fans out.
+            target_layers = node.layer_ids if node.layer_ids is not None else [node.layer_id]
+            for layer in target_layers:
+                for pkey in node.params:
+                    clear_param_value(self.canonical, layer, node.type, pkey)
 
     def add_widget(self, widget: Widget) -> list[StateEvent]:
         if widget.id in self.widgets:
@@ -264,6 +274,42 @@ class SessionDocument(BaseModel):
             "widget": widget.model_dump(mode="json", by_alias=True),
             "operationGraph": self._op_graph_payload(),
         })]
+
+    def update_widget_targets(
+        self,
+        widget_id: str,
+        op: str,
+        layer_id: str,
+        from_layer_id: str | None = None,
+    ) -> list[StateEvent]:
+        """Add / remove / retarget a layer in a widget's replicate target set.
+
+        The target set lives on each node's `layer_ids` (a flat, cross-node list).
+        Canonical is reset from the old set and reseeded from the new one so the
+        op_graph projection reflects exactly the current targets. Removing the
+        last target leaves `layer_ids == []` (an unbound widget applying nothing).
+        """
+        w = self.widgets.get(widget_id)
+        if w is None:
+            raise KeyError(widget_id)
+        # Clear canonical for the CURRENT target layers before mutating.
+        self._reset_canonical_from_widget(w)
+        for node in w.nodes:
+            current = list(node.layer_ids) if node.layer_ids is not None else [node.layer_id]
+            if op == "add":
+                if layer_id not in current:
+                    current.append(layer_id)
+            elif op == "remove":
+                current = [lid for lid in current if lid != layer_id]
+            elif op == "retarget":
+                current = [layer_id if lid == from_layer_id else lid for lid in current]
+            else:
+                raise ValueError(f"unknown op {op!r}")
+            node.layer_ids = current
+        # Seed canonical for the NEW target layers.
+        self._seed_canonical_from_widget(w)
+        w.revision += 1
+        return self.update_widget(w)
 
     def dismiss_widget(self, widget_id: str, rule: DismissalRule | None = None) -> list[StateEvent]:
         if widget_id not in self.widgets:

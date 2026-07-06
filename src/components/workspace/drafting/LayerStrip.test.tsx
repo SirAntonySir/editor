@@ -1,10 +1,14 @@
-import { render, fireEvent } from '@testing-library/react';
+import { render as rtlRender, fireEvent } from '@testing-library/react';
+import { ReactFlowProvider } from '@xyflow/react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { LayerStrip } from './LayerStrip';
 
 // The component takes `layerIds: string[]` directly (not imageNodeId).
+// LayerStrip renders React Flow <Handle>s (per-layer tether ports), which need
+// a ReactFlowProvider ancestor — in the app it's always inside the canvas.
+const render = (ui: React.ReactElement) => rtlRender(ui, { wrapper: ReactFlowProvider });
 
 const SEED_LAYERS = [
   { id: 'L1', type: 'image' as const, name: 'photo.jpg', visible: true, opacity: 1, blendMode: 'normal' as const, locked: false, order: 0 },
@@ -40,6 +44,14 @@ describe('LayerStrip — sheet selects active, eye toggles visibility', () => {
     fireEvent.click(eyes[0]); // L1 visible -> false
     expect(useEditorStore.getState().layers.find((l) => l.id === 'L1')?.visible).toBe(false);
     expect(useEditorStore.getState().activeLayerId).toBeNull();
+  });
+
+  it('renders one tether port (handle) per layer, id encoding the layer', () => {
+    const { container } = render(<LayerStrip imageNodeId="n1" layerIds={LAYER_IDS} />);
+    const ports = container.querySelectorAll('[data-handleid^="layer-tether-"]');
+    expect(ports).toHaveLength(2);
+    expect(container.querySelector('[data-handleid="layer-tether-L1"]')).not.toBeNull();
+    expect(container.querySelector('[data-handleid="layer-tether-L2"]')).not.toBeNull();
   });
 
   it('marks the active layer sheet with data-active', () => {

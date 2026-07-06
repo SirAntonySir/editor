@@ -619,7 +619,7 @@ export function SegmentHitLayer({
                 Generative fill…
               </ContextMenu.Item>
               <ContextMenu.Item
-                className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none text-text-secondary"
+                className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"
                 onSelect={runInvert}
               >
                 Select Inverted

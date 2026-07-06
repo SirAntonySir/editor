@@ -247,9 +247,10 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
     const edges = Object.values(editor.tetherEdges);
     expect(edges).toHaveLength(1);
     expect(edges[0]).toMatchObject({
-      id: `te-${w.id}`,
+      id: `te-${w.id}-layer-a`,
       widgetNodeId: w.id,
       targetImageNodeId: nodeId,
+      layerId: 'layer-a',
       scope: { kind: 'layer', layerId: 'layer-a' },
     });
   });
@@ -269,7 +270,10 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
     expect(Object.values(editor.tetherEdges)).toEqual([]);
   });
 
-  it('falls back to activeImageNodeId when widget has no node layer_id', () => {
+  it('layer-less widget is positioned but not rail-tethered', () => {
+    // The rail connects tethers BY LAYER. A widget with no node layer_id has
+    // no rail handle to land on, so it is placed next to the active node but
+    // draws no tether (node-scope auto-tethers were retired with the rail model).
     const nodeId = useEditorStore.getState().addImageNode(['layer-a'], { x: 0, y: 0 });
     useEditorStore.getState().setActiveImageNode(nodeId);
 
@@ -280,13 +284,8 @@ describe('BackendStateSlice — workspace tether on widget.created', () => {
     fireCreated(w);
 
     const editor = useEditorStore.getState();
-    const edges = Object.values(editor.tetherEdges);
-    expect(edges).toHaveLength(1);
-    expect(edges[0]).toMatchObject({
-      widgetNodeId: w.id,
-      targetImageNodeId: nodeId,
-      scope: { kind: 'node' },
-    });
+    expect(editor.widgetNodes[w.id]?.position).toBeDefined();
+    expect(Object.values(editor.tetherEdges)).toEqual([]);
   });
 
   it('skips when no active image node is selectable', () => {

@@ -76,16 +76,28 @@ export function getInternalCanvas(imageNodeId: string, w: number, h: number): HT
   return canvas;
 }
 
-/** Returns a cached scratch canvas for the given image-node id, sized at
+/** Composite key for the per-layer scratch caches. Each layer on an image node
+ *  needs its OWN scratch canvas: at renderScale < 1 the renderer feeds the
+ *  scratch to the WebGL pipeline, which skips a texture re-upload when the
+ *  source object identity is unchanged and the pixels aren't dirty (a pure
+ *  zoom). A single scratch per image-node gave every layer the same identity,
+ *  so the top layer rendered the bottom layer's texture and vanished below the
+ *  LOD threshold. Keying by (imageNodeId, layerId) restores the distinct
+ *  per-layer identity that already works at renderScale === 1. */
+function scratchKey(imageNodeId: string, layerId: string): string {
+  return `${imageNodeId}::${layerId}`;
+}
+
+/** Returns a cached scratch canvas for the given (image-node, layer), sized at
  *  `w × h`. Used by the renderer to downscale a layer's source bitmap before
- *  feeding it to the WebGL pipeline so shaders run at the active LOD
- *  resolution instead of full source resolution. One scratch per image-node;
- *  reused serially across layers in a single render pass. */
-export function getScratchCanvas(imageNodeId: string, w: number, h: number): HTMLCanvasElement {
-  let canvas = scratchCache.get(imageNodeId);
+ *  feeding it to the WebGL pipeline so shaders run at the active LOD resolution
+ *  instead of full source resolution. One scratch per (image-node, layer). */
+export function getScratchCanvas(imageNodeId: string, layerId: string, w: number, h: number): HTMLCanvasElement {
+  const key = scratchKey(imageNodeId, layerId);
+  let canvas = scratchCache.get(key);
   if (!canvas) {
     canvas = document.createElement('canvas');
-    scratchCache.set(imageNodeId, canvas);
+    scratchCache.set(key, canvas);
   }
   if (canvas.width !== w) canvas.width = w;
   if (canvas.height !== h) canvas.height = h;
@@ -97,18 +109,20 @@ const scratchState = new Map<string, ScratchCacheState>();
 
 /** Memoised scratch downscale: returns a canvas containing `source`
  *  drawn at `w × h`. If the (source, w, h) tuple matches the previous
- *  call for this `imageNodeId`, the cached canvas is returned without a
+ *  call for this (image-node, layer), the cached canvas is returned without a
  *  redraw — a `drawImage` of a 4 K source into the scratch canvas costs
  *  several ms and used to run every frame even when only an adjustment
  *  param moved. Caller must NOT mutate the returned canvas. */
 export function getMemoisedScratchCanvas(
   imageNodeId: string,
+  layerId: string,
   source: HTMLCanvasElement | OffscreenCanvas,
   w: number,
   h: number,
 ): HTMLCanvasElement {
-  const canvas = getScratchCanvas(imageNodeId, w, h);
-  const last = scratchState.get(imageNodeId);
+  const key = scratchKey(imageNodeId, layerId);
+  const canvas = getScratchCanvas(imageNodeId, layerId, w, h);
+  const last = scratchState.get(key);
   if (last && last.source === (source as unknown as object) && last.w === w && last.h === h) {
     return canvas;
   }
@@ -117,7 +131,7 @@ export function getMemoisedScratchCanvas(
     ctx.clearRect(0, 0, w, h);
     ctx.drawImage(source, 0, 0, w, h);
   }
-  scratchState.set(imageNodeId, { source: source as unknown as object, w, h });
+  scratchState.set(key, { source: source as unknown as object, w, h });
   return canvas;
 }
 
@@ -125,8 +139,15 @@ export function getMemoisedScratchCanvas(
 export function clearInternalCanvasCache(imageNodeId?: string): void {
   if (imageNodeId) {
     internalCache.delete(imageNodeId);
-    scratchCache.delete(imageNodeId);
-    scratchState.delete(imageNodeId);
+    // Scratch caches are keyed by (imageNodeId, layerId) — drop every layer's
+    // entry for this node.
+    const prefix = `${imageNodeId}::`;
+    for (const key of scratchCache.keys()) {
+      if (key.startsWith(prefix)) scratchCache.delete(key);
+    }
+    for (const key of scratchState.keys()) {
+      if (key.startsWith(prefix)) scratchState.delete(key);
+    }
   } else {
     internalCache.clear();
     scratchCache.clear();

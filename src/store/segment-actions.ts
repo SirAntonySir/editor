@@ -46,6 +46,12 @@ export function extractLayerFromMask(args: {
   maskRef: MaskRef;
   name?: string;
   cropToMaskBbox?: boolean;
+  /** Bake the source's RAW pixels (not its rendered/adjusted composite). Use
+   *  this when the caller will clone the source's adjustments onto the new layer
+   *  separately (a reversible, independently-editable copy) — raw pixels avoid
+   *  double-grading. Default (false) bakes the adjusted composite (a flat,
+   *  self-contained raster with the look permanently applied). */
+  rawPixels?: boolean;
 }): string {
   const editor = useEditorStore.getState();
   const source = editor.layers.find((l) => l.id === args.sourceLayerId);
@@ -53,11 +59,13 @@ export function extractLayerFromMask(args: {
   const mask = maskStore.get(args.maskRef);
   if (!mask) throw new Error(`extractLayerFromMask: mask ${args.maskRef} not found`);
 
-  // Render the parent through its adjustment pipeline so the extracted region
-  // captures the parent's current look.
-  const rendered = LayerCompositor.renderLayer(source);
+  // Pick the pixels to clip: RAW source (adjustments applied later via cloned
+  // widgets) or the rendered composite (adjustments baked into the cutout).
+  const rendered = args.rawPixels
+    ? pixelStore.getSource(args.sourceLayerId)
+    : LayerCompositor.renderLayer(source);
   if (!rendered) {
-    throw new Error(`extractLayerFromMask: failed to render layer ${args.sourceLayerId}`);
+    throw new Error(`extractLayerFromMask: failed to obtain pixels for layer ${args.sourceLayerId}`);
   }
 
   // Bake rendered × mask into a fresh OffscreenCanvas.

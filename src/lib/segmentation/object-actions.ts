@@ -27,6 +27,19 @@ function toolSessionId(): string | null {
   return useBackendState.getState().sessionId ?? useAiSession.getState().sessionId;
 }
 
+/** Clone a source layer's adjustments (operation-graph nodes + widgets) onto a
+ *  freshly-copied layer as its OWN, independently-editable widgets — the backend
+ *  half of a reversible Copy. Fire-and-forget: the cutout + raw pixels are
+ *  already on the canvas; the cloned widgets stream in via SSE and reconcile
+ *  onto the new layer. No-op offline (the copy stays raw pixels only). */
+function cloneAdjustmentsToLayer(fromLayerId: string, toLayerId: string): void {
+  const sessionId = toolSessionId();
+  if (!sessionId) return;
+  void backendTools.duplicate_layer_edits(sessionId, {
+    mapping: [{ fromLayerId, toLayerId }],
+  });
+}
+
 /** Trim, optimistic local update, then backend rename_mask. Caller is
  *  responsible for whatever inline-edit UI sourced the new label. */
 export async function renameObject(maskId: string, label: string): Promise<void> {
@@ -155,6 +168,7 @@ export function copyObjectToImageNode(
       sourceLayerId,
       maskRef: maskId,
       cropToMaskBbox: true,
+      rawPixels: true,
     });
     // Cutout is cropped to the mask's bbox — its `sourceSize` matches the
     // cropped canvas, so the new image-node takes the object's aspect ratio
@@ -181,6 +195,9 @@ export function copyObjectToImageNode(
     // extractLayerFromMask's internal setActiveLayer): the baked layer is the
     // edit target after extraction.
     editor.setActiveLayer(newLayerId);
+    // Clone the source's adjustments onto the cutout as its OWN editable
+    // widgets, so the copy carries the same grade but is edited independently.
+    cloneAdjustmentsToLayer(sourceLayerId, newLayerId);
     return { imageNodeId: newNodeId, layerId: newLayerId };
   } catch (err) {
     toast.info(`Copy failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -223,6 +240,7 @@ export function copyObjectToLayer(
       sourceLayerId,
       maskRef: maskId,
       cropToMaskBbox: false,
+      rawPixels: true,
     });
     useEditorStore.setState((s) => {
       const node = s.imageNodes[sourceImageNodeId];
@@ -231,6 +249,9 @@ export function copyObjectToLayer(
       }
     });
     editor.setActiveLayer(newLayerId);
+    // Clone the source's adjustments onto the cutout as its OWN editable
+    // widgets — same grade, edited independently from the source.
+    cloneAdjustmentsToLayer(sourceLayerId, newLayerId);
     return newLayerId;
   } catch (err) {
     toast.info(`Copy failed: ${err instanceof Error ? err.message : String(err)}`);

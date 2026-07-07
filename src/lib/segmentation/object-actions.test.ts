@@ -3,6 +3,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { pixelStore } from '@/core/pixel-store';
+import { backendTools } from '@/lib/backend-tools';
+import { useBackendState } from '@/store/backend-state-slice';
 
 // The real extract bakes pixels through LayerCompositor + OffscreenCanvas,
 // neither of which exists here. Stub it to hand back a known layer id; the
@@ -16,6 +18,7 @@ const {
   copyObjectToLayer,
   selectInvertedObject,
 } = await import('./object-actions');
+const { extractLayerFromMask } = await import('@/store/segment-actions');
 
 beforeEach(() => {
   useEditorStore.getState().resetWorkspace();
@@ -87,6 +90,29 @@ describe('copyObjectToImageNode', () => {
     // The baked layer becomes the active edit layer.
     expect(useEditorStore.getState().activeLayerId).toBe(result!.layerId);
   });
+
+  it('makes an independent reversible copy — raw pixels + a clone of the source adjustments', () => {
+    useBackendState.setState({ sessionId: 'sid' } as never);
+    const clone = vi.spyOn(backendTools, 'duplicate_layer_edits').mockResolvedValue({ ok: true } as never);
+    const editor = useEditorStore.getState();
+    const srcId = editor.addImageNode(['srcLayer'], { x: 0, y: 0 }, { w: 100, h: 100 });
+    const maskRef = maskStore.register({
+      layerId: 'srcLayer', width: 4, height: 4,
+      data: new Uint8Array(16).fill(255), source: 'sam-point', createdAt: 0,
+    });
+    vi.spyOn(pixelStore, 'getSource').mockReturnValue({ width: 40, height: 40 } as unknown as OffscreenCanvas);
+
+    copyObjectToImageNode(maskRef, srcId);
+
+    // Raw pixels (so cloned adjustments don't double-grade), NOT baked composite.
+    expect(extractLayerFromMask).toHaveBeenCalledWith(
+      expect.objectContaining({ rawPixels: true }),
+    );
+    // Adjustments cloned onto the new layer as its own, editable independently.
+    expect(clone).toHaveBeenCalledWith('sid', {
+      mapping: [{ fromLayerId: 'srcLayer', toLayerId: 'cut-layer' }],
+    });
+  });
 });
 
 // ─── copyObjectToLayer ────────────────────────────────────────────────────
@@ -119,6 +145,26 @@ describe('copyObjectToLayer', () => {
       source: 'sam-point', createdAt: 0,
     });
     expect(copyObjectToLayer(maskRef, 'nope')).toBeNull();
+  });
+
+  it('makes an independent reversible copy — raw pixels + a clone of the source adjustments', () => {
+    useBackendState.setState({ sessionId: 'sid' } as never);
+    const clone = vi.spyOn(backendTools, 'duplicate_layer_edits').mockResolvedValue({ ok: true } as never);
+    const editor = useEditorStore.getState();
+    const srcId = editor.addImageNode(['srcLayer'], { x: 0, y: 0 }, { w: 100, h: 100 });
+    const maskRef = maskStore.register({
+      layerId: 'srcLayer', width: 4, height: 4,
+      data: new Uint8Array(16).fill(255), source: 'sam-point', createdAt: 0,
+    });
+
+    copyObjectToLayer(maskRef, srcId);
+
+    expect(extractLayerFromMask).toHaveBeenCalledWith(
+      expect.objectContaining({ rawPixels: true }),
+    );
+    expect(clone).toHaveBeenCalledWith('sid', {
+      mapping: [{ fromLayerId: 'srcLayer', toLayerId: 'cut-layer' }],
+    });
   });
 });
 

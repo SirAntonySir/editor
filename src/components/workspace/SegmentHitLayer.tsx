@@ -11,6 +11,7 @@ import {
 import { copyObjectToImageNode } from '@/lib/segmentation/object-actions';
 import { editorDocument } from '@/core/document';
 import { useSegmentExtractDrag } from '@/hooks/useSegmentExtractDrag';
+import { Loader2 } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
 import { SegmentMaskPreview } from './SegmentMaskPreview';
@@ -606,13 +607,14 @@ export function SegmentHitLayer({
                   <span className="opacity-40">·</span>
                 </>
               )}
-              <span>right-click actions</span>
-              <span className="opacity-40">·</span>
               <Kbd keys="esc" className="ml-0" />
               <span>discard</span>
             </>
           ) : (
-            <span>Segmenting…</span>
+            <>
+              <Loader2 size={11} className="animate-spin text-[var(--color-ai)]" aria-hidden />
+              <span>Segmenting…</span>
+            </>
           )}
         </div>
       )}

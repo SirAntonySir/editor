@@ -466,16 +466,17 @@ html, body, #root {
  * (.tether-outlet) so a layer connection point reads exactly like a widget one:
  * the handle ELEMENT is itself a 14px dot (surface fill + accent ring), and RF's
  * outer-edge anchor plugs the tether into the dot's rim.
- * Sits ON the card's LEFT BORDER: `left: -11px` centres the 14px dot on the
- * border line, given the card's px-2.5 (10px) left padding + 1px border and RF's
- * handle-left translate(-50%,-50%). (Coupled to the card padding in
- * LayerStrip.tsx — keep in sync.) */
+ * Straddles the node's LEFT BORDER half-out, exactly like the widget/info
+ * outlet dots. The card carries NO horizontal padding (it lives on each row
+ * instead — see LayerStrip.tsx), so the handle's containing box starts at the
+ * card border and RF's default left-anchor lands the dot on the edge. No
+ * padding-compensating offset needed anymore. */
 .react-flow__handle.layer-tether-port {
   width: 14px;
   height: 14px;
   min-width: 14px;
   min-height: 14px;
-  left: -11px;
+  left: -1px;
   background: var(--color-surface);
   border: 2px solid var(--color-accent);
   border-radius: 999px;

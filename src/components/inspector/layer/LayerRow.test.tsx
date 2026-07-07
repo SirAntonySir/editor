@@ -77,16 +77,6 @@ describe('LayerRow — visible toggle', () => {
   });
 });
 
-describe('LayerRow — lock toggle', () => {
-  it('flips layer.locked on lock click', () => {
-    seedLayer({ locked: false });
-    render(<LayerRow layer={getLayer()} isActive />);
-
-    fireEvent.click(screen.getByRole('button', { name: /lock photo\.jpg/i }));
-    expect(getLayer().locked).toBe(true);
-  });
-});
-
 describe('LayerRow — opacity slider', () => {
   it('sets opacity to 0.5 when Radix slider changes to 50', () => {
     seedLayer({ opacity: 1 });

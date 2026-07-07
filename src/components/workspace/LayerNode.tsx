@@ -42,10 +42,17 @@ export function LayerNode({ id, data }: LayerNodeProps) {
     return () => ro.disconnect();
   }, []);
 
+  // Re-measure React Flow's handle geometry whenever it could shift. Size
+  // changes are the obvious trigger, but the per-layer ports also move when the
+  // LAYER SET changes (rows added/removed shift each handle's Y) or when the
+  // strip's internal layout changes — cases that don't always change the node's
+  // outer size, so RF wouldn't otherwise re-anchor the tether edges to the
+  // ports (they'd point at a port's stale position).
+  const layerKey = image?.layerIds.join(',') ?? '';
   const updateNodeInternals = useUpdateNodeInternals();
   useEffect(() => {
     updateNodeInternals(id);
-  }, [id, naturalSize.w, naturalSize.h, updateNodeInternals]);
+  }, [id, naturalSize.w, naturalSize.h, layerKey, updateNodeInternals]);
 
   // Persist the measured size so CanvasWorkspace's edge routing can reach the
   // node's real extent (falls back to a default until this lands).

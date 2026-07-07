@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Lock, LockOpen, Pencil, Trash2, ChevronDown } from 'lucide-react';
+import { Eye, EyeOff, Pencil, Trash2, ChevronDown } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useEditorStore } from '@/store';
@@ -90,14 +90,6 @@ export function LayerRow({
           className="text-text-secondary hover:text-[var(--color-accent)]"
         >
           {layer.visible ? <Eye size={11} /> : <EyeOff size={11} />}
-        </button>
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { locked: !layer.locked }); }}
-          aria-label={layer.locked ? `Unlock ${layer.name}` : `Lock ${layer.name}`}
-          className={layer.locked ? 'text-[var(--color-accent)]' : 'text-text-secondary hover:text-[var(--color-accent)]'}
-        >
-          {layer.locked ? <Lock size={11} /> : <LockOpen size={11} />}
         </button>
         <button
           type="button"

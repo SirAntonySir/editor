@@ -163,6 +163,18 @@ describe('tether handles', () => {
     expect(document.querySelector('[data-handleid="tether-in-top"]')).toBeTruthy();
     expect(document.querySelector('[data-handleid="tether-in-bottom"]')).toBeTruthy();
   });
+
+  it('exposes a visible per-layer port on a SINGLE-layer node (layers node is hidden then)', () => {
+    // baseData carries one layer (l-1).
+    renderInFlow(<ImageNode id="in-1" data={{ ...baseData }} selected={false} />);
+    expect(document.querySelector('[data-handleid="layer-tether-l-1"]')).toBeTruthy();
+  });
+
+  it('does NOT host a per-layer port on a MULTI-layer node (the layers node owns them)', () => {
+    const data = { ...baseData, layerIds: ['l-1', 'l-2'] };
+    renderInFlow(<ImageNode id="in-1" data={data} selected={false} />);
+    expect(document.querySelector('[data-handleid="layer-tether-l-1"]')).toBeNull();
+  });
 });
 
 describe('zoom-invariant chrome', () => {

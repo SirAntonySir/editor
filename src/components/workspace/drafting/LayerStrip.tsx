@@ -1,6 +1,9 @@
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { Handle, Position } from '@xyflow/react';
-import { Eye, EyeOff } from 'lucide-react';
+import {
+  Eye, EyeOff, Pencil, Blend, PanelRight, BoxSelect,
+  SquareDashed, Sparkles, Copy, CopyPlus, Merge, Trash2, ChevronRight,
+} from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { editorDocument } from '@/core/document';
@@ -9,11 +12,13 @@ import { createSelectionFromLayer } from '@/lib/segmentation/object-actions';
 import { spawnGenfillFromLayer } from '@/lib/genfill-spawn';
 import { duplicateLayerInPlace, duplicateLayerToNewImageNode } from '@/lib/layer-node-actions';
 
-const MENU_ITEM = 'text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none';
+const MENU_ITEM = 'flex items-center gap-2 text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none';
 // Destructive items: red text + red-tinted hover, so a delete reads as a delete.
 const MENU_ITEM_DANGER =
-  'text-[12px] px-2 py-1.5 rounded-[3px] cursor-pointer outline-none text-[var(--color-danger,#e5484d)] ' +
+  'flex items-center gap-2 text-[12px] px-2 py-1.5 rounded-[3px] cursor-pointer outline-none text-[var(--color-danger,#e5484d)] ' +
   'hover:bg-[color-mix(in_srgb,var(--color-danger,#e5484d)_12%,transparent)]';
+// Muted leading icon shared by every menu row (Delete inherits the red text).
+const MENU_ICON = 'shrink-0 text-text-secondary';
 import type { Layer } from '@/store/layer-slice';
 import type { BlendMode } from '@/store/layer-slice';
 
@@ -67,6 +72,9 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
   }
   if (layers.length === 0) return null;
 
+  // Visible-layer count gates the node-level "Merge visible layers" action.
+  const visibleCount = layers.filter((l) => l.visible).length;
+
   return (
     // Standalone node card. Flat `.overlay` register (the strip no longer floats
     // over photo content, so the frosted-glass exception no longer applies). The
@@ -76,7 +84,12 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
     // float outside the box.
     <div
       data-testid="layer-strip"
-      className="workspace-drag-handle overlay rounded-[var(--radius-panel)] px-2.5 py-2 flex flex-col-reverse items-stretch gap-1.5"
+      // Horizontal padding lives on each ROW (below), NOT the card — that keeps
+      // the card's content box flush with its border, so the per-layer tether
+      // handle (positioned relative to the row's border box) straddles the
+      // node's outer edge like the widget/info outlets instead of tucking inside
+      // the padding. Only vertical padding + row gap here.
+      className="workspace-drag-handle overlay rounded-[var(--radius-panel)] py-2 flex flex-col-reverse items-stretch gap-1.5"
     >
         {layers.map((layer, i) => {
         const ordinal = (i + 1).toString().padStart(2, '0');
@@ -85,7 +98,7 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
         return (
           <ContextMenu.Root key={layer.id}>
             <ContextMenu.Trigger asChild>
-              <div className={`group relative flex items-center justify-end gap-1.5 ${isVisible ? '' : 'opacity-50'}`}>
+              <div className={`group relative flex items-center justify-end gap-1.5 pl-4 pr-2.5 ${isVisible ? '' : 'opacity-50'}`}>
                 {/* Per-layer tether port — the ONLY connection surface for
                     widget tethers. Latent (see .layer-tether-port in index.css):
                     invisible at rest, fades in on row hover / while connecting.
@@ -149,6 +162,7 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
                   className={MENU_ITEM}
                   onSelect={() => updateLayer(layer.id, { visible: !layer.visible })}
                 >
+                  {isVisible ? <EyeOff size={13} className={MENU_ICON} aria-hidden /> : <Eye size={13} className={MENU_ICON} aria-hidden />}
                   {isVisible ? 'Hide' : 'Show'}
                 </ContextMenu.Item>
                 <ContextMenu.Item
@@ -160,11 +174,14 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
                     usePreferencesStore.getState().showLayer();
                   }}
                 >
+                  <Pencil size={13} className={MENU_ICON} aria-hidden />
                   Rename
                 </ContextMenu.Item>
                 <ContextMenu.Sub>
                   <ContextMenu.SubTrigger className={MENU_ITEM}>
+                    <Blend size={13} className={MENU_ICON} aria-hidden />
                     Change blend mode
+                    <ChevronRight size={13} className="ml-auto text-text-secondary" aria-hidden />
                   </ContextMenu.SubTrigger>
                   <ContextMenu.Portal>
                     <ContextMenu.SubContent className="overlay p-1 min-w-[180px] z-50">
@@ -182,14 +199,9 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
                 </ContextMenu.Sub>
                 <ContextMenu.Item
                   className={MENU_ITEM}
-                  onSelect={() => updateLayer(layer.id, { locked: !layer.locked })}
-                >
-                  {layer.locked ? 'Unlock' : 'Lock'}
-                </ContextMenu.Item>
-                <ContextMenu.Item
-                  className={MENU_ITEM}
                   onSelect={() => usePreferencesStore.getState().showLayer()}
                 >
+                  <PanelRight size={13} className={MENU_ICON} aria-hidden />
                   Open layer panel
                 </ContextMenu.Item>
                 <ContextMenu.Separator className="my-1 h-px bg-separator" />
@@ -197,18 +209,21 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
                   className={MENU_ITEM}
                   onSelect={() => createSelectionFromLayer(layer.id, imageNodeId)}
                 >
+                  <BoxSelect size={13} className={MENU_ICON} aria-hidden />
                   Create selection
                 </ContextMenu.Item>
                 <ContextMenu.Item
                   className={MENU_ITEM}
                   onSelect={() => createSelectionFromLayer(layer.id, imageNodeId, { invert: true })}
                 >
+                  <SquareDashed size={13} className={MENU_ICON} aria-hidden />
                   Create inverted selection
                 </ContextMenu.Item>
                 <ContextMenu.Item
                   className={MENU_ITEM}
                   onSelect={() => void spawnGenfillFromLayer(layer.id, imageNodeId)}
                 >
+                  <Sparkles size={13} className={MENU_ICON} aria-hidden />
                   Generative fill…
                 </ContextMenu.Item>
                 {/* Non-destructive Duplicate (whole layer). Both keep the
@@ -222,6 +237,7 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
                     )
                   }
                 >
+                  <Copy size={13} className={MENU_ICON} aria-hidden />
                   Duplicate layer
                 </ContextMenu.Item>
                 <ContextMenu.Item
@@ -232,13 +248,26 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
                     )
                   }
                 >
+                  <CopyPlus size={13} className={MENU_ICON} aria-hidden />
                   Duplicate to image node
                 </ContextMenu.Item>
+                {/* Node-level action: flatten all visible layers into one
+                    raster. Only meaningful with ≥2 visible layers. */}
+                {visibleCount >= 2 && (
+                  <ContextMenu.Item
+                    className={MENU_ITEM}
+                    onSelect={() => editorDocument.workspace.mergeVisibleLayers(imageNodeId)}
+                  >
+                    <Merge size={13} className={MENU_ICON} aria-hidden />
+                    Merge visible layers
+                  </ContextMenu.Item>
+                )}
                 <ContextMenu.Separator className="my-1 h-px bg-separator" />
                 <ContextMenu.Item
                   className={MENU_ITEM_DANGER}
                   onSelect={() => editorDocument.workspace.removeLayer(layer.id)}
                 >
+                  <Trash2 size={13} className="shrink-0" aria-hidden />
                   Delete layer
                 </ContextMenu.Item>
               </ContextMenu.Content>

@@ -306,10 +306,13 @@ export function CanvasWorkspace() {
       dragHandle: '.workspace-drag-handle',
       data: { infoNodeId: n.id },
     }));
-    // Layers nodes — one per image node (only render those whose image node
-    // still exists, so a mid-cascade store read can't emit an orphan).
+    // Layers nodes — one per image node, but only SHOWN when the node has more
+    // than one layer. A single-layer node's strip is redundant (the sole layer
+    // is the image itself), so it's hidden; its widget tethers fall back to the
+    // image node (see derivedEdges). The store entry survives either way, so the
+    // strip re-appears the moment a second layer is added.
     const layerStrips: LayerNodeType[] = Object.values(layerNodes)
-      .filter((n) => imageNodes[n.imageNodeId])
+      .filter((n) => (imageNodes[n.imageNodeId]?.layerIds.length ?? 0) > 1)
       .map((n) => ({
         id: n.id,
         type: 'layers',
@@ -398,13 +401,16 @@ export function CanvasWorkspace() {
     // The target is the specific per-layer RAIL handle; pickTetherHandles picks
     // only the widget's OUTLET side (its target-handle result is discarded).
     for (const te of Object.values(tetherEdges)) {
-      // The per-layer tether ports now live on the standalone layers node, so
-      // the RENDERED edge targets that node — but the stored scope
-      // (`targetImageNodeId` + layerId) is unchanged, so backend resolution and
-      // syncWidgetTethers keep keying on the image node.
+      // The per-layer tether ports live on the standalone layers node — but that
+      // node is only SHOWN for multi-layer image nodes. When it's hidden
+      // (single-layer node), the widget tether falls back to the image node's
+      // generic `tether-in` handle so the connection stays visible. Either way
+      // the stored scope (`targetImageNodeId` + layerId) is unchanged.
       const layersNodeId = layerNodeIdFor(te.targetImageNodeId);
+      const layersShown = rfLookup.has(layersNodeId);
+      const targetNodeId = layersShown ? layersNodeId : te.targetImageNodeId;
       const rfWidget = rfLookup.get(te.widgetNodeId);
-      const rfTarget = rfLookup.get(layersNodeId);
+      const rfTarget = rfLookup.get(targetNodeId);
       if (!rfWidget || !rfTarget) continue;
 
       const widgetCenter = {
@@ -421,8 +427,11 @@ export function CanvasWorkspace() {
       out.push({
         id: te.id,
         source: te.widgetNodeId,
-        target: layersNodeId,
+        target: targetNodeId,
         sourceHandle,
+        // Always the per-layer port `layer-tether-<layerId>` — hosted on the
+        // layers node (multi-layer) or on the image body itself (single-layer,
+        // where the layers node is hidden).
         targetHandle: `layer-tether-${te.layerId}`,
         // Only the target end reconnects — the source is always the widget.
         reconnectable: 'target',

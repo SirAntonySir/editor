@@ -77,21 +77,20 @@ describe('LayerStrip — right-click context menu', () => {
     });
   });
 
-  it('right-click opens a menu with Rename / Blend / Lock / Delete', async () => {
+  it('right-click opens a menu with Rename / Blend / Delete', async () => {
     const { getAllByRole, findByText } = render(<LayerStrip imageNodeId="n1" layerIds={['L1', 'L2']} />);
     fireEvent.contextMenu(getAllByRole('button', { name: /select layer/i })[0]);
     expect(await findByText(/rename/i)).toBeInTheDocument();
     expect(await findByText(/blend/i)).toBeInTheDocument();
-    expect(await findByText(/lock/i)).toBeInTheDocument();
     expect(await findByText(/delete/i)).toBeInTheDocument();
   });
 
-  it('Lock toggles layer.locked', async () => {
-    const { getAllByRole, findByText } = render(<LayerStrip imageNodeId="n1" layerIds={['L1', 'L2']} />);
+  it('does not offer a Lock item (removed — non-functional)', async () => {
+    const { getAllByRole, findByText, queryByText } = render(<LayerStrip imageNodeId="n1" layerIds={['L1', 'L2']} />);
     fireEvent.contextMenu(getAllByRole('button', { name: /select layer/i })[0]);
-    fireEvent.click(await findByText(/^lock$/i));
-    const after = useEditorStore.getState().layers.find((l) => l.id === 'L1');
-    expect(after?.locked).toBe(true);
+    await findByText(/rename/i); // menu is open
+    expect(queryByText(/^lock$/i)).toBeNull();
+    expect(queryByText(/^unlock$/i)).toBeNull();
   });
 
   it('Delete removes the layer', async () => {

@@ -92,7 +92,7 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
     expect(backendTools.propose_mask).not.toHaveBeenCalled();
   });
 
-  it('the candidate hint advertises actions, not save/cancel', async () => {
+  it('the candidate hint advertises refine + discard, not save/cancel', async () => {
     const { findByTestId, getByTestId } = render(
       <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,
     );
@@ -102,7 +102,9 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
     await waitFor(() => expect(getByTestId('segment-candidate-hint').dataset.state).toBe('ready'));
     const hint = getByTestId('segment-candidate-hint').textContent ?? '';
     expect(hint.toLowerCase()).toContain('refine');
-    expect(hint.toLowerCase()).toContain('actions');
+    expect(hint.toLowerCase()).toContain('discard');
+    // "right-click actions" copy was removed; actions live in the context menu.
+    expect(hint.toLowerCase()).not.toContain('actions');
     expect(hint.toLowerCase()).not.toContain('save');
   });
 

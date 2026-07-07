@@ -325,6 +325,8 @@ class SessionDocument(BaseModel):
         baked edits that no active widget represents); active widgets are cloned
         so the duplicate stays editable.
         """
+        from app.schemas.widget import WidgetOrigin
+
         events: list[StateEvent] = []
         dup = 0
         for pair in mapping:
@@ -353,6 +355,12 @@ class SessionDocument(BaseModel):
                 new_wid = f"{w.id}-copy-{dup}"
                 clone.id = new_wid
                 clone.status = "active"
+                # A cloned adjustment is an APPLIED edit on the copy — NOT a
+                # fresh AI suggestion. Re-origin it as tool_invoked (concrete /
+                # applied) so the frontend doesn't mark an mcp_autonomous clone
+                # as a PENDING suggestion, which would hide it from the render
+                # (the copy would show raw pixels only). Keep provenance.
+                clone.origin = WidgetOrigin(kind="tool_invoked", parent_widget_id=w.id)
 
                 node_id_map: dict[str, str] = {}
                 for n in clone.nodes:

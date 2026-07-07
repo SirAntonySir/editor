@@ -61,8 +61,14 @@ def test_clones_active_widget_retargeted_to_new_layer():
     assert c.bindings[0].target.node_id == node.id
     # Original widget untouched.
     assert doc.widgets["w_1"].nodes[0].layer_id == "a"
+    assert doc.widgets["w_1"].origin.kind == "mcp_autonomous"
     # Canonical seeded for the new layer.
     assert doc.canonical["b"]["basic"]["exposure"] == 12
+    # A cloned adjustment is an APPLIED edit on the copy, NOT a fresh AI
+    # suggestion. Its origin must not be autonomous — otherwise the frontend
+    # marks it a pending suggestion and the renderer HIDES it, so the copy's
+    # main composite renders raw (only its thumbnail catches the previewed grade).
+    assert c.origin.kind == "tool_invoked"
 
 
 def test_does_not_clone_widgets_targeting_other_layers():

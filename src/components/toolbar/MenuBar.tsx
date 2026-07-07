@@ -8,6 +8,7 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { revertToOriginal } from '@/lib/revert';
 import { editorDocument } from '@/core/document';
+import { duplicateLayerInPlace } from '@/lib/layer-node-actions';
 import { useFileIO } from '@/hooks/useFileIO';
 import { BackendStatusBadge } from '@/components/ui/BackendStatusBadge';
 import { useAiSession, analyseImageLayer } from '@/hooks/useImageContext';
@@ -361,7 +362,28 @@ function AdjustmentItems() {
 /* ------------------------------------------------------------------ */
 
 function LayerMenu() {
-  const hasLayers = useEditorStore((s) => s.layers.length > 0);
+  const activeLayerId = useEditorStore((s) => s.activeLayerId);
+  // Resolve the image node owning the active layer — Duplicate Layer needs it,
+  // and it gates the whole menu (no active layer ⇒ nothing to act on).
+  const ownerNodeId = useEditorStore((s) =>
+    activeLayerId
+      ? (Object.values(s.imageNodes).find((n) => n.layerIds.includes(activeLayerId))?.id ?? null)
+      : null,
+  );
+  const canAct = !!activeLayerId && !!ownerNodeId;
+
+  const duplicateActive = () => {
+    if (!activeLayerId || !ownerNodeId) return;
+    editorDocument.workspace.batch('Duplicate layer', () =>
+      duplicateLayerInPlace(activeLayerId, ownerNodeId),
+    );
+  };
+  const deleteActive = () => {
+    if (activeLayerId) editorDocument.workspace.removeLayer(activeLayerId);
+  };
+  const mergeVisible = () => {
+    if (ownerNodeId) editorDocument.workspace.mergeVisibleLayers(ownerNodeId);
+  };
 
   return (
     <Menubar.Menu>
@@ -369,11 +391,11 @@ function LayerMenu() {
       <Menubar.Portal>
         <Menubar.Content className={menuContentClass} align="start" sideOffset={4}>
           <Item disabled>New Layer</Item>
-          <Item disabled={!hasLayers}>Duplicate Layer</Item>
-          <Item disabled={!hasLayers}>Delete Layer</Item>
+          <Item disabled={!canAct} onSelect={duplicateActive}>Duplicate Layer</Item>
+          <Item disabled={!canAct} onSelect={deleteActive}>Delete Layer</Item>
           <Sep />
-          <Item disabled={!hasLayers}>Flatten Image</Item>
-          <Item disabled={!hasLayers}>Merge Visible</Item>
+          <Item disabled>Flatten Image</Item>
+          <Item disabled={!canAct} onSelect={mergeVisible}>Merge Visible</Item>
         </Menubar.Content>
       </Menubar.Portal>
     </Menubar.Menu>

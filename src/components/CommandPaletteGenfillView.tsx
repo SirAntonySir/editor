@@ -24,8 +24,8 @@ export function CommandPaletteGenfillView({ hasRegion, draft }: GenfillViewProps
         </p>
       ) : (
         <p>
-          Attach a region to fill — type <span className="text-text-primary">@</span> to
-          reference an object mask. Generative fill needs a target region.
+          Attach a target to fill — type <span className="text-text-primary">@</span> to
+          reference a region, layer, or image. Generative fill needs a target.
         </p>
       )}
     </div>

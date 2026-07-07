@@ -10,10 +10,12 @@ interface Props {
   setParam: (paramKey: string, value: number) => void;
 }
 
-/** Small "Auto" pill above the binding rows for widgets whose opId has a
- *  mechanical auto recipe (light / color / kelvin / levels). Disabled when
- *  no mechanical snapshot exists yet. Deliberately *not* styled like AI —
- *  this is deterministic math over the live histogram + cast, no LLM. */
+/** Small "Auto" pill hosted inline on the widget's action strip (beside Reset)
+ *  for widgets whose opId has a mechanical auto recipe (light / color / kelvin /
+ *  levels). Disabled when no mechanical snapshot exists yet. Deliberately *not*
+ *  styled like AI — this is deterministic math over the live histogram + cast,
+ *  no LLM. Returns null for ops without a recipe, so the strip's autoSlot
+ *  collapses to nothing. */
 export function WidgetAutoButton({ widget, setParam }: Props) {
   const mech = useLiveMechanicalContext();
   const opId = widget.opId ?? '';
@@ -31,25 +33,23 @@ export function WidgetAutoButton({ widget, setParam }: Props) {
   }
 
   return (
-    <div className="flex items-center justify-end px-1.5 pt-1">
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={disabled}
-        title={
-          disabled
-            ? 'Mechanical analysis not ready yet'
-            : 'Set sliders to mechanically-derived starting values'
-        }
-        className="inline-flex items-center gap-1 px-2 h-[18px] rounded-[3px]
-          text-[10px] font-medium text-text-primary
-          bg-surface-secondary hover:bg-surface-secondary/80
-          border border-separator
-          disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-      >
-        <Wand2 size={10} aria-hidden />
-        Auto
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={disabled}
+      title={
+        disabled
+          ? 'Mechanical analysis not ready yet'
+          : 'Set sliders to mechanically-derived starting values'
+      }
+      className="inline-flex items-center gap-1 px-2 h-[18px] rounded-[3px]
+        text-[10px] font-medium text-text-primary
+        bg-surface-secondary hover:bg-surface-secondary/80
+        border border-separator
+        disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+    >
+      <Wand2 size={10} aria-hidden />
+      Auto
+    </button>
   );
 }

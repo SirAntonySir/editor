@@ -461,64 +461,40 @@ html, body, #root {
   pointer-events: none;
 }
 
-/* Per-layer tether port (LayerStrip). The rail is the ONLY connection surface
- * for widget tethers — one port per layer thumbnail. Latent by default so the
- * rail looks unchanged at rest; fades in on row hover or while a connection is
- * being dragged. Overrides React Flow's default handle chrome.
- *
- * The handle ELEMENT is an oversized (22px) transparent hit target so the port
- * is easy to grab and easy to drop a tether onto; the visible 10px dot is drawn
- * as a centered ::after, so the generous hitbox never enlarges the dot itself.
- * `translate(-50%, -50%)` (from RF's handle-left rule) keeps it centered on the
- * `left` anchor regardless of size. */
+/* Per-layer tether port (LayerStrip). One port per layer row — the connection
+ * surface for widget tethers. Styled IDENTICALLY to the widget outlets
+ * (.tether-outlet) so a layer connection point reads exactly like a widget one:
+ * the handle ELEMENT is itself a 14px dot (surface fill + accent ring), and RF's
+ * outer-edge anchor plugs the tether into the dot's rim.
+ * Sits ON the card's LEFT BORDER: `left: -11px` centres the 14px dot on the
+ * border line, given the card's px-2.5 (10px) left padding + 1px border and RF's
+ * handle-left translate(-50%,-50%). (Coupled to the card padding in
+ * LayerStrip.tsx — keep in sync.) */
 .react-flow__handle.layer-tether-port {
-  width: 22px;
-  height: 22px;
-  min-width: 22px;
-  min-height: 22px;
-  left: -9px;
-  border: none;
-  background: transparent;
-  border-radius: 999px;
-  opacity: 0;
-  transition: opacity var(--duration-fast, 120ms) ease;
-}
-.react-flow__handle.layer-tether-port::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  min-height: 14px;
+  left: -11px;
   background: var(--color-surface);
   border: 2px solid var(--color-accent);
-  transition: transform var(--duration-fast, 120ms) ease,
-              background var(--duration-fast, 120ms) ease;
-}
-/* Reveal on row hover, when the port is an available connection target, or when
- * a connection is being dragged from / to it. */
-.group:hover > .react-flow__handle.layer-tether-port,
-.react-flow__handle.layer-tether-port.connectionindicator,
-.react-flow__handle.layer-tether-port.connectingfrom,
-.react-flow__handle.layer-tether-port.connectingto {
+  border-radius: 999px;
   opacity: 1;
+  transition: background var(--duration-fast, 120ms) ease;
 }
 
 /* Release-to-connect affordance. While dragging a tether, RF tags the handle
  * under the pointer that would form a VALID connection with `.connectingto
  * .valid`. That handle fills solid and pulses an expanding accent ring, so the
- * user can see the drop will land before they let go. Shared by the widget
- * outlets below via `.tether-outlet`. */
+ * user can see the drop will land before they let go. Shared with the widget
+ * outlets (.tether-outlet) below. */
 @keyframes tether-connect-pulse {
   0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 55%, transparent); }
   70%  { box-shadow: 0 0 0 8px color-mix(in srgb, var(--color-accent) 0%, transparent); }
   100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 0%, transparent); }
 }
-.react-flow__handle.layer-tether-port.connectingto.valid::after {
+.react-flow__handle.layer-tether-port.connectingto.valid {
   background: var(--color-accent);
-  transform: translate(-50%, -50%) scale(1.35);
   animation: tether-connect-pulse 0.85s ease-out infinite;
 }
 
@@ -548,8 +524,8 @@ html, body, #root {
   animation: tether-connect-pulse 0.85s ease-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .react-flow__handle.layer-tether-port.connectingto.valid::after,
-  .react-flow__handle.tether-outlet.connectingto.valid::after { animation: none; }
+  .react-flow__handle.layer-tether-port.connectingto.valid,
+  .react-flow__handle.tether-outlet.connectingto.valid { animation: none; }
 }
 
 /* Atelier command-palette results list scrollbar — thin, quiet, flat register.

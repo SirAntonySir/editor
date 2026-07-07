@@ -252,8 +252,8 @@ describe('CommandPalette — generative fill mode', () => {
     const fill = screen.getByRole('button', { name: 'Fill' });
     expect(fill).toBeDefined();
     await userEvent.click(fill);
-    // No region chip attached → the view tells the user to attach one.
-    expect(screen.getByText(/attach a region to fill/i)).toBeDefined();
+    // No target chip attached → the view tells the user to attach one.
+    expect(screen.getByText(/attach a target to fill/i)).toBeDefined();
   });
 
   it('shows Edit · Ask · Fill in BOTH conditions (mode row identical, no condition leak)', () => {

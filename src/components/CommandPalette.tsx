@@ -11,7 +11,7 @@ import { routeOpToInspector, routePresetToInspector } from '@/lib/palette-inspec
 import { PromptEditor, type PromptEditorHandle } from '@/components/ui/PromptEditor';
 import { RegionSuggestions } from './RegionSuggestions';
 import { rankElements, type PaletteElement } from '@/lib/region-suggest';
-import { docToPlainText, serializePromptDoc, extractObjectIds, type PromptDoc } from '@/lib/prompt-doc';
+import { docToPlainText, serializePromptDoc, objectIdFromSourceId, parseTargetSourceId, type PromptDoc } from '@/lib/prompt-doc';
 import { submitAgentPrompt } from '@/lib/palette-submit';
 import { usePaletteRuntime } from '@/store/palette-runtime';
 import { useMenuActions } from '@/lib/menu-actions';
@@ -22,7 +22,7 @@ import { useSmartMatch } from '@/hooks/useSmartMatch';
 import { useAsk } from '@/hooks/useAsk';
 import { useAiAccess } from '@/lib/ai-access';
 import { useBackendState } from '@/store/backend-state-slice';
-import { spawnGenfillFromMask } from '@/lib/genfill-spawn';
+import { spawnGenfillFromMask, spawnGenfillFromLayer } from '@/lib/genfill-spawn';
 import { CommandPaletteAskView } from './CommandPaletteAskView';
 import { CommandPaletteGenfillView } from './CommandPaletteGenfillView';
 import {
@@ -54,6 +54,11 @@ const STATIC_REGISTRY_SECTIONS: PaletteSection[] = [
 ];
 
 type PaletteMode = 'edit' | 'ask' | 'genfill';
+
+/** A resolved Fill-mode target: a specific region mask, or a whole layer. */
+type GenfillTarget =
+  | { kind: 'mask'; maskId: string; imageNodeId: string }
+  | { kind: 'layer'; layerId: string; imageNodeId: string };
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -100,29 +105,54 @@ export function CommandPalette() {
   const menuActions = useMenuActions();
   const masksIndex = useBackendState((s) => s.snapshot?.masksIndex);
 
-  /** Genfill mode resolves the FIRST attached region chip whose id is a
-   *  materialized mask (in masksIndex) to a target {maskId, imageNodeId}.
+  /** Genfill mode resolves the FIRST attached chip to a fill target, in chip
+   *  order. A chip can be:
+   *   - a materialized mask (in masksIndex)      → fill that region,
+   *   - a layer target (`target:layer:<id>`)     → fill that whole layer,
+   *   - an image-node target (`target:node:<id>`) → fill the node's base layer.
    *  Named-region chips without a real mask (region:ai:*) don't resolve in v1. */
-  const genfillTarget = useMemo(() => {
+  const genfillTarget = useMemo<GenfillTarget | null>(() => {
     const idx = masksIndex ?? [];
-    if (idx.length === 0) return null;
-    const candidateIds = [
-      ...extractObjectIds(
-        doc.filter((s): s is Extract<PromptDoc[number], { kind: 'chip' }> => s.kind === 'chip'),
-      ),
-      ...extractObjectIds(attachedContext),
-    ];
-    for (const id of candidateIds) {
-      const summary = idx.find((m) => m.id === id);
-      if (summary) {
-        return {
-          maskId: summary.id,
-          imageNodeId: summary.imageNodeId ?? activeImageNodeId ?? 'in-default',
-        };
+    const chipSourceIds = [
+      ...doc
+        .filter((s): s is Extract<PromptDoc[number], { kind: 'chip' }> => s.kind === 'chip')
+        .map((c) => c.sourceId),
+      ...attachedContext.map((c) => c.sourceId),
+    ].filter((s): s is string => Boolean(s));
+
+    for (const sid of chipSourceIds) {
+      // 1. Region mask.
+      const maskObjId = objectIdFromSourceId(sid);
+      if (maskObjId) {
+        const summary = idx.find((m) => m.id === maskObjId);
+        if (summary) {
+          return {
+            kind: 'mask',
+            maskId: summary.id,
+            imageNodeId: summary.imageNodeId ?? activeImageNodeId ?? 'in-default',
+          };
+        }
+      }
+      const target = parseTargetSourceId(sid);
+      // 2. Whole-layer target.
+      if (target?.kind === 'layer') {
+        const node = Object.values(imageNodes).find((n) => n.layerIds.includes(target.id));
+        const imageNodeId = node?.id ?? activeImageNodeId;
+        if (imageNodeId) return { kind: 'layer', layerId: target.id, imageNodeId };
+      }
+      // 3. Whole image-node target → its base (first image) layer.
+      if (target?.kind === 'node') {
+        const node = imageNodes[target.id];
+        if (node) {
+          const layerId =
+            node.layerIds.find((lid) => layers.some((l) => l.id === lid && l.type === 'image')) ??
+            node.layerIds[0];
+          if (layerId) return { kind: 'layer', layerId, imageNodeId: target.id };
+        }
       }
     }
     return null;
-  }, [masksIndex, doc, attachedContext, activeImageNodeId]);
+  }, [masksIndex, doc, attachedContext, activeImageNodeId, imageNodes, layers]);
 
   // Subscribe to AI context + object ownership so the Regions section stays
   // fresh while the palette is open.
@@ -437,13 +467,36 @@ export function CommandPalette() {
         trigger === '@'
           ? rankElements(elementList, query, { allowEmpty: true, limit: 24, minChars: 1 })
           : rankElements(regionList, query);
-      setSuggest({ regions: ranked, index: 0, anchor: rect });
+      setSuggest((s) => {
+        // Preserve the highlighted row when the ranked list is UNCHANGED. The
+        // editor fires reportCaret on every keyup — including the arrow keys the
+        // picker uses to navigate — so re-ranking must not slam the selection
+        // back to the top on a caret move that didn't change the query. Only a
+        // genuinely different result set (real typing) resets to the best match.
+        const sameList =
+          s.regions.length === ranked.length &&
+          s.regions.every((r, i) => r.sourceId === ranked[i].sourceId);
+        const index = sameList ? Math.min(s.index, Math.max(0, ranked.length - 1)) : 0;
+        return { regions: ranked, index, anchor: rect };
+      });
     },
     [regionList, elementList],
   );
 
   const closeSuggest = useCallback(
     () => setSuggest({ regions: [], index: 0, anchor: null }),
+    [],
+  );
+
+  // Radix Dialog fires these when an interaction lands outside Content. The
+  // `@`-mention dropdown is portalled to <body> (outside Content), so we tell
+  // the Dialog to leave those interactions alone — otherwise its capture-phase
+  // dismiss/focus handling eats the row's mousedown and the pick never lands.
+  const keepPaletteForSuggest = useCallback(
+    (e: { detail: { originalEvent: Event }; preventDefault: () => void }) => {
+      const target = e.detail.originalEvent.target as HTMLElement | null;
+      if (target?.closest('[data-atelier-suggest]')) e.preventDefault();
+    },
     [],
   );
 
@@ -553,12 +606,21 @@ export function CommandPalette() {
           e.preventDefault();
           const prompt = query.trim();
           if (!genfillTarget || !prompt) return;
-          void spawnGenfillFromMask(
-            genfillTarget.maskId,
-            genfillTarget.imageNodeId,
-            prompt,
-            'mcp_user_prompt',
-          );
+          if (genfillTarget.kind === 'mask') {
+            void spawnGenfillFromMask(
+              genfillTarget.maskId,
+              genfillTarget.imageNodeId,
+              prompt,
+              'mcp_user_prompt',
+            );
+          } else {
+            void spawnGenfillFromLayer(
+              genfillTarget.layerId,
+              genfillTarget.imageNodeId,
+              prompt,
+              'mcp_user_prompt',
+            );
+          }
           setOpen(false);
         }
         return;
@@ -690,6 +752,16 @@ export function CommandPalette() {
               asChild
               onKeyDown={onKeyDown}
               aria-describedby={undefined}
+              // The `@`-mention dropdown (RegionSuggestions) is portalled to
+              // <body>, i.e. OUTSIDE this Content. Without these guards the
+              // Dialog's dismissable-layer + focus-scope treat a mousedown on a
+              // suggestion row as an "outside" interaction (capture phase, before
+              // the row's onMouseDown), so the pick never lands and the caret
+              // re-ranks back to the top. preventDefault when the interaction
+              // originates inside the dropdown keeps the row clickable.
+              onPointerDownOutside={keepPaletteForSuggest}
+              onFocusOutside={keepPaletteForSuggest}
+              onInteractOutside={keepPaletteForSuggest}
             >
               <motion.div
                 layoutId="command-palette-shell"

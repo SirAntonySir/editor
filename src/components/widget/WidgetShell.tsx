@@ -90,6 +90,17 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
 
   const showAiAffordances = widget.origin.kind !== 'tool_invoked';
 
+  // A widget renders the flat BindingRow list (as opposed to a rich body:
+  // compound / HSL rail / Levels histogram / Curves editor). The mechanical
+  // "Auto" pill is only meaningful for these, and only when unpinned — the
+  // recipe writes every binding, not a single-param subset.
+  const usesFlatBody =
+    !loadRegistry().ops[widget.opId ?? '']?.compound &&
+    !isHslWidget(widget) &&
+    !isFullLevelsWidget(widget) &&
+    !isCurvesWidget(widget);
+  const showAuto = !pinnedParamKeys && usesFlatBody;
+
   const [whyOpen, setWhyOpen] = useState(false);
   const [refineOpen, setRefineOpen] = useState(false);
   const [refinePending, setRefinePending] = useState(false);
@@ -282,7 +293,15 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
           {/* Per-widget history stepper — ‹ n/N › walks this widget's timeline,
               restoring each step (synced to global history). Renders nothing
               until the widget has history. */}
-          <WidgetHistoryStepper widgetId={widget.id} onReset={handleReset} />
+          <WidgetHistoryStepper
+            widgetId={widget.id}
+            onReset={handleReset}
+            autoSlot={
+              showAuto ? (
+                <WidgetAutoButton widget={widget} setParam={(k, v) => setParam(k, v)} />
+              ) : undefined
+            }
+          />
           {/* Inline reasoning banner removed — the footer's "Why?" button
               already exposes the same string in a popover. */}
           {/* When a single-param pin filter is active, fall through to the
@@ -309,14 +328,9 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
               <CurvesWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
             </div>
           )}
-          {widget.bindings.length > 0 && (pinnedParamKeys || (!loadRegistry().ops[widget.opId ?? '']?.compound && !isHslWidget(widget) && !isFullLevelsWidget(widget) && !isCurvesWidget(widget))) && (
+          {widget.bindings.length > 0 && (pinnedParamKeys || usesFlatBody) && (
             <div className="flex flex-col gap-1.5 px-1.5 py-1">
-              {/* Auto-tune pill: mechanical-only baseline values for the
-                  current op. Renders only when the op has an auto recipe
-                  (light / color / kelvin / levels) — silent otherwise. */}
-              {visibleBindings.length === widget.bindings.length && (
-                <WidgetAutoButton widget={widget} setParam={(k, v) => setParam(k, v)} />
-              )}
+              {/* Auto pill lives on the action strip above (autoSlot), not here. */}
               {visibleBindings.map((b) => {
                 const eff = effectiveValue(b);
                 const node = widget.nodes.find((n) => n.id === b.target.nodeId);

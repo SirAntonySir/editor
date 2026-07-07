@@ -47,27 +47,16 @@ export function InfoNode({ id, data }: InfoNodeProps) {
 
   if (!node) return null;
 
-  const headerY = '10px';
   return (
     <>
-      {/* Four invisible source handles — same pattern as WidgetNode so
-          `pickTetherHandles` can pick whichever side faces the image. */}
-      <Handle
-        type="source" position={Position.Top}    id="tether-out-top"
-        style={{ left: '50%', top: 0, opacity: 0 }}
-      />
-      <Handle
-        type="source" position={Position.Bottom} id="tether-out-bottom"
-        style={{ left: '50%', top: `${naturalSize.h}px`, opacity: 0 }}
-      />
-      <Handle
-        type="source" position={Position.Left}   id="tether-out-left"
-        style={{ top: headerY, left: 0, opacity: 0 }}
-      />
-      <Handle
-        type="source" position={Position.Right}  id="tether-out-right"
-        style={{ top: headerY, left: `${naturalSize.w}px`, opacity: 0 }}
-      />
+      {/* Four tether outlets — same visible dot + border-anchoring as WidgetNode.
+          Positioned entirely by React Flow's per-position defaults (centred on
+          each border of the measured node box); `.tether-outlet` draws the dot.
+          `pickTetherHandles` picks whichever side faces the image. */}
+      <Handle type="source" position={Position.Top}    id="tether-out-top"    className="tether-outlet" />
+      <Handle type="source" position={Position.Bottom} id="tether-out-bottom" className="tether-outlet" />
+      <Handle type="source" position={Position.Left}   id="tether-out-left"   className="tether-outlet" />
+      <Handle type="source" position={Position.Right}  id="tether-out-right"  className="tether-outlet" />
       <div ref={innerRef}>
         <InfoWidgetShell node={node} />
       </div>

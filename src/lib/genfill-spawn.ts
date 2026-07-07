@@ -51,10 +51,15 @@ export async function spawnGenfillFromMask(
 }
 
 /** Spawn genfill for an object layer: use its layerMask if present, else
- *  rasterize the layer's alpha channel into a new registered mask. */
+ *  rasterize the layer's alpha channel into a new registered mask. `prompt` /
+ *  `origin` forward to {@link spawnGenfillFromMask} so the ⌘K Fill flow can
+ *  fill a whole layer/image with the typed prompt (right-click passes neither,
+ *  landing in the widget's compose state). */
 export async function spawnGenfillFromLayer(
   layerId: string,
   imageNodeId: string,
+  prompt = '',
+  origin: 'tool_invoked' | 'mcp_user_prompt' = 'tool_invoked',
 ): Promise<string | null> {
   const sessionId = requireSession();
   if (!sessionId) return null;
@@ -63,12 +68,12 @@ export async function spawnGenfillFromLayer(
   if (!layer) return null;
 
   if (layer.layerMask && maskStore.get(layer.layerMask)) {
-    return spawnGenfillFromMask(layer.layerMask, imageNodeId);
+    return spawnGenfillFromMask(layer.layerMask, imageNodeId, prompt, origin);
   }
 
   const maskId = await registerLayerAlphaMask(sessionId, layerId, imageNodeId);
   if (!maskId) return null;
-  return spawnGenfillFromMask(maskId, imageNodeId);
+  return spawnGenfillFromMask(maskId, imageNodeId, prompt, origin);
 }
 
 /** Rasterize a layer's alpha channel (alpha ≥ 128 → 255) into a mask and

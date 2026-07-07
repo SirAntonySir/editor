@@ -5,9 +5,9 @@ import { CommandPaletteGenfillView } from './CommandPaletteGenfillView';
 afterEach(() => cleanup());
 
 describe('CommandPaletteGenfillView', () => {
-  it('shows the attach-a-region hint when no region is resolved', () => {
+  it('shows the attach-a-target hint when no region is resolved', () => {
     render(<CommandPaletteGenfillView hasRegion={false} draft="" />);
-    expect(screen.getByText(/attach a region to fill/i)).toBeTruthy();
+    expect(screen.getByText(/attach a target to fill/i)).toBeTruthy();
   });
 
   it('shows the generate instruction when a region is attached', () => {

@@ -69,7 +69,7 @@ export function parseTargetSourceId(sourceId: string | undefined): TargetRef | n
 
 /** Pull an object/mask id out of a chip's `sourceId`. Region chips carry the
  *  identifier in the trailing segment; other chip kinds return null. */
-function objectIdFromSourceId(sourceId: string | undefined): string | null {
+export function objectIdFromSourceId(sourceId: string | undefined): string | null {
   const src = sourceId ?? '';
   if (src.startsWith('region:object:')) return src.slice('region:object:'.length);
   if (src.startsWith('region:ai:')) return src.slice('region:ai:'.length);

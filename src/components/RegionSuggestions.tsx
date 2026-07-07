@@ -50,6 +50,10 @@ export function RegionSuggestions({
     <div
       role="listbox"
       aria-label="Element suggestions"
+      // Marker so the palette's Radix Dialog can recognise interactions with this
+      // portalled-to-<body> dropdown as "inside" and not steal the mousedown
+      // (dismiss / focus-trap) before the row's own onMouseDown → onSelect runs.
+      data-atelier-suggest=""
       style={style}
       className="overlay overflow-hidden min-w-[10rem] max-w-[18rem] py-1 text-xs shadow-md"
     >

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
@@ -11,6 +11,10 @@ interface Props {
   /** Snap all of this widget's bindings back to their defaults. Hosted on this
    *  strip (moved off the header) so every per-widget action lives in one row. */
   onReset: () => void;
+  /** Optional "Auto" pill (mechanical baseline) rendered inline on the right of
+   *  the strip, beside Reset — keeps every per-widget action in one compact row
+   *  instead of spending a whole extra row on the button. */
+  autoSlot?: ReactNode;
 }
 
 const STRIP_BTN =
@@ -30,7 +34,7 @@ const STRIP_BTN =
  * defaults). The arrows hide until the widget has history; Reset is always
  * available.
  */
-export function WidgetHistoryStepper({ widgetId, onReset }: Props) {
+export function WidgetHistoryStepper({ widgetId, onReset, autoSlot }: Props) {
   const sessionId = useBackendState((s) => s.sessionId);
   const offline = useBackendState((s) => s.sseStatus !== 'open');
   const log = useWidgetHistory(widgetId);
@@ -50,7 +54,7 @@ export function WidgetHistoryStepper({ widgetId, onReset }: Props) {
   }
 
   return (
-    <div className="flex items-center justify-between gap-2 px-1.5 py-0.5 border-b border-separator">
+    <div className="flex items-center justify-between gap-2 px-1.5 py-px border-b border-separator">
       {hasHistory ? (
         <div className="flex items-center gap-0.5">
           <Tooltip label="Undo — step to older state">
@@ -79,17 +83,20 @@ export function WidgetHistoryStepper({ widgetId, onReset }: Props) {
       ) : (
         <span aria-hidden />
       )}
-      <Tooltip label="Reset to defaults">
-        <button
-          type="button"
-          aria-label="Reset widget"
-          disabled={offline}
-          onClick={onReset}
-          className={STRIP_BTN}
-        >
-          <RotateCcw size={12} aria-hidden />
-        </button>
-      </Tooltip>
+      <div className="flex items-center gap-1">
+        {autoSlot}
+        <Tooltip label="Reset to defaults">
+          <button
+            type="button"
+            aria-label="Reset widget"
+            disabled={offline}
+            onClick={onReset}
+            className={STRIP_BTN}
+          >
+            <RotateCcw size={12} aria-hidden />
+          </button>
+        </Tooltip>
+      </div>
     </div>
   );
 }

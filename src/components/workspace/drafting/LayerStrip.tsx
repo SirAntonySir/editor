@@ -58,21 +58,21 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
   if (layers.length === 0) return null;
 
   return (
-    <div
-      data-testid="layer-strip"
-      className="flex flex-col-reverse items-end gap-1.5 pr-3"
-    >
-      <div className="font-[var(--font-mono)] text-[9px] tracking-[0.20em] uppercase text-text-secondary mb-1">
-        Layers
-      </div>
-      {layers.map((layer, i) => {
+    // Right-align the card within the fixed left gutter, next to the image body.
+    <div data-testid="layer-strip" className="flex justify-end pr-3">
+      {/* Frosted card groups the layer rows. `.glass-overlay` (not flat) because
+          this chrome floats over the photo. No overflow-hidden: the per-layer
+          tether ports sit ON the card's left border (like the widget-shell
+          outlets) and the hover name labels float outside the box. */}
+      <div className="glass-overlay rounded-[var(--radius-panel)] px-2.5 py-2 flex flex-col-reverse items-stretch gap-1.5">
+        {layers.map((layer, i) => {
         const ordinal = (i + 1).toString().padStart(2, '0');
         const isVisible = layer.visible;
         const isActive = layer.id === activeLayerId;
         return (
           <ContextMenu.Root key={layer.id}>
             <ContextMenu.Trigger asChild>
-              <div className={`group relative flex items-center gap-1.5 ${isVisible ? '' : 'opacity-50'}`}>
+              <div className={`group relative flex items-center justify-end gap-1.5 ${isVisible ? '' : 'opacity-50'}`}>
                 {/* Per-layer tether port — the ONLY connection surface for
                     widget tethers. Latent (see .layer-tether-port in index.css):
                     invisible at rest, fades in on row hover / while connecting.
@@ -220,6 +220,7 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
           </ContextMenu.Root>
         );
       })}
+      </div>
     </div>
   );
 }

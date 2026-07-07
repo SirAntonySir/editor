@@ -47,4 +47,26 @@ describe('planForcedExtractions', () => {
     ]);
     expect(plan.fallbackIds).toEqual([]);
   });
+
+  it('carries the region bbox onto the segmentable entry when present', () => {
+    const regions = [
+      {
+        label: 'Shoes',
+        description: '',
+        representativePoint: [0.5, 0.4],
+        bbox: [0.3, 0.2, 0.4, 0.5],
+      },
+    ] as unknown as CandidateRegion[];
+    // The bbox rides along so segmentation can build a box+point SAM prompt
+    // (tighter masks than the representative point alone).
+    const plan = planForcedExtractions(['region:ai:shoes'], regions, () => false);
+    expect(plan.segmentable).toEqual([
+      {
+        sourceId: 'region:ai:shoes',
+        label: 'Shoes',
+        point: [0.5, 0.4],
+        bbox: [0.3, 0.2, 0.4, 0.5],
+      },
+    ]);
+  });
 });

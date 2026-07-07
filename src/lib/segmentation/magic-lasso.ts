@@ -42,6 +42,14 @@ export function bboxOfPath(path: readonly LassoPoint[]): Bbox {
 }
 
 /**
+ * Convert a normalized `[x, y, width, height]` bbox tuple (the shape a
+ * `CandidateRegion` carries) into corner form. `x1 = x + w`, `y1 = y + h`.
+ */
+export function bboxFromTuple([x, y, w, h]: readonly [number, number, number, number]): Bbox {
+  return { x0: x, y0: y, x1: x + w, y1: y + h };
+}
+
+/**
  * Encode a box as a SAM prompt: two points at the top-left and bottom-right
  * corners with SAM's box-corner labels (2 and 3). The decoder's generic
  * point_coords/point_labels path consumes these unchanged.

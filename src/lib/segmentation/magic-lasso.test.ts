@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bboxFromTuple,
   bboxOfPath,
   boxPrompt,
   isMaskAcceptable,
@@ -36,6 +37,19 @@ describe('bboxOfPath', () => {
   it('bounds an irregular path', () => {
     const path: LassoPoint[] = [[0.1, 0.6], [0.4, 0.2], [0.8, 0.5]];
     expect(bboxOfPath(path)).toEqual({ x0: 0.1, y0: 0.2, x1: 0.8, y1: 0.6 });
+  });
+});
+
+describe('bboxFromTuple', () => {
+  it('converts a normalized [x, y, w, h] tuple to corner form', () => {
+    // A candidate region's bbox is [x, y, width, height]; box prompts need
+    // {x0, y0, x1, y1}. x1 = x + w, y1 = y + h.
+    expect(bboxFromTuple([0.25, 0.5, 0.25, 0.25])).toEqual({
+      x0: 0.25,
+      y0: 0.5,
+      x1: 0.5,
+      y1: 0.75,
+    });
   });
 });
 

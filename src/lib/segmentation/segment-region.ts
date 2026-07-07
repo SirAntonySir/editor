@@ -1,5 +1,6 @@
 import { encode as samEncode, decode as samDecode } from './mobile-sam-client';
-import type { EncoderEmbedding } from './mobile-sam-types';
+import type { EncoderEmbedding, SamPoint } from './mobile-sam-types';
+import { bboxFromTuple, boxPrompt, isMaskAcceptable, type Bbox } from './magic-lasso';
 import { CanvasRegistry } from '@/lib/canvas-registry';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
@@ -29,19 +30,36 @@ function imageLayerId(imageNodeId: string): string | null {
 }
 
 /**
+ * Build the SAM prompt for a region selection. With a bounding box, SAM gets a
+ * box+point prompt — the box corners (labels 2/3) bound the object and the
+ * representative point (label 1) anchors it, which yields a tighter mask than
+ * the point alone. Without a box, it degrades to the single positive point.
+ */
+export function buildRegionPrompt(point: [number, number], bbox?: Bbox): SamPoint[] {
+  const positive: SamPoint = { x: point[0], y: point[1], label: 1 };
+  return bbox ? [...boxPrompt(bbox), positive] : [positive];
+}
+
+/**
  * Segment a region client-side (MobileSAM/ONNX) from a normalized point and
  * commit it as an object mask — the same path an interactive click takes.
  * Returns the committed mask id, or null on any failure (no source, SAM
  * unavailable, empty mask, backend rejected, no session).
  *
+ * When the region carries a bounding box, SAM is prompted with box+point for a
+ * tighter mask. If that combined result looks like garbage (empty / full-frame /
+ * sliver, per `isMaskAcceptable`), it retries with the point alone so box+point
+ * is never worse than the point-only path.
+ *
  * This is what makes the agent's forced-extraction work on Render, where the
  * backend has no server-side SAM, so analyze returns maskless candidate regions
- * (only labels + a representativePoint).
+ * (only labels + a representativePoint, optionally a bbox).
  */
 export async function segmentRegionFromPoint(
   imageNodeId: string,
   point: [number, number],
   label: string,
+  bbox?: [number, number, number, number],
 ): Promise<string | null> {
   const layerId = imageLayerId(imageNodeId);
   if (!layerId) return null;
@@ -62,9 +80,16 @@ export async function segmentRegionFromPoint(
     }
   }
 
+  const corners = bbox ? bboxFromTuple(bbox) : undefined;
   let mask;
   try {
-    mask = await samDecode(emb, [{ x: point[0], y: point[1], label: 1 }]);
+    mask = await samDecode(emb, buildRegionPrompt(point, corners));
+    // Box+point can occasionally over/under-grab; if the combined mask fails
+    // the confidence gate, fall back to the plain positive point so this never
+    // does worse than the point-only path.
+    if (corners && mask && !isMaskAcceptable(mask, corners)) {
+      mask = await samDecode(emb, buildRegionPrompt(point));
+    }
   } catch (err) {
     console.warn('[segment-region] decode failed', err);
     return null;

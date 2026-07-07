@@ -172,7 +172,8 @@ describe('runAgentTurnForRegion', () => {
     extractMock.mockReturnValue({ imageNodeId: 'node-car', layerId: 'Lc' });
 
     const out = await runAgentTurnForRegion('fix the car', 'car', async () => 'node');
-    expect(segmentMock).toHaveBeenCalledWith(nodeId, [0.5, 0.5], 'car');
+    // No bbox on this region → the box+point upgrade passes bbox undefined.
+    expect(segmentMock).toHaveBeenCalledWith(nodeId, [0.5, 0.5], 'car', undefined);
     expect(extractMock).toHaveBeenCalledWith('m-car', nodeId);
     expect(out.extracted).toBe(true);
   });

@@ -67,7 +67,7 @@ async function resolveAttachedRegions(
       fallbackIds.push(...extractObjectIds([{ sourceId: seg.sourceId }]));
       continue;
     }
-    const maskId = await segmentRegionFromPoint(activeNodeId, seg.point, seg.label);
+    const maskId = await segmentRegionFromPoint(activeNodeId, seg.point, seg.label, seg.bbox);
     if (maskId) applyExtraction(maskId, activeNodeId, choice);
     else fallbackIds.push(...extractObjectIds([{ sourceId: seg.sourceId }]));
   }

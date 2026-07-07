@@ -14,7 +14,13 @@ import { extractObjectIds } from '@/lib/prompt-doc';
  *    as `attached_objects`. */
 export interface ForcedExtractionPlan {
   extractable: Array<{ sourceId: string; maskId: string }>;
-  segmentable: Array<{ sourceId: string; label: string; point: [number, number] }>;
+  segmentable: Array<{
+    sourceId: string;
+    label: string;
+    point: [number, number];
+    /** Normalized [x, y, w, h] — lets segmentation build a box+point SAM prompt. */
+    bbox?: [number, number, number, number];
+  }>;
   fallbackIds: string[];
 }
 
@@ -34,8 +40,8 @@ export function planForcedExtractions(
   candidateRegions: ReadonlyArray<CandidateRegion>,
   maskExists: (maskId: string) => boolean,
 ): ForcedExtractionPlan {
-  const extractable: Array<{ sourceId: string; maskId: string }> = [];
-  const segmentable: Array<{ sourceId: string; label: string; point: [number, number] }> = [];
+  const extractable: ForcedExtractionPlan['extractable'] = [];
+  const segmentable: ForcedExtractionPlan['segmentable'] = [];
   const fallbackSources: Array<{ sourceId: string }> = [];
   for (const sourceId of chipSourceIds) {
     const maskId = resolveRegionMaskId(sourceId, candidateRegions);
@@ -47,7 +53,12 @@ export function planForcedExtractions(
     // client-side (Render has no server-side mask precompute).
     const region = aiRegionForSource(sourceId, candidateRegions);
     if (region?.representativePoint) {
-      segmentable.push({ sourceId, label: region.label, point: region.representativePoint });
+      segmentable.push({
+        sourceId,
+        label: region.label,
+        point: region.representativePoint,
+        bbox: region.bbox,
+      });
     } else {
       fallbackSources.push({ sourceId });
     }

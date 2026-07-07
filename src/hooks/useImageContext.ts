@@ -38,6 +38,13 @@ interface AiSessionState {
    *  adjustments) become usable as soon as this resolves and SSE handshakes.
    *  Idempotent: no-op when a session is already open. */
   openSession: (source: UploadSource) => Promise<void>;
+  /** Resolve once a backend session id is available, or `null` if none is
+   *  coming. Returns the id immediately when already open; when a bootstrap is
+   *  in flight (`status === 'uploading'`), waits for it to land (or fail);
+   *  otherwise resolves `null` at once. Lets callers that run BEFORE the
+   *  async `openSession` finishes (e.g. `addImage` during a multi-file drop)
+   *  persist/upload under the right session instead of silently dropping it. */
+  awaitSession: (timeoutMs?: number) => Promise<string | null>;
   /** Run the analyze pipeline on the CURRENT session. Requires a session
    *  to already exist (call `openSession` first or use `uploadAndAnalyse`).
    *  Pass `{ suggest: false }` to build context + regions WITHOUT the
@@ -207,7 +214,7 @@ export function resolveTargetImageLayerId(): string | null {
   return layers.find((l) => l.type === 'image')?.id ?? null;
 }
 
-export const useAiSession = create<AiSessionState>((set, get) => ({
+export const useAiSession = create<AiSessionState>((set, get, api) => ({
   sessionId: null,
   context: null,
   status: 'idle',
@@ -236,6 +243,28 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
       console.error('[ImageContext] openSession failed:', msg, err);
       set({ status: 'error', error: msg });
     }
+  },
+  awaitSession(timeoutMs = 15000) {
+    const { sessionId, status } = get();
+    if (sessionId) return Promise.resolve(sessionId);
+    // Only wait when a bootstrap is actually in flight; otherwise there is no
+    // session coming and we must not hang the caller.
+    if (status !== 'uploading') return Promise.resolve(null);
+    return new Promise<string | null>((resolve) => {
+      let settled = false;
+      const finish = (value: string | null) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        unsub();
+        resolve(value);
+      };
+      const timer = setTimeout(() => finish(get().sessionId ?? null), timeoutMs);
+      const unsub = api.subscribe((s) => {
+        if (s.sessionId) finish(s.sessionId);
+        else if (s.status === 'error' || s.status === 'idle') finish(null);
+      });
+    });
   },
   async runAnalyse(opts) {
     // Suggestions are opt-in: "Analyze with AI" builds context + regions only.

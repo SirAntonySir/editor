@@ -4,7 +4,9 @@ import 'fake-indexeddb/auto';
 import { editorDocument, _resetImageAddBurst } from './document';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useAiSession } from '@/hooks/useImageContext';
 import { pixelStore } from './pixel-store';
+import { getSource } from './pixel-source-store';
 import * as history from './history';
 
 function jpegFile(name = 'test.jpg'): File {
@@ -69,6 +71,32 @@ describe('editorDocument.addImage', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     useBackendState.getState().reset();
+    useAiSession.getState().reset();
+  });
+
+  it('persists the dropped blob under a session that lands AFTER the add starts (multi-file drop race)', async () => {
+    // Reproduce the multi-file Finder drop: the first image's openImage kicked
+    // off the async session bootstrap (status 'uploading'), but the id has not
+    // yet propagated to useBackendState when addImage runs for the next file.
+    useBackendState.getState().reset();
+    useAiSession.setState({ sessionId: null, status: 'uploading' });
+
+    const p = editorDocument.addImage(jpegFile('second.jpg'));
+
+    // Session bootstrap resolves a moment later (createSession returned).
+    await Promise.resolve();
+    useAiSession.setState({ sessionId: 'sid-late', status: 'idle' });
+
+    await p;
+
+    const newLayer = useEditorStore.getState().layers.at(-1)!;
+    // Reload rehydrates via getSource(sessionId, layerId). The blob MUST be
+    // persisted under the resolved session id — otherwise the image comes back
+    // gray after Cmd+R. Persistence is fire-and-forget, so poll for it.
+    await vi.waitFor(async () => {
+      const blob = await getSource('sid-late', newLayer.id);
+      expect(blob).toBeTruthy();
+    });
   });
 
   it('appends a new layer (no replacement) and sets it active', async () => {

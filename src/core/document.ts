@@ -358,32 +358,41 @@ async function addImage(file: File, source?: SourceMeta): Promise<void> {
   pixelStore.register(layerId, offscreen);
   await maybeRegisterHiBit(layerId, file);
 
-  const sid = useBackendState.getState().sessionId;
+  // Persist the source blob + upload to the backend once a session is
+  // available. During a multi-file Finder drop, addImage can run BEFORE the
+  // first image's async `openSession` has propagated its id to
+  // useBackendState — reading it synchronously here would be null, silently
+  // dropping both persistence and upload, so those images came back gray on
+  // reload. Await the bootstrapping session (resolves immediately when one is
+  // already live, `null` when none is coming) and key persistence off it.
+  // Deferred (fire-and-forget) so the visible workspace node below is not
+  // blocked on the backend round-trip.
+  void (async () => {
+    const sid =
+      useBackendState.getState().sessionId ??
+      (await useAiSession.getState().awaitSession());
+    if (!sid) return;
 
-  // Best-effort persist source blob so revival can rehydrate this layer.
-  if (sid) void putSource(sid, layerId, file);
+    // Best-effort persist source blob so revival can rehydrate this layer.
+    void putSource(sid, layerId, file);
 
-  // Best-effort backend upload — fire-and-forget. Mismatch in ids is a known
-  // gap for this slice; the revival ticket will reconcile. Downscale first like
-  // the initial-load path (useImageContext): the backend only needs a context
-  // copy and enforces MAX_IMAGE_BYTES (2MB), so uploading a raw full-res image
-  // here would 413. Full resolution stays in the local pixelStore for editing.
-  if (sid) {
-    void (async () => {
-      try {
-        const blob = await downscaleForUpload(offscreen);
-        const fd = new FormData();
-        fd.append('image', blob, 'image.jpg');
-        const resp = await fetch(`${BACKEND_BASE_URL}/api/session/${sid}/images`, {
-          method: 'POST',
-          body: fd,
-        });
-        if (!resp.ok) throw new Error(`${resp.status} ${await resp.text()}`);
-      } catch (err) {
-        console.warn('[addImage] backend upload failed:', err);
-      }
-    })();
-  }
+    // Best-effort backend upload. Downscale first like the initial-load path
+    // (useImageContext): the backend only needs a context copy and enforces
+    // MAX_IMAGE_BYTES (2MB), so uploading a raw full-res image here would 413.
+    // Full resolution stays in the local pixelStore for editing.
+    try {
+      const blob = await downscaleForUpload(offscreen);
+      const fd = new FormData();
+      fd.append('image', blob, 'image.jpg');
+      const resp = await fetch(`${BACKEND_BASE_URL}/api/session/${sid}/images`, {
+        method: 'POST',
+        body: fd,
+      });
+      if (!resp.ok) throw new Error(`${resp.status} ${await resp.text()}`);
+    } catch (err) {
+      console.warn('[addImage] backend upload failed:', err);
+    }
+  })();
 
   if (store) {
     const existing = Object.values(store.getState().imageNodes);

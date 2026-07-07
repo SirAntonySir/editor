@@ -31,10 +31,3 @@ it('resolves to deny when the user skips the region', async () => {
   fireEvent.click(screen.getByRole('button', { name: /^deny$/i }));
   await expect(p).resolves.toBe('deny');
 });
-
-it("resolves to draw when the user chooses to draw it themselves", async () => {
-  const p = useRegionExtractionApproval.getState().request('car');
-  render(<RegionExtractionApproval />);
-  fireEvent.click(screen.getByRole('button', { name: /draw it myself/i }));
-  await expect(p).resolves.toBe('draw');
-});

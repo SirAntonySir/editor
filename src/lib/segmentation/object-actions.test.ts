@@ -267,3 +267,29 @@ describe('deleteObject / renameObject session resolution', () => {
     expect(spy).toHaveBeenCalledWith('tool-sess', { maskId: 'm-1', label: 'sky' });
   });
 });
+
+// ─── redrawObject — post-result "Draw it myself" ────────────────────────────
+describe('redrawObject', () => {
+  it('deletes the bad mask and arms the magic-lasso tool on the node', async () => {
+    const { useBackendState } = await import('@/store/backend-state-slice');
+    const { useEditorStore } = await import('@/store');
+    const { backendTools } = await import('@/lib/backend-tools');
+    const { redrawObject } = await import('./object-actions');
+
+    useBackendState.setState({ sessionId: 'tool-sess' });
+    const spy = vi.spyOn(backendTools, 'delete_mask')
+      .mockResolvedValue({ ok: true, output: { ok: true } } as never);
+    const nodeId = useEditorStore.getState().addImageNode(['l-1']);
+    useEditorStore.getState().setObjectSelectTool('point');
+
+    await redrawObject('m-1', nodeId);
+
+    // The bad selection is dropped...
+    expect(spy).toHaveBeenCalledWith('tool-sess', { maskId: 'm-1' });
+    // ...and the node is armed for a fresh manual magic-lasso draw.
+    const st = useEditorStore.getState();
+    expect(st.activeImageNodeId).toBe(nodeId);
+    expect(st.imageNodeMode[nodeId]).toBe('objects');
+    expect(st.objectSelectTool).toBe('magic');
+  });
+});

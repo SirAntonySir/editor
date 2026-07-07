@@ -272,6 +272,18 @@ export async function deleteObject(maskId: string): Promise<void> {
   if (!env.ok) toast.info(`Delete failed: ${env.error?.message ?? 'unknown error'}`);
 }
 
+/** "Draw it myself": the post-result escape hatch when an automatic tag
+ *  selection came out wrong. Drops the bad mask, then arms the node for a fresh
+ *  manual magic-lasso draw (objects mode + magic tool) so the user can redraw
+ *  the object by hand. */
+export async function redrawObject(maskId: string, imageNodeId: string): Promise<void> {
+  const editor = useEditorStore.getState();
+  editor.setActiveImageNode(imageNodeId);
+  editor.setImageNodeMode(imageNodeId, 'objects');
+  editor.setObjectSelectTool('magic');
+  await deleteObject(maskId);
+}
+
 /** Trigger the inline-rename input on the object's label chip. Switches the
  *  image-node into Objects mode (so the label is mounted) and stamps the
  *  pending-rename id the label consumes on mount. */

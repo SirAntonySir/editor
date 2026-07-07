@@ -4,12 +4,15 @@
 **Branch:** `feat/magic-lasso`
 **Status:** Implemented (commits `fee7736`, `312d9c4`).
 
-> **As-built note.** Change 2's attach model changed during implementation. The
-> tag-selection path turned out to be the *forced-extraction agent flow* (region
-> chip → approval gate → extract to node/layer → agent turn), which has no
-> "selection sits on the canvas awaiting keep/redo" moment. So the "canvas pill
-> after commit" was replaced with a **fourth choice in the existing region
-> approval gate** ("Draw it myself"). See Change 2 below for the shipped design.
+> **As-built note.** Change 2's attach point went through two iterations. A first
+> pass put "Draw it myself" as a fourth choice in the region *approval gate* — but
+> that gate fires *before* the auto-selection is visible and renders one chip per
+> pending region, so the control appeared pre-emptively and multiplied across a
+> suggestion stack. That was reverted. The shipped design puts a **single
+> post-result "Draw it myself" action in the per-object right-click menu** (the
+> one that already hosts Rename / Select Inverted / Delete). It exists only after
+> the automatic selection is committed and visible, once per resulting object. See
+> Change 2 below.
 
 ## Problem
 
@@ -104,59 +107,52 @@ prompt.
 
 Commit path (`propose_mask` → `maskStore.injectWithId`) is unchanged.
 
-### Change 2 — "Draw it myself" choice in the region approval gate (as built)
+### Change 2 — post-result "Draw it myself" in the per-object menu (as built)
 
-The tag flow pauses at the **region-extraction approval gate**
-(`RegionExtractionApproval`), which already asks per region: **Node / Layer /
-Deny**. A fourth choice — **"Draw it myself"** — is added there. It means "don't
-use the AI's region; I'll select it by hand," so it opts out of AI segmentation
-entirely rather than trying to redo a committed mask.
+A tag selection commits immediately: the segmented object renders on-canvas
+(fill + outline) with a numbered marker (drafting mode) / label chip (layers
+mode), each already carrying a per-object right-click menu (Rename · Select
+Inverted · Copy to layer/node · Generative fill · Delete). "Draw it myself" is a
+new item in that menu — so it appears **only after** the automatic selection is
+visible, and **once per resulting object** (not before, not per pending region).
 
-- **New choice:** `ExtractChoice` gains `'draw'`
-  (`src/store/region-extraction-approval.ts`). The dialog renders a Lasso-icon
-  button between Layer and Deny that resolves the region's promise with `'draw'`.
-- **`resolveAttachedRegions` (`palette-actions.agent.ts`):** on `'draw'`, it calls
-  `armManualDraw(activeNode)` — `setActiveImageNode` + `setImageNodeMode(node,
-  'objects')` + `setObjectSelectTool('magic')` — and sets a returned
-  `drawRequested` flag. The region is neither segmented nor extracted nor added to
-  `attached_objects`.
-- **Stand-down (no AI edit runs):** because the user is taking manual control, the
-  AI edit must not fire.
-  - `runAgentTurn`: when `drawRequested` and there is nothing else to act on
-    (no `forced_targets`, no `attached_objects`), it returns without calling
-    `backendTools.agentTurn`. A *mixed* selection (draw one region, extract
-    another) still runs the turn for the extracted target.
-  - `runAgentTurnForRegion` (autonomous-suggestion accept path): returns
-    `drawRequested`; `SuggestionChips` sees it and dismisses the suggestion
-    instead of falling through to its full-image materialisation.
+- **New action `redrawObject(maskId, imageNodeId)`**
+  (`src/lib/segmentation/object-actions.ts`): arms the node for a manual draw —
+  `setActiveImageNode` + `setImageNodeMode(node, 'objects')` +
+  `setObjectSelectTool('magic')` — then `deleteObject(maskId)` to drop the bad
+  selection. Reuses the existing `deleteObject` backend delete.
+- **Menu item** added to all three per-object menus that already share the
+  `object-actions` verbs: `ObjectMarkers.tsx` (drafting markers),
+  `ImageNodeObjectsLayer.tsx` (layers-mode label chip), and
+  `ImageNodeDrafting.tsx` (selected-object menu, with a Lasso icon).
 - The user then draws a loop, which decodes **box+point** through the **existing,
-  untouched** `finishMagicLasso` path in `SegmentHitLayer`. No magic-lasso code
-  changes; the manual selection carries its own object actions (copy to layer,
-  generative fill, …).
+  untouched** `finishMagicLasso` path in `SegmentHitLayer`. The redrawn selection
+  carries its own object actions (copy to layer, generative fill, …). No
+  magic-lasso code changes.
 
-No new box-handle overlay, no retry button, no changes to the magic-lasso tool.
-The AI's text intent is intentionally dropped on `'draw'` — the user has chosen
-to select (and act) by hand.
+Rejected first pass (reverted): a `'draw'` choice in the `RegionExtractionApproval`
+gate. That gate fires before the result is visible and renders one chip per
+pending region, so it violated both "after, not before" and "once, not per
+suggestion."
 
 ## Data flow (as built)
 
 ```
-palette submit with @region chip
+palette submit with @region chip / accept named_region suggestion
   → resolveAttachedRegions(region)               [palette-actions.agent.ts]
-  → approval gate: [Node] [Layer] [Draw it myself] [Deny]
-
-  Node / Layer:
-    → segmentRegionFromPoint(nodeId, point, label, bbox)   [segment-region.ts]
+  → approval gate: [Node] [Layer] [Deny]         (unchanged — no draw here)
+  → segmentRegionFromPoint(nodeId, point, label, bbox)   [segment-region.ts]
         corners = bboxFromTuple(bbox)                       [magic-lasso.ts]
         points  = bbox ? [...boxPrompt(corners), {x,y,label:1}]
                        : [{x,y,label:1}]
         mask = samDecode(emb, points)            [mobile-sam-client.ts, unchanged]
         if bbox && !isMaskAcceptable(mask, corners): retry point-only
-    → propose_mask + extract to node/layer → agent turn
+  → propose_mask + extract to node/layer → agent turn
+  → committed object renders (marker / label / outline)
 
-  Draw it myself:
-    → armManualDraw: objects mode + magic tool on the active node
-    → drawRequested = true → stand down (no agent turn / no full-image edit)
+  auto-selection looks wrong → right-click object → "Draw it myself"
+    → redrawObject(maskId, nodeId)               [object-actions.ts]
+        deleteObject(maskId) + arm objects mode + magic tool
     → user draws loop → finishMagicLasso (existing box+point path)
 ```
 
@@ -173,12 +169,8 @@ palette submit with @region chip
   (`palette-actions.agent.test.ts`).
 
 **Unit — Draw it myself:**
-- `RegionExtractionApproval` resolves `'draw'` when the Draw button is clicked
-  (`RegionExtractionApproval.test.tsx`).
-- `runAgentTurnForRegion` with `'draw'`: no segmentation, `extracted:false`,
-  `drawRequested:true`, no agent turn, node armed (objects + magic).
-- `runAgentTurn` with `'draw'` as the only choice: no `agentTurn` fetch, node
-  armed (`palette-actions.agent.test.ts`).
+- `redrawObject` deletes the mask (backend `delete_mask`) and arms the node
+  (active node + objects mode + magic tool) — `object-actions.test.ts`.
 
 ## Files touched (as built)
 
@@ -190,11 +182,11 @@ Change 1 (box+point):
 - `src/lib/palette-actions.agent.ts` — pass `seg.bbox` through.
 
 Change 2 (Draw it myself):
-- `src/store/region-extraction-approval.ts` — `'draw'` choice.
-- `src/components/ui/RegionExtractionApproval.tsx` — Draw button.
-- `src/lib/palette-actions.agent.ts` — `armManualDraw`, `drawRequested`, turn
-  stand-down.
-- `src/components/ui/SuggestionChips.tsx` — stand down on `drawRequested`.
+- `src/lib/segmentation/object-actions.ts` — `redrawObject` action.
+- `src/components/workspace/drafting/ObjectMarkers.tsx`,
+  `src/components/workspace/ImageNodeObjectsLayer.tsx`,
+  `src/components/workspace/drafting/ImageNodeDrafting.tsx` — menu item.
 
 Unchanged: `mobile-sam-client.ts`, `magic-lasso.ts` `boxPrompt`/`isMaskAcceptable`
-(reused as-is), `SegmentHitLayer.tsx` `finishMagicLasso`, all backend.
+(reused as-is), `SegmentHitLayer.tsx` `finishMagicLasso`, the region approval gate,
+all backend.

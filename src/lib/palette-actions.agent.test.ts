@@ -139,26 +139,6 @@ describe('runAgentTurn', () => {
     expect(body.forced_targets).toEqual([]);
     expect(body.attached_objects).toEqual([]);
   });
-
-  it("arms manual draw and skips the agent turn when 'draw' is the only choice", async () => {
-    const { useEditorStore } = await import('@/store');
-    const { useAiSession } = await import('@/hooks/useImageContext');
-    const nodeId = useEditorStore.getState().addImageNode(['l-1']);
-    useEditorStore.getState().setActiveImageNode(nodeId);
-    useEditorStore.getState().setObjectSelectTool('point');
-    useAiSession.setState({
-      context: { candidateRegions: [{ label: 'car', representativePoint: [0.5, 0.5] }] } as never,
-    });
-
-    const out = await runAgentTurn('make the car red', ['region:ai:car'], async () => 'draw');
-
-    // No AI edit runs — the user is selecting by hand. Lasso armed instead.
-    expect(globalThis.fetch).not.toHaveBeenCalled();
-    expect(out).toEqual({ ok: true, toolCalls: 0 });
-    const st = useEditorStore.getState();
-    expect(st.imageNodeMode[nodeId]).toBe('objects');
-    expect(st.objectSelectTool).toBe('magic');
-  });
 });
 
 describe('runAgentTurnForRegion', () => {
@@ -196,28 +176,6 @@ describe('runAgentTurnForRegion', () => {
     expect(segmentMock).toHaveBeenCalledWith(nodeId, [0.5, 0.5], 'car', undefined);
     expect(extractMock).toHaveBeenCalledWith('m-car', nodeId);
     expect(out.extracted).toBe(true);
-  });
-
-  it("arms the magic-lasso tool and skips segmentation when the user chooses 'draw'", async () => {
-    const { useEditorStore } = await import('@/store');
-    const nodeId = useEditorStore.getState().addImageNode(['l-1']);
-    useEditorStore.getState().setActiveImageNode(nodeId);
-    useEditorStore.getState().setObjectSelectTool('point');
-    await setRegions([{ label: 'car', representativePoint: [0.5, 0.5], bbox: [0.1, 0.1, 0.2, 0.2] }]);
-
-    const out = await runAgentTurnForRegion('fix the car', 'car', async () => 'draw');
-
-    // 'draw' means "I'll select it by hand" — no AI segmentation, no extraction,
-    // no agent turn; instead the node is armed for a manual magic-lasso draw.
-    expect(segmentMock).not.toHaveBeenCalled();
-    expect(extractMock).not.toHaveBeenCalled();
-    expect(out.extracted).toBe(false);
-    // Signals the caller to skip its full-image fallback — the user is taking over.
-    expect(out.drawRequested).toBe(true);
-    expect(globalThis.fetch).not.toHaveBeenCalled();
-    const st = useEditorStore.getState();
-    expect(st.imageNodeMode[nodeId]).toBe('objects');
-    expect(st.objectSelectTool).toBe('magic');
   });
 
   it('reports not-extracted (no agent turn) when the user denies', async () => {

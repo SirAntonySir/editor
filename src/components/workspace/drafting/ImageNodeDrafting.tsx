@@ -11,6 +11,7 @@ import {
   FlipHorizontal2,
   FlipVertical2,
   Info,
+  Lasso,
   Merge,
   MessageSquare,
   Pencil,
@@ -34,6 +35,7 @@ import { toast } from '@/components/ui/Toast';
 import {
   copyObjectToImageNode,
   deleteObject,
+  redrawObject,
   startObjectRename,
 } from '@/lib/segmentation/object-actions';
 import { exportImageNode, rejoinSourceImage } from '@/lib/image-node-actions';
@@ -403,6 +405,15 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
             <span className="flex items-center gap-1.5">
               <SquareArrowOutUpRight size={11} className="text-text-secondary" />
               <span>Copy to image node</span>
+            </span>
+          </Item>
+          <Item
+            className={itemClass}
+            onSelect={() => void redrawObject(selectedObject.id, id)}
+          >
+            <span className="flex items-center gap-1.5">
+              <Lasso size={11} className="text-text-secondary" />
+              <span>Draw it myself</span>
             </span>
           </Item>
           <Item

@@ -97,22 +97,7 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
       // Dynamic import: the extraction/agent stack (SAM, compositor) is heavy
       // and only needed on allow — keep it out of the dock's module graph.
       const { runAgentTurnForRegion } = await import('@/lib/palette-actions.agent');
-      const { extracted, drawRequested } = await runAgentTurnForRegion(widget.intent, widget.scope.label);
-      if (drawRequested) {
-        // User chose "Draw it myself" — the magic-lasso tool is already armed.
-        // Dismiss the AI suggestion and stand down (no full-image edit).
-        // addAccepted guards against the auto-tether re-materialising it whole.
-        addAccepted(widget.id);
-        if (sessionId) {
-          void backendTools.delete_widget(sessionId, {
-            widgetId: widget.id,
-            suppressSimilar: false,
-          });
-        }
-        resolve(widget.id);
-        logWidgetUndoDiag('allow:after(draw)', { widgetId: widget.id });
-        return;
-      }
+      const { extracted } = await runAgentTurnForRegion(widget.intent, widget.scope.label);
       if (extracted) {
         // The agent re-proposed on the extracted node; retire the original
         // whole-image suggestion so it doesn't double up. Mark it accepted

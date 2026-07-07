@@ -1,9 +1,7 @@
 import { create } from 'zustand';
 
-/** What to do with an attached region before the agent turn runs.
- *  `draw` opts out of AI segmentation entirely — the node is armed for a manual
- *  magic-lasso draw instead. */
-export type ExtractChoice = 'node' | 'layer' | 'deny' | 'draw';
+/** What to do with an attached region before the agent turn runs. */
+export type ExtractChoice = 'node' | 'layer' | 'deny';
 
 export interface PendingRegion {
   id: string;

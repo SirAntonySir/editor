@@ -22,10 +22,10 @@ export function RegionExtractionApproval() {
           key={req.id}
           className="overlay pointer-events-auto flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-text-primary"
         >
-          <span className="text-[var(--color-ai)] truncate max-w-[140px]">Extract “{req.label}”</span>
+          <span className="text-[var(--color-ai)] truncate max-w-[140px]">Copy “{req.label}”</span>
           <button
             type="button"
-            aria-label="Extract to new image node"
+            aria-label="Copy to image node"
             title="New image node"
             onClick={() => choose(req.id, 'node')}
             className="flex items-center gap-1 h-5 px-1.5 rounded-[3px] text-[var(--color-ai)] hover:bg-surface-secondary"
@@ -35,7 +35,7 @@ export function RegionExtractionApproval() {
           </button>
           <button
             type="button"
-            aria-label="Extract to new layer"
+            aria-label="Copy to new layer"
             title="New layer"
             onClick={() => choose(req.id, 'layer')}
             className="flex items-center gap-1 h-5 px-1.5 rounded-[3px] text-[var(--color-ai)] hover:bg-surface-secondary"

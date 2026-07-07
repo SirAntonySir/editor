@@ -13,8 +13,11 @@ export interface SamPoint {
   x: number;
   /** Normalised [0..1] y. */
   y: number;
-  /** 1 = include (positive), 0 = exclude (negative). */
-  label: 0 | 1;
+  /** Prompt label. Point prompts: 1 = include (positive), 0 = exclude
+   *  (negative). Box prompts (magic lasso): 2 = top-left corner,
+   *  3 = bottom-right corner — SAM's standard box encoding, consumed by the
+   *  same point_coords/point_labels decoder path. */
+  label: 0 | 1 | 2 | 3;
 }
 
 /** Encoder output cached per image. The actual ONNX tensor lives inside,

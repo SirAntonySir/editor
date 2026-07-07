@@ -8,7 +8,7 @@ import {
   invertMask,
   type CandidateVerb,
 } from '@/lib/segmentation/candidate-actions';
-import { extractObjectToImageNode } from '@/lib/segmentation/object-actions';
+import { copyObjectToImageNode } from '@/lib/segmentation/object-actions';
 import { editorDocument } from '@/core/document';
 import { useSegmentExtractDrag } from '@/hooks/useSegmentExtractDrag';
 import { Kbd } from '@/components/ui/kbd';
@@ -20,6 +20,7 @@ import {
   shouldAppendPoint,
   type LassoPoint,
 } from '@/lib/segmentation/lasso';
+import { bboxOfPath, boxPrompt, isMaskAcceptable } from '@/lib/segmentation/magic-lasso';
 import type { SamPoint, DecodedMask } from '@/lib/segmentation/mobile-sam-types';
 
 interface SegmentHitLayerProps {
@@ -71,6 +72,7 @@ export function SegmentHitLayer({
   const [hoveringObject, setHoveringObject] = useState(false);
   const objectSelectTool = useEditorStore((s) => s.objectSelectTool);
   const lassoActive = objectsMode && objectSelectTool === 'lasso';
+  const magicActive = objectsMode && objectSelectTool === 'magic';
   // Read from useBackendState — this is the authoritative tool-session
   // store and stays populated across reloads (reattached from localStorage
   // via useBackendSession). useAiSession.sessionId mirrors the same id
@@ -138,7 +140,7 @@ export function SegmentHitLayer({
   const grabbed = useRef<{ kind: 'candidate' } | { kind: 'object'; maskId: string } | null>(null);
   const extractDrag = useSegmentExtractDrag({
     sourceImageNodeId: imageNodeId,
-    label: 'Extract',
+    label: 'Copy',
     onExtract: (dropFlow) => {
       const g = grabbed.current;
       grabbed.current = null;
@@ -149,7 +151,7 @@ export function SegmentHitLayer({
         editorDocument.workspace.setNodePosition(nodeId, pos);
       };
       if (g.kind === 'object') {
-        const res = extractObjectToImageNode(g.maskId, imageNodeId);
+        const res = copyObjectToImageNode(g.maskId, imageNodeId);
         if (res) reposition(res.imageNodeId);
         return;
       }
@@ -158,7 +160,7 @@ export function SegmentHitLayer({
       const c = candidate;
       if (!c?.mask || !sessionId) return;
       void runCandidateVerb(
-        'extract-node',
+        'copy-node',
         { points: c.points, mask: c.mask, label: c.label, origin: c.origin, paths: c.paths },
         { sessionId, imageNodeId, existingCount: existingObjects.length },
       ).then((id) => {
@@ -176,11 +178,16 @@ export function SegmentHitLayer({
       const el = layerRef.current;
       if (!el) return;
       const [nx, ny] = clientToNormalised(e, el);
-      if (lassoActive) {
-        // Lasso tool: primary-button press starts a freehand path anywhere on
-        // the image (drag-to-extract stays a point-tool affordance). Pointer
-        // capture keeps every move on this element and away from React Flow.
+      if (lassoActive || magicActive) {
+        // Lasso / magic-lasso: primary-button press starts a freehand path
+        // anywhere on the image (drag-to-extract stays a point-tool
+        // affordance). Pointer capture keeps every move on this element and
+        // away from React Flow.
         if (e.button !== 0) return;
+        // Magic-lasso refinement: shift over a live candidate refines it via
+        // the click handler (append a SAM point) instead of starting a new
+        // draw. Let the press fall through to handleClick.
+        if (magicActive && e.shiftKey && candidate?.mask) return;
         el.setPointerCapture(e.pointerId);
         lassoPathRef.current = [[nx, ny]];
         setLassoDraft([[nx, ny]]);
@@ -215,7 +222,7 @@ export function SegmentHitLayer({
       }
       grabbed.current = null; // empty area → leave for the SAM-pick click
     },
-    [objectsMode, lassoActive, candidate, existingObjects, extractDrag],
+    [objectsMode, lassoActive, magicActive, candidate, existingObjects, extractDrag],
   );
 
   // Close the lasso: rasterize the polygon into a DecodedMask (pure scanline
@@ -241,6 +248,39 @@ export function SegmentHitLayer({
       paths: [path.map(([x, y]) => [x, y])],
     });
   }, [sourceWidth, sourceHeight, widthPx, heightPx]);
+
+  // Close a magic lasso: feed the loop's bounding box to SAM as a box prompt so
+  // it snaps to the one object inside. Falls back to the drawn polygon when SAM
+  // is unavailable (backend-only capability) or returns a low-confidence mask —
+  // so a stroke is never wasted. The SAM result carries the box-prompt points,
+  // so shift-click refinement works exactly like the point tool.
+  const finishMagicLasso = useCallback(async () => {
+    const path = lassoPathRef.current;
+    lassoPathRef.current = null;
+    setLassoDraft(null);
+    if (!path) return;
+    const { width, height } = lassoRasterSize(
+      sourceWidth ?? widthPx, sourceHeight ?? heightPx,
+    );
+    const polygonMask = rasterizeLassoPath(path, width, height);
+    if (!polygonMask) return; // degenerate draw (accidental click) → no-op
+    lassoJustFinishedRef.current = true;
+    const pathCopy = path.map(([x, y]) => [x, y]);
+    const bbox = bboxOfPath(path);
+    const box = boxPrompt(bbox);
+    const seq = ++decodeSeqRef.current;
+    setCandidate({ points: box, mask: null }); // pending → "Segmenting…"
+    const samMask = await samCapability.decode(box);
+    if (seq !== decodeSeqRef.current) return; // superseded by a newer gesture
+    if (samMask && isMaskAcceptable(samMask, bbox)) {
+      // A clean SAM snap. Leave origin undefined so it commits as a normal SAM
+      // selection ('client_new'); keep the drawn loop as attribution paths.
+      setCandidate({ points: box, mask: samMask, paths: [pathCopy] });
+    } else {
+      // No confident object → fall back to the drawn polygon (plain-lasso result).
+      setCandidate({ points: [], mask: polygonMask, origin: 'client_lasso', paths: [pathCopy] });
+    }
+  }, [sourceWidth, sourceHeight, widthPx, heightPx, samCapability]);
 
   // Esc discards the live selection. (There is no Enter-to-save — committing
   // happens only via an explicit action verb.)
@@ -457,8 +497,9 @@ export function SegmentHitLayer({
       // Objects mode — fall through to SAM. Shift-click while a candidate
       // is live: append a refinement point. Positive (label 1) if outside
       // the current mask, negative (label 0) if inside — mirrors the SAM
-      // convention for click-driven refinement. Lasso candidates are not
-      // SAM-refinable (there are no prompt points to extend).
+      // convention for click-driven refinement. Works for point-tool and
+      // magic-lasso SAM candidates alike (both carry prompt points). Plain
+      // lasso candidates are not SAM-refinable (no prompt points to extend).
       if (e.shiftKey && candidate && candidate.origin !== 'client_lasso') {
         const insideMask = isInsideMask(nx, ny, candidate.mask);
         const point: SamPoint = { x: nx, y: ny, label: insideMask ? 0 : 1 };
@@ -466,10 +507,14 @@ export function SegmentHitLayer({
         return;
       }
 
+      // Magic lasso: fresh selection happens by drawing a loop, not by a plain
+      // click. Only the shift-refine path above applies to clicks.
+      if (magicActive) return;
+
       // Plain click (or shift without a candidate): start a fresh candidate.
       void runDecode([{ x: nx, y: ny, label: 1 }]);
     },
-    [candidate, runDecode, existingObjects, imageNodeId, objectsMode, lassoActive, extractDrag],
+    [candidate, runDecode, existingObjects, imageNodeId, objectsMode, lassoActive, magicActive, extractDrag],
   );
 
   return (
@@ -499,7 +544,10 @@ export function SegmentHitLayer({
       onPointerDown={handlePointerDown}
       onPointerMove={(e) => { handlePointerMove(e); extractDrag.onPointerMove(e); }}
       onPointerUp={(e) => {
-        if (lassoPathRef.current) { finishLasso(); return; }
+        if (lassoPathRef.current) {
+          if (magicActive) { void finishMagicLasso(); } else { finishLasso(); }
+          return;
+        }
         extractDrag.onPointerUp(e);
       }}
       onPointerCancel={cancelLasso}
@@ -537,7 +585,7 @@ export function SegmentHitLayer({
           data-testid="lasso-draft-hint"
           className="glass-overlay pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-1 rounded-[4px] text-text-primary text-[10px] leading-none whitespace-nowrap flex items-center gap-1.5"
         >
-          <span>release to close</span>
+          <span>{magicActive ? 'release to snap' : 'release to close'}</span>
           <span className="opacity-40">·</span>
           <Kbd keys="esc" className="ml-0" />
           <span>cancel</span>
@@ -593,16 +641,16 @@ export function SegmentHitLayer({
               <ContextMenu.Item
                 className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none data-[disabled]:opacity-40 data-[disabled]:cursor-default"
                 disabled={!sessionId}
-                onSelect={() => void runVerb('extract-layer')}
+                onSelect={() => void runVerb('copy-layer')}
               >
-                Extract to new layer
+                Copy to new layer
               </ContextMenu.Item>
               <ContextMenu.Item
                 className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none data-[disabled]:opacity-40 data-[disabled]:cursor-default"
                 disabled={!sessionId}
-                onSelect={() => void runVerb('extract-node')}
+                onSelect={() => void runVerb('copy-node')}
               >
-                Extract to Image Node
+                Copy to image node
               </ContextMenu.Item>
               <ContextMenu.Item
                 className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none data-[disabled]:opacity-40 data-[disabled]:cursor-default"

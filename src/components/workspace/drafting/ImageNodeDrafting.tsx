@@ -17,7 +17,6 @@ import {
   RotateCcw,
   RotateCw,
   ScanSearch,
-  Scissors,
   Sparkles,
   SquareArrowOutUpRight,
   Trash2,
@@ -33,7 +32,7 @@ import { editorDocument } from '@/core/document';
 import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { toast } from '@/components/ui/Toast';
 import {
-  extractObjectToImageNode,
+  copyObjectToImageNode,
   deleteObject,
   startObjectRename,
 } from '@/lib/segmentation/object-actions';
@@ -208,7 +207,7 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
     if (activeObjectId === null) return null;
     return objects.find((o) => o.id === activeObjectId) ?? null;
   }, [activeObjectId, objects]);
-  // Only set on nodes produced by "Extract to Image Node" — drives the
+  // Only set on nodes produced by "Copy to image node" — drives the
   // "Rejoin source image" menu item that undoes the extract.
   const sourceImageNodeId = useEditorStore(
     (s) => s.imageNodes[id]?.sourceImageNodeId,
@@ -271,7 +270,6 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
       rotate: next,
     });
   }
-  const canSplit = data.layerIds.length >= 2;
   // Merge Visible needs 2+ *visible* layers on this node. Selector returns a
   // number, so it re-renders only when a relevant layer's visibility flips.
   const visibleLayerCount = useEditorStore((s) =>
@@ -281,11 +279,6 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
     ),
   );
   const canMergeVisible = visibleLayerCount >= 2;
-  function handleSplit() {
-    if (!canSplit) return;
-    const lastLayerId = data.layerIds[data.layerIds.length - 1];
-    editorDocument.workspace.splitImageNode(id, lastLayerId);
-  }
   function handleDelete() {
     editorDocument.workspace.deleteImageNode(id);
   }
@@ -405,11 +398,11 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
           </Item>
           <Item
             className={itemClass}
-            onSelect={() => extractObjectToImageNode(selectedObject.id, id)}
+            onSelect={() => copyObjectToImageNode(selectedObject.id, id)}
           >
             <span className="flex items-center gap-1.5">
               <SquareArrowOutUpRight size={11} className="text-text-secondary" />
-              <span>Extract to Image Node</span>
+              <span>Copy to image node</span>
             </span>
           </Item>
           <Item
@@ -463,16 +456,6 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
         <span className="flex items-center gap-1.5">
           <FlipVertical2 size={11} className="text-text-secondary" />
           <span>Flip Vertical</span>
-        </span>
-      </Item>
-      <Item
-        className={canSplit ? itemClass : itemClassDim}
-        disabled={!canSplit}
-        onSelect={canSplit ? handleSplit : undefined}
-      >
-        <span className="flex items-center gap-1.5">
-          <Scissors size={11} className="text-text-secondary" />
-          <span>Split last layer</span>
         </span>
       </Item>
       <Item

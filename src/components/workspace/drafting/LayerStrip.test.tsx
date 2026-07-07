@@ -101,25 +101,25 @@ describe('LayerStrip — right-click context menu', () => {
     expect(useEditorStore.getState().layers.find((l) => l.id === 'L1')).toBeUndefined();
   });
 
-  it('Move to own image node moves the layer off the source (not a copy)', async () => {
+  it('Duplicate to image node keeps the source layer and spawns a new node (non-destructive)', async () => {
     const nodeId = useEditorStore.getState().addImageNode(['L1', 'L2']);
+    const nodesBefore = Object.keys(useEditorStore.getState().imageNodes).length;
     const { getAllByRole, findByText } = render(<LayerStrip imageNodeId={nodeId} layerIds={['L1', 'L2']} />);
     fireEvent.contextMenu(getAllByRole('button', { name: /select layer/i })[0]); // L1
-    fireEvent.click(await findByText(/move to own image node/i));
+    fireEvent.click(await findByText(/duplicate to image node/i));
 
     const st = useEditorStore.getState();
-    // Source node lost L1; a new node gained it.
-    expect(st.imageNodes[nodeId].layerIds).not.toContain('L1');
-    const withL1 = Object.values(st.imageNodes).filter((n) => n.layerIds.includes('L1'));
-    expect(withL1.length).toBe(1); // moved, not copied — L1 lives in exactly one node
-    expect(withL1[0].id).not.toBe(nodeId);
+    // Source node still owns L1 (a COPY was made, not a move).
+    expect(st.imageNodes[nodeId].layerIds).toContain('L1');
+    // A new image node was created.
+    expect(Object.keys(st.imageNodes).length).toBe(nodesBefore + 1);
   });
 
-  it('Move to own image node is hidden when the node has a single layer', () => {
+  it('Duplicate to image node is available even on a single-layer node (non-destructive)', async () => {
     const nodeId = useEditorStore.getState().addImageNode(['L1']);
-    const { getAllByRole, queryByText } = render(<LayerStrip imageNodeId={nodeId} layerIds={['L1']} />);
+    const { getAllByRole, findByText } = render(<LayerStrip imageNodeId={nodeId} layerIds={['L1']} />);
     fireEvent.contextMenu(getAllByRole('button', { name: /select layer/i })[0]);
-    expect(queryByText(/move to own image node/i)).toBeNull();
+    expect(await findByText(/duplicate to image node/i)).toBeTruthy();
   });
 
   it('Rename triggers requestRenameLayer, sets activeLayerId, and switches Inspector to Layer tab', async () => {

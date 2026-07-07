@@ -6,8 +6,8 @@ import { maskToPngBase64 } from '@/lib/segmentation/mask-png';
 import { matchRegionLabelByBbox } from '@/lib/match-region-by-bbox';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
 import {
-  extractObjectToImageNode,
-  extractObjectToLayer,
+  copyObjectToImageNode,
+  copyObjectToLayer,
 } from '@/lib/segmentation/object-actions';
 import { spawnGenfillFromMask } from '@/lib/genfill-spawn';
 import { toast } from '@/components/ui/Toast';
@@ -87,7 +87,7 @@ export async function materializeCandidate(
   return maskId;
 }
 
-export type CandidateVerb = 'extract-node' | 'extract-layer' | 'genfill';
+export type CandidateVerb = 'copy-node' | 'copy-layer' | 'genfill';
 
 /** Run a committing verb on a live selection: materialize the mask, then run
  *  the matching object action with the new id. Returns the new mask id, or null
@@ -100,8 +100,8 @@ export async function runCandidateVerb(
 ): Promise<string | null> {
   const id = await materializeCandidate(sel, ctx);
   if (!id) return null;
-  if (verb === 'extract-node') extractObjectToImageNode(id, ctx.imageNodeId);
-  else if (verb === 'extract-layer') extractObjectToLayer(id, ctx.imageNodeId);
+  if (verb === 'copy-node') copyObjectToImageNode(id, ctx.imageNodeId);
+  else if (verb === 'copy-layer') copyObjectToLayer(id, ctx.imageNodeId);
   else if (verb === 'genfill') await spawnGenfillFromMask(id, ctx.imageNodeId);
   return id;
 }

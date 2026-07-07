@@ -12,8 +12,8 @@ vi.mock('@/store/segment-actions', () => ({
 }));
 
 const {
-  extractObjectToImageNode,
-  extractObjectToLayer,
+  copyObjectToImageNode,
+  copyObjectToLayer,
   selectInvertedObject,
 } = await import('./object-actions');
 
@@ -28,9 +28,9 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
-// ─── extractObjectToImageNode ────────────────────────────────────────────────
+// ─── copyObjectToImageNode ────────────────────────────────────────────────
 
-describe('extractObjectToImageNode', () => {
+describe('copyObjectToImageNode', () => {
   it("enters at the source node's on-screen scale, not the default node width", () => {
     const editor = useEditorStore.getState();
     // A 4284×5712 photo the user has shrunk to 400 canvas-units wide.
@@ -50,7 +50,7 @@ describe('extractObjectToImageNode', () => {
       { width: 1648, height: 3340 } as unknown as OffscreenCanvas,
     );
 
-    extractObjectToImageNode(maskRef, srcId);
+    copyObjectToImageNode(maskRef, srcId);
 
     const newNode = Object.values(useEditorStore.getState().imageNodes).find(
       (n) => n.id !== srcId,
@@ -77,7 +77,7 @@ describe('extractObjectToImageNode', () => {
       { width: 40, height: 40 } as unknown as OffscreenCanvas,
     );
 
-    const result = extractObjectToImageNode(maskRef, srcId);
+    const result = copyObjectToImageNode(maskRef, srcId);
 
     expect(result).not.toBeNull();
     expect(typeof result!.imageNodeId).toBe('string');
@@ -89,9 +89,9 @@ describe('extractObjectToImageNode', () => {
   });
 });
 
-// ─── extractObjectToLayer ────────────────────────────────────────────────────
+// ─── copyObjectToLayer ────────────────────────────────────────────────────
 
-describe('extractObjectToLayer', () => {
+describe('copyObjectToLayer', () => {
   it('bakes a cutout into a new layer on the SAME node and returns its id', () => {
     const editor = useEditorStore.getState();
     const srcId = editor.addImageNode(['srcLayer'], { x: 0, y: 0 }, { w: 100, h: 100 });
@@ -104,7 +104,7 @@ describe('extractObjectToLayer', () => {
       createdAt: 0,
     });
 
-    const newId = extractObjectToLayer(maskRef, srcId);
+    const newId = copyObjectToLayer(maskRef, srcId);
 
     expect(newId).toBe('cut-layer'); // the mocked extractLayerFromMask return
     const node = useEditorStore.getState().imageNodes[srcId];
@@ -118,7 +118,7 @@ describe('extractObjectToLayer', () => {
       layerId: 'l', width: 2, height: 2, data: new Uint8Array(4).fill(255),
       source: 'sam-point', createdAt: 0,
     });
-    expect(extractObjectToLayer(maskRef, 'nope')).toBeNull();
+    expect(copyObjectToLayer(maskRef, 'nope')).toBeNull();
   });
 });
 

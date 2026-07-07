@@ -20,8 +20,8 @@ vi.mock('@/core/mask-store', () => ({
 const extractMock = vi.fn();
 const extractLayerMock = vi.fn();
 vi.mock('@/lib/segmentation/object-actions', () => ({
-  extractObjectToImageNode: (...a: unknown[]) => extractMock(...a),
-  extractObjectToLayer: (...a: unknown[]) => extractLayerMock(...a),
+  copyObjectToImageNode: (...a: unknown[]) => extractMock(...a),
+  copyObjectToLayer: (...a: unknown[]) => extractLayerMock(...a),
 }));
 
 // Client-side SAM: assert it's invoked for maskless (segmentable) regions.

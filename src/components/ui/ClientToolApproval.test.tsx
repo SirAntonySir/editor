@@ -9,12 +9,12 @@ vi.mock('@/lib/tool-manifest/llm-tool-registry', () => ({
 }));
 vi.mock('@/lib/ai-access', () => ({ useAiAccess: () => true }));
 vi.mock('@/lib/segmentation/object-actions', () => ({
-  extractObjectToLayer: vi.fn(() => 'new-layer'),
+  copyObjectToLayer: vi.fn(() => 'new-layer'),
 }));
 
 const { backendTools } = await import('@/lib/backend-tools');
 const { LlmToolRegistry } = await import('@/lib/tool-manifest/llm-tool-registry');
-const { extractObjectToLayer } = await import('@/lib/segmentation/object-actions');
+const { copyObjectToLayer } = await import('@/lib/segmentation/object-actions');
 const { useClientToolApproval } = await import('@/store/client-tool-approval-slice');
 const { useBackendState } = await import('@/store/backend-state-slice');
 const { ClientToolApproval } = await import('./ClientToolApproval');
@@ -27,24 +27,24 @@ beforeEach(() => {
 
 describe('ClientToolApproval', () => {
   it('extract → "Node" runs the tool and posts ok, then dequeues', async () => {
-    useClientToolApproval.getState().enqueue({ requestId: 'r1', name: 'extract_object_to_image_node', input: { maskId: 'm1' } });
+    useClientToolApproval.getState().enqueue({ requestId: 'r1', name: 'copy_object_to_image_node', input: { maskId: 'm1' } });
     render(<ClientToolApproval />);
-    fireEvent.click(screen.getByRole('button', { name: /new image node/i }));
+    fireEvent.click(screen.getByRole('button', { name: /copy to image node/i }));
     await waitFor(() => {
-      expect(LlmToolRegistry.invoke).toHaveBeenCalledWith('extract_object_to_image_node', { maskId: 'm1' });
+      expect(LlmToolRegistry.invoke).toHaveBeenCalledWith('copy_object_to_image_node', { maskId: 'm1' });
       expect(backendTools.postToolResult).toHaveBeenCalledWith('sid-1', { requestId: 'r1', ok: true, output: { image_node_id: 'in-3' } });
       expect(useClientToolApproval.getState().pending).toEqual([]);
     });
   });
 
-  it('extract → "Layer" runs extractObjectToLayer and posts a node+layer target', async () => {
+  it('extract → "Layer" runs copyObjectToLayer and posts a node+layer target', async () => {
     useClientToolApproval.getState().enqueue({
-      requestId: 'r1b', name: 'extract_object_to_image_node', input: { maskId: 'm1', imageNodeId: 'in-src' },
+      requestId: 'r1b', name: 'copy_object_to_image_node', input: { maskId: 'm1', imageNodeId: 'in-src' },
     });
     render(<ClientToolApproval />);
-    fireEvent.click(screen.getByRole('button', { name: /new layer/i }));
+    fireEvent.click(screen.getByRole('button', { name: /copy to new layer/i }));
     await waitFor(() => {
-      expect(extractObjectToLayer).toHaveBeenCalledWith('m1', 'in-src');
+      expect(copyObjectToLayer).toHaveBeenCalledWith('m1', 'in-src');
       expect(LlmToolRegistry.invoke).not.toHaveBeenCalled();
       expect(backendTools.postToolResult).toHaveBeenCalledWith('sid-1', {
         requestId: 'r1b', ok: true, output: { ok: true, image_node_id: 'in-src', layer_ids: ['new-layer'] },

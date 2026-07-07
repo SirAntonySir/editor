@@ -1,7 +1,7 @@
 import type { CandidateRegion } from '@/types/image-context';
 
 /** Resolve a palette region `sourceId` to a concrete mask id, ready for
- *  {@link extractObjectToImageNode}.
+ *  {@link copyObjectToImageNode}.
  *
  *  - `region:object:<maskId>` → the mask id verbatim (a committed Object).
  *  - `region:ai:<label>`      → the matching candidate region's `maskRef`,

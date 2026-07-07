@@ -5,7 +5,7 @@ import { useEditorStore } from '@/store';
 import { useAiSession } from '@/hooks/useImageContext';
 import { maskStore } from '@/core/mask-store';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
-import { extractObjectToImageNode, extractObjectToLayer } from '@/lib/segmentation/object-actions';
+import { copyObjectToImageNode, copyObjectToLayer } from '@/lib/segmentation/object-actions';
 import { planForcedExtractions } from '@/lib/segmentation/forced-extraction';
 import { segmentRegionFromPoint } from '@/lib/segmentation/segment-region';
 import { extractObjectIds, parseTargetSourceId } from '@/lib/prompt-doc';
@@ -41,11 +41,11 @@ async function resolveAttachedRegions(
     if (choice === 'deny') return; // user rejected this selection — drop it
     if (!ownerNode) { fallbackIds.push(maskId); return; }
     if (choice === 'layer') {
-      const layerId = extractObjectToLayer(maskId, ownerNode);
+      const layerId = copyObjectToLayer(maskId, ownerNode);
       if (layerId) forcedTargets.push({ image_node_id: ownerNode, layer_ids: [layerId] });
       else fallbackIds.push(maskId);
     } else {
-      const extracted = extractObjectToImageNode(maskId, ownerNode);
+      const extracted = copyObjectToImageNode(maskId, ownerNode);
       if (extracted) forcedTargets.push({ image_node_id: extracted.imageNodeId, layer_ids: [extracted.layerId] });
       else fallbackIds.push(maskId);
     }
@@ -101,7 +101,7 @@ export const AGENT_LOOP_TOOLS: string[] = [
   'list_objects',
   'get_active_selection',
   'select_object',
-  'extract_object_to_image_node',
+  'copy_object_to_image_node',
 ];
 
 /** Run an agentic palette turn. Deterministically extracts each attached region

@@ -1,4 +1,4 @@
-import { Eye, Lasso, MoreHorizontal, MousePointerClick, ScanSearch, Sparkles } from 'lucide-react';
+import { Eye, Lasso, MoreHorizontal, MousePointerClick, ScanSearch, Sparkles, Wand2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { ReactNode } from 'react';
@@ -33,8 +33,8 @@ interface TopMarginaliaProps {
   onToggleObjectsMode?: () => void;
   /** Point-vs-lasso selection tool, shown only while objects mode is active.
    *  Point runs SAM on click; lasso draws a freehand polygon (no SAM). */
-  objectSelectTool?: 'point' | 'lasso';
-  onSelectObjectTool?: (tool: 'point' | 'lasso') => void;
+  objectSelectTool?: 'point' | 'lasso' | 'magic';
+  onSelectObjectTool?: (tool: 'point' | 'lasso' | 'magic') => void;
   /** Analyze-with-AI header button (violet). Shown only when AI is available
    *  and the image hasn't been analysed yet — mirrors the menu item. */
   showAnalyze?: boolean;
@@ -198,6 +198,21 @@ export function TopMarginalia({
                 }`}
               >
                 <Lasso size={12} aria-hidden />
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={objectSelectTool === 'magic'}
+                aria-label="Magic lasso (snap to object)"
+                title="Magic lasso — draw a rough loop, AI snaps to the object"
+                onClick={(e) => { e.stopPropagation(); onSelectObjectTool('magic'); }}
+                className={`inline-flex items-center justify-center w-5 h-5 rounded-[2px] cursor-pointer ${
+                  objectSelectTool === 'magic'
+                    ? 'text-[var(--color-accent)] bg-surface-primary'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                <Wand2 size={12} aria-hidden />
               </button>
             </div>
           )}

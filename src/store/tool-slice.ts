@@ -2,14 +2,15 @@ import type { StateCreator } from 'zustand';
 
 export type EditorMode = 'develop' | 'compose';
 
-export type ObjectSelectTool = 'point' | 'lasso';
+export type ObjectSelectTool = 'point' | 'lasso' | 'magic';
 
 export interface ToolSlice {
   activeTool: string;
   editorMode: EditorMode;
-  /** How object mode selects: SAM point-click (default) or a freehand lasso
-   *  polygon rasterized client-side (no SAM call). Shared across image nodes;
-   *  only meaningful while a node's object mode is active. */
+  /** How object mode selects: SAM point-click (default), a freehand lasso
+   *  polygon rasterized client-side (no SAM call), or magic lasso (a rough loop
+   *  fed to SAM as a box prompt, snapping to the object inside). Shared across
+   *  image nodes; only meaningful while a node's object mode is active. */
   objectSelectTool: ObjectSelectTool;
   setObjectSelectTool: (tool: ObjectSelectTool) => void;
   toolConfigs: Record<string, unknown>;

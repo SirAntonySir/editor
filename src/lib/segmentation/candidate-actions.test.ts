@@ -17,8 +17,8 @@ vi.mock('@/hooks/useImageContext', () => ({
   useAiSession: { getState: () => ({ context: null }) },
 }));
 vi.mock('./object-actions', () => ({
-  extractObjectToImageNode: vi.fn(() => ({ imageNodeId: 'n2', layerId: 'L2' })),
-  extractObjectToLayer: vi.fn(() => 'L3'),
+  copyObjectToImageNode: vi.fn(() => ({ imageNodeId: 'n2', layerId: 'L2' })),
+  copyObjectToLayer: vi.fn(() => 'L3'),
 }));
 
 const { backendTools } = await import('@/lib/backend-tools');
@@ -79,26 +79,26 @@ describe('runCandidateVerb', () => {
   const ctx = { sessionId: 'sess-1', imageNodeId: 'in-1', existingCount: 0 };
 
   beforeEach(() => {
-    (objectActions.extractObjectToImageNode as ReturnType<typeof vi.fn>).mockClear();
-    (objectActions.extractObjectToLayer as ReturnType<typeof vi.fn>).mockClear();
+    (objectActions.copyObjectToImageNode as ReturnType<typeof vi.fn>).mockClear();
+    (objectActions.copyObjectToLayer as ReturnType<typeof vi.fn>).mockClear();
   });
 
   it('materializes then extracts to image node with the new mask id', async () => {
-    const id = await runCandidateVerb('extract-node', sel, ctx);
+    const id = await runCandidateVerb('copy-node', sel, ctx);
     expect(id).toBe('new-mask');
-    expect(objectActions.extractObjectToImageNode).toHaveBeenCalledWith('new-mask', 'in-1');
+    expect(objectActions.copyObjectToImageNode).toHaveBeenCalledWith('new-mask', 'in-1');
   });
 
   it('materializes then extracts to a new in-place layer', async () => {
-    await runCandidateVerb('extract-layer', sel, ctx);
-    expect(objectActions.extractObjectToLayer).toHaveBeenCalledWith('new-mask', 'in-1');
+    await runCandidateVerb('copy-layer', sel, ctx);
+    expect(objectActions.copyObjectToLayer).toHaveBeenCalledWith('new-mask', 'in-1');
   });
 
   it('returns null and runs no action when materialize fails', async () => {
     (backendTools.propose_mask as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, error: { message: 'boom' } });
-    const id = await runCandidateVerb('extract-node', sel, ctx);
+    const id = await runCandidateVerb('copy-node', sel, ctx);
     expect(id).toBeNull();
-    expect(objectActions.extractObjectToImageNode).not.toHaveBeenCalled();
+    expect(objectActions.copyObjectToImageNode).not.toHaveBeenCalled();
   });
 });
 

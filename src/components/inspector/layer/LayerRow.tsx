@@ -4,7 +4,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useEditorStore } from '@/store';
 import { editorDocument } from '@/core/document';
-import { copyLayerToNewImageNode, moveLayerToNewImageNode } from '@/lib/layer-node-actions';
+import { duplicateLayerInPlace, duplicateLayerToNewImageNode } from '@/lib/layer-node-actions';
 import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
 import { LayerThumb } from '@/components/ui/LayerThumb';
 import type { Layer, BlendMode } from '@/store/layer-slice';
@@ -26,17 +26,11 @@ export function LayerRow({
   const setActiveLayer = useEditorStore((s) => s.setActiveLayer);
   const renamingLayerId = useEditorStore((s) => s.renamingLayerId);
   const clearRenameRequest = useEditorStore((s) => s.clearRenameRequest);
-  // Number of layers on the owning image node — a "via Cut" that peels the
-  // ONLY layer would leave an empty ghost node (and the layer already is the
-  // node's sole content), so we gate it on a multi-layer node.
-  const ownerLayerCount = useEditorStore((s) =>
-    imageNodeId ? (s.imageNodes[imageNodeId]?.layerIds.length ?? 0) : 0,
-  );
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState(layer.name);
 
-  const canSplitToNode = !!imageNodeId;
-  const canMoveToNode = !!imageNodeId && ownerLayerCount > 1;
+  // Both Duplicate ops are non-destructive; they only need a resolvable node.
+  const canDuplicate = !!imageNodeId;
 
   useEffect(() => {
     if (renamingLayerId === layer.id) {
@@ -173,17 +167,25 @@ export function LayerRow({
         <ContextMenu.Content className="overlay p-1 min-w-[200px] z-50">
           <ContextMenu.Item
             className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none data-[disabled]:opacity-40 data-[disabled]:pointer-events-none"
-            disabled={!canSplitToNode}
-            onSelect={() => { if (imageNodeId) copyLayerToNewImageNode(layer.id, imageNodeId); }}
+            disabled={!canDuplicate}
+            onSelect={() => {
+              if (imageNodeId) {
+                editorDocument.workspace.batch('Duplicate layer', () => duplicateLayerInPlace(layer.id, imageNodeId));
+              }
+            }}
           >
-            New image node via Copy
+            Duplicate layer
           </ContextMenu.Item>
           <ContextMenu.Item
             className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none data-[disabled]:opacity-40 data-[disabled]:pointer-events-none"
-            disabled={!canMoveToNode}
-            onSelect={() => { if (imageNodeId) moveLayerToNewImageNode(layer.id, imageNodeId); }}
+            disabled={!canDuplicate}
+            onSelect={() => {
+              if (imageNodeId) {
+                editorDocument.workspace.batch('Duplicate to image node', () => duplicateLayerToNewImageNode(layer.id, imageNodeId));
+              }
+            }}
           >
-            New image node via Cut
+            Duplicate to image node
           </ContextMenu.Item>
         </ContextMenu.Content>
       </ContextMenu.Portal>

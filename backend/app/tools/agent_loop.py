@@ -74,7 +74,7 @@ def _build_system(
         "etc.) you MUST call propose_adjustment_widgets with target_image_node_id "
         f"set to an existing node id ({targets}) and a short intent describing the "
         "change. To put an object on its own layer first, call "
-        "extract_object_to_image_node, then propose_adjustment_widgets on the "
+        "copy_object_to_image_node, then propose_adjustment_widgets on the "
         "image_node_id it returns. Do not stop until you have called at least one "
         "tool that satisfies the request."
     )
@@ -84,7 +84,7 @@ def _build_system(
             "\n\nThe user selected one or more regions, and they have ALREADY been "
             f"extracted onto their own image nodes: {ids}. You MUST apply the "
             "request by calling propose_adjustment_widgets on EACH of these node "
-            "ids. Do NOT call extract_object_to_image_node again for them, and do "
+            "ids. Do NOT call copy_object_to_image_node again for them, and do "
             "NOT apply the adjustment to the whole/original image — only to these "
             "extracted target nodes."
         )

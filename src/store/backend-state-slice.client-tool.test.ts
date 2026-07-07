@@ -32,11 +32,11 @@ describe('runClientTool', () => {
   });
 
   it('enqueues a mutate tool for approval and does NOT auto-run', async () => {
-    await runClientTool({ requestId: 'r2', name: 'extract_object_to_image_node', input: { maskId: 'm1' } });
+    await runClientTool({ requestId: 'r2', name: 'copy_object_to_image_node', input: { maskId: 'm1' } });
     expect(LlmToolRegistry.invoke).not.toHaveBeenCalled();
     expect(backendTools.postToolResult).not.toHaveBeenCalled();
     expect(useClientToolApproval.getState().pending).toEqual([
-      { requestId: 'r2', name: 'extract_object_to_image_node', input: { maskId: 'm1' } },
+      { requestId: 'r2', name: 'copy_object_to_image_node', input: { maskId: 'm1' } },
     ]);
   });
 

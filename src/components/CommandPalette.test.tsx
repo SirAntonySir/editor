@@ -27,7 +27,7 @@ import { objectOwnership } from '@/lib/segmentation/object-ownership';
 vi.mock('@/lib/segmentation/object-actions', () => ({
   // Accepting a region always separates it; we spy the extraction so the
   // test doesn't bake pixels / touch the canvas registry.
-  extractObjectToImageNode: vi.fn(() => ({ imageNodeId: 'n2', layerId: 'l2' })),
+  copyObjectToImageNode: vi.fn(() => ({ imageNodeId: 'n2', layerId: 'l2' })),
 }));
 
 vi.mock('@/lib/toolrail-spawn', () => ({

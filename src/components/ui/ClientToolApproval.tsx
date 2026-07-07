@@ -6,9 +6,9 @@ import { LlmToolRegistry } from '@/lib/tool-manifest/llm-tool-registry';
 import { backendTools } from '@/lib/backend-tools';
 import { useAiAccess } from '@/lib/ai-access';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
-import { extractObjectToLayer } from '@/lib/segmentation/object-actions';
+import { copyObjectToLayer } from '@/lib/segmentation/object-actions';
 
-const EXTRACT_TOOL = 'extract_object_to_image_node';
+const EXTRACT_TOOL = 'copy_object_to_image_node';
 
 /** Allow/deny chips for backend-requested mutate tools (the per-step approval
  *  gate). Mirrors SuggestionChips' dock slot. Hidden entirely in the study
@@ -27,10 +27,10 @@ export function ClientToolApproval() {
             key={req.requestId}
             className="overlay pointer-events-auto flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-text-primary"
           >
-            <span className="text-[var(--color-ai)]">Extract object</span>
+            <span className="text-[var(--color-ai)]">Copy object</span>
             <button
               type="button"
-              aria-label="Extract to new image node"
+              aria-label="Copy to image node"
               title="New image node"
               onClick={() => void resolveExtract(req.requestId, req.input, 'node')}
               className="flex items-center gap-1 h-5 px-1.5 rounded-[3px] text-[var(--color-ai)] hover:bg-surface-secondary"
@@ -40,7 +40,7 @@ export function ClientToolApproval() {
             </button>
             <button
               type="button"
-              aria-label="Extract to new layer"
+              aria-label="Copy to new layer"
               title="New layer"
               onClick={() => void resolveExtract(req.requestId, req.input, 'layer')}
               className="flex items-center gap-1 h-5 px-1.5 rounded-[3px] text-[var(--color-ai)] hover:bg-surface-secondary"
@@ -122,7 +122,7 @@ async function resolveApproval(
 
 /** Resolve the extract approval with a node/layer/deny choice. `node` runs the
  *  manifest handler (extract to a new image node); `layer` runs
- *  `extractObjectToLayer` and returns the SAME `{ image_node_id, layer_ids }`
+ *  `copyObjectToLayer` and returns the SAME `{ image_node_id, layer_ids }`
  *  contract (image node = the source node, layer = the new layer) so the agent
  *  loop continues unchanged; `deny` reports a denial. */
 async function resolveExtract(
@@ -151,7 +151,7 @@ async function resolveExtract(
         ?? editor.activeImageNodeId
         ?? undefined;
       if (!sourceNode) throw new Error('Could not resolve a source image node for the layer.');
-      const layerId = extractObjectToLayer(maskId, sourceNode);
+      const layerId = copyObjectToLayer(maskId, sourceNode);
       if (!layerId) throw new Error('Extract to layer failed.');
       await backendTools.postToolResult(sid, {
         requestId,

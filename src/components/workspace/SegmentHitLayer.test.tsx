@@ -189,7 +189,7 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
       await waitFor(() => expect(layer.querySelector('[data-candidate-trigger]')).not.toBeNull());
       // Open the candidate menu via the re-dispatch path.
       fireEvent.contextMenu(layer, { clientX: 100, clientY: 75 });
-      const item = await screen.findByText('Extract to new layer');
+      const item = await screen.findByText('Copy to new layer');
       // Left-press the menu item — must NOT arm a lasso draw.
       fireEvent.pointerDown(item, { button: 0, clientX: 620, clientY: 200, pointerId: 1 });
       expect(queryByTestId('lasso-draft-hint')).toBeNull();

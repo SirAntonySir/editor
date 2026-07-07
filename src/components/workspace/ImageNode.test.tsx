@@ -107,7 +107,6 @@ describe('ImageNode', () => {
       // Radix DropdownMenu's Trigger reliably opens via keyboard activation under jsdom.
       trigger.focus();
       await user.keyboard('{Enter}');
-      expect(screen.getByRole('menuitem', { name: /Split last layer/i })).toBeInTheDocument();
       expect(screen.getByRole('menuitem', { name: /^Delete image$/i })).toBeInTheDocument();
     });
 
@@ -127,24 +126,6 @@ describe('ImageNode', () => {
       expect(useEditorStore.getState().imageNodes[id]).toBeUndefined();
     });
 
-    it('Split last layer menu item peels the last layer onto a new node', async () => {
-      const user = userEvent.setup();
-      const id = useEditorStore.getState().addImageNode(['L1', 'L2', 'L3']);
-      renderInFlow(
-        <ImageNode id={id} data={{ ...baseData, layerIds: ['L1', 'L2', 'L3'], name: 'Sky' }} selected />,
-      );
-      const trigger = screen.getByLabelText('Image node menu');
-      trigger.focus();
-      await user.keyboard('{Enter}');
-      const splitItem = screen.getByRole('menuitem', { name: /Split last layer/i });
-      splitItem.focus();
-      await user.keyboard('{Enter}');
-      const after = useEditorStore.getState();
-      expect(after.imageNodes[id].layerIds).toEqual(['L1', 'L2']);
-      // A new node with the peeled layer should exist.
-      const peeled = Object.values(after.imageNodes).find((n) => n.id !== id);
-      expect(peeled?.layerIds).toEqual(['L3']);
-    });
   });
 });
 
@@ -252,64 +233,6 @@ describe('right-click context menu', () => {
     expect(await screen.findByText('Crop…')).toBeInTheDocument();
     expect(screen.getAllByText('Rotate 90°')).toHaveLength(2);
     expect(screen.getByText('Delete image')).toBeInTheDocument();
-  });
-});
-
-describe('ImageNode · split via dropdown menu', () => {
-  beforeEach(() => {
-    useEditorStore.getState().resetWorkspace();
-  });
-
-  it('Split last layer menu item peels the last layer onto a new image node', async () => {
-    const user = userEvent.setup();
-    // Seed: one image node with two layers. Mark l-2 as active.
-    const nodeId = useEditorStore.getState().addImageNode(['l-1', 'l-2']);
-    useEditorStore.setState({
-      layers: [
-        { id: 'l-1', type: 'image', name: 'L1', visible: true, opacity: 1, blendMode: 'normal', locked: false, order: 0 },
-        { id: 'l-2', type: 'image', name: 'L2', visible: true, opacity: 1, blendMode: 'normal', locked: false, order: 1 },
-      ],
-      activeLayerId: 'l-2',
-    } as never);
-
-    renderInFlow(
-      <ImageNode id={nodeId} data={{ ...baseData, layerIds: ['l-1', 'l-2'], name: 'Sky' }} selected />,
-    );
-
-    const trigger = screen.getByLabelText('Image node menu');
-    trigger.focus();
-    await user.keyboard('{Enter}');
-    const splitItem = screen.getByRole('menuitem', { name: /Split last layer/i });
-    splitItem.focus();
-    await user.keyboard('{Enter}');
-
-    const after = useEditorStore.getState();
-    const nodes = Object.values(after.imageNodes);
-    expect(nodes).toHaveLength(2);
-    expect(after.imageNodes[nodeId].layerIds).toEqual(['l-1']);
-    const peeled = nodes.find((n) => n.id !== nodeId);
-    expect(peeled?.layerIds).toEqual(['l-2']);
-  });
-
-  it('Split last layer is disabled when the node has only one layer', async () => {
-    const user = userEvent.setup();
-    const nodeId = useEditorStore.getState().addImageNode(['l-1']);
-    useEditorStore.setState({
-      layers: [
-        { id: 'l-1', type: 'image', name: 'L1', visible: true, opacity: 1, blendMode: 'normal', locked: false, order: 0 },
-      ],
-      activeLayerId: 'l-1',
-    } as never);
-
-    renderInFlow(
-      <ImageNode id={nodeId} data={{ ...baseData, layerIds: ['l-1'], name: 'Sky' }} selected />,
-    );
-
-    const trigger = screen.getByLabelText('Image node menu');
-    trigger.focus();
-    await user.keyboard('{Enter}');
-    const splitItem = screen.getByRole('menuitem', { name: /Split last layer/i });
-    expect(splitItem).toHaveAttribute('aria-disabled', 'true');
   });
 });
 

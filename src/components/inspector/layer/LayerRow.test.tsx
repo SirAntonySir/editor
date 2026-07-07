@@ -3,12 +3,12 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useEditorStore } from '@/store';
 import { LayerRow } from './LayerRow';
-import { copyLayerToNewImageNode, moveLayerToNewImageNode } from '@/lib/layer-node-actions';
+import { duplicateLayerInPlace, duplicateLayerToNewImageNode } from '@/lib/layer-node-actions';
 import type { Layer } from '@/store/layer-slice';
 
 vi.mock('@/lib/layer-node-actions', () => ({
-  copyLayerToNewImageNode: vi.fn(),
-  moveLayerToNewImageNode: vi.fn(),
+  duplicateLayerInPlace: vi.fn(),
+  duplicateLayerToNewImageNode: vi.fn(),
 }));
 
 const BASE_LAYER: Layer = {
@@ -150,40 +150,28 @@ describe('LayerRow — right-click: layer → image node', () => {
     });
   }
 
-  it('Copy item calls copyLayerToNewImageNode with the layer + owning node id', async () => {
+  it('"Duplicate to image node" calls duplicateLayerToNewImageNode with the layer + owning node id', async () => {
     seedLayer();
     seedNode(['L1', 'L2']);
     const { container } = render(<LayerRow layer={getLayer()} isActive imageNodeId="in-1" />);
 
     fireEvent.contextMenu(container.firstElementChild!);
-    const copyItem = await screen.findByRole('menuitem', { name: /new image node via copy/i });
-    await userEvent.click(copyItem);
+    const item = await screen.findByRole('menuitem', { name: /duplicate to image node/i });
+    await userEvent.click(item);
 
-    expect(copyLayerToNewImageNode).toHaveBeenCalledWith('L1', 'in-1');
+    expect(duplicateLayerToNewImageNode).toHaveBeenCalledWith('L1', 'in-1');
   });
 
-  it('Cut is enabled on a multi-layer node and calls moveLayerToNewImageNode', async () => {
+  it('"Duplicate layer" calls duplicateLayerInPlace with the layer + owning node id', async () => {
     seedLayer();
     seedNode(['L1', 'L2']);
     const { container } = render(<LayerRow layer={getLayer()} isActive imageNodeId="in-1" />);
 
     fireEvent.contextMenu(container.firstElementChild!);
-    const cutItem = await screen.findByRole('menuitem', { name: /new image node via cut/i });
-    await userEvent.click(cutItem);
+    const item = await screen.findByRole('menuitem', { name: /^duplicate layer$/i });
+    await userEvent.click(item);
 
-    expect(moveLayerToNewImageNode).toHaveBeenCalledWith('L1', 'in-1');
-  });
-
-  it('Cut is disabled (no-op) when the node has a single layer', async () => {
-    seedLayer();
-    seedNode(['L1']);
-    const { container } = render(<LayerRow layer={getLayer()} isActive imageNodeId="in-1" />);
-
-    fireEvent.contextMenu(container.firstElementChild!);
-    const cutItem = await screen.findByRole('menuitem', { name: /new image node via cut/i });
-    expect(cutItem).toHaveAttribute('data-disabled');
-    await userEvent.click(cutItem);
-    expect(moveLayerToNewImageNode).not.toHaveBeenCalled();
+    expect(duplicateLayerInPlace).toHaveBeenCalledWith('L1', 'in-1');
   });
 });
 

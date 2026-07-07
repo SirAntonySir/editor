@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
-import { extractObjectToImageNode } from '@/lib/segmentation/object-actions';
+import { copyObjectToImageNode } from '@/lib/segmentation/object-actions';
 import type { ToolManifest } from '../types';
 
 const input = z.object({
@@ -17,8 +17,8 @@ const output = z.object({
   message: z.string().optional(),
 });
 
-export const extractObjectToImageNodeTool: ToolManifest<typeof input, typeof output> = {
-  name: 'extract_object_to_image_node',
+export const copyObjectToImageNodeTool: ToolManifest<typeof input, typeof output> = {
+  name: 'copy_object_to_image_node',
   kind: 'mutate',
   description:
     'Bake the masked region of the Object into a new image-node placed next to the source. '
@@ -34,7 +34,7 @@ export const extractObjectToImageNodeTool: ToolManifest<typeof input, typeof out
     if (!sourceImageNodeId) {
       return { ok: false, message: 'Could not resolve source image-node for the Object.' };
     }
-    const extracted = extractObjectToImageNode(maskId, sourceImageNodeId);
+    const extracted = copyObjectToImageNode(maskId, sourceImageNodeId);
     if (!extracted) {
       return { ok: false, message: `Could not extract Object "${maskId}".` };
     }

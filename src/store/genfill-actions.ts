@@ -88,7 +88,7 @@ export function genfillNodeDims(
 
 /** Register the accepted pixels as a new layer ON the source image node —
  *  addLayer alone leaves the layer orphaned (no node's layerIds references
- *  it, so it never renders). Mirrors extractObjectToLayer's attach step.
+ *  it, so it never renders). Mirrors copyObjectToLayer's attach step.
  *  Exported for tests (canvas-free). */
 export function __attachGenfillLayer(
   imageNodeId: string,

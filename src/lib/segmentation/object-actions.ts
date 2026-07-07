@@ -123,13 +123,13 @@ export function createSelectionFromLayer(
 
 /** Bake the masked pixels into a new layer and place it on a new ImageNode
  *  positioned right-adjacent to the source. */
-export function extractObjectToImageNode(
+export function copyObjectToImageNode(
   maskId: string,
   sourceImageNodeId: string,
 ): { imageNodeId: string; layerId: string } | null {
   const mask = maskStore.get(maskId);
   if (!mask) {
-    toast.info('Extract: mask no longer exists.');
+    toast.info('Copy: mask no longer exists.');
     return null;
   }
   const editor = useEditorStore.getState();
@@ -147,7 +147,7 @@ export function extractObjectToImageNode(
         ? editor.activeLayerId
         : srcNode.layerIds[0]);
   if (!sourceLayerId) {
-    toast.info('Extract: no source layer available on this image node.');
+    toast.info('Copy: no source layer available on this image node.');
     return null;
   }
   try {
@@ -183,28 +183,28 @@ export function extractObjectToImageNode(
     editor.setActiveLayer(newLayerId);
     return { imageNodeId: newNodeId, layerId: newLayerId };
   } catch (err) {
-    toast.info(`Extract failed: ${err instanceof Error ? err.message : String(err)}`);
+    toast.info(`Copy failed: ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
 }
 
 /** Bake the masked pixels into a new layer on top of the source layer, in the
  *  SAME image node (a visible cutout, transparent elsewhere). Unlike
- *  extractObjectToImageNode this does NOT spawn a new node. Returns the new
+ *  copyObjectToImageNode this does NOT spawn a new node. Returns the new
  *  layer id, or null on failure. */
-export function extractObjectToLayer(
+export function copyObjectToLayer(
   maskId: string,
   sourceImageNodeId: string,
 ): string | null {
   const mask = maskStore.get(maskId);
   if (!mask) {
-    toast.info('Extract: mask no longer exists.');
+    toast.info('Copy: mask no longer exists.');
     return null;
   }
   const editor = useEditorStore.getState();
   const srcNode = editor.imageNodes[sourceImageNodeId];
   if (!srcNode) return null;
-  // Same source-layer resolution as extractObjectToImageNode: prefer the mask's
+  // Same source-layer resolution as copyObjectToImageNode: prefer the mask's
   // real layer, else the active layer when it lives on this node, else first.
   const isRealLayer = editor.layers.some((l) => l.id === mask.layerId);
   const sourceLayerId = isRealLayer
@@ -213,7 +213,7 @@ export function extractObjectToLayer(
         ? editor.activeLayerId
         : srcNode.layerIds[0]);
   if (!sourceLayerId) {
-    toast.info('Extract: no source layer available on this image node.');
+    toast.info('Copy: no source layer available on this image node.');
     return null;
   }
   try {
@@ -233,7 +233,7 @@ export function extractObjectToLayer(
     editor.setActiveLayer(newLayerId);
     return newLayerId;
   } catch (err) {
-    toast.info(`Extract failed: ${err instanceof Error ? err.message : String(err)}`);
+    toast.info(`Copy failed: ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
 }

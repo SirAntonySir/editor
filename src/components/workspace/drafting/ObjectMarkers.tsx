@@ -8,7 +8,7 @@ import { useSegmentExtractDrag } from '@/hooks/useSegmentExtractDrag';
 import {
   renameObject,
   selectInvertedObject,
-  extractObjectToImageNode,
+  copyObjectToImageNode,
   deleteObject,
 } from '@/lib/segmentation/object-actions';
 import { spawnGenfillFromMask } from '@/lib/genfill-spawn';
@@ -77,7 +77,7 @@ function placeMarkers(objects: ImageObject[], heightPx: number): PlacedMarker[] 
  * the central move of Direction A.
  *
  * The right-click ContextMenu on each marker exposes the same Rename /
- * Extract to Image Node / Delete actions the classic surface had, so
+ * Copy to image node / Delete actions the classic surface had, so
  * muscle memory transfers.
  */
 export function ObjectMarkers({ imageNodeId, widthPx, heightPx, marginWidth }: ObjectMarkersProps) {
@@ -242,12 +242,12 @@ function ObjectMarker({ obj, index, imageNodeId, top, onHover }: ObjectMarkerPro
   }
 
   // Drag the marker off the image → extract the object to a new node at the
-  // drop point (a gesture shortcut for the "Extract to Image Node" verb).
+  // drop point (a gesture shortcut for the "Copy to image node" verb).
   const { onPointerDown, onPointerMove, onPointerUp, dragging, ghost, consumeDragClick } = useSegmentExtractDrag({
     sourceImageNodeId: imageNodeId,
     label: obj.label,
     onExtract: (dropFlow) => {
-      const res = extractObjectToImageNode(obj.id, imageNodeId);
+      const res = copyObjectToImageNode(obj.id, imageNodeId);
       if (!res) return;
       const n = useEditorStore.getState().imageNodes[res.imageNodeId];
       const pos = n
@@ -332,9 +332,9 @@ function ObjectMarker({ obj, index, imageNodeId, top, onHover }: ObjectMarkerPro
           </ContextMenu.Item>
           <ContextMenu.Item
             className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"
-            onSelect={() => extractObjectToImageNode(obj.id, imageNodeId)}
+            onSelect={() => copyObjectToImageNode(obj.id, imageNodeId)}
           >
-            Extract to Image Node
+            Copy to image node
           </ContextMenu.Item>
           <ContextMenu.Item
             className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"

@@ -7,6 +7,7 @@ import { editorDocument } from '@/core/document';
 import { LayerThumb } from '@/components/ui/LayerThumb';
 import { createSelectionFromLayer } from '@/lib/segmentation/object-actions';
 import { spawnGenfillFromLayer } from '@/lib/genfill-spawn';
+import { duplicateLayerInPlace, duplicateLayerToNewImageNode } from '@/lib/layer-node-actions';
 
 const MENU_ITEM = 'text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none';
 // Destructive items: red text + red-tinted hover, so a delete reads as a delete.
@@ -210,16 +211,29 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
                 >
                   Generative fill…
                 </ContextMenu.Item>
-                {/* Move (not copy) this layer onto its own image node. Only
-                    meaningful when the node has other layers to leave behind. */}
-                {layers.length >= 2 && (
-                  <ContextMenu.Item
-                    className={MENU_ITEM}
-                    onSelect={() => editorDocument.workspace.splitImageNode(imageNodeId, layer.id)}
-                  >
-                    Move to own image node
-                  </ContextMenu.Item>
-                )}
+                {/* Non-destructive Duplicate (whole layer). Both keep the
+                    source: a sibling sheet in this node, or a copy on its own
+                    new image node. */}
+                <ContextMenu.Item
+                  className={MENU_ITEM}
+                  onSelect={() =>
+                    editorDocument.workspace.batch('Duplicate layer', () =>
+                      duplicateLayerInPlace(layer.id, imageNodeId),
+                    )
+                  }
+                >
+                  Duplicate layer
+                </ContextMenu.Item>
+                <ContextMenu.Item
+                  className={MENU_ITEM}
+                  onSelect={() =>
+                    editorDocument.workspace.batch('Duplicate to image node', () =>
+                      duplicateLayerToNewImageNode(layer.id, imageNodeId),
+                    )
+                  }
+                >
+                  Duplicate to image node
+                </ContextMenu.Item>
                 <ContextMenu.Separator className="my-1 h-px bg-separator" />
                 <ContextMenu.Item
                   className={MENU_ITEM_DANGER}

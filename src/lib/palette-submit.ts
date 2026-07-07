@@ -1,5 +1,6 @@
 import { serializePromptDoc, type PromptDoc } from '@/lib/prompt-doc';
 import { runAgentTurn } from '@/lib/palette-actions.agent';
+import { dismissAllPendingSuggestions } from '@/lib/suggestions-actions';
 import { analyseActiveImageLayer, useAiSession } from '@/hooks/useImageContext';
 import { usePaletteRuntime } from '@/store/palette-runtime';
 import type { AttachedContextItem } from '@/lib/command-palette';
@@ -23,6 +24,11 @@ export async function submitAgentPrompt(
   if (!intent) return;
 
   runtime.start(intent, { doc, attachedContext });
+
+  // A direct prompt means the user is driving — clear any lingering autonomous
+  // suggestion chips so they don't follow the prompt. Awaited so a denied
+  // suggestion can't race the turn's own proposals.
+  await dismissAllPendingSuggestions();
 
   // Backend's propose_stack(mcp_user_prompt) rejects with `missing_context`
   // when the image hasn't been analyzed. Auto-run analyze first so the user

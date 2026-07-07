@@ -46,8 +46,15 @@ describe('runAnalyse — autonomous suggestion gating', () => {
     expect(useBackendState.getState().mcpAnalyzeComplete).toBe(true);
   });
 
-  it('calls suggest_widgets by default (autonomous proposals)', async () => {
+  it('does NOT call suggest_widgets by default (analysis-only; suggestions are opt-in)', async () => {
     await useAiSession.getState().runAnalyse();
+    await flush();
+    expect(backendTools.analyze_context).toHaveBeenCalled();
+    expect(backendTools.suggest_widgets).not.toHaveBeenCalled();
+  });
+
+  it('calls suggest_widgets only when explicitly opted in (suggest:true)', async () => {
+    await useAiSession.getState().runAnalyse({ suggest: true });
     await flush();
     expect(backendTools.suggest_widgets).toHaveBeenCalled();
   });

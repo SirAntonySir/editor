@@ -61,7 +61,7 @@ vi.mock('@/core/mask-store', () => ({
 }));
 
 vi.mock('@/store/backend-state-slice', () => ({
-  useBackendState: { getState: () => ({ setSnapshot: vi.fn() }) },
+  useBackendState: { getState: () => ({ setSnapshot: vi.fn(), markAnalyzeComplete: vi.fn() }) },
 }));
 
 // Mock fetch so the belt-and-braces snapshot refetch stays offline.

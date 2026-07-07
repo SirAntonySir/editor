@@ -15,8 +15,9 @@ type UploadSource = ImageBitmap | HTMLCanvasElement | OffscreenCanvas;
 
 /** Options for the analyze pipeline. */
 export interface AnalyseOptions {
-  /** When false, skip the autonomous `suggest_widgets` proposals — context and
-   *  region precompute still run. Defaults to true. */
+  /** When true, also run the autonomous `suggest_widgets` proposals after
+   *  context + region precompute. Defaults to **false** — analysis is
+   *  suggestion-free; suggestions are opt-in via "Suggest something". */
   suggest?: boolean;
 }
 
@@ -237,7 +238,10 @@ export const useAiSession = create<AiSessionState>((set, get) => ({
     }
   },
   async runAnalyse(opts) {
-    const suggest = opts?.suggest ?? true;
+    // Suggestions are opt-in: "Analyze with AI" builds context + regions only.
+    // Autonomous proposals fire solely via the explicit "Suggest something"
+    // path (suggestForImageNode / runAnalyse({suggest:true})).
+    const suggest = opts?.suggest ?? false;
     const sessionId = get().sessionId;
     if (!sessionId) {
       console.warn('[ImageContext] runAnalyse: no session — call openSession first');
@@ -438,6 +442,27 @@ export async function analyseImageLayer(
   if (useAiSession.getState().status === 'ready') {
     useAiSession.getState().markAnalysed(imageNodeId);
   }
+}
+
+/**
+ * Explicit "Suggest something" trigger for a specific image-node. Autonomous
+ * suggestions are opt-in (analyze no longer fires them), so this is the sole
+ * user-facing path to the SuggestionChips stack.
+ *
+ * When the image hasn't been analyzed yet, runs a full analyze-with-suggest for
+ * the node. When context already exists, skips the (expensive) re-analyze and
+ * just asks the backend to (re)suggest for that node's image layer.
+ */
+export async function suggestForImageNode(imageNodeId: string): Promise<void> {
+  const ai = useAiSession.getState();
+  if (!ai.context || !ai.sessionId) {
+    await analyseImageLayer(imageNodeId, { suggest: true });
+    return;
+  }
+  const { setActiveImageNode, activeImageNodeId } = useEditorStore.getState();
+  if (activeImageNodeId !== imageNodeId) setActiveImageNode(imageNodeId);
+  const layerId = resolveTargetImageLayerId();
+  await backendTools.suggest_widgets(ai.sessionId, layerId ? { layerId } : {});
 }
 
 /**

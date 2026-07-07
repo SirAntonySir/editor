@@ -12,6 +12,7 @@ import {
   FlipVertical2,
   Info,
   Lasso,
+  Lightbulb,
   Merge,
   MessageSquare,
   Pencil,
@@ -26,7 +27,7 @@ import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
-import { analyseImageLayer, useAiSession } from '@/hooks/useImageContext';
+import { analyseImageLayer, suggestForImageNode, useAiSession } from '@/hooks/useImageContext';
 import { useAiAccess } from '@/lib/ai-access';
 import { backendTools } from '@/lib/backend-tools';
 import { editorDocument } from '@/core/document';
@@ -341,6 +342,18 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
               </Item>
             </>
           )}
+          {/* Explicit opt-in for autonomous suggestions (analysis no longer
+              fires them). Available before or after analyze — it analyzes
+              first when needed. */}
+          <Item
+            className={itemClass}
+            onSelect={() => void suggestForImageNode(id)}
+          >
+            <span className="flex items-center gap-1.5">
+              <Lightbulb size={11} className="text-[var(--color-ai)]" />
+              <span>Suggest something</span>
+            </span>
+          </Item>
         </>
       )}
       <Item

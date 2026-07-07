@@ -2,7 +2,14 @@
 
 **Date:** 2026-07-07
 **Branch:** `feat/magic-lasso`
-**Status:** Approved — ready for implementation planning
+**Status:** Implemented (commits `fee7736`, `312d9c4`).
+
+> **As-built note.** Change 2's attach model changed during implementation. The
+> tag-selection path turned out to be the *forced-extraction agent flow* (region
+> chip → approval gate → extract to node/layer → agent turn), which has no
+> "selection sits on the canvas awaiting keep/redo" moment. So the "canvas pill
+> after commit" was replaced with a **fourth choice in the existing region
+> approval gate** ("Draw it myself"). See Change 2 below for the shipped design.
 
 ## Problem
 
@@ -23,8 +30,9 @@ Two gaps to close:
 ## Goal
 
 - Feed SAM **box + representative point** for tag selections (tighter masks).
-- Add a **"Draw it myself"** control that discards the committed selection and
-  arms the magic-lasso tool for a fresh manual draw.
+- Add a **"Draw it myself"** control that opts out of AI segmentation and arms
+  the magic-lasso tool for a fresh manual draw. (As built: a choice in the region
+  approval gate — see the as-built note above.)
 
 ## Non-goals (explicitly out of scope)
 
@@ -96,80 +104,97 @@ prompt.
 
 Commit path (`propose_mask` → `maskStore.injectWithId`) is unchanged.
 
-### Change 2 — "Draw it myself" fix-up (commit-then-redo)
+### Change 2 — "Draw it myself" choice in the region approval gate (as built)
 
-After a tag selection commits, surface a small **canvas pill** so the user can
-redo the selection by hand.
+The tag flow pauses at the **region-extraction approval gate**
+(`RegionExtractionApproval`), which already asks per region: **Node / Layer /
+Deny**. A fourth choice — **"Draw it myself"** — is added there. It means "don't
+use the AI's region; I'll select it by hand," so it opts out of AI segmentation
+entirely rather than trying to redo a committed mask.
 
-- **Placement:** a dismissible pill anchored to the freshly-committed selection
-  on the canvas, styled with the existing `glass-overlay` hint-bar treatment for
-  visual consistency with the interactive-selection hint bar. Content:
-  **`'{label}' selected · [Draw it myself]`**. It clears on the next action
-  (new selection, tool change, or explicit dismiss).
-- **"Draw it myself" behavior:** on click —
-  1. Delete the just-committed mask (remove from `maskStore` + backend if a
-     committed id exists; discard so the bad mask does not linger).
-  2. Switch the image node into **objects mode**.
-  3. Set the active tool to **magic** (`useEditorStore.objectSelectTool = 'magic'`).
-- The user then draws a loop, which decodes box+point through the **existing,
+- **New choice:** `ExtractChoice` gains `'draw'`
+  (`src/store/region-extraction-approval.ts`). The dialog renders a Lasso-icon
+  button between Layer and Deny that resolves the region's promise with `'draw'`.
+- **`resolveAttachedRegions` (`palette-actions.agent.ts`):** on `'draw'`, it calls
+  `armManualDraw(activeNode)` — `setActiveImageNode` + `setImageNodeMode(node,
+  'objects')` + `setObjectSelectTool('magic')` — and sets a returned
+  `drawRequested` flag. The region is neither segmented nor extracted nor added to
+  `attached_objects`.
+- **Stand-down (no AI edit runs):** because the user is taking manual control, the
+  AI edit must not fire.
+  - `runAgentTurn`: when `drawRequested` and there is nothing else to act on
+    (no `forced_targets`, no `attached_objects`), it returns without calling
+    `backendTools.agentTurn`. A *mixed* selection (draw one region, extract
+    another) still runs the turn for the extracted target.
+  - `runAgentTurnForRegion` (autonomous-suggestion accept path): returns
+    `drawRequested`; `SuggestionChips` sees it and dismisses the suggestion
+    instead of falling through to its full-image materialisation.
+- The user then draws a loop, which decodes **box+point** through the **existing,
   untouched** `finishMagicLasso` path in `SegmentHitLayer`. No magic-lasso code
-  changes.
+  changes; the manual selection carries its own object actions (copy to layer,
+  generative fill, …).
 
 No new box-handle overlay, no retry button, no changes to the magic-lasso tool.
+The AI's text intent is intentionally dropped on `'draw'` — the user has chosen
+to select (and act) by hand.
 
-### Component placement (per 3-tier rules)
-
-- The pill is a small presentational unit. If it is reused by ≥2 topic folders
-  it belongs in `src/components/ui/`; if it stays workspace-local, it lives in
-  `src/components/workspace/`. It composes existing `glass-overlay` styling and
-  reads no new store state beyond the active selection + label. Hoist to module
-  scope (no inline-defined component).
-- Style via design tokens only (no hardcoded hex/px). Chrome floating over photo
-  content correctly uses the frosted `glass-overlay` (the flat-makeover
-  exception for over-image chrome).
-
-## Data flow
+## Data flow (as built)
 
 ```
-RegionRow click / palette chip
+palette submit with @region chip
   → resolveAttachedRegions(region)               [palette-actions.agent.ts]
-  → segmentRegionFromPoint(nodeId, point, label, bbox)   [segment-region.ts]
-      corners = bboxTupleToCorners(bbox)
-      points  = bbox ? [...boxPrompt(corners), {x,y,label:1}]
-                     : [{x,y,label:1}]
-      mask = samDecode(emb, points)              [mobile-sam-client.ts, unchanged]
-      if !isMaskAcceptable(mask, corners): retry point-only
-  → propose_mask + maskStore.injectWithId        [unchanged commit path]
-  → show canvas pill: "'{label}' selected · [Draw it myself]"
-        [Draw it myself]
-          → delete committed mask
-          → node objects mode + objectSelectTool = 'magic'
-          → user draws loop → finishMagicLasso (existing box+point path)
+  → approval gate: [Node] [Layer] [Draw it myself] [Deny]
+
+  Node / Layer:
+    → segmentRegionFromPoint(nodeId, point, label, bbox)   [segment-region.ts]
+        corners = bboxFromTuple(bbox)                       [magic-lasso.ts]
+        points  = bbox ? [...boxPrompt(corners), {x,y,label:1}]
+                       : [{x,y,label:1}]
+        mask = samDecode(emb, points)            [mobile-sam-client.ts, unchanged]
+        if bbox && !isMaskAcceptable(mask, corners): retry point-only
+    → propose_mask + extract to node/layer → agent turn
+
+  Draw it myself:
+    → armManualDraw: objects mode + magic tool on the active node
+    → drawRequested = true → stand down (no agent turn / no full-image edit)
+    → user draws loop → finishMagicLasso (existing box+point path)
 ```
 
-## Testing
+## Testing (as built)
 
-**Unit (`segment-region.test.ts`, `magic-lasso`-adjacent):**
-- `bboxTupleToCorners([x,y,w,h])` → `{x0:x, y0:y, x1:x+w, y1:y+h}`.
-- `segmentRegionFromPoint` builds a combined prompt (box corners + label-1 point)
-  when `bbox` is provided.
-- Builds point-only when `bbox` is absent.
-- Falls back to point-only when the combined mask fails `isMaskAcceptable`.
+**Unit — box+point prompt:**
+- `bboxFromTuple([x,y,w,h])` → `{x0:x, y0:y, x1:x+w, y1:y+h}`
+  (`magic-lasso.test.ts`).
+- `buildRegionPrompt(point, bbox?)` builds box-corners + positive point with a
+  bbox, point-only without (`segment-region.test.ts`).
+- `planForcedExtractions` carries `region.bbox` onto the segmentable entry
+  (`forced-extraction.test.ts`).
+- Agent wiring passes `seg.bbox` to `segmentRegionFromPoint`
+  (`palette-actions.agent.test.ts`).
 
-**Component (canvas pill):**
-- Renders with the region label after a tag commit.
-- Its button discards the committed mask and sets the node to objects mode with
-  `objectSelectTool === 'magic'`.
-- Dismisses on the next action.
+**Unit — Draw it myself:**
+- `RegionExtractionApproval` resolves `'draw'` when the Draw button is clicked
+  (`RegionExtractionApproval.test.tsx`).
+- `runAgentTurnForRegion` with `'draw'`: no segmentation, `extracted:false`,
+  `drawRequested:true`, no agent turn, node armed (objects + magic).
+- `runAgentTurn` with `'draw'` as the only choice: no `agentTurn` fetch, node
+  armed (`palette-actions.agent.test.ts`).
 
-## Files touched
+## Files touched (as built)
 
-- `src/lib/segmentation/segment-region.ts` — bbox param, combined prompt,
-  `isMaskAcceptable` fallback, `bboxTupleToCorners` helper.
-- `src/lib/palette-actions.agent.ts` — pass `region.bbox` through.
-- New canvas-pill component (workspace or `ui/`) + its wiring to the committed
-  tag selection.
-- Tests as above.
+Change 1 (box+point):
+- `src/lib/segmentation/magic-lasso.ts` — `bboxFromTuple` helper.
+- `src/lib/segmentation/segment-region.ts` — `buildRegionPrompt`, `bbox` param,
+  box+point prompt, `isMaskAcceptable` fallback.
+- `src/lib/segmentation/forced-extraction.ts` — thread `bbox` onto segmentable.
+- `src/lib/palette-actions.agent.ts` — pass `seg.bbox` through.
 
-Unchanged: `mobile-sam-client.ts`, `magic-lasso.ts` (`boxPrompt`/`isMaskAcceptable`
-reused as-is), `SegmentHitLayer.tsx` `finishMagicLasso`, all backend.
+Change 2 (Draw it myself):
+- `src/store/region-extraction-approval.ts` — `'draw'` choice.
+- `src/components/ui/RegionExtractionApproval.tsx` — Draw button.
+- `src/lib/palette-actions.agent.ts` — `armManualDraw`, `drawRequested`, turn
+  stand-down.
+- `src/components/ui/SuggestionChips.tsx` — stand down on `drawRequested`.
+
+Unchanged: `mobile-sam-client.ts`, `magic-lasso.ts` `boxPrompt`/`isMaskAcceptable`
+(reused as-is), `SegmentHitLayer.tsx` `finishMagicLasso`, all backend.

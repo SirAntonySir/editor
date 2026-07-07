@@ -88,6 +88,10 @@ export function SegmentHitLayer({
   // decode's setState. Without this, a slow first decode would clobber a
   // faster second click's candidate after it returned.
   const decodeSeqRef = useRef(0);
+  // True while a point-tool SAM decode is in flight. Gates further point clicks
+  // so spam-clicking can't stack decodes — the user must wait for the current
+  // result before clicking again.
+  const decodingRef = useRef(false);
 
   // ── Lasso drawing state ──────────────────────────────────────────────────
   // Ref accumulates vertices (pointermove-rate); state mirrors it for the SVG
@@ -330,11 +334,18 @@ export function SegmentHitLayer({
   }, [imageNodeId]);
 
   const runDecode = useCallback(async (points: SamPoint[]) => {
+    // A decode is already running — ignore the click until its result lands.
+    if (decodingRef.current) return;
+    decodingRef.current = true;
     const seq = ++decodeSeqRef.current;
     setCandidate({ points, mask: null });
-    const mask = await samCapability.decode(points);
-    if (seq !== decodeSeqRef.current) return; // superseded by a newer click
-    setCandidate({ points, mask });
+    try {
+      const mask = await samCapability.decode(points);
+      if (seq !== decodeSeqRef.current) return; // superseded by a newer gesture
+      setCandidate({ points, mask });
+    } finally {
+      decodingRef.current = false;
+    }
   }, [samCapability]);
 
   // Right-click hit-test. Two layers:

@@ -128,6 +128,39 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
     expect(points[1].label).toBe(0);
   });
 
+  it('ignores point clicks while a decode is in flight, then re-enables once it resolves', async () => {
+    // Deferred decode so we can click during the "Segmenting…" window.
+    let resolveDecode!: (m: DecodedMask) => void;
+    decodeMock.mockReset();
+    decodeMock.mockImplementation(
+      () => new Promise<DecodedMask>((res) => { resolveDecode = res; }),
+    );
+
+    const { findByTestId } = render(
+      <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,
+    );
+    const layer = await findByTestId('segment-hit-layer');
+    stubRect(layer);
+
+    // First click starts a decode (pending — "Segmenting…").
+    fireEvent.click(layer, { clientX: 100, clientY: 75 });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(decodeMock).toHaveBeenCalledTimes(1);
+
+    // Spam-clicks while it's still segmenting are ignored — no new decode.
+    fireEvent.click(layer, { clientX: 140, clientY: 90 });
+    fireEvent.click(layer, { clientX: 160, clientY: 100 });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(decodeMock).toHaveBeenCalledTimes(1);
+
+    // Result arrives → clicking is allowed again.
+    resolveDecode(fakeMask());
+    await new Promise((r) => setTimeout(r, 0));
+    fireEvent.click(layer, { clientX: 200, clientY: 120 });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(decodeMock).toHaveBeenCalledTimes(2);
+  });
+
   it('Esc discards the candidate (Enter after Esc does not commit)', async () => {
     const { findByTestId, getByTestId, queryByTestId } = render(
       <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,

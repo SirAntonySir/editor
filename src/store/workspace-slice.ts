@@ -256,6 +256,11 @@ export interface WorkspaceSlice {
   /** Replace an info widget's content or title (e.g. when the user adds
    *  another chip to an existing 'stats' widget). */
   updateInfoNode: (id: string, patch: Partial<Pick<InfoNodeState, 'content' | 'title' | 'size'>>) => void;
+  /** Duplicate an info widget — clones content/title/size at an offset. Returns
+   *  the new id, or null if the source is missing. `retargetTo` overrides the
+   *  clone's `targetImageNodeId` (used by group duplicate to point the copy at a
+   *  co-duplicated image node). */
+  duplicateInfoNode: (id: string, retargetTo?: string) => string | null;
   /** Delete an info widget by id. */
   removeInfoNode: (id: string) => void;
 
@@ -632,6 +637,23 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       if (patch.title !== undefined) n.title = patch.title;
       if (patch.size !== undefined) n.size = patch.size;
     }),
+  duplicateInfoNode: (id, retargetTo) => {
+    let newId: string | null = null;
+    set((state) => {
+      const src = state.infoNodes[id];
+      if (!src) return;
+      newId = `info-${state._nextNodeSeq++}`;
+      state.infoNodes[newId] = {
+        id: newId,
+        position: { x: src.position.x + 24, y: src.position.y + 24 },
+        size: { ...src.size },
+        title: src.title,
+        content: cloneContent(src.content),
+        targetImageNodeId: retargetTo ?? src.targetImageNodeId,
+      };
+    });
+    return newId;
+  },
   removeInfoNode: (id) =>
     set((state) => {
       delete state.infoNodes[id];

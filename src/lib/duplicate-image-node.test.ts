@@ -7,8 +7,14 @@
  * "copy" name semantics so the Layer-tab labels read cleanly across
  * repeated duplicates.
  */
-import { describe, it, expect } from 'vitest';
-import { deriveDuplicateName } from './duplicate-image-node';
+import { describe, it, expect, vi } from 'vitest';
+
+// duplicate-image-node now imports duplicateLayer from segment-actions, which
+// transitively loads the WebGL layer-compositor (needs a real canvas). Stub it
+// so this pure name-derivation test collects in the node environment.
+vi.mock('@/store/segment-actions', () => ({ duplicateLayer: vi.fn() }));
+
+const { deriveDuplicateName } = await import('./duplicate-image-node');
 
 describe('deriveDuplicateName', () => {
   it('inserts " copy" before the extension on the first duplicate', () => {

@@ -37,7 +37,7 @@ import {
   startObjectRename,
 } from '@/lib/segmentation/object-actions';
 import { exportImageNode, rejoinSourceImage } from '@/lib/image-node-actions';
-import { duplicateActiveImageNode } from '@/lib/duplicate-image-node';
+import { duplicateImageNode } from '@/lib/duplicate-image-node';
 import { computeEffectiveSize, type Crop } from '@/lib/image-node-geometry';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { ImageNodeBody } from '../ImageNodeBody';
@@ -471,11 +471,9 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
       <Item
         className={itemClass}
         onSelect={() => {
-          // Promote this image-node to active so the shared duplicate
-          // helper (also bound to Cmd+D) operates on it instead of
-          // whatever was selected at right-click time.
-          useEditorStore.getState().setActiveImageNode(id);
-          void duplicateActiveImageNode();
+          // Deep-duplicate THIS node (all layers + adjustments + widgets),
+          // wrapped as one undo step. Same helper Cmd+D uses.
+          editorDocument.workspace.batch('Duplicate', () => duplicateImageNode(id));
         }}
       >
         <span className="flex items-center gap-1.5">

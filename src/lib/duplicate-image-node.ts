@@ -1,55 +1,81 @@
 /**
- * Duplicate the active image node — Cmd+D entry point.
+ * Deep image-node Duplicate — the Cmd+D / "Duplicate" entry point.
  *
- * Pulls the working bitmap from `pixelStore` for the active image node's
- * primary layer, converts it to a PNG blob, wraps it in a File, and routes
- * through `editorDocument.addImage`. That gets us the same upload-to-
- * backend / IndexedDB-source-persist / new-layer wiring that the file
- * picker uses — at the cost of one PNG encode hop per duplicate, which is
- * fine for the click frequency.
+ * Replicates a WHOLE image node into a sibling beside it:
+ *  1. every layer duplicated (pixels + metadata) with fresh ids — done on the
+ *     frontend via `duplicateLayer`;
+ *  2. every layer's adjustments + tethered widgets cloned onto the new layer
+ *     ids — done on the BACKEND via `duplicate_layer_edits` (the operation graph
+ *     and widgets are backend-owned; see Engine SSoT doctrine).
  *
- * Multi-layer image nodes flatten to their first layer's bitmap for the
- * duplicate. Compositing several layers + adjustment widgets into one
- * bitmap before duplicating is a future feature.
+ * The backend call is fire-and-forget: the structural duplicate (all layers
+ * with copied pixels) is visible immediately; the adjustments/widgets reconcile
+ * when the snapshot returns. If the backend is offline the duplicate still
+ * lands, just without the live edits carried over.
  */
-import { editorDocument } from '@/core/document';
 import { useEditorStore } from '@/store';
-import { pixelStore } from '@/core/pixel-store';
+import { useBackendState } from '@/store/backend-state-slice';
+import { backendTools } from '@/lib/backend-tools';
+import { duplicateLayer } from '@/store/segment-actions';
+import { UI } from '@/config';
 import { toast } from '@/components/ui/Toast';
 
-/** Duplicate the currently-active image node. No-op + toast when there
- *  isn't one. Returns the new node's id, or null on failure. */
-export async function duplicateActiveImageNode(): Promise<string | null> {
+/** Deep-duplicate one image node. Returns the new node id, or null on failure.
+ *  Not history-wrapped itself — callers wrap in `editorDocument.workspace.batch`
+ *  so the whole duplicate is one undo step. `offset` places the copy at
+ *  `source + offset` (used by group duplicate to keep a cluster's shape);
+ *  omitted, the copy lands just right of the source (single Cmd+D). */
+export function duplicateImageNode(id: string, offset?: { x: number; y: number }): string | null {
   const editor = useEditorStore.getState();
-  const id = editor.activeImageNodeId;
-  if (!id) {
-    toast.info('No image selected to duplicate.');
-    return null;
-  }
   const node = editor.imageNodes[id];
   if (!node || node.layerIds.length === 0) {
     toast.info('No image selected to duplicate.');
     return null;
   }
 
-  const primaryLayerId = node.layerIds[0];
-  const canvas = pixelStore.getSource(primaryLayerId);
-  if (!canvas) {
+  // 1. Duplicate every layer (pixels + metadata), building the id mapping the
+  //    backend needs to clone the per-layer operation-graph nodes + widgets.
+  const mapping: Array<{ fromLayerId: string; toLayerId: string }> = [];
+  for (const layerId of node.layerIds) {
+    const newLayerId = duplicateLayer(layerId);
+    if (!newLayerId) continue; // skip a layer whose pixels couldn't be copied
+    mapping.push({ fromLayerId: layerId, toLayerId: newLayerId });
+  }
+  if (mapping.length === 0) {
     toast.error('Image data unavailable. Try reloading the document.');
     return null;
   }
 
-  const blob = await canvas.convertToBlob({ type: 'image/png' });
-  const sourceLayer = editor.layers.find((l) => l.id === primaryLayerId);
-  const baseName = node.name ?? sourceLayer?.name ?? 'image.png';
-  const dupName = deriveDuplicateName(baseName);
-  const file = new File([blob], dupName, { type: 'image/png' });
+  // 2. Place the duplicated layers on a new node. Uniform offset for group
+  //    duplicates (keeps the cluster shape); just right of the source otherwise.
+  const position = offset
+    ? { x: node.position.x + offset.x, y: node.position.y + offset.y }
+    : { x: node.position.x + node.size.w + UI.splitGapPx, y: node.position.y };
+  const newNodeId = editor.addImageNode(
+    mapping.map((m) => m.toLayerId),
+    position,
+    node.sourceSize,
+  );
+  editor.setImageNodeName(newNodeId, deriveDuplicateName(node.name ?? 'Image'));
 
-  // addImage promotes the new node only when nothing was active — we WANT
-  // the user to see the duplicate appear next to the source and keep their
-  // selection on the original, so the existing semantics are correct here.
-  await editorDocument.addImage(file);
-  return useEditorStore.getState().activeImageNodeId ?? null;
+  // 3. Carry adjustments + widgets onto the new layers (backend-owned).
+  const sessionId = useBackendState.getState().sessionId;
+  const offline = useBackendState.getState().sseStatus !== 'open';
+  if (sessionId && !offline) {
+    void backendTools.duplicate_layer_edits(sessionId, { mapping });
+  }
+  return newNodeId;
+}
+
+/** Duplicate the currently-active image node. No-op + toast when there isn't
+ *  one. Returns the new node's id, or null on failure. */
+export function duplicateActiveImageNode(): string | null {
+  const id = useEditorStore.getState().activeImageNodeId;
+  if (!id) {
+    toast.info('No image selected to duplicate.');
+    return null;
+  }
+  return duplicateImageNode(id);
 }
 
 /** Append " copy" before the extension. `foo.jpg` → `foo copy.jpg`,

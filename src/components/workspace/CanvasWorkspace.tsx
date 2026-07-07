@@ -31,6 +31,8 @@ import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
 import { InfoNode, type InfoNodeData } from './InfoNode';
 import { LayerNode, type LayerNodeData } from './LayerNode';
 import { layerNodeIdFor } from '@/store/workspace-slice';
+import { duplicateImageNode, duplicateActiveImageNode } from '@/lib/duplicate-image-node';
+import { duplicateSelection } from '@/lib/duplicate-selection';
 import type { Widget } from '@/types/widget';
 import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { rejoinSourceImage } from '@/lib/image-node-actions';
@@ -65,9 +67,30 @@ function WorkspaceKeyHandler() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      const inField = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+
+      // Cmd/Ctrl+D — context-aware Duplicate of the current selection. This is
+      // the canvas-scoped owner of the chord (there is no global Cmd+D), so a
+      // multi-select can be duplicated as a group.
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'd' || e.key === 'D') && !inField) {
+        e.preventDefault();
+        const selected = getNodes().filter((n) => n.selected);
+        editorDocument.workspace.batch('Duplicate', () => {
+          if (selected.length > 1) {
+            duplicateSelection(selected.map((n) => n.id));
+            return;
+          }
+          const one = selected[0];
+          if (one?.type === 'image') duplicateImageNode(one.id);
+          else if (one?.type === 'info') useEditorStore.getState().duplicateInfoNode(one.id);
+          else duplicateActiveImageNode(); // nothing (or a widget) selected → active node
+        });
+        return;
+      }
+
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      if (inField) return;
 
       const selectedNodes = getNodes().filter((n) => n.selected);
       if (selectedNodes.length === 0) return;

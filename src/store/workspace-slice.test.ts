@@ -513,4 +513,34 @@ describe('workspace-slice', () => {
       expect(useEditorStore.getState().layerNodes).toEqual({});
     });
   });
+
+  describe('duplicateInfoNode', () => {
+    it('clones content + title + size at an offset, deep-copying the payload', () => {
+      const srcId = useEditorStore.getState().addInfoNode(
+        { kind: 'stats', items: [{ id: 'i1', label: 'X', value: '1' }] },
+        { position: { x: 100, y: 100 }, title: 'Stats', targetImageNodeId: 'in-1' },
+      );
+      const dupId = useEditorStore.getState().duplicateInfoNode(srcId)!;
+      const src = useEditorStore.getState().infoNodes[srcId];
+      const dup = useEditorStore.getState().infoNodes[dupId];
+      expect(dup.title).toBe('Stats');
+      expect(dup.targetImageNodeId).toBe('in-1');
+      expect(dup.position).toEqual({ x: 124, y: 124 });
+      // Deep clone — mutating the source content must not touch the copy.
+      expect(dup.content).not.toBe(src.content);
+    });
+
+    it('retargetTo overrides the clone’s target image node', () => {
+      const srcId = useEditorStore.getState().addInfoNode(
+        { kind: 'stats', items: [] },
+        { targetImageNodeId: 'in-1' },
+      );
+      const dupId = useEditorStore.getState().duplicateInfoNode(srcId, 'in-2')!;
+      expect(useEditorStore.getState().infoNodes[dupId].targetImageNodeId).toBe('in-2');
+    });
+
+    it('returns null when the source info node is missing', () => {
+      expect(useEditorStore.getState().duplicateInfoNode('nope')).toBeNull();
+    });
+  });
 });

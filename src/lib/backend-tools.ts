@@ -210,6 +210,16 @@ export const backendTools = {
   }) {
     return invokeTool<{ ok: boolean }>('set_image_node_transform', sessionId, args);
   },
+  /** Deep-duplicate the pixel-affecting state for a set of layers: clone each
+   *  source layer's operation-graph nodes + tethered widgets onto the paired
+   *  target layer id. The frontend has already created the target layers +
+   *  image node; this carries the live adjustments/widgets across. One backend
+   *  revision (one undo step). Backs the deep image-node / group Duplicate. */
+  duplicate_layer_edits(sessionId: string, args: {
+    mapping: Array<{ fromLayerId: string; toLayerId: string }>;
+  }) {
+    return invokeTool<{ ok: boolean }>('duplicate_layer_edits', sessionId, args);
+  },
   preview_widget(sessionId: string, args: { widgetId: string; max_dim?: number }) {
     return invokeTool<{ mime_type: string; image_b64: string | null; reason?: string }>(
       'preview_widget', sessionId, args,

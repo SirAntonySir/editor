@@ -5,7 +5,6 @@ import { useAiSession, analyseActiveImageLayer } from '@/hooks/useImageContext';
 import { revertToOriginal } from '@/lib/revert';
 import { openImageFromPicker, addImageFromPicker } from '@/lib/open-file';
 import { pasteImageFromClipboard } from '@/lib/paste-image';
-import { duplicateActiveImageNode } from '@/lib/duplicate-image-node';
 import { editorDocument } from '@/core/document';
 import { useBackendState } from '@/store/backend-state-slice';
 import { getAiAccess } from '@/lib/ai-access';
@@ -108,15 +107,10 @@ function buildShortcuts(): ShortcutEntry[] {
     label: 'Paste image',
   });
 
-  // Cmd+D — duplicate the active image-node. Browser default for Cmd+D
-  // (bookmark this page) is preventDefault'd by the dispatcher; in
-  // Electron we own the chord outright.
-  shortcuts.push({
-    key: 'd',
-    ctrl: true,
-    action: () => { void duplicateActiveImageNode(); },
-    label: 'Duplicate image',
-  });
+  // Cmd+D — Duplicate is owned by the canvas (WorkspaceKeyHandler in
+  // CanvasWorkspace) so it can be selection-aware: 1 node → deep duplicate,
+  // N selected → group duplicate. Kept out of the global dispatcher to avoid a
+  // double-fire.
 
   shortcuts.push({
     key: ',',

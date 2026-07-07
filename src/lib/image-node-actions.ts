@@ -68,6 +68,31 @@ export async function exportImageNode(
   await saveAs(blob, `${baseName}.${ext}`);
 }
 
+/** "Draw it myself" on an extracted tag-selection result: discard this extracted
+ *  node entirely (its cutout + any AI edits on it), then arm the SOURCE image for
+ *  a fresh manual magic-lasso draw. Unlike {@link rejoinSourceImage}, the bad
+ *  cutout is NOT merged back — the source keeps its full original image, so the
+ *  user redraws the region cleanly. Returns false when the node isn't an
+ *  extraction (no source provenance). */
+export function redrawExtractedNode(imageNodeId: string): boolean {
+  const editor = useEditorStore.getState();
+  const node = editor.imageNodes[imageNodeId];
+  const sourceId = node?.sourceImageNodeId;
+  if (!sourceId) return false;
+
+  // Drop the extracted node (and its layers/edits) — this is a "start over".
+  editorDocument.workspace.deleteImageNode(imageNodeId);
+
+  // Arm the source for a manual magic-lasso draw.
+  const after = useEditorStore.getState();
+  if (after.imageNodes[sourceId]) {
+    after.setActiveImageNode(sourceId);
+    after.setImageNodeMode(sourceId, 'objects');
+  }
+  after.setObjectSelectTool('magic');
+  return true;
+}
+
 /** Undo an "Extract to Image Node" — move the extracted node's image layers
  *  onto the source node, then remove the (now empty) extracted node. Returns
  *  true when a rejoin happened — false when this node has no source provenance.

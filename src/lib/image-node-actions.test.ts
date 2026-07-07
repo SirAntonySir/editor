@@ -67,7 +67,7 @@ class OffscreenCanvasStub {
 // @ts-expect-error — OffscreenCanvas not in Node typings
 globalThis.OffscreenCanvas = OffscreenCanvasStub;
 
-import { rejoinSourceImage } from './image-node-actions';
+import { rejoinSourceImage, redrawExtractedNode } from './image-node-actions';
 
 // editorDocument.workspace.mergeImageNodes / deleteImageNode go through
 // `recordSnapshot` which captures history via `store`. The store is already
@@ -145,6 +145,29 @@ describe('rejoinSourceImage', () => {
     expect(state.layers.some((l) => l.id === 'L2')).toBe(true);
     // Focus moved back to source.
     expect(state.activeImageNodeId).toBe('src');
+  });
+
+  it('redrawExtractedNode discards the extracted node and arms the magic-lasso on the source', () => {
+    seedState();
+    useEditorStore.getState().setObjectSelectTool('point');
+
+    const result = redrawExtractedNode('ext');
+
+    expect(result).toBe(true);
+    const state = useEditorStore.getState();
+    // The bad extracted result is gone entirely (not rejoined onto the source).
+    expect(state.imageNodes['ext']).toBeUndefined();
+    expect(state.imageNodes['src'].layerIds).not.toContain('L2');
+    // Source is armed for a fresh manual magic-lasso draw.
+    expect(state.activeImageNodeId).toBe('src');
+    expect(state.imageNodeMode['src']).toBe('objects');
+    expect(state.objectSelectTool).toBe('magic');
+  });
+
+  it('redrawExtractedNode returns false for a node with no source provenance', () => {
+    seedState();
+    expect(redrawExtractedNode('src')).toBe(false);
+    expect(useEditorStore.getState().imageNodes['src']).toBeTruthy();
   });
 
   it('returns false when the node has no sourceImageNodeId', () => {

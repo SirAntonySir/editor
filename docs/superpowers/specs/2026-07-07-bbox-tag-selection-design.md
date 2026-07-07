@@ -124,7 +124,18 @@ visible, and **once per resulting object** (not before, not per pending region).
 - **Menu item** added to all three per-object menus that already share the
   `object-actions` verbs: `ObjectMarkers.tsx` (drafting markers),
   `ImageNodeObjectsLayer.tsx` (layers-mode label chip), and
-  `ImageNodeDrafting.tsx` (selected-object menu, with a Lasso icon).
+  `ImageNodeDrafting.tsx` (selected-object menu, with a Lasso icon). This covers
+  the **Layer** extraction choice, where the result is an object mask on the
+  source node.
+- **Extracted-node case (the common one).** The **Node** extraction choice bakes
+  the result into a *new* image node (with `sourceImageNodeId`), so the surface
+  the user judges is that node — its right-click menu, not an object marker. A
+  matching **"Draw it myself"** sits on the node menu next to "Rejoin source
+  image" (`ImageNodeDrafting.tsx`, gated on `sourceImageNodeId`). New
+  `redrawExtractedNode(imageNodeId)` (`src/lib/image-node-actions.ts`)
+  **discards** the extracted node (its cutout + any AI edits — a clean "start
+  over", *not* a rejoin) and arms the **source** node for a fresh magic-lasso
+  draw. The source keeps its full original image.
 - The user then draws a loop, which decodes **box+point** through the **existing,
   untouched** `finishMagicLasso` path in `SegmentHitLayer`. The redrawn selection
   carries its own object actions (copy to layer, generative fill, …). No

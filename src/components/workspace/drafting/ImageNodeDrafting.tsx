@@ -38,7 +38,7 @@ import {
   redrawObject,
   startObjectRename,
 } from '@/lib/segmentation/object-actions';
-import { exportImageNode, rejoinSourceImage } from '@/lib/image-node-actions';
+import { exportImageNode, redrawExtractedNode, rejoinSourceImage } from '@/lib/image-node-actions';
 import { duplicateImageNode } from '@/lib/duplicate-image-node';
 import { computeEffectiveSize, type Crop } from '@/lib/image-node-geometry';
 import { ScrollArea } from '@/components/ui/ScrollArea';
@@ -380,6 +380,17 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
           <span className="flex items-center gap-1.5">
             <Combine size={11} className="text-text-secondary" />
             <span>Rejoin source image</span>
+          </span>
+        </Item>
+      )}
+      {sourceImageNodeId && (
+        <Item
+          className={itemClass}
+          onSelect={() => void redrawExtractedNode(id)}
+        >
+          <span className="flex items-center gap-1.5">
+            <Lasso size={11} className="text-text-secondary" />
+            <span>Draw it myself</span>
           </span>
         </Item>
       )}

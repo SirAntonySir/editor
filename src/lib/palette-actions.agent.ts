@@ -14,6 +14,20 @@ import type { CandidateRegion } from '@/types/image-context';
 
 type ForcedTarget = { image_node_id: string; layer_ids: string[] };
 
+/** Arm the active node for a manual magic-lasso draw — the "Draw it myself"
+ *  escape hatch from the region-extraction approval gate. Switches the node
+ *  into objects mode with the magic tool so the user can draw the object by
+ *  hand instead of trusting the AI region. */
+function armManualDraw(activeNodeId: string | null): void {
+  const editor = useEditorStore.getState();
+  const nodeId = activeNodeId ?? editor.activeImageNodeId;
+  if (nodeId) {
+    editor.setActiveImageNode(nodeId);
+    editor.setImageNodeMode(nodeId, 'objects');
+  }
+  editor.setObjectSelectTool('magic');
+}
+
 /** Asks the user, per attached region, whether to extract to a new image node,
  *  a new layer, or skip it. Defaults to the dock approval store; tests inject. */
 type RegionChoiceFn = (label: string) => Promise<ExtractChoice>;
@@ -31,13 +45,18 @@ async function resolveAttachedRegions(
   candidateRegions: ReadonlyArray<CandidateRegion>,
   activeNodeId: string | null,
   getChoice: RegionChoiceFn,
-): Promise<{ forcedTargets: ForcedTarget[]; fallbackIds: string[] }> {
+): Promise<{ forcedTargets: ForcedTarget[]; fallbackIds: string[]; drawRequested: boolean }> {
   const plan = planForcedExtractions(regionSourceIds, candidateRegions, (id) => maskStore.has(id));
   const forcedTargets: ForcedTarget[] = [];
   const fallbackIds = [...plan.fallbackIds];
+  // Set when the user picks "Draw it myself" for any region — the caller then
+  // stands down its AI edit (no turn / no full-image fallback) so the manual
+  // magic-lasso draw is the only thing that happens.
+  let drawRequested = false;
 
   // Apply an already-segmented mask onto `ownerNode` per the user's choice.
   const applyExtraction = (maskId: string, ownerNode: string | undefined, choice: ExtractChoice): void => {
+    if (choice === 'draw') { drawRequested = true; armManualDraw(activeNodeId); return; } // hand off to manual draw
     if (choice === 'deny') return; // user rejected this selection — drop it
     if (!ownerNode) { fallbackIds.push(maskId); return; }
     if (choice === 'layer') {
@@ -62,6 +81,7 @@ async function resolveAttachedRegions(
   //    (MobileSAM) only on a non-deny choice, then extract.
   for (const seg of plan.segmentable) {
     const choice = await getChoice(seg.label);
+    if (choice === 'draw') { drawRequested = true; armManualDraw(activeNodeId); continue; } // hand off to manual draw
     if (choice === 'deny') continue;
     if (!activeNodeId) {
       fallbackIds.push(...extractObjectIds([{ sourceId: seg.sourceId }]));
@@ -72,7 +92,7 @@ async function resolveAttachedRegions(
     else fallbackIds.push(...extractObjectIds([{ sourceId: seg.sourceId }]));
   }
 
-  return { forcedTargets, fallbackIds };
+  return { forcedTargets, fallbackIds, drawRequested };
 }
 
 /** Collapse forced targets to one entry per image node, unioning their layer
@@ -132,7 +152,7 @@ export async function runAgentTurn(
   }
 
   // Ask the user per attached region (node / layer / deny), then extract.
-  const { forcedTargets: regionTargets, fallbackIds } = await resolveAttachedRegions(
+  const { forcedTargets: regionTargets, fallbackIds, drawRequested } = await resolveAttachedRegions(
     regionSourceIds,
     candidateRegions,
     activeNodeId,
@@ -155,6 +175,14 @@ export async function runAgentTurn(
       );
       if (ownerId) forcedTargets.push({ image_node_id: ownerId, layer_ids: [ref.id] });
     }
+  }
+
+  // "Draw it myself" and nothing else to act on: the user is taking manual
+  // control, so stand down without firing an AI turn. The node is already armed
+  // for a magic-lasso draw. (A mixed selection — draw one region, extract
+  // another — still runs the turn for the extracted target.)
+  if (drawRequested && forcedTargets.length === 0 && fallbackIds.length === 0) {
+    return { ok: true, toolCalls: 0 };
   }
 
   const activeNodePayload =
@@ -182,25 +210,27 @@ export async function runAgentTurnForRegion(
   intent: string,
   label: string,
   getChoice: RegionChoiceFn = (l) => useRegionExtractionApproval.getState().request(l),
-): Promise<{ extracted: boolean; ok: boolean; toolCalls: number }> {
+): Promise<{ extracted: boolean; ok: boolean; toolCalls: number; drawRequested: boolean }> {
   const sid = useBackendState.getState().sessionId;
-  if (!sid) return { extracted: false, ok: false, toolCalls: 0 };
+  if (!sid) return { extracted: false, ok: false, toolCalls: 0, drawRequested: false };
 
   const editor = useEditorStore.getState();
   const activeNodeId = editor.activeImageNodeId;
   const activeNode = activeNodeId ? editor.imageNodes[activeNodeId] : undefined;
   const candidateRegions = useAiSession.getState().context?.candidateRegions ?? [];
 
-  const { forcedTargets, fallbackIds } = await resolveAttachedRegions(
+  const { forcedTargets, fallbackIds, drawRequested } = await resolveAttachedRegions(
     [`region:ai:${label}`],
     candidateRegions,
     activeNodeId,
     getChoice,
   );
 
-  // Nothing was baked into a node (deny / unresolved / extraction failure) —
-  // signal the caller to fall back to a plain in-place accept.
-  if (forcedTargets.length === 0) return { extracted: false, ok: true, toolCalls: 0 };
+  // Nothing was baked into a node (deny / unresolved / extraction failure / the
+  // user chose to draw it by hand) — signal the caller. `drawRequested` tells it
+  // to stand down entirely (the lasso is armed); otherwise it falls back to a
+  // plain in-place accept.
+  if (forcedTargets.length === 0) return { extracted: false, ok: true, toolCalls: 0, drawRequested };
 
   const activeNodePayload =
     activeNodeId && activeNode
@@ -214,5 +244,5 @@ export async function runAgentTurnForRegion(
     client_tools: serializeForAgentLoop(AGENT_LOOP_TOOLS),
     active_node: activeNodePayload,
   });
-  return { extracted: true, ...res };
+  return { extracted: true, drawRequested: false, ...res };
 }

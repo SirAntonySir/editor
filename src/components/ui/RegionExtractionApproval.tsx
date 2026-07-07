@@ -1,4 +1,4 @@
-import { Image as ImageIcon, Layers, X } from 'lucide-react';
+import { Image as ImageIcon, Lasso, Layers, X } from 'lucide-react';
 import { useRegionExtractionApproval, type ExtractChoice } from '@/store/region-extraction-approval';
 import { useAiAccess } from '@/lib/ai-access';
 
@@ -42,6 +42,16 @@ export function RegionExtractionApproval() {
           >
             <Layers size={12} />
             <span>Layer</span>
+          </button>
+          <button
+            type="button"
+            aria-label="Draw it myself"
+            title="Draw it myself — arm the magic-lasso tool"
+            onClick={() => choose(req.id, 'draw')}
+            className="flex items-center gap-1 h-5 px-1.5 rounded-[3px] text-[var(--color-ai)] hover:bg-surface-secondary"
+          >
+            <Lasso size={12} />
+            <span>Draw</span>
           </button>
           <button
             type="button"

@@ -446,4 +446,71 @@ describe('workspace-slice', () => {
       expect(useEditorStore.getState()._nextNodeSeq).toBe(6);
     });
   });
+
+  describe('layers-node lifecycle', () => {
+    it('addImageNode spawns a paired layers node left of the image node', () => {
+      const s = useEditorStore.getState();
+      const id = s.addImageNode(['l-1'], { x: 500, y: 200 });
+      const ln = useEditorStore.getState().layerNodes[`layers-${id}`];
+      expect(ln).toBeTruthy();
+      expect(ln.imageNodeId).toBe(id);
+      // Seeded to the left of, and top-aligned with, the image node.
+      expect(ln.position.x).toBeLessThan(500);
+      expect(ln.position.y).toBe(200);
+    });
+
+    it('removeImageNode drops its layers node', () => {
+      const s = useEditorStore.getState();
+      const id = s.addImageNode(['l-1']);
+      expect(useEditorStore.getState().layerNodes[`layers-${id}`]).toBeTruthy();
+      useEditorStore.getState().removeImageNode(id);
+      expect(useEditorStore.getState().layerNodes[`layers-${id}`]).toBeUndefined();
+    });
+
+    it('splitImageNode gives the peeled node its own layers node', () => {
+      const s = useEditorStore.getState();
+      const a = s.addImageNode(['L1', 'L2']);
+      const newId = useEditorStore.getState().splitImageNode(a, 'L1')!;
+      const lns = useEditorStore.getState().layerNodes;
+      expect(lns[`layers-${a}`]).toBeTruthy();
+      expect(lns[`layers-${newId}`]).toBeTruthy();
+      expect(lns[`layers-${newId}`].imageNodeId).toBe(newId);
+    });
+
+    it('mergeImageNodes removes only the merged-away node’s layers node', () => {
+      const s = useEditorStore.getState();
+      const a = s.addImageNode(['L1']);
+      const b = s.addImageNode(['L2']);
+      useEditorStore.getState().mergeImageNodes(b, a); // fold b into a
+      const lns = useEditorStore.getState().layerNodes;
+      expect(lns[`layers-${a}`]).toBeTruthy();
+      expect(lns[`layers-${b}`]).toBeUndefined();
+    });
+
+    it('ensureLayerNode back-fills a missing node and is idempotent', () => {
+      // Simulate a session restored before layers nodes existed.
+      useEditorStore.setState({
+        imageNodes: {
+          'in-9': { id: 'in-9', layerIds: ['l'], position: { x: 0, y: 0 }, sourceSize: { w: 10, h: 10 }, size: { w: 10, h: 10 } },
+        },
+        layerNodes: {},
+      } as never);
+      const s = useEditorStore.getState();
+      s.ensureLayerNode('in-9');
+      const first = useEditorStore.getState().layerNodes['layers-in-9'];
+      expect(first).toBeTruthy();
+      // Second call is a no-op — must not replace the (possibly moved) node.
+      useEditorStore.getState().setLayerNodePosition('layers-in-9', { x: 42, y: 7 });
+      useEditorStore.getState().ensureLayerNode('in-9');
+      expect(useEditorStore.getState().layerNodes['layers-in-9'].position).toEqual({ x: 42, y: 7 });
+    });
+
+    it('resetWorkspace clears layers nodes', () => {
+      const s = useEditorStore.getState();
+      s.addImageNode(['l-1']);
+      expect(Object.keys(useEditorStore.getState().layerNodes).length).toBe(1);
+      useEditorStore.getState().resetWorkspace();
+      expect(useEditorStore.getState().layerNodes).toEqual({});
+    });
+  });
 });

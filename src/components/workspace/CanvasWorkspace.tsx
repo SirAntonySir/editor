@@ -29,6 +29,8 @@ import {
 import type { Edge } from '@xyflow/react';
 import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
 import { InfoNode, type InfoNodeData } from './InfoNode';
+import { LayerNode, type LayerNodeData } from './LayerNode';
+import { layerNodeIdFor } from '@/store/workspace-slice';
 import type { Widget } from '@/types/widget';
 import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { rejoinSourceImage } from '@/lib/image-node-actions';
@@ -48,7 +50,7 @@ function ImageNodeWithBoundary(props: NodeProps) {
   );
 }
 
-const nodeTypes = { image: ImageNodeWithBoundary, widget: WidgetNode, info: InfoNode };
+const nodeTypes = { image: ImageNodeWithBoundary, widget: WidgetNode, info: InfoNode, layers: LayerNode };
 const edgeTypes = { tether: TetherEdge };
 
 /**
@@ -165,12 +167,15 @@ const EMPTY_WIDGETS: Widget[] = [];
 type ImageNodeType = Node<ImageNodeData, 'image'>;
 type WidgetNodeType = Node<WidgetNodeData, 'widget'>;
 type InfoNodeType  = Node<InfoNodeData, 'info'>;
-type WorkspaceNode = ImageNodeType | WidgetNodeType | InfoNodeType;
+type LayerNodeType = Node<LayerNodeData, 'layers'>;
+type WorkspaceNode = ImageNodeType | WidgetNodeType | InfoNodeType | LayerNodeType;
 
 export function CanvasWorkspace() {
   const imageNodes = useEditorStore((s) => s.imageNodes);
   const widgetNodes = useEditorStore((s) => s.widgetNodes);
   const infoNodes = useEditorStore((s) => s.infoNodes);
+  const layerNodes = useEditorStore((s) => s.layerNodes);
+  const ensureLayerNode = useEditorStore((s) => s.ensureLayerNode);
   const layers = useEditorStore((s) => s.layers);
   const documentMeta = useEditorStore((s) => s.documentMeta);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
@@ -189,6 +194,16 @@ export function CanvasWorkspace() {
   useEffect(() => {
     syncWidgetTethers(snapshotWidgets);
   }, [snapshotWidgets, imageNodes, syncWidgetTethers]);
+
+  // Back-fill a layers node for any image node missing one. Covers sessions
+  // restored before layers nodes existed, and the rehydrate path (which sets
+  // `imageNodes` directly rather than via addImageNode). New nodes created at
+  // runtime already get their layers node from the slice lifecycle ops.
+  useEffect(() => {
+    for (const id of Object.keys(imageNodes)) {
+      if (!layerNodes[layerNodeIdFor(id)]) ensureLayerNode(id);
+    }
+  }, [imageNodes, layerNodes, ensureLayerNode]);
 
   // Auto-create an ImageNode for the current document's layers on first mount
   // when no nodes exist yet. Ensures the workspace shows the open image immediately.
@@ -268,8 +283,20 @@ export function CanvasWorkspace() {
       dragHandle: '.workspace-drag-handle',
       data: { infoNodeId: n.id },
     }));
-    return [...imgs, ...widgets, ...infos];
-  }, [imageNodes, widgetNodes, snapshotWidgets, infoNodes, layers]);
+    // Layers nodes — one per image node (only render those whose image node
+    // still exists, so a mid-cascade store read can't emit an orphan).
+    const layerStrips: LayerNodeType[] = Object.values(layerNodes)
+      .filter((n) => imageNodes[n.imageNodeId])
+      .map((n) => ({
+        id: n.id,
+        type: 'layers',
+        position: n.position,
+        // The whole strip card is the drag handle; per-row buttons stopPropagation.
+        dragHandle: '.workspace-drag-handle',
+        data: { imageNodeId: n.imageNodeId },
+      }));
+    return [...imgs, ...widgets, ...infos, ...layerStrips];
+  }, [imageNodes, widgetNodes, snapshotWidgets, infoNodes, layerNodes, layers]);
 
   // Local RF state mirrors the store. React Flow needs to own positions during
   // drag (via onNodesChange) so the visual position follows the cursor without
@@ -330,6 +357,12 @@ export function CanvasWorkspace() {
         // to a sensible default that won't blow up the geometry math.
         w = n.measured?.width  ?? 280;
         h = n.measured?.height ?? 80;
+      } else if (n.type === 'layers') {
+        // Layers nodes size with layer count; prefer measured, fall back to
+        // the persisted size, then a sensible default.
+        const persisted = layerNodes[n.id]?.size;
+        w = n.measured?.width  ?? persisted?.w ?? 150;
+        h = n.measured?.height ?? persisted?.h ?? 80;
       } else {
         w = n.measured?.width  ?? (n.data as ImageNodeData).size.w;
         h = n.measured?.height ?? (n.data as ImageNodeData).size.h;
@@ -342,25 +375,30 @@ export function CanvasWorkspace() {
     // The target is the specific per-layer RAIL handle; pickTetherHandles picks
     // only the widget's OUTLET side (its target-handle result is discarded).
     for (const te of Object.values(tetherEdges)) {
+      // The per-layer tether ports now live on the standalone layers node, so
+      // the RENDERED edge targets that node — but the stored scope
+      // (`targetImageNodeId` + layerId) is unchanged, so backend resolution and
+      // syncWidgetTethers keep keying on the image node.
+      const layersNodeId = layerNodeIdFor(te.targetImageNodeId);
       const rfWidget = rfLookup.get(te.widgetNodeId);
-      const rfTarget = rfLookup.get(te.targetImageNodeId);
+      const rfTarget = rfLookup.get(layersNodeId);
       if (!rfWidget || !rfTarget) continue;
 
       const widgetCenter = {
         x: rfWidget.position.x + rfWidget.size.w / 2,
         y: rfWidget.position.y + rfWidget.size.h / 2,
       };
-      const imageBounds = {
+      const targetBounds = {
         x0: rfTarget.position.x,
         y0: rfTarget.position.y,
         x1: rfTarget.position.x + rfTarget.size.w,
         y1: rfTarget.position.y + rfTarget.size.h,
       };
-      const { sourceHandle } = pickTetherHandles(widgetCenter, imageBounds);
+      const { sourceHandle } = pickTetherHandles(widgetCenter, targetBounds);
       out.push({
         id: te.id,
         source: te.widgetNodeId,
-        target: te.targetImageNodeId,
+        target: layersNodeId,
         sourceHandle,
         targetHandle: `layer-tether-${te.layerId}`,
         // Only the target end reconnects — the source is always the widget.
@@ -368,6 +406,37 @@ export function CanvasWorkspace() {
         type: 'tether',
         data: { scopeKind: 'layer' as const, widgetId: te.widgetNodeId, layerId: te.layerId },
         selectable: true, // selectable so ⌫ can remove a single target
+      });
+    }
+
+    // ─── Layers-node → image-node attribution tethers ───────────────
+    // A calm, non-selectable connector grouping each layers node with its
+    // image node. Purely visual (scopeKind 'node') — no DAG semantics.
+    for (const ln of Object.values(layerNodes)) {
+      if (!imageNodes[ln.imageNodeId]) continue;
+      const rfLayers = rfLookup.get(ln.id);
+      const rfImage = rfLookup.get(ln.imageNodeId);
+      if (!rfLayers || !rfImage) continue;
+      const layersCenter = {
+        x: rfLayers.position.x + rfLayers.size.w / 2,
+        y: rfLayers.position.y + rfLayers.size.h / 2,
+      };
+      const imageBounds = {
+        x0: rfImage.position.x,
+        y0: rfImage.position.y,
+        x1: rfImage.position.x + rfImage.size.w,
+        y1: rfImage.position.y + rfImage.size.h,
+      };
+      const { sourceHandle, targetHandle } = pickTetherHandles(layersCenter, imageBounds);
+      out.push({
+        id: `layers-link-${ln.imageNodeId}`,
+        source: ln.id,
+        target: ln.imageNodeId,
+        sourceHandle,
+        targetHandle,
+        type: 'tether',
+        data: { scopeKind: 'node' },
+        selectable: false,
       });
     }
 
@@ -438,7 +507,7 @@ export function CanvasWorkspace() {
       });
     }
     return out;
-  }, [tetherEdges, imageNodes, infoNodes, nodes]);
+  }, [tetherEdges, imageNodes, infoNodes, layerNodes, nodes]);
 
   // Local RF edge state mirrors the derived edges. React Flow owns edge
   // `selected` state (needed so a click can select a tether and ⌫ can delete
@@ -471,6 +540,7 @@ export function CanvasWorkspace() {
       if (n.type === 'image') editorDocument.workspace.setNodePosition(n.id, n.position);
       else if (n.type === 'widget') editorDocument.workspace.setWidgetPosition(n.id, n.position);
       else if (n.type === 'info')   editorDocument.workspace.setInfoNodePosition(n.id, n.position);
+      else if (n.type === 'layers') editorDocument.workspace.setLayerNodePosition(n.id, n.position);
     }
   }, []);
 
@@ -588,7 +658,9 @@ export function CanvasWorkspace() {
     const layerId = parseLayerHandle(conn.targetHandle);
     const widgetId = conn.source;
     if (!layerId || !widgetId) return;
-    const imageNodeId = conn.target ?? imageNodeForLayer(useEditorStore.getState().imageNodes, layerId);
+    // `conn.target` is the layers node now, not the image node — resolve the
+    // owning image node from the (globally unique) layer id.
+    const imageNodeId = imageNodeForLayer(useEditorStore.getState().imageNodes, layerId);
     if (!imageNodeId) return;
     addWidgetTarget(widgetId, imageNodeId, layerId);
     const s = sid();
@@ -606,7 +678,8 @@ export function CanvasWorkspace() {
     const widgetId = data?.widgetId ?? oldEdge.source;
     const fromLayerId = data?.layerId;
     if (!newLayerId || !widgetId || !fromLayerId) return;
-    const imageNodeId = conn.target ?? imageNodeForLayer(useEditorStore.getState().imageNodes, newLayerId);
+    // `conn.target` is the layers node now — resolve the image node from the layer.
+    const imageNodeId = imageNodeForLayer(useEditorStore.getState().imageNodes, newLayerId);
     if (!imageNodeId) return;
     reconnectDone.current = true;
     retargetWidget(oldEdge.id, imageNodeId, newLayerId);

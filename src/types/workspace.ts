@@ -31,6 +31,26 @@ export interface ImageNodeState {
   sourceImageNodeId?: string;
 }
 
+/**
+ * Standalone "layers" node — one per image node. Renders the LayerStrip
+ * (thumbnails + per-layer widget tether ports) as a moveable React Flow node
+ * instead of a gutter baked into the image node. Content is fully derived from
+ * the owning image node's `layerIds`; this record persists only the node's
+ * canvas position (and last-measured size, used for tether-edge routing).
+ *
+ * Deterministic id `layers-<imageNodeId>` keeps it 1:1 with its image node, so
+ * lifecycle (create/remove/split/merge) cascades straight off image-node ops
+ * with no lookup and no separate id counter.
+ */
+export interface LayerNodeState {
+  id: string;
+  imageNodeId: string;
+  position: Point;
+  /** Last React-Flow-measured canvas size, persisted so the widget-tether and
+   *  attribution edges route to the node's real extent. Absent until measured. */
+  size?: Size;
+}
+
 export interface WidgetNodeState {
   id: string;
   position: Point;

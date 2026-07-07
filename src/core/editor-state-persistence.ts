@@ -26,6 +26,9 @@ export interface PersistedEditorState {
   widgetNodes: EditorState['widgetNodes'];
   tetherEdges: EditorState['tetherEdges'];
   infoNodes: EditorState['infoNodes'];
+  /** Standalone layers nodes (position per image node). Restored so a dragged
+   *  layers node survives reload; back-filled by CanvasWorkspace otherwise. */
+  layerNodes: EditorState['layerNodes'];
   activeImageNodeId: EditorState['activeImageNodeId'];
   /** Per-image-node mode (layers vs objects). Kept so the drafting
    *  surface remembers whether the user opted into objects mode. */
@@ -42,6 +45,7 @@ function snapshot(state: EditorState): PersistedEditorState {
     widgetNodes: state.widgetNodes,
     tetherEdges: state.tetherEdges,
     infoNodes: state.infoNodes,
+    layerNodes: state.layerNodes,
     activeImageNodeId: state.activeImageNodeId,
     imageNodeMode: state.imageNodeMode,
   };
@@ -57,6 +61,7 @@ function changed(a: PersistedEditorState, b: PersistedEditorState): boolean {
     a.widgetNodes !== b.widgetNodes ||
     a.tetherEdges !== b.tetherEdges ||
     a.infoNodes !== b.infoNodes ||
+    a.layerNodes !== b.layerNodes ||
     a.activeImageNodeId !== b.activeImageNodeId ||
     a.imageNodeMode !== b.imageNodeMode
   );

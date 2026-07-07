@@ -21,6 +21,7 @@ describe('PersistedEditorState shape', () => {
       | 'widgetNodes'
       | 'tetherEdges'
       | 'infoNodes'
+      | 'layerNodes'
       | 'activeImageNodeId'
       | 'imageNodeMode';
 

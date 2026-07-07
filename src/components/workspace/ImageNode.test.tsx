@@ -42,7 +42,7 @@ describe('ImageNode', () => {
     expect(screen.getByTestId('bottom-marginalia')).toHaveTextContent('Layers');
   });
 
-  it('shows the layer strip when layers exist', () => {
+  it('no longer renders the layer strip inside the image node (moved to LayerNode)', () => {
     useEditorStore.setState({
       layers: [
         { id: 'l-1', type: 'image', name: 'L1', visible: true, opacity: 1, blendMode: 'normal', locked: false, order: 0 },
@@ -51,8 +51,8 @@ describe('ImageNode', () => {
     } as never);
     const data = { layerIds: ['l-1', 'l-2'], size: baseData.size, sourceSize: baseData.sourceSize, name: 'Stacked' };
     renderInFlow(<ImageNode id="in-1" data={data} selected={false} />);
-    // LayerStrip renders when layer records exist (regardless of selection in drafting mode).
-    expect(screen.getByTestId('layer-strip')).toBeInTheDocument();
+    // The strip is now a standalone `layers` node — the image node must not host it.
+    expect(screen.queryByTestId('layer-strip')).not.toBeInTheDocument();
   });
 
   it('shows the image node menu button regardless of selection state', () => {

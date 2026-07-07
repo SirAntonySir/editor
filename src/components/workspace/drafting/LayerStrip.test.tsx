@@ -32,6 +32,13 @@ describe('LayerStrip — sheet selects active, eye toggles visibility', () => {
     expect(useEditorStore.getState().activeLayerId).toBe('L1');
   });
 
+  it('clicking a sheet also focuses the strip’s image node', () => {
+    useEditorStore.setState({ layers: SEED_LAYERS, activeLayerId: null, activeImageNodeId: null });
+    const { getAllByRole } = render(<LayerStrip imageNodeId="n1" layerIds={LAYER_IDS} />);
+    fireEvent.click(getAllByRole('button', { name: /select layer/i })[0]);
+    expect(useEditorStore.getState().activeImageNodeId).toBe('n1');
+  });
+
   it('clicking a sheet does not change visibility', () => {
     const { getAllByRole } = render(<LayerStrip imageNodeId="n1" layerIds={LAYER_IDS} />);
     fireEvent.click(getAllByRole('button', { name: /select layer/i })[0]);

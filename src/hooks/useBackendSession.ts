@@ -232,6 +232,8 @@ export function useBackendSession(): void {
               widgetNodes: persistedState.widgetNodes ?? {},
               tetherEdges: persistedState.tetherEdges ?? {},
               infoNodes: persistedState.infoNodes ?? {},
+              // Missing on pre-layers-node sessions; CanvasWorkspace back-fills.
+              layerNodes: persistedState.layerNodes ?? {},
               activeImageNodeId: persistedState.activeImageNodeId ?? null,
               imageNodeMode: persistedState.imageNodeMode ?? {},
             });

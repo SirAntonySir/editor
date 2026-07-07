@@ -116,6 +116,7 @@ function captureState(): SerializableState | null {
     widgetNodes: structuredClone(s.widgetNodes),
     tetherEdges: structuredClone(s.tetherEdges),
     infoNodes: structuredClone(s.infoNodes),
+    layerNodes: structuredClone(s.layerNodes),
     activeImageNodeId: s.activeImageNodeId,
   };
 }
@@ -131,6 +132,9 @@ function restoreState(snapshot: SerializableState): void {
     tetherEdges: snapshot.tetherEdges,
     // Tolerate older snapshots that pre-date the infoNodes field.
     infoNodes: snapshot.infoNodes ?? {},
+    // Tolerate older snapshots from before layers nodes existed — CanvasWorkspace
+    // back-fills any missing ones from the restored imageNodes.
+    layerNodes: snapshot.layerNodes ?? {},
     activeImageNodeId: snapshot.activeImageNodeId,
   });
   // `_nextNodeSeq` isn't part of the serialized history snapshot; re-derive it
@@ -680,6 +684,12 @@ const workspace = {
   setWidgetPosition(id: string, position: Point): void {
     recordSnapshot('Move widget', () =>
       useEditorStore.getState().setWidgetPosition(id, position),
+    );
+  },
+
+  setLayerNodePosition(id: string, position: Point): void {
+    recordSnapshot('Move layers node', () =>
+      useEditorStore.getState().setLayerNodePosition(id, position),
     );
   },
 

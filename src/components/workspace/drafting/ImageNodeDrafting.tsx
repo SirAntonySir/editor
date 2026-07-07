@@ -47,7 +47,6 @@ import { ImageNodeObjectsLayer } from '../ImageNodeObjectsLayer';
 import { CornerTicks } from './CornerTicks';
 import { TopMarginalia, type MenuPrimitives } from './TopMarginalia';
 import { BottomMarginalia } from './BottomMarginalia';
-import { LayerStrip } from './LayerStrip';
 import { ObjectMarkers } from './ObjectMarkers';
 
 interface ImageNodeDraftingProps {
@@ -181,12 +180,12 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   // Small / narrow images: keep the chrome from dwarfing the image.
   //  - Frame: a minimum body width so the title/footer never collapse; the
   //    image is centred within it (letterbox sides) when it's narrower.
-  //  - Gutters: the fixed side margins (LayerStrip left, object markers right)
+  //  - Gutters: the fixed side margins (left balance, object markers right)
   //    shrink with the frame so a small node isn't ringed by dead space.
   // Comfortably-wide images (frame ≥ GUTTER_FULL_AT) are unchanged.
   const MIN_BODY_W = 320;
   const GUTTER_FULL_AT = 480;
-  const MIN_LEFT_GUTTER = 96;   // LayerStrip needs ~80px
+  const MIN_LEFT_GUTTER = 96;   // balances the right-hand marker gutter
   const MIN_RIGHT_GUTTER = 56;  // object markers + leader line
   const frameW = Math.max(displayW, MIN_BODY_W);
   const letterbox = Math.round((frameW - displayW) / 2);
@@ -570,15 +569,10 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
         />
       </div>
 
-      {/* Body row */}
+      {/* Body row. The layers strip is no longer here — it lives on a
+          standalone `layers` node (see LayerNode); the left padding remains to
+          balance the right-hand object-marker gutter and keep the image centred. */}
       <div className="flex items-start gap-0">
-        <div
-          className="shrink-0 self-stretch"
-          style={{ width: `${leftGutter}px`, marginLeft: `-${leftGutter}px` }}
-        >
-          <LayerStrip imageNodeId={id} layerIds={data.layerIds} />
-        </div>
-
         {/* Frame column: a minimum width so the title/footer (which span this
             column) never collapse around a narrow image. The image body is
             centred within it — the side gaps are the letterbox. */}

@@ -3,6 +3,7 @@ import type {
   ImageNodeState,
   InfoNodeContent,
   InfoNodeState,
+  LayerNodeState,
   Point,
   Size,
   TetherEdgeState,
@@ -28,6 +29,26 @@ export const IMAGE_NODE_MIN_DISPLAY_WIDTH = UI.imageNodeDisplayWidthMin;
 export const IMAGE_NODE_MAX_DISPLAY_WIDTH = UI.imageNodeDisplayWidthMax;
 
 const SPLIT_GAP_PX = UI.splitGapPx;
+
+/** Approximate canvas width of the layers node, used only to seed its initial
+ *  position to the LEFT of the image node. Once measured / dragged, the real
+ *  size + user position take over. */
+const LAYER_NODE_WIDTH = 150;
+/** Gap between the layers node's right edge and the image node's left edge. */
+const LAYER_NODE_GAP = 28;
+
+/** Deterministic layers-node id for an image node (1:1). */
+export function layerNodeIdFor(imageNodeId: string): string {
+  return `layers-${imageNodeId}`;
+}
+
+/** Seed position: park the layers node just left of its image node, top-aligned. */
+function defaultLayerNodePosition(image: Pick<ImageNodeState, 'position'>): Point {
+  return {
+    x: image.position.x - LAYER_NODE_WIDTH - LAYER_NODE_GAP,
+    y: image.position.y,
+  };
+}
 
 function deriveDisplaySize(sourceSize: Size, displayWidth: number): Size {
   const aspect = sourceSize.h > 0 ? sourceSize.w / sourceSize.h : 1;
@@ -79,6 +100,9 @@ export interface WorkspaceSlice {
   tetherEdges: Record<string, TetherEdgeState>;
   /** Frontend-only info widgets pinned to the canvas (chips, stat cards). */
   infoNodes: Record<string, InfoNodeState>;
+  /** Standalone layers nodes — one per image node, keyed by `layers-<imageNodeId>`.
+   *  Created/removed by the image-node lifecycle ops below. */
+  layerNodes: Record<string, LayerNodeState>;
   workspaceViewport: WorkspaceViewport;
   activeImageNodeId: string | null;
   /**
@@ -164,6 +188,15 @@ export interface WorkspaceSlice {
    */
   resyncNodeSeq: () => void;
   setNodePosition: (id: string, position: Point) => void;
+  /** Move a layers node to a new canvas position (drag-stop persists here). */
+  setLayerNodePosition: (id: string, position: Point) => void;
+  /** Persist a layers node's React-Flow-measured size so its tether edges route
+   *  to the real extent. No-op if the node doesn't exist. */
+  setLayerNodeSize: (id: string, size: Size) => void;
+  /** Ensure a layers node exists for `imageNodeId` (idempotent). Used to
+   *  back-fill nodes for sessions restored before layers nodes existed and for
+   *  any path that sets `imageNodes` directly (rehydrate). */
+  ensureLayerNode: (imageNodeId: string) => void;
   /** Creates the entry if it does not yet exist. */
   setWidgetPosition: (id: string, position: Point) => void;
   /** Persist the widget's React-Flow-measured canvas size. No-op if the widget
@@ -234,6 +267,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
   widgetNodes: {},
   tetherEdges: {},
   infoNodes: {},
+  layerNodes: {},
   workspaceViewport: { zoom: 1, pan: { x: 0, y: 0 } },
   activeImageNodeId: null,
   previousImageNodeId: null,
@@ -255,6 +289,13 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
         sourceSize: src,
         size: deriveDisplaySize(src, DEFAULT_IMAGE_NODE_DISPLAY_WIDTH),
         ...(sourceImageNodeId ? { sourceImageNodeId } : {}),
+      };
+      // Spawn the paired layers node just left of the image node.
+      const lnId = layerNodeIdFor(id);
+      state.layerNodes[lnId] = {
+        id: lnId,
+        imageNodeId: id,
+        position: defaultLayerNodePosition(state.imageNodes[id]),
       };
     });
     return id;
@@ -299,6 +340,13 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
         size: { ...src.size },
         sourceSize: { ...src.sourceSize },
       };
+      // The peeled node gets its own layers node.
+      const newLnId = layerNodeIdFor(newId);
+      state.layerNodes[newLnId] = {
+        id: newLnId,
+        imageNodeId: newId,
+        position: defaultLayerNodePosition(state.imageNodes[newId]),
+      };
       // Migrate only edges that target the source AND are scoped to the peeled layer.
       for (const edge of Object.values(state.tetherEdges)) {
         if (edge.targetImageNodeId !== sourceId) continue;
@@ -322,6 +370,9 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
         if (edge.targetImageNodeId === sourceId) edge.targetImageNodeId = targetId;
       }
       delete state.imageNodes[sourceId];
+      // The merged-away node's layers node goes with it (target keeps its own,
+      // which now reflects the appended layerIds).
+      delete state.layerNodes[layerNodeIdFor(sourceId)];
       // Stale active/previous mirrors must not survive a node deletion.
       if (state.activeImageNodeId === sourceId) state.activeImageNodeId = targetId;
       if (state.previousImageNodeId === sourceId) state.previousImageNodeId = null;
@@ -332,6 +383,8 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
     set((state) => {
       if (!state.imageNodes[id]) return;
       delete state.imageNodes[id];
+      // Cascade: drop the paired layers node.
+      delete state.layerNodes[layerNodeIdFor(id)];
       // Cascade: remove tether edges pointing at this node.
       for (const edgeId of Object.keys(state.tetherEdges)) {
         if (state.tetherEdges[edgeId].targetImageNodeId === id) {
@@ -369,6 +422,31 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
     set((state) => {
       const n = state.imageNodes[id];
       if (n) n.position = position;
+    }),
+
+  setLayerNodePosition: (id, position) =>
+    set((state) => {
+      const n = state.layerNodes[id];
+      if (n) n.position = position;
+    }),
+
+  setLayerNodeSize: (id, size) =>
+    set((state) => {
+      const n = state.layerNodes[id];
+      if (n) n.size = { ...size };
+    }),
+
+  ensureLayerNode: (imageNodeId) =>
+    set((state) => {
+      const image = state.imageNodes[imageNodeId];
+      if (!image) return;
+      const lnId = layerNodeIdFor(imageNodeId);
+      if (state.layerNodes[lnId]) return;
+      state.layerNodes[lnId] = {
+        id: lnId,
+        imageNodeId,
+        position: defaultLayerNodePosition(image),
+      };
     }),
 
   setWidgetPosition: (id, position) =>
@@ -565,6 +643,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       state.widgetNodes = {};
       state.tetherEdges = {};
       state.infoNodes = {};
+      state.layerNodes = {};
       state.workspaceViewport = { zoom: 1, pan: { x: 0, y: 0 } };
       state.activeImageNodeId = null;
       state.previousImageNodeId = null;

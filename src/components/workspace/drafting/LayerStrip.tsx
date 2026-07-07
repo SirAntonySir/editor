@@ -46,7 +46,16 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
   const allLayers = useEditorStore((s) => s.layers);
   const updateLayer = useEditorStore((s) => s.updateLayer);
   const setActiveLayer = useEditorStore((s) => s.setActiveLayer);
+  const setActiveImageNode = useEditorStore((s) => s.setActiveImageNode);
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
+
+  // Selecting a layer from the standalone node also focuses its image node, so
+  // toolrail gating (which needs `activeImageNodeId`) lights up — this used to
+  // be implicit when the strip lived inside the active image node.
+  function selectLayer(layerId: string) {
+    setActiveImageNode(imageNodeId);
+    setActiveLayer(layerId);
+  }
 
   // Resolve ids → layer records, dropping any orphan id (defensive — should
   // not happen, but a missing layer would crash the map below).
@@ -58,13 +67,16 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
   if (layers.length === 0) return null;
 
   return (
-    // Right-align the card within the fixed left gutter, next to the image body.
-    <div data-testid="layer-strip" className="flex justify-end pr-3">
-      {/* Frosted card groups the layer rows. `.glass-overlay` (not flat) because
-          this chrome floats over the photo. No overflow-hidden: the per-layer
-          tether ports sit ON the card's left border (like the widget-shell
-          outlets) and the hover name labels float outside the box. */}
-      <div className="glass-overlay rounded-[var(--radius-panel)] px-2.5 py-2 flex flex-col-reverse items-stretch gap-1.5">
+    // Standalone node card. Flat `.overlay` register (the strip no longer floats
+    // over photo content, so the frosted-glass exception no longer applies). The
+    // whole card is the drag handle; per-row buttons stopPropagation on
+    // pointer-down so they stay clickable. No overflow-hidden: the per-layer
+    // tether ports sit ON the card's left border and the hover name labels
+    // float outside the box.
+    <div
+      data-testid="layer-strip"
+      className="workspace-drag-handle overlay rounded-[var(--radius-panel)] px-2.5 py-2 flex flex-col-reverse items-stretch gap-1.5"
+    >
         {layers.map((layer, i) => {
         const ordinal = (i + 1).toString().padStart(2, '0');
         const isVisible = layer.visible;
@@ -110,7 +122,7 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
                 {/* Sheet — selects the active EDIT layer. */}
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); setActiveLayer(layer.id); }}
+                  onClick={(e) => { e.stopPropagation(); selectLayer(layer.id); }}
                   onPointerDownCapture={(e) => e.stopPropagation()}
                   className="relative flex items-center gap-2 cursor-pointer outline-none"
                   data-active={isActive ? '' : undefined}
@@ -220,7 +232,6 @@ export function LayerStrip({ imageNodeId, layerIds }: LayerStripProps) {
           </ContextMenu.Root>
         );
       })}
-      </div>
     </div>
   );
 }

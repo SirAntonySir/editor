@@ -2,6 +2,7 @@ import type { Layer } from '@/store/layer-slice';
 import type {
   ImageNodeState,
   InfoNodeState,
+  LayerNodeState,
   TetherEdgeState,
   WidgetNodeState,
 } from '@/types/workspace';
@@ -55,6 +56,9 @@ export interface SerializableState {
    *  snapshots, etc.). Captured here so undo/redo rolls them. Don't touch
    *  pixels; never round-trip through the backend operation_graph. */
   infoNodes: Record<string, InfoNodeState>;
+  /** Standalone layers nodes (position per image node). Captured so undo/redo
+   *  rolls a moved/created/removed layers node with its image-node op. */
+  layerNodes: Record<string, LayerNodeState>;
   activeImageNodeId: string | null;
 }
 

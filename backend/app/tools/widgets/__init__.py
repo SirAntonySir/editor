@@ -4,6 +4,7 @@ from app.tools.registry import BackendToolRegistry
 
 from .accept_widget import AcceptWidgetTool
 from .delete_widget import DeleteWidgetTool
+from .duplicate_layer_edits import DuplicateLayerEditsTool
 from .genfill import GenfillCreateTool, GenfillRegenerateTool
 from .propose_stack import ProposeStackTool
 from .refine_widget import RefineWidgetTool
@@ -25,6 +26,7 @@ def register_all_widget_tools(registry: BackendToolRegistry) -> None:
     registry.register(SetWidgetParamTool())
     registry.register(UnlockWidgetParamTool())
     registry.register(UpdateWidgetTargetsTool())
+    registry.register(DuplicateLayerEditsTool())
     registry.register(SetParamTool())
     # Genfill tools are constructed WITH deps: they schedule background
     # generation that outlives the handler and must re-acquire the session

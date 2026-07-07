@@ -311,6 +311,83 @@ class SessionDocument(BaseModel):
         w.revision += 1
         return self.update_widget(w)
 
+    def duplicate_layer_edits(
+        self, mapping: list[dict[str, str]],
+    ) -> list[StateEvent]:
+        """Clone the pixel-affecting state — canonical adjustments + active
+        widgets — from each source layer onto its paired target layer. Backs the
+        deep image-node / group Duplicate: the frontend has already created the
+        target layers + node; this carries the live edits across.
+
+        INDEPENDENT clone: the target layer gets its OWN copied canonical and its
+        OWN cloned widgets (fresh ids), so editing the duplicate never touches
+        the original. Canonical is copied wholesale (it also carries accepted /
+        baked edits that no active widget represents); active widgets are cloned
+        so the duplicate stays editable.
+        """
+        events: list[StateEvent] = []
+        dup = 0
+        for pair in mapping:
+            from_id = pair["from_layer_id"]
+            to_id = pair["to_layer_id"]
+
+            # 1. Canonical — copy every (op, param) baked on the source layer.
+            src_canon = self.canonical.get(from_id)
+            if src_canon:
+                self.canonical[to_id] = _deep_copy(src_canon)
+
+            # 2. Widgets — clone each ACTIVE widget that targets the source layer.
+            for wid in list(self.widget_order):
+                w = self.widgets.get(wid)
+                if w is None or w.status != "active":
+                    continue
+                targets_src = any(
+                    from_id in (n.layer_ids if n.layer_ids is not None else [n.layer_id])
+                    for n in w.nodes
+                )
+                if not targets_src:
+                    continue
+
+                dup += 1
+                clone = w.model_copy(deep=True)
+                new_wid = f"{w.id}-copy-{dup}"
+                clone.id = new_wid
+                clone.status = "active"
+
+                node_id_map: dict[str, str] = {}
+                for n in clone.nodes:
+                    new_nid = f"{n.id}-copy-{dup}"
+                    node_id_map[n.id] = new_nid
+                    n.id = new_nid
+                    n.widget_id = new_wid
+                    # Retarget the nodes that pointed at the source layer to the
+                    # NEW layer only (single, independent target).
+                    node_targets = n.layer_ids if n.layer_ids is not None else [n.layer_id]
+                    if from_id in node_targets:
+                        n.layer_id = to_id
+                        n.layer_ids = None
+                # Remap binding node-id references onto the cloned node ids.
+                for b in clone.bindings:
+                    if b.target.node_id in node_id_map:
+                        b.target.node_id = node_id_map[b.target.node_id]
+
+                self.widgets[new_wid] = clone
+                self.widget_order.append(new_wid)
+                self._seed_canonical_from_widget(clone)
+                events.append(self._emit("widget.created", {
+                    "widget": clone.model_dump(mode="json", by_alias=True),
+                    "operationGraph": self._op_graph_payload(),
+                }))
+
+        # Even when no widget was cloned (e.g. only accepted/baked edits), emit
+        # one event so the frontend picks up the copied canonical for the new
+        # layers.
+        if not events:
+            events.append(self._emit("history.applied", {
+                "operationGraph": self._op_graph_payload(),
+            }))
+        return events
+
     def dismiss_widget(self, widget_id: str, rule: DismissalRule | None = None) -> list[StateEvent]:
         if widget_id not in self.widgets:
             raise KeyError(widget_id)

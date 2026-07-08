@@ -7,8 +7,9 @@ import { activeCanvasBus } from '@/lib/active-canvas-bus';
 type DrawSource = CanvasImageSource & { width: number; height: number };
 
 /**
- * Thumbnail of one layer, cover-cropped into a box. The active (edit-target)
- * layer gets an inset accent ring; others a hairline ring.
+ * Thumbnail of one layer, contain-fit into a fixed box (whole image shown,
+ * letterboxed, never cropped). The active (edit-target) layer gets an inset
+ * accent ring; others a hairline ring.
  *
  * For a single-layer node the node composite IS this layer, so when
  * `imageNodeId` is given it LIVE-updates from that node's composite canvas
@@ -44,7 +45,9 @@ export function LayerThumb({
     imageNodeId ? (s.imageNodes[imageNodeId]?.layerIds.length ?? 1) <= 1 : false,
   );
 
-  // Cover-crop any source canvas/bitmap into the thumb canvas.
+  // Contain-fit any source canvas/bitmap into the thumb canvas: the whole image
+  // is scaled to fit inside the fixed box and centered, so portrait ("hochkant")
+  // layers are letterboxed rather than cropped.
   const draw = useCallback((src: DrawSource) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -52,11 +55,11 @@ export function LayerThumb({
     if (!ctx || !src.width || !src.height) return;
     const ow = canvas.width;
     const oh = canvas.height;
-    const scale = Math.max(ow / src.width, oh / src.height);
-    const cropW = ow / scale;
-    const cropH = oh / scale;
+    const scale = Math.min(ow / src.width, oh / src.height);
+    const dw = src.width * scale;
+    const dh = src.height * scale;
     ctx.clearRect(0, 0, ow, oh);
-    ctx.drawImage(src, (src.width - cropW) / 2, (src.height - cropH) / 2, cropW, cropH, 0, 0, ow, oh);
+    ctx.drawImage(src, 0, 0, src.width, src.height, (ow - dw) / 2, (oh - dh) / 2, dw, dh);
     setDrawn(true);
   }, []);
 

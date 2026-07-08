@@ -37,6 +37,7 @@ import type { Widget } from '@/types/widget';
 import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { rejoinSourceImage } from '@/lib/image-node-actions';
 import { rejoinTargetByCenter, nodeHasUnappliedChanges } from '@/lib/workspace-drag';
+import { useAiAccess } from '@/lib/ai-access';
 import { toast } from '@/components/ui/Toast';
 
 /** Per-node ErrorBoundary so a render throw in one ImageNode doesn't
@@ -203,6 +204,9 @@ export function CanvasWorkspace() {
   const documentMeta = useEditorStore((s) => s.documentMeta);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   const snapshotWidgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
+  // Study condition: the layers node is a working-with-widgets affordance,
+  // withheld from the baseline (aiAccess=false) alongside the other AI surfaces.
+  const aiAccess = useAiAccess();
   const tetherEdges = useEditorStore((s) => s.tetherEdges);
   const setActiveImageNode = useEditorStore((s) => s.setActiveImageNode);
   const addImageNode = useEditorStore((s) => s.addImageNode);
@@ -306,13 +310,15 @@ export function CanvasWorkspace() {
       dragHandle: '.workspace-drag-handle',
       data: { infoNodeId: n.id },
     }));
-    // Layers nodes — one per image node, but only SHOWN when the node has more
-    // than one layer. A single-layer node's strip is redundant (the sole layer
-    // is the image itself), so it's hidden; its widget tethers fall back to the
-    // image node (see derivedEdges). The store entry survives either way, so the
-    // strip re-appears the moment a second layer is added.
+    // Layers nodes — one per image node, SHOWN only when the node has more than
+    // one layer AND the AI widget layer is enabled. A single-layer node's strip
+    // is redundant (the sole layer is the image itself); and in the baseline
+    // study condition (aiAccess=false) the layers node is withheld like the
+    // other working-with-widgets affordances, so layer control there runs
+    // through the inspector's Layer tab. The store entry survives either way, so
+    // the strip re-appears once a second layer is added or AI is enabled.
     const layerStrips: LayerNodeType[] = Object.values(layerNodes)
-      .filter((n) => (imageNodes[n.imageNodeId]?.layerIds.length ?? 0) > 1)
+      .filter((n) => aiAccess && (imageNodes[n.imageNodeId]?.layerIds.length ?? 0) > 1)
       .map((n) => ({
         id: n.id,
         type: 'layers',
@@ -322,7 +328,7 @@ export function CanvasWorkspace() {
         data: { imageNodeId: n.imageNodeId },
       }));
     return [...imgs, ...widgets, ...infos, ...layerStrips];
-  }, [imageNodes, widgetNodes, snapshotWidgets, infoNodes, layerNodes, layers]);
+  }, [imageNodes, widgetNodes, snapshotWidgets, infoNodes, layerNodes, layers, aiAccess]);
 
   // Local RF state mirrors the store. React Flow needs to own positions during
   // drag (via onNodesChange) so the visual position follows the cursor without

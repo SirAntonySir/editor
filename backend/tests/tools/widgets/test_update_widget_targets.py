@@ -63,3 +63,38 @@ async def test_retarget_swaps_layer_and_moves_canonical():
     assert doc.widgets["w1"].nodes[0].layer_ids == ["L2"]
     assert "basic" not in doc.canonical.get("L1", {})
     assert doc.canonical["L2"]["basic"]["exposure"] == 0.4
+
+
+# ---- singular layer_id anchor follows the target set --------------------
+# The frontend derives optimistic canon keys, per-op panels, and (pre-helper)
+# dim state from the SINGULAR node.layer_id. If a connection change leaves it
+# frozen at the spawn-time layer, a moved widget keeps acting on the OLD image
+# (live drags preview on the old node; panels read the old layer's params).
+
+
+@pytest.mark.asyncio
+async def test_retarget_repoints_singular_layer_id():
+    doc = _doc()
+    await _run(doc, {"widgetId": "w1", "op": "retarget",
+                     "layerId": "L2", "fromLayerId": "L1"})
+    assert doc.widgets["w1"].nodes[0].layer_id == "L2"
+
+
+@pytest.mark.asyncio
+async def test_remove_then_add_repoints_singular_layer_id():
+    # The delete-edge → connect-to-other-node flow on the canvas.
+    doc = _doc()
+    await _run(doc, {"widgetId": "w1", "op": "remove", "layerId": "L1"})
+    await _run(doc, {"widgetId": "w1", "op": "add", "layerId": "L2"})
+    assert doc.widgets["w1"].nodes[0].layer_ids == ["L2"]
+    assert doc.widgets["w1"].nodes[0].layer_id == "L2"
+    assert "basic" not in doc.canonical.get("L1", {})
+    assert doc.canonical["L2"]["basic"]["exposure"] == 0.4
+
+
+@pytest.mark.asyncio
+async def test_add_keeps_anchor_when_original_target_remains():
+    # Pure fan-out: L1 is still targeted, so the anchor must not move.
+    doc = _doc()
+    await _run(doc, {"widgetId": "w1", "op": "add", "layerId": "L2"})
+    assert doc.widgets["w1"].nodes[0].layer_id == "L1"

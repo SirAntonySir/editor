@@ -4,6 +4,7 @@ import { WidgetShell } from '@/components/widget/WidgetShell';
 import { useChromeVisible } from '@/hooks/useChromeVisible';
 import { useEditorStore } from '@/store';
 import { nextWidgetScale } from '@/lib/workspace-drag';
+import { widgetTargetLayerIds } from '@/lib/widget-targets';
 import type { Widget } from '@/types/widget';
 import { MarkerDot } from './MarkerDot';
 
@@ -22,14 +23,16 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
   // User uniform scale (bottom-right corner resize). 1 = natural size.
   const scale = useEditorStore((s) => s.widgetNodes[id]?.scale ?? 1);
 
-  // Dim widgets whose target layer isn't the selected one, so the canvas
-  // foregrounds the widgets that act on the layer you're editing. A widget's
-  // target is its ops' `layerId` (the same value the Pin path sets). Hover
-  // restores full opacity so a dimmed widget stays readable/usable. Never dim
-  // when nothing is selected, or for a node-scope widget with no layerId.
+  // Dim widgets whose target layers don't include the selected one, so the
+  // canvas foregrounds the widgets that act on the layer you're editing. A
+  // widget's targets are its ops' replicate set (`layerIds ?? [layerId]`) —
+  // connect/retarget write the plural set, so reading only the frozen singular
+  // `layerId` left later-tethered widgets stuck dimmed. Hover restores full
+  // opacity so a dimmed widget stays readable/usable. Never dim when nothing is
+  // selected, or for a node-scope widget with no target layers.
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
-  const widgetLayerId = data.widget.nodes.find((n) => n.layerId)?.layerId ?? null;
-  const dimmed = activeLayerId != null && widgetLayerId != null && widgetLayerId !== activeLayerId;
+  const targetLayerIds = widgetTargetLayerIds(data.widget);
+  const dimmed = activeLayerId != null && targetLayerIds.length > 0 && !targetLayerIds.includes(activeLayerId);
   const dimClass = dimmed ? 'opacity-40 hover:opacity-100 transition-opacity' : '';
 
   // Measure the WidgetShell's natural (UNSCALED) CSS box so the outer footprint

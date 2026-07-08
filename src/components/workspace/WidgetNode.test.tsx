@@ -3,8 +3,15 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { WidgetNode } from './WidgetNode';
 import { makeAiWidget } from '@/components/widget/__fixtures__/widgets';
+import { useEditorStore } from '@/store';
+import type { WidgetNode as WNode } from '@/types/widget';
 
 afterEach(cleanup);
+
+const nodeTargeting = (layerId: string, layerIds?: string[]): WNode => ({
+  id: 'n1', type: 'basic', scope: { kind: 'global' }, inputs: [],
+  widgetId: 'w-conn', params: {}, layerId, ...(layerIds ? { layerIds } : {}),
+});
 
 const chromeVisibleMock = vi.fn(() => true);
 vi.mock('@/hooks/useChromeVisible', () => ({
@@ -68,6 +75,36 @@ describe('WidgetNode tether handle anchoring', () => {
       expect(el!.style.left, `${side} has no inline left`).toBe('');
       expect(el!.style.transform, `${side} has no inline transform`).toBe('');
     }
+  });
+});
+
+describe('WidgetNode dimming follows the widget real target set', () => {
+  afterEach(() => {
+    useEditorStore.setState({ activeLayerId: null } as unknown as Parameters<typeof useEditorStore.setState>[0]);
+  });
+
+  it('does NOT dim a widget the user tethered later (target in layerIds, stale singular layerId)', () => {
+    // The reported bug: a connected widget whose real target ('L-new') lives in
+    // layerIds while the frozen singular layerId is the "legacy" sentinel.
+    useEditorStore.setState({ activeLayerId: 'L-new' } as unknown as Parameters<typeof useEditorStore.setState>[0]);
+    const widget = makeAiWidget({ nodes: [nodeTargeting('legacy', ['legacy', 'L-new'])] });
+    const { container } = render(
+      <ReactFlowProvider>
+        <WidgetNode id="w-conn" data={{ widget }} selected={false} />
+      </ReactFlowProvider>,
+    );
+    expect(container.querySelector('.opacity-40')).toBeNull();
+  });
+
+  it('dims a widget when the active layer is none of its targets', () => {
+    useEditorStore.setState({ activeLayerId: 'L-other' } as unknown as Parameters<typeof useEditorStore.setState>[0]);
+    const widget = makeAiWidget({ nodes: [nodeTargeting('legacy', ['legacy', 'L-new'])] });
+    const { container } = render(
+      <ReactFlowProvider>
+        <WidgetNode id="w-conn" data={{ widget }} selected={false} />
+      </ReactFlowProvider>,
+    );
+    expect(container.querySelector('.opacity-40')).not.toBeNull();
   });
 });
 

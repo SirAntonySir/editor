@@ -306,6 +306,15 @@ class SessionDocument(BaseModel):
             else:
                 raise ValueError(f"unknown op {op!r}")
             node.layer_ids = current
+            # Keep the singular layer_id anchored inside the target set. The
+            # frontend derives optimistic canon keys, per-op panels, and node
+            # previews from this SINGULAR field; if a connection change leaves
+            # it frozen at the spawn-time layer, a moved widget keeps acting on
+            # the OLD image. Only repoint when the anchor fell out of the set —
+            # a pure fan-out `add` keeps its original anchor. An emptied set
+            # (unbound widget) keeps the stale anchor until the next `add`.
+            if current and node.layer_id not in current:
+                node.layer_id = current[0]
         # Seed canonical for the NEW target layers.
         self._seed_canonical_from_widget(w)
         w.revision += 1

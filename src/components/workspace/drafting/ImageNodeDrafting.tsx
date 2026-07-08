@@ -41,6 +41,7 @@ import {
 } from '@/lib/segmentation/object-actions';
 import { exportImageNode, redrawExtractedNode, rejoinSourceImage } from '@/lib/image-node-actions';
 import { duplicateImageNode } from '@/lib/duplicate-image-node';
+import { widgetTargetLayerIds } from '@/lib/widget-targets';
 import { computeEffectiveSize, type Crop } from '@/lib/image-node-geometry';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { ImageNodeBody } from '../ImageNodeBody';
@@ -231,7 +232,9 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
         (w) =>
           w.status === 'active' &&
           !pendingSuggestionIds.has(w.id) &&
-          w.nodes.some((n) => n.layerId != null && data.layerIds.includes(n.layerId)),
+          // Match on the widget's real target set (`layerIds ?? [layerId]`), so a
+          // widget the user tethered after spawn is recognised as this node's.
+          widgetTargetLayerIds(w).some((lid) => data.layerIds.includes(lid)),
       ),
     [snapshotWidgets, pendingSuggestionIds, data.layerIds],
   );

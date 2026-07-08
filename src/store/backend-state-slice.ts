@@ -146,6 +146,14 @@ interface BackendState {
    *  every still-pending phase done and flips the completion flag. No-op once
    *  the run was cancelled. */
   markAnalyzeComplete: () => void;
+  /** SSE-liveness probe. Every tool response carries the backend document
+   *  revision (`ToolResponseEnvelope.revision`); call this with it. When the
+   *  backend is ahead of the local snapshot and no SSE event closes the gap
+   *  within a short grace window, the stream has silently died (half-open
+   *  TCP, dev-server reload race, EventSource permanent failure) — the store
+   *  resyncs itself via a full snapshot refetch. Coalesced: one pending
+   *  check at a time. */
+  probeLiveness: (backendRevision: number) => void;
   reset: () => void;
 }
 
@@ -154,6 +162,12 @@ interface BackendState {
 // minted DURING the initial analyze, before the post-analyze snapshot fetch),
 // or after a state.gap. One in-flight fetch reads the latest backend state for
 // all of them, so we skip overlapping fetches and resync once.
+// Single pending liveness check (see BackendState.probeLiveness). Re-arming
+// while one is pending keeps the EARLIEST deadline — a burst of tool calls
+// should produce one resync, not a rolling delay that never fires.
+let _livenessTimer: ReturnType<typeof setTimeout> | null = null;
+const LIVENESS_GRACE_MS = 2000;
+
 let _snapshotRefetchInFlight = false;
 async function refetchSnapshot(sid: string): Promise<void> {
   if (_snapshotRefetchInFlight) return;
@@ -367,6 +381,12 @@ export const useBackendState = create<BackendState>()(
         switch (ev.kind) {
           case 'widget.created': {
             const w = payload.widget as Widget;
+            // Idempotent by widget id — the same widget.created can reach here
+            // more than once (SSE replay, or a refetch-then-push race). A
+            // duplicate entry is a permanent zombie: widget.deleted/updated
+            // patch the FIRST entry (findIndex) while the stale second keeps
+            // rendering as active. Same hardening mask.created has below.
+            if (s.snapshot.widgets.some((x) => x.id === w.id)) break;
             s.snapshot.widgets.push(w);
             // Bridge into the FE-only suggestions UI slice for autonomous
             // suggestions — deferred to a side-effect so the cross-store
@@ -542,7 +562,32 @@ export const useBackendState = create<BackendState>()(
       }),
 
     setSseStatus: (status) => set((s) => { s.sseStatus = status; }),
-    setSnapshot: (snapshot) => set((s) => { s.snapshot = snapshot; }),
+    probeLiveness: (backendRevision) => {
+      const st = useBackendState.getState();
+      if (!st.snapshot || !st.sessionId) return;
+      if (backendRevision <= st.snapshot.revision) return; // in sync
+      if (_livenessTimer !== null) return; // check already pending
+      const sid = st.sessionId;
+      _livenessTimer = setTimeout(() => {
+        _livenessTimer = null;
+        const cur = useBackendState.getState();
+        // Session changed or SSE delivered in the meantime → healthy, no-op.
+        if (cur.sessionId !== sid || !cur.snapshot) return;
+        if (cur.snapshot.revision >= backendRevision) return;
+        void refetchSnapshot(sid);
+      }, LIVENESS_GRACE_MS);
+    },
+
+    setSnapshot: (snapshot) =>
+      set((s) => {
+        // Floor guard: never replace with an OLDER snapshot. A refetch that
+        // started before newer SSE events landed would otherwise regress the
+        // store — wiping widgets those events created and lowering the
+        // revision gate below already-consumed events (which are never
+        // redelivered, so the loss would be permanent).
+        if (s.snapshot && snapshot.revision < s.snapshot.revision) return;
+        s.snapshot = snapshot;
+      }),
     pushMaskDeleted: (maskId) => {
       set((s) => {
         if (s.snapshot) {

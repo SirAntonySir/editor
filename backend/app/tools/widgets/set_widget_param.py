@@ -23,6 +23,15 @@ class _OrphanBinding(KeyError):
     pass
 
 
+class _WidgetDismissed(ValueError):
+    """The widget is closed (dismissed) — a param edit on it means the
+    caller's view of the session has diverged (e.g. a stale frontend
+    snapshot after a broken SSE stream, still rendering the widget).
+    Silently accepting the write would bump node params + canonical on a
+    ghost; failing loudly lets the client surface the error and resync."""
+    pass
+
+
 class _Input(BaseModel):
     model_config = camel_config(extra="forbid")
     widget_id: str
@@ -73,6 +82,10 @@ class SetWidgetParamTool(BackendTool[_Input, _Output]):
         w = doc.widgets.get(input.widget_id)
         if w is None:
             raise _UnknownWidget(input.widget_id)
+        if w.status == "dismissed":
+            raise _WidgetDismissed(
+                f"widget {input.widget_id!r} is dismissed — cannot edit its params"
+            )
         binding = next((b for b in w.bindings if b.param_key == input.param_key), None)
         if binding is None:
             raise _UnknownBinding(input.param_key)

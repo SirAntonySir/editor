@@ -81,6 +81,9 @@ export interface ToolEnvelope<T> {
     retryable?: boolean;
     recovery_hint?: string;
   };
+  /** Backend document revision at response time. Fed to
+   *  useBackendState.probeLiveness as an SSE-liveness probe. */
+  revision?: number | null;
 }
 
 async function invokeTool<T>(
@@ -109,7 +112,19 @@ async function invokeTool<T>(
   if (!response.ok) {
     throw new Error(`/api/tools/${name} → ${response.status} ${await response.text()}`);
   }
-  return (await response.json()) as ToolEnvelope<T>;
+  const envelope = (await response.json()) as ToolEnvelope<T>;
+  // SSE-liveness probe: the envelope carries the backend document revision.
+  // If it's ahead of the local snapshot and no SSE event closes the gap
+  // within the grace window, the stream has silently died — the store
+  // refetches the snapshot (zombie-widget failure mode). Dynamic import:
+  // the store imports this module, so a static import would be a cycle.
+  if (typeof envelope.revision === 'number') {
+    const rev = envelope.revision;
+    void import('@/store/backend-state-slice')
+      .then((m) => m.useBackendState.getState().probeLiveness(rev))
+      .catch(() => {});
+  }
+  return envelope;
 }
 
 async function historyAction(

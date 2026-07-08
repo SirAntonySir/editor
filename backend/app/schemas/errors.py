@@ -10,7 +10,7 @@ ErrorCode = Literal[
     "missing_session", "missing_image", "missing_context",
     "invalid_input", "unknown_tool", "unknown_widget",
     "unknown_region", "unknown_mask", "orphan_binding",
-    "scope_unresolvable", "sam_failed",
+    "scope_unresolvable", "sam_failed", "widget_dismissed",
     "llm_validation_failed", "llm_envelope_violation",
     "fused_tool_not_found", "skin_safety_violation",
     "transport_error", "internal_error",
@@ -31,6 +31,11 @@ class ToolResponseEnvelope(BaseModel):
     ok: bool
     output: dict | None = None
     error: ToolError | None = None
+    # Document revision at response time. The frontend compares it against its
+    # snapshot revision as an SSE-liveness probe: if the envelope is ahead and
+    # no event closes the gap shortly after, the stream has silently died and
+    # the client refetches the snapshot (zombie-widget failure mode).
+    revision: int | None = None
 
     @model_validator(mode="after")
     def _check_envelope(self) -> "ToolResponseEnvelope":

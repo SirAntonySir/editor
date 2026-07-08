@@ -75,6 +75,11 @@ def _classify_exception(exc: Exception) -> ToolResponseEnvelope | None:
             code = "fused_tool_not_found"
         return _err(code, str(exc), retryable=False)
     cls_name = exc.__class__.__name__
+    if cls_name == "_WidgetDismissed":
+        return _err(
+            "widget_dismissed", str(exc), retryable=False,
+            recovery_hint="the widget was already closed — refetch the snapshot to resync",
+        )
     if cls_name == "_SamFailed":
         return _err("sam_failed", str(exc), retryable=False)
     if cls_name == "_InvalidInput":
@@ -235,7 +240,13 @@ class BackendToolRegistry:
                     return classified
                 return _err("internal_error", repr(exc), retryable=False)
 
-        return ToolResponseEnvelope(ok=True, output=output.model_dump(mode="json", by_alias=True))
+        # Stamp the post-call document revision so the frontend can use any
+        # tool response as an SSE-liveness probe (see ToolResponseEnvelope).
+        return ToolResponseEnvelope(
+            ok=True,
+            output=output.model_dump(mode="json", by_alias=True),
+            revision=doc.revision,
+        )
 
     # ---------------- internals ----------------
 

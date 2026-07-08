@@ -102,6 +102,24 @@ async def test_invoke_happy_path_returns_output() -> None:
     assert env.output == {"pong": True}
 
 
+@pytest.mark.asyncio
+async def test_invoke_envelope_carries_doc_revision() -> None:
+    """The envelope reports the document revision at response time. The
+    frontend uses it as a liveness probe: if the envelope's revision is ahead
+    of the frontend snapshot and no SSE event closes the gap shortly after,
+    the SSE stream has silently died and the client must refetch (the
+    zombie-widget failure mode — session 87f7dd2e forensics)."""
+    store = SessionStore(ttl_seconds=60)
+    sid = store.create(image_bytes=b"x", mime_type="image/jpeg")
+    reg = _make_registry(store)
+    reg.register(_PingTool())
+    doc = store.get_document(sid)
+    doc.revision = 41
+    env = await reg.invoke("ping", session_id=sid, raw_input={})
+    assert env.ok is True
+    assert env.revision == 41
+
+
 def test_list_for_filters_by_transport() -> None:
     class _RestOnlyTool(_PingTool):
         name = "rest_only"

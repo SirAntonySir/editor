@@ -79,6 +79,85 @@ describe('BackendStateSlice', () => {
     expect(snap.revision).toBe(2);
   });
 
+  it('applyEvent widget.created is idempotent — a repeated widget id is not added twice', () => {
+    // A duplicate entry is a permanent zombie: widget.deleted/updated patch
+    // the FIRST entry (findIndex), while the stale second keeps rendering as
+    // active — deny looks dead, edits snap back. Same hardening mask.created
+    // already has.
+    useBackendState.setState({ snapshot: baseSnapshot() });
+    const created = (revision: number): StateEvent => ({
+      revision,
+      kind: 'widget.created',
+      payload: { widget: makeWidget('w_dup') },
+      emitted_at: '2026-05-23T00:00:01Z',
+    });
+    useBackendState.getState().applyEvent(created(2));
+    useBackendState.getState().applyEvent(created(3));
+    const widgets = useBackendState.getState().snapshot!.widgets;
+    expect(widgets.filter((w) => w.id === 'w_dup')).toHaveLength(1);
+  });
+
+  it('setSnapshot ignores a snapshot older than the current one (stale refetch)', () => {
+    // A refetch that started before newer SSE events landed must not regress
+    // the store: replacing with the older body would wipe widgets those
+    // events created AND lower the revision gate below already-consumed
+    // events — they are never redelivered, so the loss would be permanent.
+    useBackendState.setState({ snapshot: { ...baseSnapshot(), revision: 10 } });
+    useBackendState.getState().setSnapshot({ ...baseSnapshot(), revision: 5, widgets: [] });
+    expect(useBackendState.getState().snapshot!.revision).toBe(10);
+    expect(useBackendState.getState().snapshot!.widgets).toHaveLength(1);
+    // Equal or newer replaces as before.
+    useBackendState.getState().setSnapshot({ ...baseSnapshot(), revision: 12, widgets: [] });
+    expect(useBackendState.getState().snapshot!.revision).toBe(12);
+  });
+
+  it('probeLiveness refetches when the backend is ahead and SSE never catches up', async () => {
+    // The zombie-widget failure mode: REST works but the SSE stream silently
+    // died, so the frontend snapshot froze. Every tool response carries the
+    // backend revision; when it's ahead and no event closes the gap within
+    // the grace window, the store must resync itself.
+    vi.useFakeTimers();
+    const { fetchSnapshot } = await import('@/lib/sse-subscriber');
+    vi.mocked(fetchSnapshot).mockClear();
+    useBackendState.setState({ snapshot: { ...baseSnapshot(), revision: 3 }, sessionId: 's1' });
+
+    useBackendState.getState().probeLiveness(7);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(vi.mocked(fetchSnapshot)).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it('probeLiveness does nothing when SSE catches up within the grace window', async () => {
+    vi.useFakeTimers();
+    const { fetchSnapshot } = await import('@/lib/sse-subscriber');
+    vi.mocked(fetchSnapshot).mockClear();
+    useBackendState.setState({ snapshot: { ...baseSnapshot(), revision: 3 }, sessionId: 's1' });
+
+    useBackendState.getState().probeLiveness(7);
+    // A live SSE event closes the gap before the check fires.
+    useBackendState.getState().applyEvent({
+      revision: 7,
+      kind: 'widget.created',
+      payload: { widget: makeWidget('w_live') },
+      emitted_at: '2026-05-23T00:00:01Z',
+    });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(vi.mocked(fetchSnapshot)).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it('probeLiveness ignores revisions that are not ahead of the snapshot', async () => {
+    vi.useFakeTimers();
+    const { fetchSnapshot } = await import('@/lib/sse-subscriber');
+    vi.mocked(fetchSnapshot).mockClear();
+    useBackendState.setState({ snapshot: { ...baseSnapshot(), revision: 3 }, sessionId: 's1' });
+
+    useBackendState.getState().probeLiveness(3);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(vi.mocked(fetchSnapshot)).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
   it('applyEvent mask.created is idempotent — a repeated mask id is not added twice', () => {
     // Repro for "extract-to-layer creates 3 identical masks": the same mask
     // reaching masksIndex more than once (SSE replay / refetch-then-push race)

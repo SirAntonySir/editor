@@ -1,7 +1,31 @@
 # Hover-Only Mask Overlay + Cursor Tooltip
 
 **Date:** 2026-07-08
-**Status:** Approved
+**Status:** Implemented (revised — see Revision below)
+
+## Revision (same day, after first implementation)
+
+Trying the "muted after use" gate in practice, the mask overlay was still too
+present. The design was simplified to **hover-only always**:
+
+- Masks (painted overlay pass AND the ImageNodeObjectsLayer accent canvas)
+  paint ONLY while the object's pixels are hovered. No persistent
+  committed/'selected' paints at all — the `maskOverlayMuted` render gate and
+  its spawn choke-point became dead code and were removed.
+- The in-progress draft (SAM preview / lasso) still always shows — it is
+  gesture feedback, not chrome.
+- The right-gutter numbered markers were removed entirely (not just their
+  name text). `ObjectMarkers` survives only as the transient inline-rename
+  input (context-menu Rename → `pendingObjectRenameId`), collapsing to
+  nothing otherwise.
+- Stacking fix: `ImageNodeObjectsLayer` dropped from z=6 to z=4 so the cursor
+  tooltip (inside SegmentHitLayer's z=5 context) renders above the hover mask.
+  The z=6 rationale (visible label chips catching right-clicks) applied only
+  to the removed classic mode; drafting labels are headless and the object
+  context menu opens via programmatic dispatch.
+
+The sections below describe the original approved design and are kept for
+context; where they conflict, the revision above wins.
 
 ## Problem
 

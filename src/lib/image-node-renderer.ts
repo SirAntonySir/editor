@@ -25,6 +25,7 @@ import { maskStore } from '@/core/mask-store';
 import { nodeToAdjustment } from './node-to-adjustment';
 import { expandCompoundNodes } from './perceptual-dial/expand-compound';
 import { matchesLayer } from './select-pipeline-nodes';
+import { selectOverlayVisibility } from './overlay-visibility';
 import {
   MASK_STYLES,
   paintMaskFill,
@@ -443,10 +444,20 @@ function paintOverlays({ ctx, canvas, imageNodeId, layerIds }: PaintOverlaysArgs
   // painted version baked an off-theme `#0071e3` into the canvas that
   // re-appeared on every pan/zoom redraw.)
 
+  // Masks are HOVER-ONLY (see selectOverlayVisibility): the persistent
+  // committed/'selected' paints were removed — they tinted the photo and
+  // obscured the very edit the selection produced. The in-progress draft
+  // (SAM preview / lasso) always shows; the hovered object's mask shows
+  // while its pixels are hovered.
+  const vis = selectOverlayVisibility({
+    activeMaskRef: state.activeMaskRef,
+    hoveredObjectId: state.hoveredObjectId,
+  });
+
   // Active draft mask (SAM preview / highlight_region) — only when its
-  // owning layer belongs to this image node. Drawn before the committed
-  // overlay so committed marks land on top.
-  if (state.activeMaskRef) {
+  // owning layer belongs to this image node. Never gated: an in-progress
+  // selection gesture must stay visible.
+  if (vis.paintActiveDraft && state.activeMaskRef) {
     const mask = maskStore.get(state.activeMaskRef);
     if (mask && layerSet.has(mask.layerId)) {
       paintMaskFill(painterCtx, mask, MASK_STYLES.active);
@@ -454,30 +465,11 @@ function paintOverlays({ ctx, canvas, imageNodeId, layerIds }: PaintOverlaysArgs
     }
   }
 
-  // Committed mask — same gating. Slightly cooler tint to read as "settled".
-  if (state.committedMaskRef && state.committedMaskRef !== state.activeMaskRef) {
-    const mask = maskStore.get(state.committedMaskRef);
-    if (mask && layerSet.has(mask.layerId)) {
-      paintMaskFill(painterCtx, mask, MASK_STYLES.committed);
-      paintMaskOutline(painterCtx, mask);
-    }
-  }
-
-  // Segmentation hover / selected outlines — `activeObjectId` indicates a
-  // segment chosen by the user; `hoveredObjectId` mirrors the hover preview.
-  // Both stay gated to layers in this node.
-  if (isActiveNode) {
-    if (state.hoveredObjectId !== null) {
-      const m = maskStore.get(state.hoveredObjectId);
-      if (m && layerSet.has(m.layerId) && m.id !== state.activeObjectId) {
-        paintSegmentationOverlay(painterCtx, m, 'hover');
-      }
-    }
-    if (state.activeObjectId !== null) {
-      const m = maskStore.get(state.activeObjectId);
-      if (m && layerSet.has(m.layerId)) {
-        paintSegmentationOverlay(painterCtx, m, 'selected');
-      }
+  // Hovered object's mask — gated to layers in this node, active node only.
+  if (isActiveNode && vis.paintHover && state.hoveredObjectId !== null) {
+    const m = maskStore.get(state.hoveredObjectId);
+    if (m && layerSet.has(m.layerId)) {
+      paintSegmentationOverlay(painterCtx, m, 'hover');
     }
   }
 }

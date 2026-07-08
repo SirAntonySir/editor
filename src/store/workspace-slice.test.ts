@@ -18,6 +18,18 @@ describe('workspace-slice', () => {
     expect(node.size).toEqual({ w: 600, h: 450 });
   });
 
+  it('addImageNode with a sourceImageNodeId defaults mirror preview ON for the extracted child', () => {
+    const s = useEditorStore.getState();
+    const srcId = s.addImageNode(['l-src'], { x: 0, y: 0 });
+    const childId = useEditorStore.getState().addImageNode(['l-cut'], { x: 100, y: 0 }, undefined, srcId);
+    expect(useEditorStore.getState().mirrorPreview[childId]).toBe(true);
+    // A plain (non-extracted) node gets no entry — toggle stays off.
+    expect(useEditorStore.getState().mirrorPreview[srcId]).toBeUndefined();
+    // The edge toggle still turns it off.
+    useEditorStore.getState().toggleMirrorPreview(childId);
+    expect(useEditorStore.getState().mirrorPreview[childId]).toBe(false);
+  });
+
   it('addImageNode persists a caller-provided sourceSize and derives display dims at the default canvas width', () => {
     const s = useEditorStore.getState();
     const id = s.addImageNode(['l-1'], { x: 0, y: 0 }, { w: 4000, h: 3000 });

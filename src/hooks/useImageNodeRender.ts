@@ -114,10 +114,11 @@ export function useImageNodeRender({
   // Re-render when selection / mask overlays change. `maskStore` is not
   // reactive — these store fields are the SSoT the painters branch on, so
   // changes here are what trigger overlay repaint.
-  const activeObjectId = useEditorStore((s) => s.activeObjectId);
+  // Masks are hover-only: the overlay pass paints just the in-progress draft
+  // (activeMaskRef) and the hovered object's mask, so those are the only
+  // selection fields this render effect needs to watch.
   const hoveredObjectId = useEditorStore((s) => s.hoveredObjectId);
   const activeMaskRef = useEditorStore((s) => s.activeMaskRef);
-  const committedMaskRef = useEditorStore((s) => s.committedMaskRef);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   const hiddenWidgetIds = useEditorStore((s) => s.hiddenWidgetIds);
   const hiddenCanonNodeIds = useEditorStore((s) => s.hiddenCanonNodeIds);
@@ -383,10 +384,8 @@ export function useImageNodeRender({
     widgets,
     optimisticSignature,
     pixelVersion,
-    activeObjectId,
     hoveredObjectId,
     activeMaskRef,
-    committedMaskRef,
     activeImageNodeId,
     hiddenWidgetIds,
     hiddenCanonNodeIds,

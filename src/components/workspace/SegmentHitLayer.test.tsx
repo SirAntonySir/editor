@@ -11,6 +11,7 @@ import { useAiSession } from '@/hooks/useImageContext';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 import { objectOwnership } from '@/lib/segmentation/object-ownership';
+import { maskStore } from '@/core/mask-store';
 import type { DecodedMask, SamPoint } from '@/lib/segmentation/mobile-sam-types';
 
 const decodeMock = vi.fn<(points: SamPoint[]) => Promise<DecodedMask | null>>();
@@ -248,5 +249,56 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
     const points = decodeMock.mock.calls[0][0];
     expect(points).toHaveLength(1);
     expect(points[0].label).toBe(1);
+  });
+});
+
+describe('SegmentHitLayer — cursor tooltip on object hover', () => {
+  // Register an existing object whose mask covers the top-left quadrant:
+  // masksIndex row (backend snapshot) + maskStore pixels + ownership → in-1.
+  function seedObject(label = 'beer can'): string {
+    const m = fakeMask();
+    const ref = maskStore.register({
+      layerId: 'L1', width: m.width, height: m.height, data: m.data,
+      source: 'sam-point', createdAt: 0, label,
+    });
+    objectOwnership.set(ref, 'in-1');
+    useBackendState.setState({
+      snapshot: {
+        sessionId: 'sess-1', revision: 1, widgets: [],
+        masksIndex: [{ id: ref, width: m.width, height: m.height, source: 'sam-point', label, imageNodeId: 'in-1' }],
+        operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+        imageContext: null, aiAccess: true,
+      } as never,
+    });
+    return ref;
+  }
+
+  it('shows the object label near the cursor while hovering its pixels', async () => {
+    seedObject('beer can');
+    const { findByTestId, queryByTestId } = render(
+      <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,
+    );
+    const layer = await findByTestId('segment-hit-layer');
+    stubRect(layer);
+    // (100, 75) → normalised (0.25, 0.25) → inside the top-left quadrant mask.
+    fireEvent.pointerMove(layer, { clientX: 100, clientY: 75 });
+    const tip = await findByTestId('object-hover-tooltip');
+    expect(tip.textContent).toBe('beer can');
+    // Off the mask → tooltip goes away.
+    fireEvent.pointerMove(layer, { clientX: 390, clientY: 290 });
+    expect(queryByTestId('object-hover-tooltip')).toBeNull();
+  });
+
+  it('hides the tooltip on pointer leave', async () => {
+    seedObject('beer can');
+    const { findByTestId, queryByTestId } = render(
+      <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,
+    );
+    const layer = await findByTestId('segment-hit-layer');
+    stubRect(layer);
+    fireEvent.pointerMove(layer, { clientX: 100, clientY: 75 });
+    await findByTestId('object-hover-tooltip');
+    fireEvent.pointerLeave(layer);
+    expect(queryByTestId('object-hover-tooltip')).toBeNull();
   });
 });

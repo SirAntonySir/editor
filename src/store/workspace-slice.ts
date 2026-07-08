@@ -295,6 +295,10 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
         size: deriveDisplaySize(src, DEFAULT_IMAGE_NODE_DISPLAY_WIDTH),
         ...(sourceImageNodeId ? { sourceImageNodeId } : {}),
       };
+      // Extracted children default to mirror-preview ON: edits on the cutout
+      // reflect back onto the source in place unless the user flips the edge
+      // toggle off (TetherEdge extracted variant → toggleMirrorPreview).
+      if (sourceImageNodeId) state.mirrorPreview[id] = true;
       // Spawn the paired layers node just left of the image node.
       const lnId = layerNodeIdFor(id);
       state.layerNodes[lnId] = {

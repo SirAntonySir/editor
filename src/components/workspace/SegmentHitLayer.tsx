@@ -14,6 +14,7 @@ import { useSegmentExtractDrag } from '@/hooks/useSegmentExtractDrag';
 import { Loader2 } from 'lucide-react';
 import { Kbd } from '@/components/ui/kbd';
 import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
+import { maskStore } from '@/core/mask-store';
 import { SegmentMaskPreview } from './SegmentMaskPreview';
 import {
   lassoRasterSize,
@@ -71,6 +72,13 @@ export function SegmentHitLayer({
 }: SegmentHitLayerProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const [hoveringObject, setHoveringObject] = useState(false);
+  // Cursor-following tooltip: layer-local px of the pointer while it is over
+  // an existing object's mask pixels. The object NAME lives here (not in a
+  // persistent chip/tag) — the photo stays clean, hover reveals. See spec
+  // 2026-07-08-hover-only-mask-overlay-design.md.
+  const [cursorTip, setCursorTip] = useState<{ x: number; y: number } | null>(null);
+  const hoveredObjectId = useEditorStore((s) => s.hoveredObjectId);
+  const hoveredLabel = hoveredObjectId ? (maskStore.get(hoveredObjectId)?.label ?? null) : null;
   const objectSelectTool = useEditorStore((s) => s.objectSelectTool);
   const lassoActive = objectsMode && objectSelectTool === 'lasso';
   const magicActive = objectsMode && objectSelectTool === 'magic';
@@ -438,6 +446,7 @@ export function SegmentHitLayer({
           path.push([nx, ny]);
           setLassoDraft([...path]);
         }
+        setCursorTip(null); // drawing a lasso — no hover tooltip
         return;
       }
       const hit = existingObjects.find((obj) => {
@@ -447,6 +456,13 @@ export function SegmentHitLayer({
       });
       const hitId = hit?.id ?? null;
       setHoveringObject((prev) => (prev === (hitId !== null) ? prev : hitId !== null));
+      // Cursor tooltip follows the pointer while over an object's pixels.
+      if (hitId !== null) {
+        const rect = el.getBoundingClientRect();
+        setCursorTip({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      } else {
+        setCursorTip((prev) => (prev === null ? prev : null));
+      }
       // Bidirectional object hover: sync the shared `hoveredObjectId` so the
       // region's margin marker lights up (ObjectMarkers) and its mask overlay
       // paints (paintOverlays). Guarded to write only on enter/leave of an
@@ -458,6 +474,7 @@ export function SegmentHitLayer({
   );
   const handlePointerLeave = useCallback(() => {
     setHoveringObject(false);
+    setCursorTip(null);
     const editor = useEditorStore.getState();
     if (editor.hoveredObjectId !== null) editor.setHoveredObjectId(null);
   }, []);
@@ -574,6 +591,18 @@ export function SegmentHitLayer({
       {/* Live lasso path while drawing. viewBox 0..1 maps normalized vertices
        *  straight onto the layer; non-scaling-stroke keeps the dash hairline
        *  at every zoom. Tokens only — no hardcoded colors. */}
+      {/* Cursor-following name tooltip — the object's only name surface on
+          the photo (the persistent tag was removed; markers are dot-only).
+          Chrome floating over photo content → frosted glass-overlay. */}
+      {cursorTip && hoveredLabel && !lassoDraft && (
+        <div
+          data-testid="object-hover-tooltip"
+          className="glass-overlay pointer-events-none absolute px-1.5 py-1 rounded-[4px] text-text-primary text-[10px] leading-none whitespace-nowrap z-20"
+          style={{ left: `${cursorTip.x + 12}px`, top: `${cursorTip.y + 14}px` }}
+        >
+          {hoveredLabel}
+        </div>
+      )}
       {lassoDraft && lassoDraft.length >= 2 && (
         <svg
           data-testid="lasso-draft-path"

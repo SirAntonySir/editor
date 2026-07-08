@@ -19,9 +19,14 @@ export interface SelectionSlice {
   /** null = whole image, non-null = maskRef of selected Object. */
   activeObjectId: string | null;
   hoveredObjectId: string | null;
+  /** Object whose right-click context menu is currently open. Keeps the
+   *  hover-only mask painted while the pointer is on the menu (which clears
+   *  `hoveredObjectId`) — see objectsToPaint in lib/overlay-visibility. */
+  contextMenuObjectId: string | null;
 
   setActiveObjectId: (id: string | null) => void;
   setHoveredObjectId: (id: string | null) => void;
+  setContextMenuObjectId: (id: string | null) => void;
   clickAt: (imageX: number, imageY: number, candidates: string[]) => void;
   /** Select smallest mask at a point without starting a cycle (shift-click). Returns the mask id or null. */
   shiftClickAt: (imageX: number, imageY: number, candidates: string[]) => string | null;
@@ -61,13 +66,16 @@ export const createSelectionSlice: StateCreator<
   committedMaskRef: null,
   activeObjectId: null,
   hoveredObjectId: null,
+  contextMenuObjectId: null,
 
   setActiveObjectId: (id) => set((s) => { s.activeObjectId = id; }),
   setHoveredObjectId: (id) => set((s) => { s.hoveredObjectId = id; }),
+  setContextMenuObjectId: (id) => set((s) => { s.contextMenuObjectId = id; }),
   focusWidget: (id) => set((s) => { s.focusedWidgetId = id; }),
   clearSelection: () => set((s) => {
     s.activeObjectId = null;
     s.hoveredObjectId = null;
+    s.contextMenuObjectId = null;
     s.cycleStack = null;
     s.focusedWidgetId = null;
   }),

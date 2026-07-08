@@ -3,6 +3,7 @@ import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useImageNodeObjects, type ImageObject } from '@/hooks/useImageNodeObjects';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
+import { objectsToPaint } from '@/lib/overlay-visibility';
 import {
   renameObject,
   selectInvertedObject,
@@ -259,7 +260,14 @@ function ObjectLabel({
   const headlessClass = 'pointer-events-none absolute w-0 h-0 overflow-hidden';
 
   return (
-    <ContextMenu.Root>
+    <ContextMenu.Root
+      // Track the open menu in the store so the hover-only mask stays painted
+      // while the pointer is ON the menu (hover clears the moment it leaves
+      // the object's pixels) — see objectsToPaint in lib/overlay-visibility.
+      onOpenChange={(open) =>
+        useEditorStore.getState().setContextMenuObjectId(open ? obj.id : null)
+      }
+    >
       <ContextMenu.Trigger asChild>
         <div
           data-object-id={obj.id}
@@ -357,27 +365,37 @@ export function ImageNodeObjectsLayer({
 }: ImageNodeObjectsLayerProps) {
   const objects = useImageNodeObjects(imageNodeId);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Masks are hover-only: paint just the hovered object so the photo (and
+  // its edits) stays unobscured. The name shows in SegmentHitLayer's cursor
+  // tooltip while hovering — no persistent chrome on or beside the image.
+  // An object with its context menu open stays painted for the menu's
+  // lifetime (the pointer sits on the menu, which clears hover).
+  const hoveredObjectId = useEditorStore((s) => s.hoveredObjectId);
+  const contextMenuObjectId = useEditorStore((s) => s.contextMenuObjectId);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    paintObjectMasks(ctx, canvas.width, canvas.height, objects);
-  }, [objects, widthPx, heightPx]);
+    paintObjectMasks(
+      ctx, canvas.width, canvas.height,
+      objectsToPaint(objects, hoveredObjectId, contextMenuObjectId),
+    );
+  }, [objects, hoveredObjectId, contextMenuObjectId, widthPx, heightPx]);
 
   if (objects.length === 0) return null;
 
   return (
     <div
       data-testid="image-node-objects-layer"
-      // zIndex sits ABOVE SegmentHitLayer (z=5) so right-clicks on a label
-      // land here instead of being swallowed by the hit-test surface — and
-      // bubbling up the (covered) image body then opening the image-node's
-      // ContextMenu instead of the object's. The canvas itself stays
-      // pointer-events-none so only the labels capture input.
+      // zIndex sits BELOW SegmentHitLayer (z=5): the hover tooltip lives in
+      // that layer's stacking context and must render ABOVE the mask canvas.
+      // Labels are headless in drafting mode (the only variant), and the
+      // object context menu opens via SegmentHitLayer's programmatic
+      // contextmenu dispatch (data-object-id), which needs no z-order.
       className="nodrag nopan pointer-events-none absolute inset-0"
-      style={{ zIndex: 6 }}
+      style={{ zIndex: 4 }}
     >
       <canvas
         ref={canvasRef}

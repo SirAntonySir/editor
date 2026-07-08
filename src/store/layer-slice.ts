@@ -78,6 +78,23 @@ export const createLayerSlice: StateCreator<LayerSlice, [['zustand/immer', never
   setActiveLayer: (id) =>
     set((state) => {
       state.activeLayerId = id;
+      // Keep the active image node in lock-step with the active layer: the
+      // inspector preview renders `[activeLayerId]` in isolation while the
+      // canvas renders each node by its own `layerIds`, so if the two drift an
+      // edit shows in the preview but not on the selected canvas image. When
+      // the selected layer belongs to a known node, adopt that node. A layer
+      // that belongs to no node yet (the mid-duplicate window, before its node
+      // is created) leaves the active node untouched rather than clobbering it.
+      if (id) {
+        // `imageNodes` / `activeImageNodeId` live on the workspace slice; at
+        // runtime `state` is the full composed store, so they're present.
+        const ws = state as unknown as {
+          imageNodes: Record<string, { id: string; layerIds: string[] }>;
+          activeImageNodeId: string | null;
+        };
+        const owner = Object.values(ws.imageNodes).find((n) => n.layerIds.includes(id));
+        if (owner) ws.activeImageNodeId = owner.id;
+      }
     }),
 
   updateLayer: (id, updates) =>

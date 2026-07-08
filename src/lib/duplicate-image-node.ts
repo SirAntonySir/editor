@@ -58,6 +58,17 @@ export function duplicateImageNode(id: string, offset?: { x: number; y: number }
   );
   editor.setImageNodeName(newNodeId, deriveDuplicateName(node.name ?? 'Image'));
 
+  // Adopt the copy as the active selection. `duplicateLayer` set the active
+  // layer while the new node didn't exist yet, so `setActiveLayer` couldn't
+  // sync the active image node — re-assert it now that the node is present.
+  // Map the previously-active source layer to its copy so the same layer stays
+  // selected; fall back to the copy's first layer. `setActiveLayer` then points
+  // `activeImageNodeId` at the new node, keeping the active layer and active
+  // image node consistent (the invariant the inspector preview + canvas share).
+  const mappedActive =
+    mapping.find((m) => m.fromLayerId === editor.activeLayerId)?.toLayerId ?? mapping[0].toLayerId;
+  editor.setActiveLayer(mappedActive);
+
   // 3. Carry adjustments + widgets onto the new layers (backend-owned).
   const sessionId = useBackendState.getState().sessionId;
   const offline = useBackendState.getState().sseStatus !== 'open';

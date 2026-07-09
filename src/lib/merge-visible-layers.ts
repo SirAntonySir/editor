@@ -1,7 +1,10 @@
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { pixelStore } from '@/core/pixel-store';
 import { toast } from '@/components/ui/Toast';
+import { backendTools } from '@/lib/backend-tools';
+import { widgetTargetLayerIds } from '@/lib/widget-targets';
 import { renderImageNodeComposite } from './image-node-renderer';
 
 /**
@@ -32,6 +35,36 @@ export function planMergeVisible(
     }
   }
   return { newLayerIds, removedIds };
+}
+
+/**
+ * Resolve every active widget targeting the merged (removed) layers BEFORE
+ * they die. The flattened raster BAKES their effect into pixels, so a widget
+ * outliving the merge is a zombie: it renders on the canvas pointing at
+ * layers that no longer exist, its dismiss is a canonical no-op (nothing to
+ * clear), and re-applying it would double-grade. "Apply them all first":
+ * engaged widgets are ACCEPTED (their values are in the bake — accepting
+ * records that and retires the card); still-pending suggestions are
+ * DISMISSED (the composite mutes them, so their effect is NOT in the bake,
+ * and the user never approved them). Fire-and-forget: the pixel bake is
+ * already done synchronously by the caller; the widgets clear via SSE.
+ */
+export function resolveWidgetsForMergedLayers(mergedLayerIds: string[]): void {
+  const sessionId = useBackendState.getState().sessionId;
+  if (!sessionId) return;
+  const merged = new Set(mergedLayerIds);
+  const pending = useSuggestionsUi.getState().pendingSuggestionIds;
+  const widgets = useBackendState.getState().snapshot?.widgets ?? [];
+  for (const w of widgets) {
+    if (w.status !== 'active') continue;
+    if (!widgetTargetLayerIds(w).some((l) => merged.has(l))) continue;
+    if (pending.has(w.id)) {
+      void backendTools.delete_widget(sessionId, { widgetId: w.id, suppressSimilar: false });
+      useSuggestionsUi.getState().resolvePending(w.id);
+    } else {
+      void backendTools.accept_widget(sessionId, { widgetId: w.id });
+    }
+  }
 }
 
 /**
@@ -98,6 +131,9 @@ export function mergeVisibleLayersBody(imageNodeId: string): boolean {
   });
 
   const { newLayerIds, removedIds } = planMergeVisible(node.layerIds, isVisible, mergedId);
+  // Apply-all-first: retire the widgets whose effects the bake just froze
+  // into pixels, BEFORE their target layers are removed below.
+  resolveWidgetsForMergedLayers(removedIds);
   useEditorStore.setState((s) => {
     const n = s.imageNodes[imageNodeId];
     if (n) n.layerIds = newLayerIds;

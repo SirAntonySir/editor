@@ -184,6 +184,10 @@ export function copyObjectToImageNode(
     const newNodeId = editor.addImageNode(
       [newLayerId], position, sourceSize, sourceImageNodeId,
     );
+    // Carry the object's name onto the new node: an analysis- or user-named
+    // mask ("beer mug") beats inheriting the source photo's filename. The
+    // layers panel keeps the fuller "<source> · <label>" layer name.
+    if (mask.label) editor.setImageNodeName(newNodeId, mask.label);
     // Match the cutout's on-screen size to how the object appeared inside the
     // source node. addImageNode enters every node at the default full width,
     // so without this a small cutout balloons to the size of a whole new photo.

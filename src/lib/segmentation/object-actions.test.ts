@@ -91,6 +91,49 @@ describe('copyObjectToImageNode', () => {
     expect(useEditorStore.getState().activeLayerId).toBe(result!.layerId);
   });
 
+  it("names the new image-node after the mask's label (analysis/user naming carries over)", () => {
+    const editor = useEditorStore.getState();
+    const srcId = editor.addImageNode(['srcLayer'], { x: 0, y: 0 }, { w: 100, h: 100 });
+    const maskRef = maskStore.register({
+      layerId: 'srcLayer',
+      label: 'beer mug',
+      width: 4,
+      height: 4,
+      data: new Uint8Array(16).fill(255),
+      source: 'sam-point',
+      createdAt: 0,
+    });
+    vi.spyOn(pixelStore, 'getSource').mockReturnValue(
+      { width: 40, height: 40 } as unknown as OffscreenCanvas,
+    );
+
+    const result = copyObjectToImageNode(maskRef, srcId);
+
+    const newNode = useEditorStore.getState().imageNodes[result!.imageNodeId];
+    expect(newNode.name).toBe('beer mug');
+  });
+
+  it('leaves the node name unset when the mask has no label', () => {
+    const editor = useEditorStore.getState();
+    const srcId = editor.addImageNode(['srcLayer'], { x: 0, y: 0 }, { w: 100, h: 100 });
+    const maskRef = maskStore.register({
+      layerId: 'srcLayer',
+      width: 4,
+      height: 4,
+      data: new Uint8Array(16).fill(255),
+      source: 'sam-point',
+      createdAt: 0,
+    });
+    vi.spyOn(pixelStore, 'getSource').mockReturnValue(
+      { width: 40, height: 40 } as unknown as OffscreenCanvas,
+    );
+
+    const result = copyObjectToImageNode(maskRef, srcId);
+
+    const newNode = useEditorStore.getState().imageNodes[result!.imageNodeId];
+    expect(newNode.name).toBeUndefined();
+  });
+
   it('makes an independent reversible copy — raw pixels + a clone of the source adjustments', () => {
     useBackendState.setState({ sessionId: 'sid' } as never);
     const clone = vi.spyOn(backendTools, 'duplicate_layer_edits').mockResolvedValue({ ok: true } as never);

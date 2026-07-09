@@ -5,6 +5,7 @@ import { maskStore } from '@/core/mask-store';
 import { pixelStore } from '@/core/pixel-store';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 
 // The real extract bakes pixels through LayerCompositor + OffscreenCanvas,
 // neither of which exists here. Stub it to hand back a known layer id; the
@@ -28,6 +29,7 @@ beforeEach(() => {
     activeObjectId: null,
   } as unknown as Parameters<typeof useEditorStore.setState>[0]);
   maskStore.clear();
+  useSuggestionsUi.getState().markPending([]);
   vi.restoreAllMocks();
 });
 
@@ -154,6 +156,31 @@ describe('copyObjectToImageNode', () => {
     // Adjustments cloned onto the new layer as its own, editable independently.
     expect(clone).toHaveBeenCalledWith('sid', {
       mapping: [{ fromLayerId: 'srcLayer', toLayerId: 'cut-layer' }],
+      excludeWidgetIds: [],
+    });
+  });
+
+  it('excludes still-pending suggestion widgets from the adjustment clone', () => {
+    // Accepting a region suggestion extracts a cutout while OTHER suggestions
+    // are still pending chips. Pending widgets are backend-active + seeded in
+    // canonical, so cloning them would materialize phantom applied widgets on
+    // the cutout ("a widget named like the global suggestion appeared").
+    useBackendState.setState({ sessionId: 'sid' } as never);
+    const clone = vi.spyOn(backendTools, 'duplicate_layer_edits').mockResolvedValue({ ok: true } as never);
+    useSuggestionsUi.getState().markPending(['w-pending-global', 'w-pending-local']);
+    const editor = useEditorStore.getState();
+    const srcId = editor.addImageNode(['srcLayer'], { x: 0, y: 0 }, { w: 100, h: 100 });
+    const maskRef = maskStore.register({
+      layerId: 'srcLayer', width: 4, height: 4,
+      data: new Uint8Array(16).fill(255), source: 'sam-point', createdAt: 0,
+    });
+    vi.spyOn(pixelStore, 'getSource').mockReturnValue({ width: 40, height: 40 } as unknown as OffscreenCanvas);
+
+    copyObjectToImageNode(maskRef, srcId);
+
+    expect(clone).toHaveBeenCalledWith('sid', {
+      mapping: [{ fromLayerId: 'srcLayer', toLayerId: 'cut-layer' }],
+      excludeWidgetIds: ['w-pending-global', 'w-pending-local'],
     });
   });
 });
@@ -207,6 +234,7 @@ describe('copyObjectToLayer', () => {
     );
     expect(clone).toHaveBeenCalledWith('sid', {
       mapping: [{ fromLayerId: 'srcLayer', toLayerId: 'cut-layer' }],
+      excludeWidgetIds: [],
     });
   });
 });

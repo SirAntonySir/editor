@@ -114,3 +114,29 @@ def test_clone_rescopes_region_widgets_to_global():
     assert all(n.scope.root.kind == "global" for n in clone.nodes)
     # Original untouched.
     assert doc.widgets["w1"].scope.root.kind == "named_region"
+
+
+def test_excludes_pending_suggestions_from_clone_and_scrubs_their_canonical():
+    """Accepting a region suggestion extracts a cutout while OTHER suggestions
+    are still pending chips. Pending widgets are status=active and seeded into
+    canonical (muted on the source by the frontend's pending filter), so a
+    wholesale clone laundered them into APPLIED widgets on the cutout — the
+    'phantom global widget' bug. The caller passes the pending ids; those
+    widgets must not be cloned and their seeded params must not survive in
+    the copied canonical."""
+    doc = SessionDocument(session_id="s")
+    doc.add_widget(_widget("w-real", "src", "basic", {"exposure": 10}))
+    doc.add_widget(_widget("w-pending", "src", "color", {"saturation": 22}))
+
+    doc.duplicate_layer_edits(
+        [{"from_layer_id": "src", "to_layer_id": "dst"}],
+        exclude_widget_ids=["w-pending"],
+    )
+
+    clones = [w for w in doc.widgets.values() if w.id not in ("w-real", "w-pending")]
+    assert [c.origin.parent_widget_id for c in clones] == ["w-real"]
+    # Canonical on the copy: the real edit survives, the pending one is gone.
+    assert doc.canonical["dst"]["basic"]["exposure"] == 10
+    assert "color" not in doc.canonical.get("dst", {})
+    # Source stays untouched — the pending suggestion still previews there.
+    assert doc.canonical["src"]["color"]["saturation"] == 22

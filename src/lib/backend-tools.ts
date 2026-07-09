@@ -232,6 +232,8 @@ export const backendTools = {
    *  revision (one undo step). Backs the deep image-node / group Duplicate. */
   duplicate_layer_edits(sessionId: string, args: {
     mapping: Array<{ fromLayerId: string; toLayerId: string }>;
+    /** Still-pending suggestion widget ids — excluded from the clone. */
+    excludeWidgetIds?: string[];
   }) {
     return invokeTool<{ ok: boolean }>('duplicate_layer_edits', sessionId, args);
   },

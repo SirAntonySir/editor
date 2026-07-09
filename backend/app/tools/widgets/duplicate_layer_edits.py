@@ -18,6 +18,10 @@ class _Input(BaseModel):
     # One entry per duplicated layer: the source layer and the freshly-created
     # target layer the frontend already added to the new image node.
     mapping: list[_LayerPair] = Field(min_length=1)
+    # Still-PENDING suggestion widget ids (frontend UI state the backend can't
+    # see — pending widgets are status=active). They must not be cloned onto
+    # the copy, nor their canonical seeds carried across.
+    exclude_widget_ids: list[str] = Field(default_factory=list)
 
 
 class _Output(BaseModel):
@@ -47,5 +51,6 @@ class DuplicateLayerEditsTool(BackendTool[_Input, _Output]):
         doc.duplicate_layer_edits(
             [{"from_layer_id": p.from_layer_id, "to_layer_id": p.to_layer_id}
              for p in input.mapping],
+            exclude_widget_ids=input.exclude_widget_ids,
         )
         return _Output(ok=True)

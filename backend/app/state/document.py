@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from collections.abc import Sequence
 from typing import Any, Callable
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
@@ -323,6 +324,7 @@ class SessionDocument(BaseModel):
 
     def duplicate_layer_edits(
         self, mapping: list[dict[str, str]],
+        exclude_widget_ids: Sequence[str] = (),
     ) -> list[StateEvent]:
         """Clone the pixel-affecting state — canonical adjustments + active
         widgets — from each source layer onto its paired target layer. Backs the
@@ -334,9 +336,18 @@ class SessionDocument(BaseModel):
         the original. Canonical is copied wholesale (it also carries accepted /
         baked edits that no active widget represents); active widgets are cloned
         so the duplicate stays editable.
+
+        `exclude_widget_ids` carries the frontend's still-PENDING suggestion
+        ids. Pending suggestions are status=active and seeded into canonical
+        (the frontend mutes them at render until accepted), so without the
+        exclusion a clone would launder them into applied widgets on the copy —
+        and their seeded params would ride along in the copied canonical.
+        Excluded widgets are skipped AND their params scrubbed from the copy;
+        the source keeps both.
         """
         from app.schemas.widget import WidgetOrigin
 
+        exclude = set(exclude_widget_ids)
         events: list[StateEvent] = []
         dup = 0
         for pair in mapping:
@@ -347,11 +358,27 @@ class SessionDocument(BaseModel):
             src_canon = self.canonical.get(from_id)
             if src_canon:
                 self.canonical[to_id] = _deep_copy(src_canon)
+                # Scrub params seeded by excluded (pending-suggestion) widgets
+                # from the COPY — mirrors _reset_canonical_from_widget, but
+                # scoped to the target layer. The source keeps them (the chip
+                # still previews there).
+                for ex_id in exclude:
+                    ex_w = self.widgets.get(ex_id)
+                    if ex_w is None:
+                        continue
+                    for node in ex_w.nodes:
+                        node_targets = (
+                            node.layer_ids if node.layer_ids is not None else [node.layer_id]
+                        )
+                        if from_id not in node_targets:
+                            continue
+                        for pkey in node.params:
+                            clear_param_value(self.canonical, to_id, node.type, pkey)
 
             # 2. Widgets — clone each ACTIVE widget that targets the source layer.
             for wid in list(self.widget_order):
                 w = self.widgets.get(wid)
-                if w is None or w.status != "active":
+                if w is None or w.status != "active" or wid in exclude:
                     continue
                 targets_src = any(
                     from_id in (n.layer_ids if n.layer_ids is not None else [n.layer_id])

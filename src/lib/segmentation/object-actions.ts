@@ -10,6 +10,7 @@
 
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { useAiSession } from '@/hooks/useImageContext';
 import { backendTools } from '@/lib/backend-tools';
 import { maskStore } from '@/core/mask-store';
@@ -35,8 +36,15 @@ function toolSessionId(): string | null {
 function cloneAdjustmentsToLayer(fromLayerId: string, toLayerId: string): void {
   const sessionId = toolSessionId();
   if (!sessionId) return;
+  // Still-PENDING suggestion widgets are backend-active and seeded into
+  // canonical (the renderer mutes them until accepted) — pending-ness is
+  // frontend UI state the backend can't see. Without this exclusion, a
+  // wholesale clone launders every pending chip into an APPLIED widget on
+  // the copy ("a widget named like the global suggestion appeared").
+  const excludeWidgetIds = [...useSuggestionsUi.getState().pendingSuggestionIds];
   void backendTools.duplicate_layer_edits(sessionId, {
     mapping: [{ fromLayerId, toLayerId }],
+    excludeWidgetIds,
   });
 }
 

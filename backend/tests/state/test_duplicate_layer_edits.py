@@ -83,3 +83,34 @@ def test_no_state_still_emits_history_applied():
     doc = SessionDocument(session_id="s1")
     events = doc.duplicate_layer_edits([{"from_layer_id": "x", "to_layer_id": "y"}])
     assert [e.kind for e in events] == ["history.applied"]
+
+
+def _region_widget(wid: str, layer_id: str) -> Widget:
+    """Widget scoped to a named region ("sports car") — as the autonomous
+    suggester mints them on the source image."""
+    w = _widget(wid, layer_id, "basic", {"contrast": 14})
+    region = Scope.model_validate({"kind": "named_region", "label": "sports car"})
+    w.scope = region
+    for n in w.nodes:
+        n.scope = region
+    return w
+
+
+def test_clone_rescopes_region_widgets_to_global():
+    """A cutout copy targets the new layer WHOLESALE — the layer IS the
+    region. Copying a named_region scope verbatim leaves the clone claiming
+    a region that only existed on the source image (stale chip, inverted
+    semantics). The clone must be re-scoped to global; the original keeps
+    its region scope."""
+    doc = SessionDocument(session_id="s")
+    doc.add_widget(_region_widget("w1", "src"))
+
+    doc.duplicate_layer_edits([{"from_layer_id": "src", "to_layer_id": "dst"}])
+
+    clones = [w for w in doc.widgets.values() if w.id != "w1"]
+    assert len(clones) == 1
+    clone = clones[0]
+    assert clone.scope.root.kind == "global"
+    assert all(n.scope.root.kind == "global" for n in clone.nodes)
+    # Original untouched.
+    assert doc.widgets["w1"].scope.root.kind == "named_region"

@@ -10,6 +10,7 @@ from app.schemas.widget import (
     DismissalRule,
     MaskRecord,
     Note,
+    Scope,
     StateEvent,
     Widget,
 )
@@ -370,6 +371,16 @@ class SessionDocument(BaseModel):
                 # as a PENDING suggestion, which would hide it from the render
                 # (the copy would show raw pixels only). Keep provenance.
                 clone.origin = WidgetOrigin(kind="tool_invoked", parent_widget_id=w.id)
+                # Re-scope region/mask scopes to global: the clone targets the
+                # new layer WHOLESALE, and for a region cutout the layer IS the
+                # region. Copied verbatim, a named_region scope keeps claiming
+                # a region that only existed on the SOURCE image — the header
+                # chip shows a stale label and the scope semantics invert.
+                if clone.scope.root.kind != "global":
+                    clone.scope = Scope.model_validate({"kind": "global"})
+                for n in clone.nodes:
+                    if n.scope.root.kind != "global":
+                        n.scope = Scope.model_validate({"kind": "global"})
 
                 node_id_map: dict[str, str] = {}
                 for n in clone.nodes:

@@ -19,6 +19,7 @@ import { putSource } from './pixel-source-store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { autoAnalyseImageOnLoad, useAiSession } from '@/hooks/useImageContext';
+import { resetSegmentationClientState } from '@/lib/segmentation/reset-client-state';
 import { clearInternalCanvasCache } from '@/lib/image-node-geometry';
 import { mergeVisibleLayersBody } from '@/lib/merge-visible-layers';
 import { downscaleForUpload } from '@/lib/downscale-for-upload';
@@ -198,6 +199,11 @@ function closeDocument(): void {
   pixelStore.clear();
   hiBitStore.clear();
   history.clear();
+  // Client segmentation state (SAM embedding caches, maskStore, ownership)
+  // is keyed by image-node id, and resetWorkspace below RECYCLES those ids
+  // (counter restarts at in-1). Without this, the next opened image inherits
+  // the prior image's embedding — SAM decodes the old image's masks onto it.
+  resetSegmentationClientState();
   // Drops session id from in-memory state + localStorage and clears snapshot,
   // so the info tab's image_context, regions, and AI suggestions all reset.
   useBackendState.getState().reset();
@@ -257,6 +263,9 @@ async function openImage(file: File, source?: SourceMeta): Promise<void> {
   pixelStore.clear();
   hiBitStore.clear();
   history.clear();
+  // Same reasoning as closeDocument: everything keyed by layer/node id is
+  // about to be replaced — stale SAM embeddings + masks must not survive.
+  resetSegmentationClientState();
 
   const layerId = crypto.randomUUID();
   pixelStore.register(layerId, offscreen);

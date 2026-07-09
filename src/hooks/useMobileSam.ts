@@ -92,10 +92,14 @@ export function useMobileSam(imageNodeId: string | null): UseMobileSam {
   return { ready, error, decode };
 }
 
-/** Drop the cached embedding for one image node. Call when the layer is
- *  removed or pixels are replaced. */
-export function clearMobileSamCache(imageNodeId: string): void {
-  _cache.delete(imageNodeId);
+/** Drop the cached embedding for one image node — or, with no argument, for
+ *  ALL nodes. Call the per-node form when a layer is removed or pixels are
+ *  replaced; call the no-arg form on document close/open, where node ids get
+ *  recycled (`resetWorkspace` restarts the counter at `in-1`) and a stale
+ *  entry would decode the PRIOR image's masks onto the new image. */
+export function clearMobileSamCache(imageNodeId?: string): void {
+  if (imageNodeId === undefined) _cache.clear();
+  else _cache.delete(imageNodeId);
 }
 
 /** Test-only: clear the entire cache. */

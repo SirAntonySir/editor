@@ -36,6 +36,15 @@ export const objectOwnership = {
     version += 1;
     subscribers.forEach((fn) => fn());
   },
+  /** Drop EVERY mapping. Document close/open must call this: node ids are
+   *  recycled after `resetWorkspace` (counter restarts at `in-1`), so stale
+   *  entries would re-attach the prior document's masks to the new nodes. */
+  clearAll(): void {
+    if (owners.size === 0) return;
+    owners.clear();
+    version += 1;
+    subscribers.forEach((fn) => fn());
+  },
   subscribe(fn: () => void): () => void {
     subscribers.add(fn);
     return () => subscribers.delete(fn);

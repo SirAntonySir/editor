@@ -65,12 +65,27 @@ Track in-flight analyses per node. If suggest is requested mid-analysis, await t
 in-flight run and then call `suggest_widgets` directly — never start a second
 analyze. The backend 5s suggest cooldown remains the double-click backstop.
 
-### 5. Context inheritance for extracted nodes (backend extract tool)
+### 5. Context inheritance for extracted nodes
 
-On extraction, copy the source node's `EnrichedImageContext` into the new node's
-`image_context_by_node` entry. Inherited context counts as analyzed (Ask / Edit /
-Suggest live immediately; menu shows post-analysis items). Persisted like any
-other context.
+**Implementation deviation (2026-07-09):** the spec originally called for a
+backend-side context copy on extraction. Implementation found that backend
+context is *session-global* today — `analyze_context` reads and writes only
+`DEFAULT_IMAGE_NODE_ID`, extraction creates no backend image node at all
+(`copyObjectToImageNode` is purely client-side), and every context consumer
+(suggest, ask, agent turns) reads the default node. A backend copy would be
+dead code.
+
+Inheritance is instead realized frontend-side, for free, by two pieces:
+
+- The §3 union derivation: once the session snapshot carries context, *every*
+  image node (extracted or added) counts as analyzed — which matches actual
+  backend behavior, since re-analyzing any node short-circuits to the same
+  cached session context.
+- `suggestForImageNode` falls back to the `useBackendState` session id and
+  snapshot context before deciding a full analyze is needed, so Suggest works
+  on inherited nodes (and after reloads) without re-running the pipeline.
+
+Revisit when the backend migrates `analyze_context` to true per-node contexts.
 
 Known trade-off: global fields (histogram problems, white point, palette) describe
 the whole source image, not the crop. Accepted for now; a per-crop "re-analyze"

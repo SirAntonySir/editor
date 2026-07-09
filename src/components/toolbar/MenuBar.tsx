@@ -524,6 +524,7 @@ function SuggestionHistorySubmenu() {
 function AiMenu() {
   const status = useAiSession((s) => s.status);
   const analysedIds = useAiSession((s) => s.analysedImageNodeIds);
+  const sessionHasContext = useBackendState((s) => s.snapshot?.imageContext != null);
   const imageNodes = useEditorStore((s) => s.imageNodes);
   const layers = useEditorStore((s) => s.layers);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
@@ -564,7 +565,9 @@ function AiMenu() {
   };
 
   const labelFor = (id: string): string => {
-    const verb = analysedIds.includes(id) ? 'Re-analyze' : 'Analyze';
+    // Union with session-context presence: after a reload the local marks are
+    // empty but the revived snapshot still carries the analysed context.
+    const verb = analysedIds.includes(id) || sessionHasContext ? 'Re-analyze' : 'Analyze';
     return `${verb} "${nameFor(id)}"`;
   };
 

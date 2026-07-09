@@ -421,6 +421,28 @@ export const useAiSession = create<AiSessionState>((set, get, api) => ({
 }));
 
 /**
+ * Whether an image-node counts as analysed: locally marked this session, OR
+ * the backend snapshot carries an image context. The union matters twice —
+ * after a reload, `analysedImageNodeIds` is empty but the revived session's
+ * snapshot still has the context; and extracted/added nodes inherit it,
+ * because backend context is session-global (analyze_context reads/writes
+ * DEFAULT_IMAGE_NODE_ID only — re-analyzing any node short-circuits to the
+ * same cached context, so "the session has context" IS "this node is
+ * analysed" under the current backend).
+ */
+export function isImageNodeAnalysed(imageNodeId: string): boolean {
+  if (useAiSession.getState().analysedImageNodeIds.includes(imageNodeId)) return true;
+  return useBackendState.getState().snapshot?.imageContext != null;
+}
+
+/** Reactive version of `isImageNodeAnalysed` for components. */
+export function useIsImageNodeAnalysed(imageNodeId: string): boolean {
+  const local = useAiSession((s) => s.analysedImageNodeIds.includes(imageNodeId));
+  const fromSnapshot = useBackendState((s) => s.snapshot?.imageContext != null);
+  return local || fromSnapshot;
+}
+
+/**
  * Resolve the first photo-type layer id for the given image-node id.
  * Returns null when the node doesn't exist or has no image layers.
  */
@@ -435,13 +457,38 @@ function resolveLayerIdForImageNode(imageNodeId: string): string | null {
 }
 
 /**
+ * Single-flight guard: at most one analyze pipeline runs per session. Late
+ * callers join the running promise instead of starting a second pipeline —
+ * backend context is session-global (analyze_context short-circuits on the
+ * cached context), so a concurrent analyze would produce the same context
+ * while double-spending the prepare/analyze round-trips. The promise never
+ * rejects (runAnalyse/uploadAndAnalyse report failure via status:'error').
+ */
+let inflightAnalyse: Promise<void> | null = null;
+
+/**
  * Run AI analyze for a specific image-node. If a session is already alive
  * just calls `runAnalyse` (the session's own layer resolution picks up the
  * explicit id via `resolveTargetImageLayerId`). When no session exists,
  * uploads the target layer's pixels first. This lets per-node context-menu
  * items target an image that is not the current `activeImageNodeId`.
+ *
+ * Concurrent calls join the in-flight run (see `inflightAnalyse`); the
+ * joiner's own node still reads as analysed via `isImageNodeAnalysed`'s
+ * session-context union even though only the first caller's id is marked.
  */
-export async function analyseImageLayer(
+export function analyseImageLayer(
+  imageNodeId: string,
+  opts?: AnalyseOptions,
+): Promise<void> {
+  if (inflightAnalyse) return inflightAnalyse;
+  inflightAnalyse = doAnalyseImageLayer(imageNodeId, opts).finally(() => {
+    inflightAnalyse = null;
+  });
+  return inflightAnalyse;
+}
+
+async function doAnalyseImageLayer(
   imageNodeId: string,
   opts?: AnalyseOptions,
 ): Promise<void> {
@@ -483,15 +530,25 @@ export async function analyseImageLayer(
  * just asks the backend to (re)suggest for that node's image layer.
  */
 export async function suggestForImageNode(imageNodeId: string): Promise<void> {
+  // Join a mid-flight analyze (auto-analyze on load, or an Analyze click
+  // moments earlier) instead of kicking off a second pipeline; once it lands,
+  // the context check below routes straight to suggest_widgets.
+  if (inflightAnalyse) await inflightAnalyse;
   const ai = useAiSession.getState();
-  if (!ai.context || !ai.sessionId) {
+  // Session + context can outlive useAiSession (a reload restores them onto
+  // useBackendState / the snapshot) — fall back before deciding the session
+  // needs the full analyze pipeline.
+  const sessionId = ai.sessionId ?? useBackendState.getState().sessionId;
+  const hasContext =
+    ai.context != null || useBackendState.getState().snapshot?.imageContext != null;
+  if (!hasContext || !sessionId) {
     await analyseImageLayer(imageNodeId, { suggest: true });
     return;
   }
   const { setActiveImageNode, activeImageNodeId } = useEditorStore.getState();
   if (activeImageNodeId !== imageNodeId) setActiveImageNode(imageNodeId);
   const layerId = resolveTargetImageLayerId();
-  await backendTools.suggest_widgets(ai.sessionId, layerId ? { layerId } : {});
+  await backendTools.suggest_widgets(sessionId, layerId ? { layerId } : {});
 }
 
 /**
@@ -519,6 +576,57 @@ export async function analyseActiveImageLayer(opts?: AnalyseOptions): Promise<vo
   if (!source) return;
   const bitmap = await createImageBitmap(source);
   await ai.uploadAndAnalyse(bitmap, opts);
+}
+
+/**
+ * Resolve once the backend snapshot is available (or `null` on timeout).
+ * The snapshot is what carries the auto-analyze gates: `aiAccess` (study
+ * condition) and `imageContext` (revived sessions that are already analyzed).
+ */
+function awaitFirstSnapshot(
+  timeoutMs: number,
+): Promise<ReturnType<typeof useBackendState.getState>['snapshot']> {
+  const existing = useBackendState.getState().snapshot;
+  if (existing) return Promise.resolve(existing);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      unsub();
+      resolve(useBackendState.getState().snapshot ?? null);
+    }, timeoutMs);
+    const unsub = useBackendState.subscribe((s) => {
+      if (s.snapshot) {
+        clearTimeout(timer);
+        unsub();
+        resolve(s.snapshot);
+      }
+    });
+  });
+}
+
+/**
+ * Auto-analyze after a user image load (openImage / addImage). Fire-and-forget
+ * and failure-tolerant by design: every early return leaves `isAnalysed`
+ * false, so the node menu's "Analyze with AI" remains the retry path — no
+ * dedicated error UI.
+ *
+ * Gates, in order:
+ *  - a snapshot must arrive (none within the timeout ⇒ backend never came up);
+ *  - `aiAccess` false ⇒ study baseline, never burn a Claude call;
+ *  - SSE must be open (app-wide doctrine: no AI while disconnected);
+ *  - context already present (snapshot or local) ⇒ nothing to do — this is
+ *    what makes an app reload a no-op, the revived session carries context.
+ *
+ * Never suggests: analysis is suggestion-free; suggestions stay opt-in via
+ * "Suggest something".
+ */
+export async function autoAnalyseImageOnLoad(opts?: { timeoutMs?: number }): Promise<void> {
+  const snap = await awaitFirstSnapshot(opts?.timeoutMs ?? 15000);
+  if (!snap) return;
+  if (snap.aiAccess === false) return;
+  if (useBackendState.getState().sseStatus !== 'open') return;
+  if (snap.imageContext != null) return;
+  if (useAiSession.getState().context != null) return;
+  await analyseActiveImageLayer();
 }
 
 /**

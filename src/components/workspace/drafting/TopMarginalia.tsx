@@ -1,4 +1,4 @@
-import { Eye, Lasso, MoreHorizontal, MousePointerClick, ScanSearch, Sparkles, Wand2 } from 'lucide-react';
+import { Eye, Lasso, Lightbulb, MoreHorizontal, MousePointerClick, ScanSearch, Wand2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { ReactNode } from 'react';
@@ -35,10 +35,13 @@ interface TopMarginaliaProps {
    *  Point runs SAM on click; lasso draws a freehand polygon (no SAM). */
   objectSelectTool?: 'point' | 'lasso' | 'magic';
   onSelectObjectTool?: (tool: 'point' | 'lasso' | 'magic') => void;
-  /** Analyze-with-AI header button (violet). Shown only when AI is available
-   *  and the image hasn't been analysed yet — mirrors the menu item. */
-  showAnalyze?: boolean;
-  onAnalyze?: () => void;
+  /** "Suggest something" header button (violet bulb). Shown whenever AI is
+   *  available — it self-serves analysis when context is missing, so it is
+   *  NOT gated on the analysed state. "Analyze with AI" stays menu-only. */
+  showSuggest?: boolean;
+  onSuggest?: () => void;
+  /** Disables the bulb while a suggest (or the analyze it joined) runs. */
+  suggestBusy?: boolean;
   /** Items to render inside the `⋯` dropdown. The caller passes the same
    *  shared menu items the classic header uses, so Eye / Split / Merge /
    *  Delete all reach the user from one place. */
@@ -73,8 +76,9 @@ export function TopMarginalia({
   onToggleObjectsMode,
   objectSelectTool = 'point',
   onSelectObjectTool,
-  showAnalyze = false,
-  onAnalyze,
+  showSuggest = false,
+  onSuggest,
+  suggestBusy = false,
   renderMenuItems,
   tight = false,
   isRenaming = false,
@@ -152,15 +156,20 @@ export function TopMarginalia({
       {/* Right column: control affordances */}
       <div className="shrink-0 flex flex-col items-end gap-1.5">
         <div className="flex items-center gap-1">
-          {showAnalyze && onAnalyze && (
+          {showSuggest && onSuggest && (
             <button
               type="button"
-              aria-label="Analyze with AI"
-              title="Analyze with AI"
-              onClick={(e) => { e.stopPropagation(); onAnalyze(); }}
-              className="inline-flex items-center justify-center w-5 h-5 rounded-[3px] text-[var(--color-ai)] hover:bg-surface-secondary cursor-pointer"
+              aria-label="Suggest something"
+              title="Suggest something"
+              disabled={suggestBusy}
+              onClick={(e) => { e.stopPropagation(); onSuggest(); }}
+              className={`inline-flex items-center justify-center w-5 h-5 rounded-[3px] text-[var(--color-ai)] ${
+                suggestBusy
+                  ? 'opacity-60 animate-pulse cursor-default'
+                  : 'hover:bg-surface-secondary cursor-pointer'
+              }`}
             >
-              <Sparkles size={12} aria-hidden />
+              <Lightbulb size={12} aria-hidden />
             </button>
           )}
           {objectsActive && onSelectObjectTool && (

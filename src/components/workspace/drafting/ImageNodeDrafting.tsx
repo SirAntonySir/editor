@@ -27,7 +27,7 @@ import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
-import { analyseImageLayer, suggestForImageNode, useAiSession } from '@/hooks/useImageContext';
+import { analyseImageLayer, suggestForImageNode, useIsImageNodeAnalysed } from '@/hooks/useImageContext';
 import { useAiAccess } from '@/lib/ai-access';
 import { backendTools } from '@/lib/backend-tools';
 import { editorDocument } from '@/core/document';
@@ -91,13 +91,17 @@ const RIGHT_MARGIN = 120;
 export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps) {
   const [compareHeld, setCompareHeld] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
+  // Busy while the header bulb's suggest run (or the analyze it joins) is in
+  // flight — disables the bulb so a double-click can't stack a second run on
+  // top of the backend's cooldown.
+  const [suggestBusy, setSuggestBusy] = useState(false);
   // Reveal the resize corner handles on hover (not only when selected), so the
   // image node resizes the same way widgets do.
   const [hovered, setHovered] = useState(false);
   const setImageNodeName = useEditorStore((s) => s.setImageNodeName);
-  // Right-click "Analyze with AI" hides once this node has been analysed —
-  // the AI menu does the same via its `analysedIds.includes(id)` check.
-  const isAnalysed = useAiSession((s) => s.analysedImageNodeIds.includes(id));
+  // Right-click "Analyze with AI" hides once this node counts as analysed —
+  // locally marked OR the session snapshot carries context (reload/inherit).
+  const isAnalysed = useIsImageNodeAnalysed(id);
   // Study control condition hides the node's AI context-menu items.
   const aiAccess = useAiAccess();
   // No backend session → no AI items at all (they'd silently no-op). Matches
@@ -574,8 +578,12 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
           onToggleObjectsMode={() => setImageNodeMode(id, objectsActive ? 'layers' : 'objects')}
           objectSelectTool={objectSelectTool}
           onSelectObjectTool={setObjectSelectTool}
-          showAnalyze={aiAccess && !offline && !isAnalysed}
-          onAnalyze={() => void analyseImageLayer(id)}
+          showSuggest={aiAccess && !offline}
+          onSuggest={() => {
+            setSuggestBusy(true);
+            void suggestForImageNode(id).finally(() => setSuggestBusy(false));
+          }}
+          suggestBusy={suggestBusy}
           renderMenuItems={renderMenuItems}
           tight
           isRenaming={isRenaming}

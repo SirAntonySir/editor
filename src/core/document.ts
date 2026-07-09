@@ -18,7 +18,7 @@ import * as history from './history';
 import { putSource } from './pixel-source-store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
-import { useAiSession } from '@/hooks/useImageContext';
+import { autoAnalyseImageOnLoad, useAiSession } from '@/hooks/useImageContext';
 import { clearInternalCanvasCache } from '@/lib/image-node-geometry';
 import { mergeVisibleLayersBody } from '@/lib/merge-visible-layers';
 import { downscaleForUpload } from '@/lib/downscale-for-upload';
@@ -332,6 +332,12 @@ async function openImage(file: File, source?: SourceMeta): Promise<void> {
       // finds no IDB entry and the canvas paints gray.
       const sid = useAiSession.getState().sessionId;
       if (sid) void putSource(sid, layerId, file);
+      // Auto-analyze on user load (mechanical + semantic + problems, no
+      // suggestions). Fire-and-forget: its own gates (aiAccess / SSE /
+      // existing context) decide whether anything actually runs, and a
+      // failure just leaves the menu's "Analyze with AI" as the retry.
+      // Reloads never reach this — they rehydrate, they don't openImage.
+      if (sid) void autoAnalyseImageOnLoad();
     });
 
   bitmap.close();
@@ -389,6 +395,12 @@ async function addImage(file: File, source?: SourceMeta): Promise<void> {
         body: fd,
       });
       if (!resp.ok) throw new Error(`${resp.status} ${await resp.text()}`);
+      // Auto-analyze on user load — same fire-and-forget as openImage. When
+      // the session already has context (the usual case: the first image was
+      // auto-analyzed) the gate skips, and this node reads as analysed via
+      // the session-context union. Only a context-less session (e.g. add on
+      // an empty canvas) actually analyzes here.
+      void autoAnalyseImageOnLoad();
     } catch (err) {
       console.warn('[addImage] backend upload failed:', err);
     }

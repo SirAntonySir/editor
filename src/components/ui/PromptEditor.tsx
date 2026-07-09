@@ -46,9 +46,14 @@ export interface PromptEditorProps {
 
 const NBSP = ' ';
 
-/** Single-line `contenteditable` prompt input that renders inline region
- *  chips. Owns all DOM/caret fiddliness so the palette can treat the prompt as
- *  a {@link PromptDoc}. Chips are atomic, non-editable spans. */
+/** `contenteditable` prompt input that renders inline region chips. Owns all
+ *  DOM/caret fiddliness so the palette can treat the prompt as a
+ *  {@link PromptDoc}. Chips are atomic, non-editable spans.
+ *
+ *  Long prompts WRAP (capped, then vertical scroll) rather than scrolling
+ *  horizontally — but the CONTENT stays single-line semantically: Enter
+ *  submits (never inserts a newline; the palette's Dialog.Content owns it)
+ *  and paste collapses newlines to spaces. */
 export const PromptEditor = forwardRef<PromptEditorHandle, PromptEditorProps>(
   function PromptEditor(
     { initialDoc, placeholder, disabled, className, onChange, onCaretWordChange },
@@ -241,7 +246,10 @@ export const PromptEditor = forwardRef<PromptEditorHandle, PromptEditorProps>(
         onKeyUp={reportCaret}
         onPaste={handlePaste}
         onClick={handleClick}
-        className={`prompt-editor flex-1 min-w-0 bg-transparent outline-none text-xs text-text-primary whitespace-nowrap overflow-x-auto ${
+        // wrap + cap at ~6 lines (text-xs line-height 16px), then scroll
+        // vertically. break-words so a pasted URL can't force a sideways
+        // scroll back in.
+        className={`prompt-editor flex-1 min-w-0 bg-transparent outline-none text-xs text-text-primary whitespace-pre-wrap break-words max-h-[96px] overflow-y-auto ${
           disabled ? 'opacity-60' : ''
         } ${className ?? ''}`}
       />

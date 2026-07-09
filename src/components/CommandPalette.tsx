@@ -829,8 +829,12 @@ export function CommandPalette() {
                     on one line. Region references become atomic chips inside
                     the prompt as the user types (fuzzy, accepted Tab/Enter).
                     The target chip sits flush-right on this same row. */}
-                <div className="flex items-center gap-2 px-2 py-1.5 border-b border-separator">
-                  {searchIconNode}
+                {/* items-start + h-4 wrappers: the editor wraps to multiple
+                    lines, so the icon and target chip pin to the FIRST line
+                    (h-4 = the editor's 16px text-xs line box) instead of
+                    floating mid-height as the prompt grows. */}
+                <div className="flex items-start gap-2 px-2 py-1.5 border-b border-separator">
+                  <span className="flex-none h-4 flex items-center">{searchIconNode}</span>
                   <PromptEditor
                     ref={editorRef}
                     initialDoc={doc}
@@ -1052,7 +1056,7 @@ function TargetChip({
       type="button"
       onClick={onCycle}
       title={`Change target (Tab) — currently "${label}"`}
-      className="flex-none flex items-center gap-1 max-w-[160px] text-[10px] text-text-secondary
+      className="flex-none self-start flex items-center gap-1 max-w-[160px] text-[10px] text-text-secondary
         bg-surface-secondary px-1.5 py-px rounded hover:text-text-primary transition-colors leading-tight"
     >
       <TargetThumb layerId={thumbLayerId} />

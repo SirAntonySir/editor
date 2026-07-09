@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from typing import Any
 
@@ -181,6 +182,14 @@ def _dedup_plan(raw_plan: list[dict]) -> list[dict]:
     return deduped
 
 
+def _op_display(op_id: str) -> str:
+    """Humanize a registry op id for binding labels: `clarity` → "Clarity",
+    `splitTone` → "Split tone", `time-of-day` → "Time of day"."""
+    words = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", op_id)
+    words = words.replace("-", " ").replace("_", " ")
+    return words[:1].upper() + words[1:].lower()
+
+
 def _build_widget_multi(
     *, widget_name: str | None,
     category: str | None,
@@ -198,6 +207,20 @@ def _build_widget_multi(
 
     reg = get_registry()
     widget_id = f"w_{uuid.uuid4().hex[:8]}"
+
+    # Cross-op label collisions: registry ops label their primary param
+    # generically ("Amount" on clarity, sharpen, grain, vignette, …), which is
+    # fine solo but renders identical sliders when the planner composes two
+    # such ops into one widget. Pre-pass: which labels appear under more than
+    # one op? Those bindings adopt the op's display name instead — the same
+    # convention the hand-built fused templates use ("Clarity" / "Sharpen").
+    label_ops: dict[str, set[str]] = {}
+    for op_id, _ in ops:
+        op = reg.ops.get(op_id)
+        if op is None:
+            continue  # unknown op raises in the main loop below
+        for b in op.bindings:
+            label_ops.setdefault(b.label, set()).add(op_id)
 
     nodes: list[WidgetNode] = []
     bindings: list[ControlBinding] = []
@@ -236,10 +259,20 @@ def _build_widget_multi(
             layer_ids=image_node_layer_ids,
         ))
 
+        # Labels this op contributes that collide with another op's. One
+        # colliding label → the op display name alone ("Clarity"); several →
+        # keep the param context too ("Clarity amount", "Clarity radius").
+        colliding_in_op = [
+            b.label for b in op.bindings if len(label_ops.get(b.label, ())) > 1
+        ]
         for b in op.bindings:
+            label = b.label
+            if len(label_ops.get(b.label, ())) > 1:
+                display = _op_display(op_id)
+                label = display if len(colliding_in_op) == 1 else f"{display} {b.label.lower()}"
             bindings.append(ControlBinding(
                 param_key=b.param_key,
-                label=b.label,
+                label=label,
                 control_type=b.control_type,
                 control_schema=_control_schema_for(op_id, b.param_key),
                 value=full_params[b.param_key],

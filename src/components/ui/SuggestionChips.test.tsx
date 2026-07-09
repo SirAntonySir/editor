@@ -114,3 +114,57 @@ describe('SuggestionChips — allow', () => {
     expect(runAgentTurnForRegion).not.toHaveBeenCalled();
   });
 });
+
+describe('SuggestionChips — allow re-entry & failure', () => {
+  it('ignores re-clicks while the region agent turn is in flight (single-flight)', async () => {
+    // Agent turn hangs until we resolve it — models the multi-second
+    // Node/Layer chooser + extraction + LLM turn.
+    let finish!: (v: { extracted: boolean; ok: boolean; toolCalls: number }) => void;
+    runAgentTurnForRegion.mockImplementation(
+      () => new Promise((res) => { finish = res; }),
+    );
+    widgets = [makeAiWidget({ intent: 'Sneakers lost in shadow', scope: { kind: 'named_region', label: 'hanging sneakers' } })];
+    render(<SuggestionChips />);
+
+    fireEvent.click(allowButton('Sneakers lost in shadow'));
+    await waitFor(() => expect(runAgentTurnForRegion).toHaveBeenCalledTimes(1));
+    // Impatient second + third click while the turn is still running.
+    fireEvent.click(allowButton('Sneakers lost in shadow'));
+    fireEvent.click(allowButton('Sneakers lost in shadow'));
+
+    finish({ extracted: true, ok: true, toolCalls: 2 });
+    await waitFor(() => expect(resolvePending).toHaveBeenCalledWith('w-ai-1'));
+
+    // ONE turn, ONE widget stack — not one per click.
+    expect(runAgentTurnForRegion).toHaveBeenCalledTimes(1);
+    expect(resolvePending).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables the allow button while the turn is in flight', async () => {
+    runAgentTurnForRegion.mockImplementation(() => new Promise(() => {}));
+    widgets = [makeAiWidget({ intent: 'Sneakers lost in shadow', scope: { kind: 'named_region', label: 'hanging sneakers' } })];
+    render(<SuggestionChips />);
+
+    fireEvent.click(allowButton('Sneakers lost in shadow'));
+    await waitFor(() =>
+      expect(allowButton('Sneakers lost in shadow')).toHaveProperty('disabled', true),
+    );
+  });
+
+  it('keeps the chip pending and re-enables on failure so the user can retry', async () => {
+    runAgentTurnForRegion.mockRejectedValue(new Error('agent turn failed'));
+    widgets = [makeAiWidget({ intent: 'Sneakers lost in shadow', scope: { kind: 'named_region', label: 'hanging sneakers' } })];
+    render(<SuggestionChips />);
+
+    fireEvent.click(allowButton('Sneakers lost in shadow'));
+
+    // Failure: chip must NOT resolve out of pending (it would silently vanish
+    // with no widget), and the button must come back for a retry.
+    await waitFor(() =>
+      expect(allowButton('Sneakers lost in shadow')).toHaveProperty('disabled', false),
+    );
+    expect(resolvePending).not.toHaveBeenCalled();
+    expect(addAccepted).not.toHaveBeenCalled();
+    expect(tether).not.toHaveBeenCalled();
+  });
+});

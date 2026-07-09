@@ -239,3 +239,45 @@ async def test_preset_id_image_node_stamps_layer_ids(make_doc):
     for node in out.widgets[0]["nodes"]:
         assert node["layerIds"] == ["l-1", "l-2"]
         assert node["layerId"] == "l-1"
+
+
+def test_build_widget_multi_disambiguates_colliding_labels():
+    """clarity + sharpen both label their param "Amount" in the registry; a
+    multi-op widget must not render two identical "Amount" sliders. On a
+    cross-op label collision the binding adopts the op's display name
+    (matching the fused templates' hand-renamed "Clarity"/"Sharpen" style)."""
+    scope = Scope.model_validate({"kind": "global"})
+    origin = WidgetOrigin(kind="mcp_user_prompt", prompt="test", parent_widget_id=None)
+    widget = _build_widget_multi(
+        widget_name="Subject definition",
+        category="detail",
+        ops=[
+            ("clarity", {"amount": 20}),
+            ("sharpen", {"amount": 35}),
+        ],
+        intent="crisp up the subject",
+        scope=scope, origin=origin,
+        layer_id="legacy",
+        image_node_layer_ids=None,
+    )
+    labels = [b.label for b in widget.bindings]
+    assert len(labels) == len(set(labels)), f"duplicate binding labels: {labels}"
+    assert "Clarity" in labels
+    assert "Sharpen" in labels
+
+
+def test_build_widget_multi_keeps_plain_labels_without_collision():
+    """A single-op widget (or non-colliding multi-op) keeps the registry
+    label untouched — "Amount" stays "Amount"."""
+    scope = Scope.model_validate({"kind": "global"})
+    origin = WidgetOrigin(kind="mcp_user_prompt", prompt="test", parent_widget_id=None)
+    widget = _build_widget_multi(
+        widget_name="Clarity",
+        category="detail",
+        ops=[("clarity", {"amount": 20})],
+        intent="clarity only",
+        scope=scope, origin=origin,
+        layer_id="legacy",
+        image_node_layer_ids=None,
+    )
+    assert [b.label for b in widget.bindings] == ["Amount"]

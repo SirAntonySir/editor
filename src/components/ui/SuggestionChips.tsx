@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Check, Eye, Info, Sparkles, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Check, Eye, Info, Loader2, Sparkles, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import * as Popover from '@radix-ui/react-popover';
 import { useReactFlow } from '@xyflow/react';
@@ -9,6 +9,7 @@ import { useAiAccess } from '@/lib/ai-access';
 import { backendTools } from '@/lib/backend-tools';
 import { tetherWorkspaceWidgetOnEngage } from '@/lib/workspace-tether';
 import { logWidgetUndoDiag } from '@/lib/widget-undo-diag';
+import { toast } from '@/components/ui/Toast';
 import type { Widget } from '@/types/widget';
 import { UI } from '@/config';
 
@@ -74,6 +75,15 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
   const [sticky, setSticky] = useState(false);
   const infoOpen = hover || sticky;
 
+  // Single-flight guard for Allow. A region-scoped accept is a LONG pipeline
+  // (Node/Layer chooser → SAM extraction → multi-second agent turn that mints
+  // 1–6 widgets) and the chip only resolves at its end — without this, every
+  // impatient re-click stacked ANOTHER turn and flooded the canvas with
+  // widgets. The ref is the re-entry gate (state updates are async); the
+  // state drives the disabled/busy visuals.
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+
   function recordAllowed() {
     recordDecision({
       id: widget.id,
@@ -85,48 +95,63 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
   }
 
   async function handleAllow() {
+    // Re-entry gate: one accept pipeline per chip, ever. Re-clicks while the
+    // agent turn runs must not stack more turns (each mints 1–6 widgets).
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
     logWidgetUndoDiag('allow:before', { widgetId: widget.id });
 
-    // Local-region suggestions mirror the Cmd+K palette: rather than
-    // materialising the adjustment over the full image, extract the region
-    // into its own SAM image node (same Extract → Node/Layer chooser) and
-    // re-plan adjustments on it. Falls back to the full-image materialisation
-    // below when the region can't be extracted (chooser deny / unresolved /
-    // no active image node).
-    if (widget.scope.kind === 'named_region') {
-      // Dynamic import: the extraction/agent stack (SAM, compositor) is heavy
-      // and only needed on allow — keep it out of the dock's module graph.
-      const { runAgentTurnForRegion } = await import('@/lib/palette-actions.agent');
-      const { extracted } = await runAgentTurnForRegion(widget.intent, widget.scope.label);
-      if (extracted) {
-        // The agent re-proposed on the extracted node; retire the original
-        // whole-image suggestion so it doesn't double up. Mark it accepted
-        // BEFORE resolving it out of pending: `useAutoTetherAiSuggestions`
-        // tethers any autonomous widget that is active-in-snapshot && !pending
-        // && !accepted, so without this guard it would tether the original
-        // onto the full image in the window before delete_widget's SSE lands —
-        // producing a second (whole-image) adjustment.
-        addAccepted(widget.id);
-        if (sessionId) {
-          void backendTools.delete_widget(sessionId, {
-            widgetId: widget.id,
-            suppressSimilar: false,
-          });
+    try {
+      // Local-region suggestions mirror the Cmd+K palette: rather than
+      // materialising the adjustment over the full image, extract the region
+      // into its own SAM image node (same Extract → Node/Layer chooser) and
+      // re-plan adjustments on it. Falls back to the full-image materialisation
+      // below when the region can't be extracted (chooser deny / unresolved /
+      // no active image node).
+      if (widget.scope.kind === 'named_region') {
+        // Dynamic import: the extraction/agent stack (SAM, compositor) is heavy
+        // and only needed on allow — keep it out of the dock's module graph.
+        const { runAgentTurnForRegion } = await import('@/lib/palette-actions.agent');
+        const { extracted } = await runAgentTurnForRegion(widget.intent, widget.scope.label);
+        if (extracted) {
+          // The agent re-proposed on the extracted node; retire the original
+          // whole-image suggestion so it doesn't double up. Mark it accepted
+          // BEFORE resolving it out of pending: `useAutoTetherAiSuggestions`
+          // tethers any autonomous widget that is active-in-snapshot && !pending
+          // && !accepted, so without this guard it would tether the original
+          // onto the full image in the window before delete_widget's SSE lands —
+          // producing a second (whole-image) adjustment.
+          addAccepted(widget.id);
+          if (sessionId) {
+            void backendTools.delete_widget(sessionId, {
+              widgetId: widget.id,
+              suppressSimilar: false,
+            });
+          }
+          recordAllowed();
+          resolve(widget.id);
+          logWidgetUndoDiag('allow:after(extracted)', { widgetId: widget.id });
+          return;
         }
-        recordAllowed();
-        resolve(widget.id);
-        logWidgetUndoDiag('allow:after(extracted)', { widgetId: widget.id });
-        return;
       }
-    }
 
-    const { x, y, zoom } = rf.getViewport();
-    const screen = { w: window.innerWidth, h: window.innerHeight };
-    tetherWorkspaceWidgetOnEngage(widget, { pan: { x, y }, zoom, screen });
-    addAccepted(widget.id);
-    recordAllowed();
-    resolve(widget.id);
-    logWidgetUndoDiag('allow:after', { widgetId: widget.id });
+      const { x, y, zoom } = rf.getViewport();
+      const screen = { w: window.innerWidth, h: window.innerHeight };
+      tetherWorkspaceWidgetOnEngage(widget, { pan: { x, y }, zoom, screen });
+      addAccepted(widget.id);
+      recordAllowed();
+      resolve(widget.id);
+      logWidgetUndoDiag('allow:after', { widgetId: widget.id });
+    } catch (err) {
+      // Keep the chip pending (no resolve) so the user can retry; a silent
+      // vanish with no widget would read as the suggestion being accepted.
+      console.error('[SuggestionChips] allow failed:', err);
+      toast.info('Suggestion could not be applied — try again.');
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
   }
 
   function handleDeny() {
@@ -241,9 +266,12 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
       <button
         type="button"
         onClick={handleDeny}
+        disabled={busy}
         title="Deny"
         aria-label={`Deny suggestion: ${widget.intent}`}
-        className="inline-flex items-center justify-center p-0.5 rounded-[3px] text-text-secondary hover:text-text-primary hover:bg-surface-secondary"
+        className={`inline-flex items-center justify-center p-0.5 rounded-[3px] text-text-secondary ${
+          busy ? 'opacity-40 cursor-default' : 'hover:text-text-primary hover:bg-surface-secondary'
+        }`}
       >
         <X size={11} aria-hidden />
       </button>
@@ -251,11 +279,16 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
       <button
         type="button"
         onClick={handleAllow}
-        title="Allow"
+        disabled={busy}
+        title={busy ? 'Applying…' : 'Allow'}
         aria-label={`Allow suggestion: ${widget.intent}`}
-        className="inline-flex items-center justify-center p-0.5 rounded-[3px] text-white bg-ai hover:brightness-110"
+        className={`inline-flex items-center justify-center p-0.5 rounded-[3px] text-white bg-ai ${
+          busy ? 'opacity-60 cursor-default' : 'hover:brightness-110'
+        }`}
       >
-        <Check size={11} aria-hidden />
+        {busy
+          ? <Loader2 size={11} className="animate-spin" aria-hidden />
+          : <Check size={11} aria-hidden />}
       </button>
     </motion.div>
   );

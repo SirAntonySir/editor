@@ -47,12 +47,24 @@ function looksLike01Space(pairs: XYPair[]): boolean {
  *  in `widget.nodes[node_id].params.points` (0..1 space — same place the
  *  renderer reads from). The widget's `binding.value` may be empty / a
  *  default-shaped placeholder, so prefer the node params and fall back to
- *  binding.value only when the node lacks them. */
-function resolveSingleCurvePoints(
+ *  binding.value only when the node lacks them.
+ *
+ *  EXCEPT while a live edit is in flight: `effectiveValue` returns
+ *  `binding.value` BY REFERENCE when no optimistic patch exists, so a
+ *  different object means the user is mid-drag (or the debounced backend
+ *  write hasn't echoed yet). The optimistic value must win then — with node
+ *  params first, the editor's points snapped back to the STALE backend curve
+ *  on every re-render and only caught up after the 300ms debounce + network
+ *  round-trip, which read as heavy lag on AI-spawned curves widgets. */
+export function resolveSingleCurvePoints(
   widget: Widget,
   binding: ControlBinding,
   bindingValue: ControlValue,
 ): CurvePoint[] {
+  // Source of truth #0: a live optimistic override (mid-drag).
+  if (bindingValue !== binding.value && isXYPairArray(bindingValue)) {
+    return looksLike01Space(bindingValue) ? pairsToPoints01(bindingValue) : pairsToPoints(bindingValue);
+  }
   // Source of truth #1: the op-graph node the binding targets.
   const node = widget.nodes.find((n) => n.id === binding.target.nodeId);
   const nodeParams = node?.params as Record<string, unknown> | undefined;

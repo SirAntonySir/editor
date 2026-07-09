@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { evaluateCubicSpline, type CurvePoint } from '@/lib/curves';
+import { evaluateCubicSplineMemo, type CurvePoint } from '@/lib/curves';
 import { IDENTITY_CURVES } from '@/types/widget';
 import type { CurvesValue } from '@/types/widget';
 
@@ -129,8 +129,10 @@ export function CurveEditor({ value, onChange, channel: lockedChannel }: CurveEd
     }
   };
 
-  // Build SVG path from spline (200×200 viewBox)
-  const lut = evaluateCubicSpline(points);
+  // Build SVG path from spline (200×200 viewBox). Memoized: the editor
+  // re-renders per pointermove during a drag, and only the dragged channel's
+  // points actually change.
+  const lut = evaluateCubicSplineMemo(points);
   const pathData = Array.from(lut)
     .map((y, i) => {
       const x = (i / 255) * 200;

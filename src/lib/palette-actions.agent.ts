@@ -185,12 +185,19 @@ export async function runAgentTurnForRegion(
   intent: string,
   label: string,
   getChoice: RegionChoiceFn = (l) => useRegionExtractionApproval.getState().request(l),
+  opts?: {
+    /** The image node the region belongs to. Suggestion accepts MUST pass
+     *  this: accepting one suggestion extracts a cutout and makes it ACTIVE,
+     *  so a second back-to-back accept would otherwise segment its region
+     *  from the CUTOUT's pixels instead of the source image. */
+    sourceImageNodeId?: string;
+  },
 ): Promise<{ extracted: boolean; ok: boolean; toolCalls: number }> {
   const sid = useBackendState.getState().sessionId;
   if (!sid) return { extracted: false, ok: false, toolCalls: 0 };
 
   const editor = useEditorStore.getState();
-  const activeNodeId = editor.activeImageNodeId;
+  const activeNodeId = opts?.sourceImageNodeId ?? editor.activeImageNodeId;
   const activeNode = activeNodeId ? editor.imageNodes[activeNodeId] : undefined;
   const candidateRegions = useAiSession.getState().context?.candidateRegions ?? [];
 

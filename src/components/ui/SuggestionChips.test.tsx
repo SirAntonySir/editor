@@ -81,7 +81,10 @@ describe('SuggestionChips — allow', () => {
     fireEvent.click(allowButton('Sneakers lost in shadow'));
 
     await waitFor(() =>
-      expect(runAgentTurnForRegion).toHaveBeenCalledWith('Sneakers lost in shadow', 'hanging sneakers'),
+      expect(runAgentTurnForRegion).toHaveBeenCalledWith(
+        'Sneakers lost in shadow', 'hanging sneakers', undefined,
+        { sourceImageNodeId: undefined },
+      ),
     );
     expect(deleteWidget).toHaveBeenCalledWith('s-1', { widgetId: 'w-ai-1', suppressSimilar: false });
     expect(tether).not.toHaveBeenCalled();
@@ -112,6 +115,36 @@ describe('SuggestionChips — allow', () => {
 
     await waitFor(() => expect(tether).toHaveBeenCalledTimes(1));
     expect(runAgentTurnForRegion).not.toHaveBeenCalled();
+  });
+});
+
+describe('SuggestionChips — source-node resolution', () => {
+  it("passes the suggestion's OWN image node, not the active one (back-to-back accepts)", async () => {
+    // Accepting suggestion #1 extracts a cutout and makes it active. The
+    // second accept must still segment from the SOURCE image the suggestion
+    // was minted against — its node resolves via the widget's target layer.
+    const { useEditorStore } = await import('@/store');
+    useEditorStore.getState().resetWorkspace();
+    const sourceId = useEditorStore.getState().addImageNode(['l-src']);
+    const cutoutId = useEditorStore.getState().addImageNode(['l-cut']);
+    useEditorStore.getState().setActiveImageNode(cutoutId);
+
+    runAgentTurnForRegion.mockResolvedValue({ extracted: true, ok: true, toolCalls: 1 });
+    widgets = [makeAiWidget({
+      intent: 'Car body lost in shadow',
+      scope: { kind: 'named_region', label: 'sports car' },
+      nodes: [{ id: 'n-1', type: 'basic', params: {}, scope: { kind: 'global' }, inputs: [], widgetId: 'w-ai-1', layerId: 'l-src' }] as never,
+    })];
+    render(<SuggestionChips />);
+
+    fireEvent.click(allowButton('Car body lost in shadow'));
+
+    await waitFor(() =>
+      expect(runAgentTurnForRegion).toHaveBeenCalledWith(
+        'Car body lost in shadow', 'sports car', undefined,
+        { sourceImageNodeId: sourceId },
+      ),
+    );
   });
 });
 

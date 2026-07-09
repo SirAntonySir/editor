@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import * as Popover from '@radix-ui/react-popover';
 import { useReactFlow } from '@xyflow/react';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useEditorStore } from '@/store';
 import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { useAiAccess } from '@/lib/ai-access';
 import { backendTools } from '@/lib/backend-tools';
@@ -60,6 +61,20 @@ interface SuggestionChipProps {
   widget: Widget;
 }
 
+/** Resolve the image node that owns the suggestion's target layer. The
+ *  suggestion was minted against a specific layer; the workspace node holding
+ *  that layer is the image its region must be segmented from. Returns
+ *  undefined when unresolvable (fresh fixture widgets, layerless nodes) —
+ *  the caller then falls back to the active node. */
+function ownerImageNodeIdFor(widget: Widget): string | undefined {
+  const layerId = widget.nodes[0]?.layerId;
+  if (!layerId) return undefined;
+  for (const n of Object.values(useEditorStore.getState().imageNodes)) {
+    if (n.layerIds.includes(layerId)) return n.id;
+  }
+  return undefined;
+}
+
 function SuggestionChip({ widget }: SuggestionChipProps) {
   const sessionId = useBackendState((s) => s.sessionId);
   const resolve = useSuggestionsUi((s) => s.resolvePending);
@@ -113,7 +128,16 @@ function SuggestionChip({ widget }: SuggestionChipProps) {
         // Dynamic import: the extraction/agent stack (SAM, compositor) is heavy
         // and only needed on allow — keep it out of the dock's module graph.
         const { runAgentTurnForRegion } = await import('@/lib/palette-actions.agent');
-        const { extracted } = await runAgentTurnForRegion(widget.intent, widget.scope.label);
+        // Extract from the node the SUGGESTION targets, not whatever is
+        // active: accepting a previous suggestion left ITS cutout active, and
+        // segmenting this region from that cutout produced nodes cut from
+        // the wrong image on back-to-back accepts.
+        const { extracted } = await runAgentTurnForRegion(
+          widget.intent,
+          widget.scope.label,
+          undefined,
+          { sourceImageNodeId: ownerImageNodeIdFor(widget) },
+        );
         if (extracted) {
           // The agent re-proposed on the extracted node; retire the original
           // whole-image suggestion so it doesn't double up. Mark it accepted

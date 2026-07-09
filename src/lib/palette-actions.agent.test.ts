@@ -196,4 +196,25 @@ describe('runAgentTurnForRegion', () => {
     expect(out.extracted).toBe(false);
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
+
+  it("extracts from the given SOURCE node even when a cutout is active (back-to-back accepts)", async () => {
+    // Accepting suggestion #1 extracts a cutout and makes it ACTIVE. Without
+    // an explicit source, accepting suggestion #2 segmented the second region
+    // from the CUTOUT's pixels instead of the source image.
+    const { useEditorStore } = await import('@/store');
+    const sourceId = useEditorStore.getState().addImageNode(['l-src']);
+    const cutoutId = useEditorStore.getState().addImageNode(['l-cut']);
+    useEditorStore.getState().setActiveImageNode(cutoutId);
+    await setRegions([{ label: 'car', representativePoint: [0.5, 0.5] }]);
+    segmentMock.mockResolvedValue('m-car');
+    extractMock.mockReturnValue({ imageNodeId: 'node-car', layerId: 'Lc' });
+
+    const out = await runAgentTurnForRegion('fix the car', 'car', async () => 'node', {
+      sourceImageNodeId: sourceId,
+    });
+
+    expect(segmentMock).toHaveBeenCalledWith(sourceId, [0.5, 0.5], 'car', undefined);
+    expect(extractMock).toHaveBeenCalledWith('m-car', sourceId, { excludePendingSuggestions: true });
+    expect(out.extracted).toBe(true);
+  });
 });

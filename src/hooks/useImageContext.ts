@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createSession, pushSessionContext } from '@/lib/ai-client';
 import { backendTools } from '@/lib/backend-tools';
-import { downscaleForUpload } from '@/lib/downscale-for-upload';
+import { downscaleForUpload, yieldToDisplay } from '@/lib/downscale-for-upload';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { pixelStore } from '@/core/pixel-store';
@@ -230,8 +230,14 @@ export const useAiSession = create<AiSessionState>((set, get, api) => ({
     // Idempotent: if a session is already alive, do nothing. Reset() must
     // run first when the caller wants a fresh session for a new image.
     if (get().sessionId) return;
+    // Status must flip BEFORE any await: addImage's awaitSession only waits
+    // when it can see a bootstrap in flight (the multi-file-drop race).
     set({ status: 'uploading', error: null, context: null });
     try {
+      // Let the freshly opened image paint before the O(source-pixels)
+      // downscale hits the main thread — openImage calls this right after
+      // its setState mounts the node.
+      await yieldToDisplay();
       const blob = await downscaleForUpload(source);
       const sessionId = await createSession(blob);
       // status drops back to 'idle' — the session is alive (tools usable)

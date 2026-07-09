@@ -23,6 +23,21 @@ export function isPng16(bytes: Uint8Array): boolean {
 }
 
 /**
+ * Header-only 16-bit-PNG check: reads the first 26 bytes (signature + IHDR
+ * bit depth) via `Blob.slice`, never the full file. The image-open path must
+ * not pull a 40 MB JPEG through `arrayBuffer()` just to learn it isn't a
+ * PNG — full reads belong after a positive sniff.
+ */
+export async function sniffPng16(file: Blob): Promise<boolean> {
+  try {
+    const head = new Uint8Array(await file.slice(0, 26).arrayBuffer());
+    return isPng16(head);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Decode a 16-bit PNG into an RGBA Uint16 buffer. RGB sources are expanded to
  * RGBA with opaque alpha (65535) so the result uploads directly as an
  * `RGBA16F` texture.

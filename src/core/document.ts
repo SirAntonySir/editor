@@ -13,7 +13,7 @@ import type { EditorState } from '@/store';
 import type { InfoNodeContent, InfoNodeState, Point, Size, TetherEdgeState } from '@/types/workspace';
 import { pixelStore } from './pixel-store';
 import { hiBitStore } from './hibit-store';
-import { isPng16, decodePng16 } from '@/lib/png16';
+import { isPng16, decodePng16, sniffPng16 } from '@/lib/png16';
 import * as history from './history';
 import { putSource } from './pixel-source-store';
 import { useBackendState } from '@/store/backend-state-slice';
@@ -22,7 +22,7 @@ import { autoAnalyseImageOnLoad, useAiSession } from '@/hooks/useImageContext';
 import { resetSegmentationClientState } from '@/lib/segmentation/reset-client-state';
 import { clearInternalCanvasCache } from '@/lib/image-node-geometry';
 import { mergeVisibleLayersBody } from '@/lib/merge-visible-layers';
-import { downscaleForUpload } from '@/lib/downscale-for-upload';
+import { downscaleForUpload, yieldToDisplay } from '@/lib/downscale-for-upload';
 import { parseImageMetadata } from '@/lib/image-metadata';
 import { backendTools } from '@/lib/backend-tools';
 import { toast } from '@/components/ui/Toast';
@@ -240,6 +240,10 @@ export interface SourceMeta {
  */
 async function maybeRegisterHiBit(layerId: string, file: File): Promise<void> {
   try {
+    // Header sniff first (26 bytes) — the open path must not read a 40 MB
+    // JPEG's full bytes just to learn it isn't a PNG. Only a positive sniff
+    // pays for the full read + uint16 decode.
+    if (!(await sniffPng16(file))) return;
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (!isPng16(bytes)) return;
     hiBitStore.register(layerId, decodePng16(bytes));
@@ -269,7 +273,11 @@ async function openImage(file: File, source?: SourceMeta): Promise<void> {
 
   const layerId = crypto.randomUUID();
   pixelStore.register(layerId, offscreen);
-  await maybeRegisterHiBit(layerId, file);
+  // Fire-and-forget: hi-bit pixels are only consulted when an adjustment
+  // renders through the float pipeline, so registration may land after first
+  // paint. Keeping this off the awaited path spares the open of a large
+  // PNG16 its full-file read + decode before the image can show.
+  void maybeRegisterHiBit(layerId, file);
 
   // Display identity: a developed RAW carries `source` (its original .ARW name
   // / format / size) so the editor presents it as the RAW, not the internal
@@ -371,7 +379,11 @@ async function addImage(file: File, source?: SourceMeta): Promise<void> {
 
   const layerId = crypto.randomUUID();
   pixelStore.register(layerId, offscreen);
-  await maybeRegisterHiBit(layerId, file);
+  // Fire-and-forget: hi-bit pixels are only consulted when an adjustment
+  // renders through the float pipeline, so registration may land after first
+  // paint. Keeping this off the awaited path spares the open of a large
+  // PNG16 its full-file read + decode before the image can show.
+  void maybeRegisterHiBit(layerId, file);
 
   // Persist the source blob + upload to the backend once a session is
   // available. During a multi-file Finder drop, addImage can run BEFORE the
@@ -396,6 +408,9 @@ async function addImage(file: File, source?: SourceMeta): Promise<void> {
     // MAX_IMAGE_BYTES (2MB), so uploading a raw full-res image here would 413.
     // Full resolution stays in the local pixelStore for editing.
     try {
+      // Same paint courtesy as openSession: the new node is mounting right
+      // now — don't run the O(source-pixels) downscale against its first frame.
+      await yieldToDisplay();
       const blob = await downscaleForUpload(offscreen);
       const fd = new FormData();
       fd.append('image', blob, 'image.jpg');

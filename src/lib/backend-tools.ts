@@ -203,6 +203,15 @@ export const backendTools = {
   restore_widget(sessionId: string, args: { widgetId: string }) {
     return invokeTool<{ widgetId: string }>('restore_widget', sessionId, args);
   },
+  /** Info-tab "Correct" button: resolve the problem's primary suggested fused
+   *  template against the cached context and mint the widget onto the canvas. */
+  correct_problem(sessionId: string, args: {
+    problemKind: string;
+    regionLabel?: string | null;
+    layerId?: string;
+  }) {
+    return invokeTool<{ widget: Widget }>('correct_problem', sessionId, args);
+  },
   accept_widget(sessionId: string, args: { widgetId: string }) {
     return invokeTool<{ widgetId: string }>('accept_widget', sessionId, args);
   },

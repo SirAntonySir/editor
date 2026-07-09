@@ -19,6 +19,7 @@ import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { renderImageNodeComposite } from '@/lib/image-node-renderer';
+import { frameThrottle } from '@/lib/frame-throttle';
 import { computeEffectiveSize } from '@/lib/image-node-geometry';
 import { activeCanvasBus } from '@/lib/active-canvas-bus';
 import type { Widget } from '@/types/widget';
@@ -244,7 +245,22 @@ export function useImageNodeRender({
   // (reuse the texture already uploaded).
   const lastPixelVersionRef = useRef<number | null>(null);
 
+  // Coalesce param storms to display rate: the effect below re-fires per
+  // optimistic patch (one per pointermove during a drag), and each run is a
+  // FULL WebGL composite. The throttle runs the first paint synchronously
+  // (leading) and folds same-frame re-fires into one trailing paint with the
+  // LATEST closure — a repaint is idempotent, intermediate frames are dead
+  // work. Curves drags were the worst case (LUT rebuild + 4 texture uploads
+  // per move at pointer rate).
+  const throttleRef = useRef<ReturnType<typeof frameThrottle> | null>(null);
+  if (throttleRef.current === null) throttleRef.current = frameThrottle();
+  useEffect(() => () => throttleRef.current?.cancel(), []);
+
   useEffect(() => {
+    throttleRef.current?.schedule(paint);
+    // The paint body reads everything from the surrounding closure; the deps
+    // below are what invalidate it.
+    function paint(): void {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const backingW = Math.max(1, Math.round(eff.w * renderScale));
@@ -367,6 +383,7 @@ export function useImageNodeRender({
           );
         }
       }
+    }
     }
   }, [
     imageNodeId,

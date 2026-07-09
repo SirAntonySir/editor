@@ -1,6 +1,6 @@
 import type { Node } from '@/types/operation-graph';
 import type { Adjustment } from '@/types/adjustment';
-import { evaluateCubicSpline, DEFAULT_CURVE_POINTS, type CurvePoint } from '@/lib/curves';
+import { evaluateCubicSplineMemo, DEFAULT_CURVE_POINTS, type CurvePoint } from '@/lib/curves';
 import type { CurvesValue } from '@/types/widget';
 
 const CURVE_CHANNELS = ['rgb', 'red', 'green', 'blue'] as const;
@@ -61,16 +61,16 @@ export function nodeToAdjustment(node: Node): Adjustment {
     // This branch wins over the legacy `params.curves` singleton when both
     // are present.
     for (const ch of CURVE_CHANNELS) {
-      params[ch] = evaluateCubicSpline(pointsToCurvePoints255(node.params[ch]));
+      params[ch] = evaluateCubicSplineMemo(pointsToCurvePoints255(node.params[ch]));
     }
   } else if (node.type === 'curves' && node.params.curves) {
     const curves = node.params.curves as unknown as CurvesValue;
     for (const ch of CURVE_CHANNELS) {
-      params[ch] = evaluateCubicSpline(curves[ch] ?? []);
+      params[ch] = evaluateCubicSplineMemo(curves[ch] ?? []);
     }
   } else if (node.type === 'curves' && 'points' in node.params) {
-    const masterLut = evaluateCubicSpline(pointsToCurvePoints(node.params.points));
-    const identityLut = evaluateCubicSpline(DEFAULT_CURVE_POINTS);
+    const masterLut = evaluateCubicSplineMemo(pointsToCurvePoints(node.params.points));
+    const identityLut = evaluateCubicSplineMemo(DEFAULT_CURVE_POINTS);
     params.rgb = masterLut;
     params.red = identityLut;
     params.green = identityLut;

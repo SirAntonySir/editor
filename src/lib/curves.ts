@@ -3,6 +3,31 @@ export interface CurvePoint {
   y: number; // 0..1
 }
 
+/**
+ * Memoized {@link evaluateCubicSpline}. The composite re-runs per frame
+ * during a curve drag and evaluates ALL four channels each time — the three
+ * untouched channels' 256-sample splines were rebuilt for nothing. Keyed by
+ * the points' values; small LRU so a long editing session can't grow it
+ * unbounded. Callers must treat the returned LUT as read-only.
+ */
+const _lutCache = new Map<string, Float32Array>();
+const _LUT_CACHE_MAX = 64;
+
+export function evaluateCubicSplineMemo(points: CurvePoint[]): Float32Array {
+  let key = '';
+  for (const p of points) key += `${p.x},${p.y};`;
+  const hit = _lutCache.get(key);
+  if (hit) return hit;
+  const lut = evaluateCubicSpline(points);
+  if (_lutCache.size >= _LUT_CACHE_MAX) {
+    // Drop the oldest entry (Map preserves insertion order).
+    const oldest = _lutCache.keys().next().value;
+    if (oldest !== undefined) _lutCache.delete(oldest);
+  }
+  _lutCache.set(key, lut);
+  return lut;
+}
+
 export function evaluateCubicSpline(points: CurvePoint[]): Float32Array {
   const sorted = [...points].sort((a, b) => a.x - b.x);
   const n = sorted.length;

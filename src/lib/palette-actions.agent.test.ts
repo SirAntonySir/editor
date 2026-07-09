@@ -107,7 +107,7 @@ describe('runAgentTurn', () => {
     maskHasSet.add('m1');
     extractMock.mockReturnValue({ imageNodeId: 'node-new', layerId: 'L1' });
     await runAgentTurn('make it pop', ['region:object:m1'], chooseNode);
-    expect(extractMock).toHaveBeenCalledWith('m1', nodeId);
+    expect(extractMock).toHaveBeenCalledWith('m1', nodeId, { excludePendingSuggestions: true });
     const body = lastBody();
     expect(body.forced_targets).toEqual([{ image_node_id: 'node-new', layer_ids: ['L1'] }]);
     expect(body.attached_objects).toEqual([]);
@@ -120,7 +120,7 @@ describe('runAgentTurn', () => {
     maskHasSet.add('m1');
     extractLayerMock.mockReturnValue('layer-new');
     await runAgentTurn('make it pop', ['region:object:m1'], async () => 'layer');
-    expect(extractLayerMock).toHaveBeenCalledWith('m1', nodeId);
+    expect(extractLayerMock).toHaveBeenCalledWith('m1', nodeId, { excludePendingSuggestions: true });
     expect(extractMock).not.toHaveBeenCalled();
     const body = lastBody();
     // Layer extraction targets the SAME node + the new layer.
@@ -157,7 +157,7 @@ describe('runAgentTurnForRegion', () => {
 
     const out = await runAgentTurnForRegion('fix the sky', 'sky', async () => 'node');
     expect(out.extracted).toBe(true);
-    expect(extractMock).toHaveBeenCalledWith('m-sky', nodeId);
+    expect(extractMock).toHaveBeenCalledWith('m-sky', nodeId, { excludePendingSuggestions: true });
     const body = lastBody();
     expect(body.intent).toBe('fix the sky');
     expect(body.forced_targets).toEqual([{ image_node_id: 'node-new', layer_ids: ['L1'] }]);
@@ -174,7 +174,7 @@ describe('runAgentTurnForRegion', () => {
     const out = await runAgentTurnForRegion('fix the car', 'car', async () => 'node');
     // No bbox on this region → the box+point upgrade passes bbox undefined.
     expect(segmentMock).toHaveBeenCalledWith(nodeId, [0.5, 0.5], 'car', undefined);
-    expect(extractMock).toHaveBeenCalledWith('m-car', nodeId);
+    expect(extractMock).toHaveBeenCalledWith('m-car', nodeId, { excludePendingSuggestions: true });
     expect(out.extracted).toBe(true);
   });
 

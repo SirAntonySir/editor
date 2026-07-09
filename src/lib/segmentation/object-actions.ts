@@ -33,15 +33,29 @@ function toolSessionId(): string | null {
  *  half of a reversible Copy. Fire-and-forget: the cutout + raw pixels are
  *  already on the canvas; the cloned widgets stream in via SSE and reconcile
  *  onto the new layer. No-op offline (the copy stays raw pixels only). */
-function cloneAdjustmentsToLayer(fromLayerId: string, toLayerId: string): void {
+/** Options for the copy-object verbs. */
+export interface CopyObjectOptions {
+  /** Set by LLM/agent-driven extractions (region accept, agent turns, the
+   *  copy_object_to_image_node LLM tool). Still-PENDING suggestion widgets
+   *  are backend-active and seeded into canonical (the renderer mutes them
+   *  until accepted) — cloning them onto a cutout the agent is about to
+   *  re-plan produced phantom "applied" twins next to the agent's own stack.
+   *  MANUAL copies deliberately keep them: copying an object while a chip is
+   *  pending is the product's way of applying that suggestion to just the
+   *  object. */
+  excludePendingSuggestions?: boolean;
+}
+
+function cloneAdjustmentsToLayer(
+  fromLayerId: string,
+  toLayerId: string,
+  opts?: CopyObjectOptions,
+): void {
   const sessionId = toolSessionId();
   if (!sessionId) return;
-  // Still-PENDING suggestion widgets are backend-active and seeded into
-  // canonical (the renderer mutes them until accepted) — pending-ness is
-  // frontend UI state the backend can't see. Without this exclusion, a
-  // wholesale clone launders every pending chip into an APPLIED widget on
-  // the copy ("a widget named like the global suggestion appeared").
-  const excludeWidgetIds = [...useSuggestionsUi.getState().pendingSuggestionIds];
+  const excludeWidgetIds = opts?.excludePendingSuggestions
+    ? [...useSuggestionsUi.getState().pendingSuggestionIds]
+    : [];
   void backendTools.duplicate_layer_edits(sessionId, {
     mapping: [{ fromLayerId, toLayerId }],
     excludeWidgetIds,
@@ -147,6 +161,7 @@ export function createSelectionFromLayer(
 export function copyObjectToImageNode(
   maskId: string,
   sourceImageNodeId: string,
+  opts?: CopyObjectOptions,
 ): { imageNodeId: string; layerId: string } | null {
   const mask = maskStore.get(maskId);
   if (!mask) {
@@ -209,7 +224,7 @@ export function copyObjectToImageNode(
     editor.setActiveLayer(newLayerId);
     // Clone the source's adjustments onto the cutout as its OWN editable
     // widgets, so the copy carries the same grade but is edited independently.
-    cloneAdjustmentsToLayer(sourceLayerId, newLayerId);
+    cloneAdjustmentsToLayer(sourceLayerId, newLayerId, opts);
     return { imageNodeId: newNodeId, layerId: newLayerId };
   } catch (err) {
     toast.info(`Copy failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -224,6 +239,7 @@ export function copyObjectToImageNode(
 export function copyObjectToLayer(
   maskId: string,
   sourceImageNodeId: string,
+  opts?: CopyObjectOptions,
 ): string | null {
   const mask = maskStore.get(maskId);
   if (!mask) {
@@ -263,7 +279,7 @@ export function copyObjectToLayer(
     editor.setActiveLayer(newLayerId);
     // Clone the source's adjustments onto the cutout as its OWN editable
     // widgets — same grade, edited independently from the source.
-    cloneAdjustmentsToLayer(sourceLayerId, newLayerId);
+    cloneAdjustmentsToLayer(sourceLayerId, newLayerId, opts);
     return newLayerId;
   } catch (err) {
     toast.info(`Copy failed: ${err instanceof Error ? err.message : String(err)}`);

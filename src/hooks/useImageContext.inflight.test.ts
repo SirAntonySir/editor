@@ -41,18 +41,22 @@ vi.mock('@/core/pixel-store', () => ({
 vi.mock('@/core/mask-store', () => ({
   maskStore: { get: vi.fn(() => null), register: vi.fn(() => 'mask-1') },
 }));
+const editorMock = vi.hoisted(() => {
+  const base = () => ({
+    activeImageNodeId: 'node-a',
+    imageNodes: {
+      'node-a': { id: 'node-a', layerIds: ['layer-1'], position: { x: 0, y: 0 }, size: { w: 600, h: 450 }, sourceSize: { w: 100, h: 75 } },
+    } as Record<string, object>,
+    layers: [{ id: 'layer-1', name: 'photo.jpg', type: 'image' }],
+    activeLayerId: 'layer-1',
+    setActiveImageNode: () => {},
+  });
+  const holder = { state: base() };
+  return { holder, reset: () => { holder.state = base(); } };
+});
+
 vi.mock('@/store', () => ({
-  useEditorStore: {
-    getState: vi.fn(() => ({
-      activeImageNodeId: 'node-a',
-      imageNodes: {
-        'node-a': { id: 'node-a', layerIds: ['layer-1'], position: { x: 0, y: 0 }, size: { w: 600, h: 450 }, sourceSize: { w: 100, h: 75 } },
-      },
-      layers: [{ id: 'layer-1', name: 'photo.jpg', type: 'image' }],
-      activeLayerId: 'layer-1',
-      setActiveImageNode: vi.fn(),
-    })),
-  },
+  useEditorStore: { getState: () => editorMock.holder.state },
 }));
 
 vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false })));
@@ -76,6 +80,7 @@ function tick(): Promise<void> {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  editorMock.reset();
   useAiSession.setState({
     sessionId: 'sid-1',
     context: null,
@@ -129,6 +134,36 @@ describe('suggestForImageNode during in-flight analyze', () => {
 
     expect(mocks.analyze_context).toHaveBeenCalledTimes(1);
     expect(mocks.suggest_widgets).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('suggestForImageNode on an extracted object node', () => {
+  it('passes the object label so the backend scopes suggestions to the object', async () => {
+    useAiSession.setState({ sessionId: 'sid-1', context: { lighting: 'flat' } as never });
+    // Extracted cutout: provenance via sourceImageNodeId, named after its mask.
+    editorMock.holder.state.imageNodes['node-cut'] = {
+      id: 'node-cut', name: 'sports car', sourceImageNodeId: 'node-a',
+      layerIds: ['layer-cut'], position: { x: 0, y: 0 },
+      size: { w: 300, h: 200 }, sourceSize: { w: 60, h: 40 },
+    };
+    editorMock.holder.state.layers.push({ id: 'layer-cut', name: 'cut', type: 'image' });
+    editorMock.holder.state.activeImageNodeId = 'node-cut';
+    editorMock.holder.state.activeLayerId = 'layer-cut';
+
+    await suggestForImageNode('node-cut');
+
+    expect(mocks.suggest_widgets).toHaveBeenCalledWith('sid-1', {
+      layerId: 'layer-cut',
+      objectLabel: 'sports car',
+    });
+  });
+
+  it('does not pass a label for ordinary (non-extracted) nodes', async () => {
+    useAiSession.setState({ sessionId: 'sid-1', context: { lighting: 'flat' } as never });
+
+    await suggestForImageNode('node-a');
+
+    expect(mocks.suggest_widgets).toHaveBeenCalledWith('sid-1', { layerId: 'layer-1' });
   });
 });
 

@@ -21,7 +21,9 @@ def _journal(doc, payload: dict) -> None:
         logger.warning("proposal.health journal write failed", exc_info=True)
 
 
-async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "legacy") -> None:
+async def mint_autonomous_suggestions(
+    doc, ctx, anthropic, layer_id: str = "legacy", object_label: str | None = None,
+) -> None:
     """For each high-severity Problem, run the suggested fused tool with
     origin.kind='mcp_autonomous'. Suggestions whose (fused_tool_id, scope)
     matches an existing dismissal rule are skipped.
@@ -29,6 +31,13 @@ async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "lega
     Every minted widget's nodes are stamped with ``layer_id`` (the frontend's
     real layer id) so the renderer applies them — the fused framework leaves
     nodes on the "legacy" default otherwise.
+
+    ``object_label`` puts the pass in OBJECT MODE — suggest-on-a-cutout. The
+    extracted node inherits the SOURCE image's context, so `ctx.problems`
+    still describes the whole photo; here only problems whose region matches
+    the object mint, and every minted scope is forced global: the cutout IS
+    the region, so a named_region scope would re-trigger the selection
+    chooser on an already-selected image.
 
     Resolves run in parallel: selection (templates + dedup) is pure, fast,
     and runs first; then every pick fires its resolver concurrently. Each
@@ -173,6 +182,17 @@ async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "lega
             _journal(doc, {"event": "suggestion_skipped", "reason": "severity_gate",
                            "problem": problem.kind, "severity": problem.severity})
             continue
+        if object_label is not None:
+            # Object mode: only THIS object's problems mint. Whole-image
+            # problems (and other regions') were already suggested on the
+            # source — repeating them on the cutout is the "whole image
+            # again" noise the flow exists to avoid.
+            if (problem.region_label or "").strip().lower() != object_label.strip().lower():
+                _journal(doc, {"event": "suggestion_skipped", "reason": "object_mismatch",
+                               "problem": problem.kind,
+                               "region_label": problem.region_label,
+                               "object_label": object_label})
+                continue
         for tool_index, fused_id in enumerate(problem.suggested_fused_tools):
             if fused_id not in templates:
                 _journal(doc, {"event": "suggestion_skipped", "reason": "unknown_template",
@@ -188,7 +208,12 @@ async def mint_autonomous_suggestions(doc, ctx, anthropic, layer_id: str = "lega
                 _journal(doc, {"event": "suggestion_skipped", "reason": "knob_collision",
                                "problem": problem.kind, "tool": fused_id})
                 continue
-            scope = _scope_for(problem)
+            # Object mode: the cutout is the whole layer — always global.
+            scope = (
+                Scope.model_validate({"kind": "global"})
+                if object_label is not None
+                else _scope_for(problem)
+            )
             if _dismissed(fused_id, scope):
                 _journal(doc, {"event": "suggestion_skipped", "reason": "dismissed",
                                "problem": problem.kind, "tool": fused_id})

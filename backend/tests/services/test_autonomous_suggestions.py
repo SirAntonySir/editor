@@ -216,3 +216,35 @@ async def test_resolve_failure_is_journaled_not_swallowed(make_doc, journal):
     minted = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
     assert len(minted) == 1
     assert minted[0].param_source == "midpoint"
+
+
+@pytest.mark.asyncio
+async def test_object_label_filters_to_the_object_and_forces_global_scope(make_doc, journal):
+    """Suggest-on-a-cutout: the extracted node inherits the SOURCE context, so
+    the problem list still describes the whole image. With `object_label` set,
+    only problems for THAT object mint — the whole-image issues must not be
+    re-suggested on the cutout — and the minted scope is global (the cutout IS
+    the region; a named_region scope would re-trigger the selection chooser)."""
+    doc = make_doc()
+    ctx = _ctx([
+        # Whole-image problem — must be skipped in object mode.
+        Problem(kind="clipped_highlights", severity=0.9, region_label="overall",
+                suggested_fused_tools=["recover_highlights"],
+                display_label="Blown-out sky"),
+        # The object's own problem — the one we want.
+        Problem(kind="low_contrast", severity=0.8, region_label="sports car",
+                suggested_fused_tools=["complementary_grade"],
+                display_label="Car body lost in shadow"),
+    ])
+
+    await mint_autonomous_suggestions(
+        doc, ctx, _FakeAnthropic(), layer_id="cut-1", object_label="Sports Car",
+    )
+
+    minted = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
+    assert len(minted) == 1
+    assert minted[0].display_name == "Car body lost in shadow"
+    # No re-selection on an already-selected image: scope is global.
+    assert minted[0].scope.root.kind == "global"
+    assert all(n.scope.root.kind == "global" for n in minted[0].nodes)
+    assert all(n.layer_id == "cut-1" for n in minted[0].nodes)

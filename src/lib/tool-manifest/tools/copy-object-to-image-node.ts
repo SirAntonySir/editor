@@ -34,7 +34,11 @@ export const copyObjectToImageNodeTool: ToolManifest<typeof input, typeof output
     if (!sourceImageNodeId) {
       return { ok: false, message: 'Could not resolve source image-node for the Object.' };
     }
-    const extracted = copyObjectToImageNode(maskId, sourceImageNodeId);
+    // LLM-invoked extraction: the agent proposes its own widgets on the new
+    // node next — pending suggestion chips must not be cloned along.
+    const extracted = copyObjectToImageNode(maskId, sourceImageNodeId, {
+      excludePendingSuggestions: true,
+    });
     if (!extracted) {
       return { ok: false, message: `Could not extract Object "${maskId}".` };
     }

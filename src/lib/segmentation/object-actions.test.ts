@@ -160,11 +160,33 @@ describe('copyObjectToImageNode', () => {
     });
   });
 
-  it('excludes still-pending suggestion widgets from the adjustment clone', () => {
-    // Accepting a region suggestion extracts a cutout while OTHER suggestions
-    // are still pending chips. Pending widgets are backend-active + seeded in
-    // canonical, so cloning them would materialize phantom applied widgets on
-    // the cutout ("a widget named like the global suggestion appeared").
+  it('MANUAL copy clones pending suggestions too (intended: apply a chip to just the object)', () => {
+    // A user manually copying an object while chips are pending WANTS those
+    // adjustments materialized on the copy — that's the product's way of
+    // applying a suggestion to just the object. No exclusion by default.
+    useBackendState.setState({ sessionId: 'sid' } as never);
+    const clone = vi.spyOn(backendTools, 'duplicate_layer_edits').mockResolvedValue({ ok: true } as never);
+    useSuggestionsUi.getState().markPending(['w-pending-global']);
+    const editor = useEditorStore.getState();
+    const srcId = editor.addImageNode(['srcLayer'], { x: 0, y: 0 }, { w: 100, h: 100 });
+    const maskRef = maskStore.register({
+      layerId: 'srcLayer', width: 4, height: 4,
+      data: new Uint8Array(16).fill(255), source: 'sam-point', createdAt: 0,
+    });
+    vi.spyOn(pixelStore, 'getSource').mockReturnValue({ width: 40, height: 40 } as unknown as OffscreenCanvas);
+
+    copyObjectToImageNode(maskRef, srcId);
+
+    expect(clone).toHaveBeenCalledWith('sid', {
+      mapping: [{ fromLayerId: 'srcLayer', toLayerId: 'cut-layer' }],
+      excludeWidgetIds: [],
+    });
+  });
+
+  it('LLM/agent-driven copy excludes pending suggestions (agent re-plans its own stack)', () => {
+    // The agent extraction flow re-proposes fresh widgets on the cutout —
+    // cloning the pending chips too produced phantom applied twins next to
+    // the agent's stack (duplicate sliders).
     useBackendState.setState({ sessionId: 'sid' } as never);
     const clone = vi.spyOn(backendTools, 'duplicate_layer_edits').mockResolvedValue({ ok: true } as never);
     useSuggestionsUi.getState().markPending(['w-pending-global', 'w-pending-local']);
@@ -176,7 +198,7 @@ describe('copyObjectToImageNode', () => {
     });
     vi.spyOn(pixelStore, 'getSource').mockReturnValue({ width: 40, height: 40 } as unknown as OffscreenCanvas);
 
-    copyObjectToImageNode(maskRef, srcId);
+    copyObjectToImageNode(maskRef, srcId, { excludePendingSuggestions: true });
 
     expect(clone).toHaveBeenCalledWith('sid', {
       mapping: [{ fromLayerId: 'srcLayer', toLayerId: 'cut-layer' }],

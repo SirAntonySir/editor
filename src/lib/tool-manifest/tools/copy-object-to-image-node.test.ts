@@ -37,7 +37,7 @@ describe('copy_object_to_image_node handler', () => {
     const result = copyObjectToImageNodeTool.handler({ maskId });
 
     expect(result).toMatchObject({ ok: true, image_node_id: 'in-3', layer_ids: ['layer-uuid'] });
-    expect(copyObjectToImageNode).toHaveBeenCalledWith(maskId, 'node-A');
+    expect(copyObjectToImageNode).toHaveBeenCalledWith(maskId, 'node-A', { excludePendingSuggestions: true });
   });
 
   it('uses explicit imageNodeId when provided', () => {
@@ -55,7 +55,7 @@ describe('copy_object_to_image_node handler', () => {
     const result = copyObjectToImageNodeTool.handler({ maskId, imageNodeId: 'node-B' });
 
     expect(result.ok).toBe(true);
-    expect(copyObjectToImageNode).toHaveBeenCalledWith(maskId, 'node-B');
+    expect(copyObjectToImageNode).toHaveBeenCalledWith(maskId, 'node-B', { excludePendingSuggestions: true });
   });
 
   it('returns ok: false when the extract is a no-op (null)', () => {

@@ -156,7 +156,15 @@ export const backendTools = {
   precompute_regions(sessionId: string) {
     return invokeTool<PrecomputeRegionsOutput>('precompute_regions', sessionId, {});
   },
-  suggest_widgets(sessionId: string, input: { layerId?: string } = {}) {
+  suggest_widgets(
+    sessionId: string,
+    input: {
+      layerId?: string;
+      /** Object-mode: extracted-node suggests — mint only this object's fixes,
+       *  scoped global (the cutout IS the region). */
+      objectLabel?: string;
+    } = {},
+  ) {
     return invokeTool<SuggestWidgetsOutput>('suggest_widgets', sessionId, input);
   },
   list_widgets(sessionId: string) {

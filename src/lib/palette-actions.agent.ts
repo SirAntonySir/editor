@@ -37,15 +37,18 @@ async function resolveAttachedRegions(
   const fallbackIds = [...plan.fallbackIds];
 
   // Apply an already-segmented mask onto `ownerNode` per the user's choice.
+  // Agent-driven extraction: the turn re-plans fresh widgets on the target,
+  // so pending suggestion chips must NOT be cloned along (phantom twins).
+  const agentCopy = { excludePendingSuggestions: true } as const;
   const applyExtraction = (maskId: string, ownerNode: string | undefined, choice: ExtractChoice): void => {
     if (choice === 'deny') return; // user rejected this selection — drop it
     if (!ownerNode) { fallbackIds.push(maskId); return; }
     if (choice === 'layer') {
-      const layerId = copyObjectToLayer(maskId, ownerNode);
+      const layerId = copyObjectToLayer(maskId, ownerNode, agentCopy);
       if (layerId) forcedTargets.push({ image_node_id: ownerNode, layer_ids: [layerId] });
       else fallbackIds.push(maskId);
     } else {
-      const extracted = copyObjectToImageNode(maskId, ownerNode);
+      const extracted = copyObjectToImageNode(maskId, ownerNode, agentCopy);
       if (extracted) forcedTargets.push({ image_node_id: extracted.imageNodeId, layer_ids: [extracted.layerId] });
       else fallbackIds.push(maskId);
     }

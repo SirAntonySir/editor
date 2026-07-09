@@ -47,6 +47,9 @@ def _recent_run(sid: str, now: float) -> bool:
 class _Input(BaseModel):
     model_config = camel_config(extra="forbid")
     layer_id: str = "legacy"
+    # Object-mode (suggest on an extracted cutout): mint only problems whose
+    # region matches this label, scoped global — the cutout IS the region.
+    object_label: str | None = None
 
 
 class _Output(BaseModel):
@@ -96,7 +99,7 @@ class SuggestWidgetsTool(BackendTool[_Input, _Output]):
         before = set(doc.widgets.keys())
         try:
             await mint_autonomous_suggestions(
-                doc, ctx, client, input.layer_id,
+                doc, ctx, client, input.layer_id, object_label=input.object_label,
             )
         finally:
             duration_ms = (time.monotonic_ns() // 1_000_000) - started_ms

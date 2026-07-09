@@ -551,10 +551,20 @@ export async function suggestForImageNode(imageNodeId: string): Promise<void> {
     await analyseImageLayer(imageNodeId, { suggest: true });
     return;
   }
-  const { setActiveImageNode, activeImageNodeId } = useEditorStore.getState();
+  const { setActiveImageNode, activeImageNodeId, imageNodes } = useEditorStore.getState();
   if (activeImageNodeId !== imageNodeId) setActiveImageNode(imageNodeId);
   const layerId = resolveTargetImageLayerId();
-  await backendTools.suggest_widgets(sessionId, layerId ? { layerId } : {});
+  // Extracted cutouts (provenance via sourceImageNodeId) inherit the SOURCE
+  // image's context, whose problem list describes the whole photo. Pass the
+  // object's name (the mask label the node was named after) so the backend
+  // mints only THAT object's fixes, scoped to the whole cutout — no repeated
+  // whole-image suggestions, no region chooser on an already-selected image.
+  const node = imageNodes[imageNodeId];
+  const objectLabel = node?.sourceImageNodeId ? node.name : undefined;
+  await backendTools.suggest_widgets(sessionId, {
+    ...(layerId ? { layerId } : {}),
+    ...(objectLabel ? { objectLabel } : {}),
+  });
 }
 
 /**

@@ -267,6 +267,61 @@ async def test_resolve_failure_is_journaled_not_swallowed(make_doc, journal):
     assert minted[0].param_source == "midpoint"
 
 
+def _blue_cast_jpeg() -> bytes:
+    import io
+
+    import numpy as np
+    from PIL import Image
+    arr = np.zeros((64, 64, 3), dtype=np.uint8)
+    arr[:, :, 0] = 60   # R low
+    arr[:, :, 1] = 110  # G mid
+    arr[:, :, 2] = 200  # B high → strong blue cast
+    buf = io.BytesIO()
+    Image.fromarray(arr, mode="RGB").save(buf, format="JPEG", quality=95)
+    return buf.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_corrective_suggestion_is_verified_and_retried(make_doc, journal):
+    """A corrective suggestion whose first params don't fix the metric is
+    re-resolved once with feedback; the improved retry is what gets minted."""
+    from app.state.document import DEFAULT_IMAGE_NODE_ID
+
+    doc = make_doc()
+    doc.set_image_bytes(DEFAULT_IMAGE_NODE_ID, _blue_cast_jpeg(), mime_type="image/jpeg")
+    ctx = _ctx([
+        Problem(kind="strong_color_cast", severity=0.7, region_label=None,
+                suggested_fused_tools=["cast_correct"],
+                display_label="Heavy blue cast"),
+    ])
+
+    class _BadThenGood:
+        def __init__(self):
+            self.calls = 0
+
+        def resolve_fused_tool(self, template_id, prompt_payload, response_schema, session_id=None):
+            self.calls += 1
+            # First attempt does nothing; the retry warms strongly.
+            kelvin = 0 if self.calls == 1 else 2000
+            return {"values": {"corrective_kelvin": kelvin, "sat_correction": 0},
+                    "reasoning": "grounded"}
+
+        def suggest_fused_tools_for_character(self, **_):
+            return []
+
+    fake = _BadThenGood()
+    await mint_autonomous_suggestions(doc, ctx, fake, layer_id="l1")
+
+    assert fake.calls == 2  # verification forced a second resolve
+    events = [p.get("event") for (_s, _k, p) in journal]
+    assert "verify_failed" in events
+    minted = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
+    assert len(minted) == 1
+    # Fused widgets carry resolved values on bindings, not node.params.
+    kelvin_binding = next(b for b in minted[0].bindings if b.param_key == "corrective_kelvin")
+    assert kelvin_binding.value == 2000  # the improved retry, not the weak first attempt
+
+
 @pytest.mark.asyncio
 async def test_object_label_filters_to_the_object_and_forces_global_scope(make_doc, journal):
     """Suggest-on-a-cutout: the extracted node inherits the SOURCE context, so

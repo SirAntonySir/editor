@@ -11,6 +11,46 @@ from app.schemas.widget import Widget
 _SUPPORTED_NODE_TYPES = {"kelvin", "basic", "curves", "levels"}
 
 
+def _decode_downscaled(image_bytes: bytes, max_dim: int) -> np.ndarray:
+    """Decode to a downscaled float [0,1] RGB array."""
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    img.thumbnail((max_dim, max_dim), Image.BILINEAR)
+    return np.array(img).astype(np.float32) / 255.0
+
+
+def _effective_params(widget: Widget) -> dict[str, dict]:
+    """Per-node param dict with binding values overlaid.
+
+    Fused widgets store resolved values on their BINDINGS (target.node_id +
+    target.param_key + value), leaving node.params empty; only the frontend
+    reconciles the two at render time. Without this overlay the CPU preview
+    would read the empty node.params and render a no-op for every fused
+    widget. Node.params is the base; a binding value for the same key wins."""
+    params: dict[str, dict] = {n.id: dict(n.params) for n in widget.nodes}
+    for b in widget.bindings:
+        node_id = b.target.node_id
+        if node_id in params:
+            params[node_id][b.target.param_key] = b.value
+    return params
+
+
+def _apply_widget_nodes(arr: np.ndarray, widget: Widget) -> np.ndarray:
+    """Apply every node's op to `arr` in order. Assumes all node types are
+    supported (callers gate on `_SUPPORTED_NODE_TYPES` first)."""
+    eff = _effective_params(widget)
+    for n in widget.nodes:
+        p = eff[n.id]
+        if n.type == "kelvin":
+            arr = _apply_kelvin(arr, p.get("temperature", 0))
+        elif n.type == "basic":
+            arr = _apply_basic(arr, p)
+        elif n.type == "curves":
+            arr = _apply_curves(arr, p)
+        elif n.type == "levels":
+            arr = _apply_levels(arr, p)
+    return np.clip(arr, 0.0, 1.0)
+
+
 def render_widget_preview(
     image_bytes: bytes,
     mime_type: str,
@@ -25,27 +65,31 @@ def render_widget_preview(
     if any(n.type not in _SUPPORTED_NODE_TYPES for n in widget.nodes):
         return None
 
-    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    # Downscale for speed.
-    img.thumbnail((max_dim, max_dim), Image.BILINEAR)
-    arr = np.array(img).astype(np.float32) / 255.0  # [0, 1]
-
-    for n in widget.nodes:
-        if n.type == "kelvin":
-            arr = _apply_kelvin(arr, n.params.get("temperature", 0))
-        elif n.type == "basic":
-            arr = _apply_basic(arr, n.params)
-        elif n.type == "curves":
-            arr = _apply_curves(arr, n.params)
-        elif n.type == "levels":
-            arr = _apply_levels(arr, n.params)
-
-    arr = np.clip(arr, 0.0, 1.0)
+    arr = _apply_widget_nodes(_decode_downscaled(image_bytes, max_dim), widget)
     out = (arr * 255.0).astype(np.uint8)
     out_img = Image.fromarray(out, mode="RGB")
     buf = io.BytesIO()
     out_img.save(buf, format="JPEG", quality=80)
     return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def render_widget_effect_arrays(
+    image_bytes: bytes,
+    mime_type: str,
+    widget: Widget,
+    max_dim: int = 256,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """Return (before, after) uint8 RGB arrays: the downscaled source and the
+    same after the widget's ops. Used by suggestion self-verification to
+    recompute the cheap pass on each. None if any node type is unsupported."""
+    if any(n.type not in _SUPPORTED_NODE_TYPES for n in widget.nodes):
+        return None
+    before = _decode_downscaled(image_bytes, max_dim)
+    after = _apply_widget_nodes(before.copy(), widget)
+    return (
+        (before * 255.0).astype(np.uint8),
+        (after * 255.0).astype(np.uint8),
+    )
 
 
 def _apply_kelvin(arr: np.ndarray, temperature_offset: float) -> np.ndarray:

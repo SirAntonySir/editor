@@ -153,18 +153,19 @@ async def mint_autonomous_suggestions(
     from app.config import get_app_config
     resolve_timeout_s = get_app_config().runtime.anthropic_timeout_s
 
-    async def _resolve(template, intent: str, scope: Scope):
+    async def _resolve(template, intent: str, scope: Scope, instruction: str | None = None):
         # Each fused template's `resolve()` is `async def` but internally
         # makes a SYNC Anthropic SDK call. Awaiting one on the event loop
         # blocks every other concurrent task — gather wouldn't actually
         # parallelise. Run each in its own worker thread so the concurrent
-        # picks share wall-clock.
+        # picks share wall-clock. `instruction` carries verification feedback
+        # on a retry (else None).
         try:
             return await asyncio.wait_for(
                 asyncio.to_thread(
                     _run_fused_tool_sync,
                     run_fused_tool, template, intent, scope, ctx, anthropic, origin,
-                    doc.session_id,
+                    doc.session_id, instruction,
                 ),
                 timeout=resolve_timeout_s,
             )
@@ -176,6 +177,64 @@ async def mint_autonomous_suggestions(
             _journal(doc, {"event": "resolve_failed", "tool": template.id,
                            "detail": str(exc)[:500]})
             return None
+
+    async def _verify_corrective(template, intent, scope, problem, widget):
+        """For a corrective suggestion, check that applying its params actually
+        moves the problem's mechanical metric the right way (CPU preview +
+        cheap-pass re-measure). On failure, re-resolve ONCE with feedback and
+        keep the retry only if it verifies. Best-effort: any error, or an
+        unverifiable/unsupported widget, returns the widget unchanged — this
+        tunes suggestions, it never blocks them."""
+        if problem.kind not in _CORRECTIVE_KINDS:
+            return widget
+        from app.state.document import DEFAULT_IMAGE_NODE_ID
+
+        def _measure(w):
+            from app.services.suggestion_verification import measure_and_verify
+            image_bytes = doc.get_image_bytes(DEFAULT_IMAGE_NODE_ID)
+            mime = doc.get_mime_type(DEFAULT_IMAGE_NODE_ID)
+            return measure_and_verify(problem, image_bytes, mime, w, max_dim=384)
+
+        try:
+            result = await asyncio.to_thread(_measure, widget)
+        except Exception as exc:  # noqa: BLE001
+            _journal(doc, {"event": "verify_error", "tool": template.id,
+                           "problem": problem.kind, "detail": str(exc)[:300]})
+            return widget
+        if result is None:
+            _journal(doc, {"event": "verify_skipped", "reason": "unsupported_ops",
+                           "tool": template.id, "problem": problem.kind})
+            return widget
+        if result.improved:
+            _journal(doc, {"event": "verify_ok", "tool": template.id,
+                           "problem": problem.kind, "metric": result.metric,
+                           "before": round(result.before, 4), "after": round(result.after, 4)})
+            return widget
+
+        _journal(doc, {"event": "verify_failed", "tool": template.id,
+                       "problem": problem.kind, "metric": result.metric,
+                       "before": round(result.before, 4), "after": round(result.after, 4)})
+        feedback = (
+            f"A prior attempt moved {result.metric} from {result.before:.3f} to "
+            f"{result.after:.3f}, which does NOT correct the {problem.kind.replace('_', ' ')}. "
+            f"Apply a stronger correction in the right direction."
+        )
+        retry = await _resolve(template, intent, scope, instruction=feedback)
+        if retry is None:
+            return widget
+        try:
+            retry_result = await asyncio.to_thread(_measure, retry)
+        except Exception:  # noqa: BLE001
+            return widget
+        if retry_result is not None and retry_result.improved:
+            _journal(doc, {"event": "verify_retry_ok", "tool": template.id,
+                           "problem": problem.kind, "metric": retry_result.metric,
+                           "before": round(retry_result.before, 4),
+                           "after": round(retry_result.after, 4)})
+            return retry
+        _journal(doc, {"event": "verify_retry_failed", "tool": template.id,
+                       "problem": problem.kind})
+        return widget
 
     # ---- Problem-driven pass: select first, resolve in parallel ----------
     # Selection is the part that needs to be sequential — each pick's dedup
@@ -262,11 +321,14 @@ async def mint_autonomous_suggestions(
     for pick, widget in zip(picks, resolved):
         if widget is None:
             continue
+        template, intent, scope = pick[0], pick[1], pick[2]
+        problem = pick[6]
+        widget = await _verify_corrective(template, intent, scope, problem, widget)
         widget.display_name = pick[5]  # image-specific label; None → UI falls back to intent
         _stamp(widget)
         doc.add_widget(widget)
         successful += 1
-        minted_problem_ids.add(id(pick[6]))
+        minted_problem_ids.add(id(problem))
 
     # ---- Top up via image-character match only when needed --------------
     if initial_count + successful >= TARGET_AUTONOMOUS_SUGGESTIONS:
@@ -363,7 +425,7 @@ async def mint_autonomous_suggestions(
         doc.add_widget(widget)
 
 
-def _run_fused_tool_sync(run_fused_tool, template, intent, scope, ctx, anthropic, origin, session_id):
+def _run_fused_tool_sync(run_fused_tool, template, intent, scope, ctx, anthropic, origin, session_id, instruction=None):
     """Bridge from a worker thread back into `run_fused_tool` (async). Each
     thread spins its own event loop via `asyncio.run` — the Anthropic SDK
     call inside the resolver blocks that loop, not the caller's. Cheap:
@@ -375,7 +437,7 @@ def _run_fused_tool_sync(run_fused_tool, template, intent, scope, ctx, anthropic
             scope=scope,
             ctx=ctx,
             prior=None,
-            instruction=None,
+            instruction=instruction,
             anthropic=anthropic,
             origin=origin,
             session_id=session_id,

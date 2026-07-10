@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
-import { Check, Copy, Eye, EyeOff, Maximize2, Minimize2, Trash2 } from 'lucide-react';
+import { Check, Eye, EyeOff, Maximize2, Minimize2, Trash2 } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
@@ -28,8 +28,11 @@ const itemClassDanger =
  * (same Radix primitives, same flat icon-row look) so a widget's menu reads as
  * part of the same family rather than the generic canvas Undo/Redo menu it used
  * to fall through to. Actions reuse the existing widget surface: `accept_widget`
- * (Apply), `repeat_widget` (Duplicate), `delete_widget` (Delete), plus the
- * expand/hide store toggles the header buttons already drive.
+ * (Apply), `delete_widget` (Delete), plus the expand/hide store toggles the
+ * header buttons already drive. (There is deliberately no Duplicate:
+ * `repeat_widget` is an in-place re-roll, not a copy, and the canonical model
+ * keys state by (layer, op, param) — a same-layer copy would collide on one
+ * node.)
  */
 export function WidgetContextMenu({ widget, children }: WidgetContextMenuProps) {
   const sessionId = useBackendState((s) => s.sessionId);
@@ -42,10 +45,6 @@ export function WidgetContextMenu({ widget, children }: WidgetContextMenuProps) 
   const apply = () => {
     if (!sessionId || offline) return;
     void backendTools.accept_widget(sessionId, { widgetId: widget.id });
-  };
-  const duplicate = () => {
-    if (!sessionId || offline) return;
-    void backendTools.repeat_widget(sessionId, { widgetId: widget.id });
   };
   const remove = () => {
     if (!sessionId || offline) return;
@@ -77,15 +76,6 @@ export function WidgetContextMenu({ widget, children }: WidgetContextMenuProps) 
               <span>Apply</span>
             </ContextMenu.Item>
           )}
-
-          <ContextMenu.Item
-            className={offline ? itemClassDim : itemClass}
-            disabled={offline}
-            onSelect={duplicate}
-          >
-            <Copy size={11} />
-            <span>Duplicate</span>
-          </ContextMenu.Item>
 
           <ContextMenu.Item
             className={itemClass}

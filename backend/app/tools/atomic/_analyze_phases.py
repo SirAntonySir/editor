@@ -119,7 +119,15 @@ def build_enriched(
     region_stats: list[RegionStats],
 ) -> EnrichedImageContext:
     """Compose the EnrichedImageContext from pure inputs. No mutation: the
-    caller owns the result; this function returns it."""
+    caller owns the result; this function returns it.
+
+    Problem severities are grounded in the mechanical cheap-pass before
+    composition, so the Info tab badge, the suggestion gate, and any LLM
+    prompt that echoes the context all read the SAME (floored) number — a
+    conservative LLM score can't leave a measurably-severe defect sub-gate."""
+    from app.services.severity_grounding import ground_problem_severities
+
+    problems = ground_problem_severities(soft.problems, cheap, region_stats)
     return EnrichedImageContext(
         **base.model_dump(),
         luma_histogram=cheap.luma_histogram,
@@ -135,7 +143,7 @@ def build_enriched(
         estimated_white_point=soft.estimated_white_point,
         wb_neutral_confidence=soft.wb_neutral_confidence,
         grade_character=soft.grade_character,
-        problems=soft.problems,
+        problems=problems,
     )
 
 

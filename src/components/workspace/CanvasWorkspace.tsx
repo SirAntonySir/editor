@@ -34,11 +34,9 @@ import { layerNodeIdFor } from '@/store/workspace-slice';
 import { duplicateImageNode, duplicateActiveImageNode } from '@/lib/duplicate-image-node';
 import { duplicateSelection } from '@/lib/duplicate-selection';
 import type { Widget } from '@/types/widget';
-import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
 import { rejoinSourceImage } from '@/lib/image-node-actions';
-import { rejoinTargetByCenter, nodeHasUnappliedChanges } from '@/lib/workspace-drag';
+import { rejoinTargetByCenter } from '@/lib/workspace-drag';
 import { useAiAccess } from '@/lib/ai-access';
-import { toast } from '@/components/ui/Toast';
 
 /** Per-node ErrorBoundary so a render throw in one ImageNode doesn't
  *  unmount the whole React Flow canvas (and with it every sibling node).
@@ -127,8 +125,17 @@ function WorkspaceKeyHandler() {
     const onFit = () => fitView();
     const onIn = () => zoomIn();
     const onOut = () => zoomOut();
-    // Keep the editor-store zoom roughly in sync for the status bar.
-    const onPaneScroll = () => useEditorStore.getState().setZoom(getZoom());
+    // Keep the editor-store zoom roughly in sync for the status bar. Coalesce to
+    // one write per frame — a wheel gesture fires dozens of events per second
+    // and each setZoom notifies every zoom subscriber.
+    let scrollRaf = 0;
+    const onPaneScroll = () => {
+      if (scrollRaf) return;
+      scrollRaf = requestAnimationFrame(() => {
+        scrollRaf = 0;
+        useEditorStore.getState().setZoom(getZoom());
+      });
+    };
 
     window.addEventListener('workspace:zoom', onZoom);
     window.addEventListener('workspace:fit-view', onFit);
@@ -141,6 +148,7 @@ function WorkspaceKeyHandler() {
       window.removeEventListener('workspace:zoom-in', onIn);
       window.removeEventListener('workspace:zoom-out', onOut);
       window.removeEventListener('wheel', onPaneScroll);
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
     };
   }, [getZoom, zoomTo, zoomIn, zoomOut, fitView]);
 
@@ -620,16 +628,10 @@ export function CanvasWorkspace() {
       // Drag-to-rejoin: an extracted image node dropped (center) onto its own
       // source merges back (the inverse of Extract to Image Node).
       if (node.type === 'image') {
-        const editor = useEditorStore.getState();
         if (rejoinTargetFor(node)) {
-          const layerIds = editor.imageNodes[node.id]?.layerIds ?? [];
-          const widgets = useBackendState.getState().snapshot?.widgets ?? [];
-          const pending = useSuggestionsUi.getState().pendingSuggestionIds;
-          if (nodeHasUnappliedChanges(widgets, pending, layerIds)) {
-            toast.info('Apply or dismiss your changes before rejoining the source image.');
-            persistDraggedPositions(draggedNodes); // leave it where dropped
-            return;
-          }
+          // Rejoin unconditionally: mergeImageNodes carries the layers (and the
+          // live widgets tethered to them) into the source node, so there's
+          // nothing to apply/dismiss first — the widgets simply follow the layer.
           rejoinSourceImage(node.id); // merges + un-crops; node is consumed
           return;
         }

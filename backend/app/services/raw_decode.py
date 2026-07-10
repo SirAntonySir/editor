@@ -47,6 +47,66 @@ class RawDecodeError(ValueError):
     translate this to a 4xx (unsupported media)."""
 
 
+def _is_tiff(data: bytes) -> bool:
+    """TIFF magic (little/big endian). Note: many RAWs (NEF/CR2/ARW/DNG) are
+    TIFF containers with this same magic, so this must only gate the *fallback*
+    after rawpy has already declined — never route around rawpy on it."""
+    return data[:4] in (b"II*\x00", b"MM\x00*")
+
+
+def _decode_tiff_bgr16(data: bytes):
+    """Decode a plain (non-RAW) TIFF into a uint16 BGR array.
+
+    Browsers can't decode TIFF at all, so the frontend ships .tif/.tiff here
+    like RAW. Handles 8-bit (scaled up), 16-bit (as-is) and float/HDR TIFFs
+    (values clipped to [0, 1] then scaled — over-range highlights clip, which
+    matches the display-referred pipeline downstream). Grayscale and alpha
+    variants are normalised to 3-channel. Raises RawDecodeError when the bytes
+    don't decode.
+    """
+    import cv2
+    import numpy as np
+
+    arr = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_UNCHANGED)
+    if arr is None:
+        raise RawDecodeError("not a readable TIFF image")
+
+    if arr.dtype == np.uint8:
+        arr = arr.astype(np.uint16) * 257
+    elif arr.dtype in (np.float32, np.float64):
+        arr = (np.clip(arr, 0.0, 1.0) * 65535.0 + 0.5).astype(np.uint16)
+    elif arr.dtype != np.uint16:
+        raise RawDecodeError(f"unsupported TIFF sample type: {arr.dtype}")
+
+    if arr.ndim == 2:
+        arr = cv2.cvtColor(arr, cv2.COLOR_GRAY2BGR)
+    elif arr.shape[2] == 4:
+        arr = cv2.cvtColor(arr, cv2.COLOR_BGRA2BGR)
+    return arr
+
+
+def _tiff_to_pil_rgb(data: bytes) -> Image.Image:
+    """Plain TIFF → 8-bit RGB PIL image (the JPEG develop path's currency)."""
+    import cv2
+
+    bgr = _decode_tiff_bgr16(data)
+    return Image.fromarray(cv2.cvtColor((bgr // 257).astype("uint8"), cv2.COLOR_BGR2RGB))
+
+
+def _clamp_long_edge(arr, max_dim: int):
+    """Downscale so the long edge fits `max_dim`; unchanged when it already does."""
+    import cv2
+
+    h, w = arr.shape[:2]
+    longest = max(h, w)
+    if longest <= max_dim:
+        return arr
+    scale = max_dim / longest
+    return cv2.resize(
+        arr, (round(w * scale), round(h * scale)), interpolation=cv2.INTER_AREA
+    )
+
+
 def is_raw_filename(name: str) -> bool:
     """Cheap routing check: does the filename carry a known RAW extension?"""
     dot = name.rfind(".")
@@ -82,7 +142,11 @@ def develop_raw_to_jpeg(data: bytes, *, max_dim: int = 8192, quality: int = 92) 
     except RawDecodeError:
         raise
     except Exception as exc:  # rawpy raises LibRaw* errors for non-RAW input
-        raise RawDecodeError(f"not a readable RAW image: {exc}") from exc
+        if not _is_tiff(data):
+            raise RawDecodeError(f"not a readable RAW image: {exc}") from exc
+        # Plain (non-RAW) TIFF — browsers can't decode TIFF, so the frontend
+        # ships it here like RAW. rawpy declined, so decode it directly.
+        img = _tiff_to_pil_rgb(data)
 
     if max(img.size) > max_dim:
         img.thumbnail((max_dim, max_dim), Image.LANCZOS)
@@ -111,21 +175,23 @@ def develop_raw_to_png16(data: bytes, *, max_dim: int = 8192) -> bytes:
         with rawpy.imread(io.BytesIO(data)) as raw:
             rgb = raw.postprocess(use_camera_wb=True, output_bps=16, no_auto_bright=False)
     except Exception as exc:  # rawpy raises LibRaw* errors for non-RAW input
-        raise RawDecodeError(f"not a readable RAW image: {exc}") from exc
+        if not _is_tiff(data):
+            raise RawDecodeError(f"not a readable RAW image: {exc}") from exc
+        # Plain (non-RAW) TIFF — browsers can't decode TIFF, so the frontend
+        # ships it here like RAW. rawpy declined, so decode it directly.
+        # Already BGR + uint16, so it skips the RGB→BGR conversion below.
+        rgb = None
 
-    h, w = rgb.shape[:2]
-    longest = max(h, w)
-    if longest > max_dim:
-        scale = max_dim / longest
-        rgb = cv2.resize(
-            rgb, (round(w * scale), round(h * scale)), interpolation=cv2.INTER_AREA
-        )
-
-    # Rebind to the BGR result so the (full-size, ~w*h*3*2 bytes) RGB source is
-    # freed immediately instead of living alongside the BGR copy through the
-    # encode. On a 24MP RAW that's ~144 MB reclaimed before imencode runs —
-    # the headroom that keeps peak heap well under the instance limit.
-    rgb = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    if rgb is not None:
+        rgb = _clamp_long_edge(rgb, max_dim)
+        # Rebind to the BGR result so the (full-size, ~w*h*3*2 bytes) RGB source
+        # is freed immediately instead of living alongside the BGR copy through
+        # the encode. On a 24MP RAW that's ~144 MB reclaimed before imencode
+        # runs — the headroom that keeps peak heap well under the instance
+        # limit.
+        rgb = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    else:
+        rgb = _clamp_long_edge(_decode_tiff_bgr16(data), max_dim)
     # Compression 6 trades a little CPU for a much smaller payload than the
     # default (level 1) — a 24MP 16-bit PNG is tens of MB either way, but this
     # meaningfully cuts the transfer + in-memory File size.

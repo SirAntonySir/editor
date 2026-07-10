@@ -194,7 +194,13 @@ export function useBackendSession(): void {
       setSessionId(persisted);
 
       try {
+        // Guard the open: this branch runs after several awaits (the session
+        // probe), so the effect may have been cleaned up already. Opening here
+        // would orphan a handle the cleanup has no way to close (it already ran
+        // and nulled the ref).
+        if (cancelled) return;
         const handle = openSseSubscription(persisted);
+        if (cancelled) { handle.close(); return; }
         subscriptionRef.current = handle;
         await handle.opened;
         if (cancelled) return;

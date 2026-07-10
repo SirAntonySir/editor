@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Command, Pin, RefreshCw, Sparkles } from 'lucide-react';
 import type { Widget } from '@/types/widget';
 import { backendTools } from '@/lib/backend-tools';
@@ -22,6 +22,14 @@ export function GenfillWidgetBody({ widget }: GenfillWidgetBodyProps) {
   const [clip, setClip] = useState(true);
   const [seedPinned, setSeedPinned] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Genfill widgets are frequently torn down by an SSE echo right after accept /
+  // regenerate resolves; guard the trailing setState so it doesn't fire on an
+  // unmounted component.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const dims = useMemo(
     () => (g ? genfillNodeDims(g.imageNodeId) : null),
@@ -45,13 +53,13 @@ export function GenfillWidgetBody({ widget }: GenfillWidgetBodyProps) {
       prompt: prompt.trim(),
       ...(seed !== undefined ? { seed } : {}),
     });
-    setBusy(false);
+    if (mountedRef.current) setBusy(false);
   };
 
   const handleAccept = async () => {
     setBusy(true);
     await acceptGenfill(widget.id, { clip: clip && dimsMatch });
-    setBusy(false);
+    if (mountedRef.current) setBusy(false);
   };
 
   // Move this fill's context (target region + typed prompt) into Cmd+K in

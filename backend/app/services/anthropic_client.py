@@ -396,10 +396,32 @@ If you notice a real issue that NO kind covers, emit kind="other" with a \
 description of what you see. It is recorded for vocabulary growth but not acted \
 on — never force a wrong kind onto an observation. \
 \
-Calibrate severity so 0.5 is the action threshold: >= 0.5 means a default viewer \
-would want it fixed; ~0.25 = minor or stylistic; ~0.75 = clearly damaging. Scale \
-by the fraction of the frame or subject affected and the importance of the \
-affected area (a blown sky behind the main subject outranks a blown corner). \
+Severity 0..1, where 0.4 is the action threshold (>= 0.4 = a default viewer \
+would want it fixed). For the MEASURABLE kinds below, the system re-floors your \
+severity from the mechanical cheap-pass numbers you were given — so you cannot \
+under-score a measurably-severe defect, and you should NOT try to guess the \
+magnitude from the thumbnail. Instead score these by IMPORTANCE — how much the \
+defect harms THIS photo given where it falls — and let the floor handle \
+magnitude: \
+- strong_color_cast: anchor on cast_strength (0..1). ~0.3+ is a real cast; a \
+  scene that should contain neutrals (skin, greys, snow) with cast_strength \
+  0.4+ is severe (>= 0.7). \
+- crushed_shadows / clipped_highlights: anchor on clipped_shadows_pct / \
+  clipped_highlights_pct (PERCENT of frame). A few percent clipped in an \
+  important area is worth fixing. Note a dark image with LOW clip % is \
+  underexposed, not crushed — prefer local_underexposure. \
+- low_contrast: anchor on contrast_p10_p90 (0..255). A healthy frame spans \
+  100+; well under that is flat. \
+- local_underexposure / local_overexposure: anchor on that region's mean_luma \
+  (0..255); far from mid (~115) is severe. \
+Worked examples: a seascape with cast_strength 0.46 and median_luma 18 → \
+strong_color_cast ~0.7 (heavy cast on water that reads neutral) AND \
+local_underexposure ~0.7 on the water region. A portrait with a blown sky \
+behind the subject (clipped_highlights_pct 4, sky region) → ~0.6; the same \
+blowout in a far corner → ~0.3 (importance, not magnitude, is what you move). \
+Judgement-only kinds (soft_focus, distracting_element, dull_subject, \
+skin_tone_shift, noisy_shadows, uneven_white_balance) have no mechanical floor \
+— score those fully on what you see. \
 \
 The valid `suggested_fused_tools` ids and what each does are listed in the catalog \
 attached as a user-message text block; choose ids only from that catalog. \
@@ -573,6 +595,11 @@ def clamp_op_params(op, raw: dict) -> dict:
     """Clamp LLM-emitted params to the op's schema: scalars snap to their
     declared range, missing/invalid values fall back to the registry default.
     Shared by the per-op resolver (refine_widget) and the stack resolver."""
+    # A malformed tool call can hand us a non-dict `raw` (list / None / scalar);
+    # treat it as "no params supplied" so every key falls back to its default,
+    # rather than raising a TypeError that surfaces as an unclassified 500.
+    if not isinstance(raw, dict):
+        raw = {}
     resolved: dict = {}
     for key, param in op.params.items():
         if key not in raw:

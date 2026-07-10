@@ -186,6 +186,41 @@ describe('WidgetShell', () => {
     );
   });
 
+  it('setParam fans the optimistic patch out to every target layer in the replicate set', () => {
+    // A widget acting on several layers (`node.layerIds`) must write one
+    // optimistic override per layer, or only the frozen layer previews live
+    // while the rest wait for the SSE roundtrip (bottom-layer-not-live bug).
+    const widget = makeAiWidget({
+      nodes: [
+        { id: 'n_abc', type: 'basic', layerId: 'L1', layerIds: ['L1', 'L2'], params: {}, scope: { kind: 'global' } } as never,
+      ],
+      bindings: [
+        {
+          paramKey: 'exposure',
+          label: 'Exposure',
+          controlType: 'slider',
+          target: { nodeId: 'n_abc', paramKey: 'exposure' },
+          controlSchema: { controlType: 'slider', min: -100, max: 100, step: 1 },
+          value: 0,
+          default: 0,
+        },
+      ],
+    });
+    useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
+    renderInFlow(<WidgetShell widget={widget} />);
+    const num = screen.getByTitle('Drag to scrub · click to type');
+    fireEvent.pointerDown(num, { clientX: 0, pointerId: 1 });
+    fireEvent.pointerUp(num, { clientX: 0, pointerId: 1 });
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: '40' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    const patch = expect.objectContaining({
+      bindings: [expect.objectContaining({ paramKey: 'exposure', value: 40 })],
+    });
+    expect(mockApplyOptimistic).toHaveBeenCalledWith('canon:L1:basic', patch);
+    expect(mockApplyOptimistic).toHaveBeenCalledWith('canon:L2:basic', patch);
+  });
+
   const ALL_BANDS = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta'];
 
   it('routes an all-bands HSL widget to the colour panel (By band / By channel)', () => {
@@ -200,6 +235,36 @@ describe('WidgetShell', () => {
     renderInFlow(<WidgetShell widget={makeHslWidget(['blue'])} />);
     expect(screen.queryByText('By band')).not.toBeInTheDocument();
     expect(screen.getAllByRole('slider').length).toBe(3);
+  });
+
+  it('renders a curve widget with a non-curve binding (teal_orange) as curve + slider', () => {
+    // teal_orange composes a luma curve + a saturation slider. The curve body
+    // classifies it as a curves widget; the saturation slider must still render
+    // as an extra row rather than being dropped.
+    const widget = makeAiWidget({
+      nodes: [
+        { id: 'n_curves', type: 'curves', layerId: 'L1', params: { points: [[0, 0], [1, 1]] }, scope: { kind: 'global' } } as never,
+        { id: 'n_basic', type: 'basic', layerId: 'L1', params: { saturation: 10 }, scope: { kind: 'global' } } as never,
+      ],
+      bindings: [
+        {
+          paramKey: 'points', label: 'Tonal curve', controlType: 'curve',
+          target: { nodeId: 'n_curves', paramKey: 'points' },
+          controlSchema: { controlType: 'curve', channel: 'luma', min_points: 2, max_points: 16 },
+          value: [[0, 0], [1, 1]], default: [[0, 0], [1, 1]],
+        },
+        {
+          paramKey: 'sat_boost', label: 'Saturation boost', controlType: 'slider',
+          target: { nodeId: 'n_basic', paramKey: 'saturation' },
+          controlSchema: { controlType: 'slider', min: -50, max: 50, step: 1 },
+          value: 10, default: 0,
+        },
+      ] as never,
+    });
+    useEditorStore.getState().toggleWidgetExpanded('w-ai-1');
+    renderInFlow(<WidgetShell widget={widget} />);
+    // The saturation slider extra is rendered (was dropped before the fix).
+    expect(screen.getByRole('slider')).toBeInTheDocument();
   });
 
   it('non-HSL widget still renders binding rows, not the HSL panel', () => {

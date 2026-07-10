@@ -1,8 +1,10 @@
 import { maskSnippet } from './mask-snippet.glsl';
+import { srgbTransferSnippet } from './color-space.glsl';
 
 export const kelvinFragment = `#version 300 es
 precision highp float;
 ${maskSnippet}
+${srgbTransferSnippet}
 in vec2 v_texCoord;
 out vec4 fragColor;
 
@@ -63,9 +65,15 @@ void main() {
   // mapped the slider the wrong way round.
   vec3 kelvinColor = kelvinToRGB(u_kelvin);
   vec3 daylight = kelvinToRGB(6500.0);
-  vec3 multiplier = daylight / kelvinColor;
+  // WB is a scaling of light intensities, so the multiplier must act on
+  // linear values — the texture is sRGB-gamma-encoded, and multiplying that
+  // directly warps the correction across the tonal range (shadows shift more
+  // than highlights → hue twists on strong corrections). The multiplier is
+  // itself linearized: kelvinToRGB yields display-referred sRGB colors, and a
+  // gamma-domain ratio applied in linear space would overshoot (~2.2 pow).
+  vec3 multiplier = srgbToLinear(daylight) / max(srgbToLinear(kelvinColor), vec3(1e-4));
 
-  color *= multiplier;
+  color = linearToSrgb(srgbToLinear(color) * multiplier);
 
   // Tint (shift green-magenta axis). Positive tint → MAGENTA (less green),
   // negative → green/teal, matching the slider's gradient (teal left, magenta

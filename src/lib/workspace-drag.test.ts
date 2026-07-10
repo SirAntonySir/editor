@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { exceedsDragThreshold, isOutsideRect, rejoinTargetByCenter, nodeHasUnappliedChanges, nextWidgetScale } from './workspace-drag';
+import { exceedsDragThreshold, isOutsideRect, rejoinTargetByCenter, nextWidgetScale } from './workspace-drag';
 
 describe('exceedsDragThreshold', () => {
   it('is false for a tiny move (a click, not a drag)', () => {
@@ -40,20 +40,6 @@ describe('nextWidgetScale', () => {
   });
   it('is a no-op for a zero-width widget', () => {
     expect(nextWidgetScale(0, 1.3, 100)).toBe(1.3);
-  });
-});
-
-describe('nodeHasUnappliedChanges', () => {
-  const w = (id: string, status: string, layerId: string) =>
-    ({ id, status, nodes: [{ layerId }] });
-  it('true when an active widget targets one of the node layers', () => {
-    expect(nodeHasUnappliedChanges([w('w1', 'active', 'L1')], new Set(), ['L1'])).toBe(true);
-  });
-  it('false when the only matching widget is a pending suggestion', () => {
-    expect(nodeHasUnappliedChanges([w('w1', 'active', 'L1')], new Set(['w1']), ['L1'])).toBe(false);
-  });
-  it('false when no widget targets the node layers', () => {
-    expect(nodeHasUnappliedChanges([w('w1', 'active', 'LX')], new Set(), ['L1'])).toBe(false);
   });
 });
 

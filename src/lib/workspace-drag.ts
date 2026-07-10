@@ -26,22 +26,6 @@ export function isOutsideRect(pt: { x: number; y: number }, rect: DragRect): boo
   );
 }
 
-/** A node has unapplied changes when an active (non-pending-suggestion) widget
- *  targets one of its layers. Rejoin is blocked until those are applied or
- *  dismissed — mirrors the "Rejoin source image" menu guard. */
-export function nodeHasUnappliedChanges(
-  widgets: ReadonlyArray<{ status: string; id: string; nodes: ReadonlyArray<{ layerId?: string | null }> }>,
-  pendingSuggestionIds: ReadonlySet<string>,
-  layerIds: ReadonlyArray<string>,
-): boolean {
-  return widgets.some(
-    (w) =>
-      w.status === 'active' &&
-      !pendingSuggestionIds.has(w.id) &&
-      w.nodes.some((n) => n.layerId != null && layerIds.includes(n.layerId)),
-  );
-}
-
 /** New uniform scale for a widget resized by dragging its bottom-right corner.
  *  `dxCanvas` is the horizontal drag delta in canvas units (clientDX / zoom).
  *  Width drives the uniform scale so the ratio is locked; clamped to [min,max].

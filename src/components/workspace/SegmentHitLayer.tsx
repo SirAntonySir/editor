@@ -213,22 +213,6 @@ export function SegmentHitLayer({
         }
         // hasSelection && !shift → fall through to extract-drag / select below.
       }
-      // TEMP DIAGNOSTIC — "drag-to-extract doesn't arm on the object body".
-      // Logs, at the press point, each object's mask dims + the sampled value +
-      // whether isInsideMask matches. Remove after triage.
-      // eslint-disable-next-line no-console
-      console.warn('[extract-drag-diag] pointerDown', {
-        nx: +nx.toFixed(3),
-        ny: +ny.toFixed(3),
-        objectsCount: existingObjects.length,
-        hasCandidate: !!candidate?.mask,
-        objects: existingObjects.map((o) => {
-          const m = o.mask;
-          const x = Math.min(m.width - 1, Math.max(0, Math.floor(nx * m.width)));
-          const y = Math.min(m.height - 1, Math.max(0, Math.floor(ny * m.height)));
-          return { id: o.id.slice(0, 8), w: m.width, h: m.height, sampled: m.data[y * m.width + x], inside: isInsideMask(nx, ny, m) };
-        }),
-      });
       if (candidate?.mask && isInsideMask(nx, ny, candidate.mask)) {
         grabbed.current = { kind: 'candidate' };
         extractDrag.onPointerDown(e);

@@ -74,7 +74,7 @@ function makeCanvas(w: number, h: number): HTMLCanvasElement {
 }
 
 describe('applyGeometry — identity', () => {
-  it('clears the visible canvas and drawImage from working canvas into visible', () => {
+  it('fast-path: blits internal directly into visible (no working canvas)', () => {
     const internal = makeCanvas(800, 600);
     const visible = makeCanvas(800, 600);
     const ctx = visible.getContext('2d');
@@ -85,20 +85,17 @@ describe('applyGeometry — identity', () => {
     applyGeometry(internal, visible, {});
 
     expect(clearSpy).toHaveBeenCalledWith(0, 0, 800, 600);
-    // Step 2: visible ctx receives exactly one drawImage (from working canvas
-    // into visible). At angle 0 bbox = source (800×600 → working 800×600).
-    // Crop defaults to full bbox {x:0,y:0,w:800,h:600}.
+    // Identity geometry (no rotate/flip/crop) takes the fast path: one 5-arg
+    // scale-blit of `internal` straight into `visible` — no working-canvas
+    // allocation, no rotate pass. Visually identical to the crop-sample path.
     expect(drawSpy).toHaveBeenCalledTimes(1);
-    // The first arg is the working canvas (HTMLCanvasElement), not `internal`.
     const call = drawSpy.mock.calls[0];
-    expect(call[1]).toBe(0);     // sx
-    expect(call[2]).toBe(0);     // sy
-    expect(call[3]).toBeCloseTo(800, 1); // sw (bbW at 0°)
-    expect(call[4]).toBeCloseTo(600, 1); // sh (bbH at 0°)
-    expect(call[5]).toBe(0);     // dx
-    expect(call[6]).toBe(0);     // dy
-    expect(call[7]).toBe(800);   // dw
-    expect(call[8]).toBe(600);   // dh
+    expect(call[0]).toBe(internal); // source is `internal` itself
+    expect(call[1]).toBe(0);        // dx
+    expect(call[2]).toBe(0);        // dy
+    expect(call[3]).toBe(800);      // dw (visible.width)
+    expect(call[4]).toBe(600);      // dh (visible.height)
+    expect(call.length).toBe(5);    // 5-arg blit, not the 9-arg crop-sample
   });
 });
 

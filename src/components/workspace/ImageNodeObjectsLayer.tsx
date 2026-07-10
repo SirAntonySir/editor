@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useImageNodeObjects, type ImageObject } from '@/hooks/useImageNodeObjects';
 import { useEditorStore } from '@/store';
@@ -373,7 +373,11 @@ export function ImageNodeObjectsLayer({
   const hoveredObjectId = useEditorStore((s) => s.hoveredObjectId);
   const contextMenuObjectId = useEditorStore((s) => s.contextMenuObjectId);
 
-  useEffect(() => {
+  // Layout effect (not passive): the canvas width/height attributes are set
+  // from widthPx/heightPx in this same render, so painting must run BEFORE the
+  // browser paints — a passive effect leaves one stale frame (old dims) on node
+  // resize, which reads as an outline flicker.
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

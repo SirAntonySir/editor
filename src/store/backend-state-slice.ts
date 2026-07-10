@@ -168,10 +168,12 @@ interface BackendState {
 let _livenessTimer: ReturnType<typeof setTimeout> | null = null;
 const LIVENESS_GRACE_MS = 2000;
 
-let _snapshotRefetchInFlight = false;
+// Keyed by session id, not a bare boolean: an in-flight refetch for an OLD
+// session must not suppress the NEW session's refetch after a fast image-swap.
+let _snapshotRefetchSid: string | null = null;
 async function refetchSnapshot(sid: string): Promise<void> {
-  if (_snapshotRefetchInFlight) return;
-  _snapshotRefetchInFlight = true;
+  if (_snapshotRefetchSid === sid) return; // one in-flight per session
+  _snapshotRefetchSid = sid;
   try {
     const { fetchSnapshot } = await import('@/lib/sse-subscriber');
     const snap = await fetchSnapshot(sid);
@@ -185,7 +187,7 @@ async function refetchSnapshot(sid: string): Promise<void> {
   } catch (err) {
     console.warn('[sse] snapshot refetch failed:', err);
   } finally {
-    _snapshotRefetchInFlight = false;
+    if (_snapshotRefetchSid === sid) _snapshotRefetchSid = null;
   }
 }
 
@@ -321,6 +323,14 @@ export const useBackendState = create<BackendState>()(
             // Any in-flight optimistic patches are stale — the restored
             // snapshot is authoritative.
             s.optimistic.clear();
+            // Reconcile the frontend tether mirror against the restored widget
+            // set: an undo/redo that added or removed a widget otherwise leaves
+            // tether edges pointing at widgets that no longer exist (or misses
+            // ones that reappeared) until an unrelated event resyncs.
+            if (p.widgets) {
+              const restored = p.widgets;
+              sideEffects.push(() => useEditorStore.getState().syncWidgetTethers(restored));
+            }
             // TEMP DIAGNOSTIC — see whether restored widgets are re-marked
             // pending (they are not, today). Remove after triage.
             sideEffects.push(() =>
@@ -348,11 +358,15 @@ export const useBackendState = create<BackendState>()(
             if (s.snapshot) {
               const existing = s.snapshot.imageContext ?? {};
               s.snapshot.imageContext = { ...existing, ...partial } as never;
-              s.snapshot.revision = ev.revision;
+              // Only advance a REAL snapshot's revision. A provisional stub
+              // (revision 0, below) must stay at 0 so the authoritative REST
+              // fetch — which may resolve at a LOWER revision — isn't rejected
+              // by setSnapshot's floor guard and lost, leaving widgets empty.
+              if (s.snapshot.revision > 0) s.snapshot.revision = ev.revision;
             } else {
               s.snapshot = {
                 sessionId: '',
-                revision: ev.revision,
+                revision: 0, // provisional stub; real fetch overlays it
                 widgets: [],
                 masksIndex: [],
                 operationGraph: { id: '', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
@@ -547,13 +561,20 @@ export const useBackendState = create<BackendState>()(
     applyOptimistic: (widgetId, patch) =>
       set((s) => {
         const existing = s.optimistic.get(widgetId);
-        if (!existing || existing.baseRevision !== patch.baseRevision) {
+        if (!existing) {
           s.optimistic.set(widgetId, patch);
           return;
         }
+        // Merge bindings and adopt the newer baseRevision. Previously a patch
+        // whose baseRevision differed REPLACED the existing one, dropping other
+        // in-flight param bindings — a drag straddling a revision bump would
+        // flash a partially-reset preview. Rebasing keeps every set param.
         const byKey = new Map(existing.bindings.map((b) => [b.paramKey, b]));
         for (const b of patch.bindings) byKey.set(b.paramKey, b);
-        s.optimistic.set(widgetId, { baseRevision: patch.baseRevision, bindings: [...byKey.values()] });
+        s.optimistic.set(widgetId, {
+          baseRevision: Math.max(existing.baseRevision, patch.baseRevision),
+          bindings: [...byKey.values()],
+        });
       }),
 
     clearOptimistic: (widgetId) =>
@@ -651,6 +672,10 @@ export const useBackendState = create<BackendState>()(
           localStorage.removeItem(SESSION_STORAGE_KEY);
         } catch { /* localStorage may be disabled (private mode); ignore. */ }
       });
+      // Clear module-level sync guards so a stale timer / in-flight flag from
+      // the closed session can't suppress the next session's liveness + resync.
+      if (_livenessTimer !== null) { clearTimeout(_livenessTimer); _livenessTimer = null; }
+      _snapshotRefetchSid = null;
       useSuggestionsUi.getState().reset();
     },
   })),
@@ -718,12 +743,22 @@ export async function runClientTool(req: {
   }
   const sid = useBackendState.getState().sessionId;
   if (!sid) return;
+  // Split tool invocation from result-posting: a network failure POSTing the
+  // result must not turn into an unhandled rejection out of the fire-and-forget
+  // caller (`void runClientTool(...)`), and a failing post must not itself be
+  // retried through the invoke-error catch.
+  let result: { ok: true; output: unknown } | { ok: false; error: string };
   try {
     const output = await LlmToolRegistry.invoke(req.name, req.input);
-    await backendTools.postToolResult(sid, { requestId: req.requestId, ok: true, output });
+    result = { ok: true, output };
   } catch (err) {
-    await backendTools.postToolResult(sid, {
-      requestId: req.requestId, ok: false, error: err instanceof Error ? err.message : String(err),
-    });
+    result = { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+  try {
+    await backendTools.postToolResult(sid, { requestId: req.requestId, ...result });
+  } catch (err) {
+    // The backend agent loop should have its own timeout on the awaited tool
+    // result; nothing more we can do from here.
+    console.warn('[client-tool] failed to post result for', req.name, err);
   }
 }

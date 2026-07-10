@@ -80,3 +80,73 @@ def test_develop_png16_clamps_to_max_dim():
 def test_develop_png16_rejects_non_raw():
     with pytest.raises(RawDecodeError):
         develop_raw_to_png16(b"not a raw image at all")
+
+
+# ---------------- plain-TIFF fallback ----------------
+# Browsers can't decode TIFF at all, so the frontend routes .tif/.tiff through
+# the develop endpoint like RAW. LibRaw rejects plain (non-RAW) TIFFs, so the
+# service falls back to a direct TIFF decode — gated on TIFF magic so plain
+# JPEG/PNG bytes are still rejected (see test_develop_rejects_a_plain_jpeg).
+
+
+def _tiff_bytes(arr) -> bytes:
+    import cv2
+    # Uncompressed: OpenCV defaults float TIFF to lossy SGILOG (LogLuv), which
+    # would skew the value assertions. Real HDR exports use none/deflate.
+    ok, buf = cv2.imencode(".tiff", arr, [cv2.IMWRITE_TIFF_COMPRESSION, 1])
+    assert ok
+    return buf.tobytes()
+
+
+def test_develop_png16_accepts_plain_16bit_tiff():
+    import cv2
+    import numpy as np
+    src = np.full((40, 60, 3), 40_000, dtype=np.uint16)
+    out = develop_raw_to_png16(_tiff_bytes(src))
+    arr = cv2.imdecode(np.frombuffer(out, np.uint8), cv2.IMREAD_UNCHANGED)
+    assert arr is not None
+    assert arr.dtype == np.uint16
+    assert arr.shape == (40, 60, 3)
+    # 16-bit values survive (not truncated to 8-bit then rescaled).
+    assert int(arr[0, 0, 0]) == 40_000
+
+
+def test_develop_png16_accepts_float_hdr_tiff():
+    import cv2
+    import numpy as np
+    # Float TIFF (e.g. HDR export). Values >1 clip; in-gamut values scale.
+    src = np.full((16, 16, 3), 0.5, dtype=np.float32)
+    src[0, 0] = 4.0  # over-range highlight
+    out = develop_raw_to_png16(_tiff_bytes(src))
+    arr = cv2.imdecode(np.frombuffer(out, np.uint8), cv2.IMREAD_UNCHANGED)
+    assert arr.dtype == np.uint16
+    assert int(arr[0, 0, 0]) == 65_535           # clipped highlight
+    assert abs(int(arr[1, 1, 0]) - 32_768) <= 1  # 0.5 → mid-range
+
+
+def test_develop_png16_accepts_8bit_tiff_and_scales_up():
+    import cv2
+    import numpy as np
+    src = np.full((16, 16, 3), 128, dtype=np.uint8)
+    out = develop_raw_to_png16(_tiff_bytes(src))
+    arr = cv2.imdecode(np.frombuffer(out, np.uint8), cv2.IMREAD_UNCHANGED)
+    assert arr.dtype == np.uint16
+    assert int(arr[0, 0, 0]) == 128 * 257
+
+
+def test_develop_png16_tiff_clamps_to_max_dim():
+    import cv2
+    import numpy as np
+    src = np.zeros((100, 200, 3), dtype=np.uint16)
+    out = develop_raw_to_png16(_tiff_bytes(src), max_dim=64)
+    arr = cv2.imdecode(np.frombuffer(out, np.uint8), cv2.IMREAD_UNCHANGED)
+    assert max(arr.shape[:2]) == 64
+
+
+def test_develop_jpeg_accepts_plain_tiff():
+    import numpy as np
+    src = np.full((16, 16, 3), 30_000, dtype=np.uint16)
+    out = develop_raw_to_jpeg(_tiff_bytes(src))
+    img = Image.open(io.BytesIO(out))
+    assert img.format == "JPEG"
+    assert img.size == (16, 16)

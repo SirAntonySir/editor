@@ -42,5 +42,7 @@ def test_augment_prompt_carries_hybrid_instructions():
     # Escape-hatch rule: report, don't force a wrong kind.
     assert 'kind="other"' in _AUGMENT_PROMPT
     assert "never force a wrong kind" in _AUGMENT_PROMPT
-    # Severity anchors: 0.5 is the mint gate's action threshold.
-    assert "0.5 is the action threshold" in _AUGMENT_PROMPT
+    # Severity anchors: 0.4 is the (lowered, grounded) action threshold, and
+    # the prompt delegates measurable magnitude to the mechanical floors.
+    assert "0.4 is the action threshold" in _AUGMENT_PROMPT
+    assert "cast_strength" in _AUGMENT_PROMPT

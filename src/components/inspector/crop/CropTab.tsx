@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { CanvasRegistry } from '@/lib/canvas-registry';
@@ -20,46 +21,30 @@ export function CropTab() {
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
   const imageNodes = useEditorStore((s) => s.imageNodes);
 
-  const snapshotCropX = useBackendState((s) => {
-    if (!activeImageNodeId) return null;
-    const node = s.snapshot?.operationGraph.nodes.find(
-      (n) => n.id === `transform:${activeImageNodeId}:crop`,
-    );
-    if (!node) return null;
-    const p = node.params as { x?: number; y?: number; w?: number; h?: number };
-    return p.w != null && p.h != null ? (p.x ?? 0) : null;
-  });
-  const snapshotCropY = useBackendState((s) => {
-    if (!activeImageNodeId) return null;
-    const node = s.snapshot?.operationGraph.nodes.find(
-      (n) => n.id === `transform:${activeImageNodeId}:crop`,
-    );
-    if (!node) return null;
-    const p = node.params as { x?: number; y?: number; w?: number; h?: number };
-    return p.w != null && p.h != null ? (p.y ?? 0) : null;
-  });
-  const snapshotCropW = useBackendState((s) => {
-    if (!activeImageNodeId) return null;
-    const node = s.snapshot?.operationGraph.nodes.find(
-      (n) => n.id === `transform:${activeImageNodeId}:crop`,
-    );
-    if (!node) return null;
-    const p = node.params as { x?: number; y?: number; w?: number; h?: number };
-    return p.w ?? null;
-  });
-  const snapshotCropH = useBackendState((s) => {
-    if (!activeImageNodeId) return null;
-    const node = s.snapshot?.operationGraph.nodes.find(
-      (n) => n.id === `transform:${activeImageNodeId}:crop`,
-    );
-    if (!node) return null;
-    const p = node.params as { x?: number; y?: number; w?: number; h?: number };
-    return p.h ?? null;
-  });
-  const snapshotCrop: CropRect | null =
-    snapshotCropW != null && snapshotCropH != null
-      ? { x: snapshotCropX ?? 0, y: snapshotCropY ?? 0, w: snapshotCropW, h: snapshotCropH }
-      : null;
+  // One shallow selector over flat primitives (was four selectors each
+  // re-scanning the node list); memoise the crop object so its identity is
+  // stable across renders.
+  const snapCrop = useBackendState(
+    useShallow((s) => {
+      if (!activeImageNodeId) return { x: null, y: null, w: null, h: null };
+      const node = s.snapshot?.operationGraph.nodes.find(
+        (n) => n.id === `transform:${activeImageNodeId}:crop`,
+      );
+      const p = node?.params as { x?: number; y?: number; w?: number; h?: number } | undefined;
+      return { x: p?.x ?? null, y: p?.y ?? null, w: p?.w ?? null, h: p?.h ?? null };
+    }),
+  );
+  const snapshotCropX = snapCrop.x;
+  const snapshotCropY = snapCrop.y;
+  const snapshotCropW = snapCrop.w;
+  const snapshotCropH = snapCrop.h;
+  const snapshotCrop: CropRect | null = useMemo(
+    () =>
+      snapCrop.w != null && snapCrop.h != null
+        ? { x: snapCrop.x ?? 0, y: snapCrop.y ?? 0, w: snapCrop.w, h: snapCrop.h }
+        : null,
+    [snapCrop.x, snapCrop.y, snapCrop.w, snapCrop.h],
+  );
   const snapshotAngle = useBackendState((s) => {
     if (!activeImageNodeId) return 0;
     const node = s.snapshot?.operationGraph.nodes.find(

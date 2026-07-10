@@ -25,6 +25,17 @@ export function applyGeometry(
   const angleDeg = transforms.rotate?.angle ?? 0;
   const flipH = transforms.rotate?.flip_h ?? false;
   const flipV = transforms.rotate?.flip_v ?? false;
+
+  // Fast path: identity geometry (no rotation, flip, or crop) is just a scaled
+  // blit. Skip the full-size working-canvas allocation + rotate pass that would
+  // otherwise run — and be GC'd — on every composite (every slider tick / zoom
+  // frame) even when the image isn't transformed at all.
+  if (angleDeg === 0 && !flipH && !flipV && !transforms.crop) {
+    ctx.clearRect(0, 0, visible.width, visible.height);
+    ctx.drawImage(internal, 0, 0, visible.width, visible.height);
+    return;
+  }
+
   const W = internal.width;
   const H = internal.height;
   const θ = angleDeg * Math.PI / 180;

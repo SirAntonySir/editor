@@ -252,7 +252,13 @@ class SessionStore:
         future). The agent loop awaits `future`; the POST /tool_result endpoint
         (or cancel) resolves it."""
         request_id = uuid.uuid4().hex
-        fut: asyncio.Future = asyncio.get_event_loop().create_future()
+        # Prefer the running loop; fall back to get_event_loop for the (sync)
+        # unit tests that construct requests without a running loop.
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.get_event_loop()
+        fut: asyncio.Future = loop.create_future()
         with self._lock:
             self._pending_client_calls.setdefault(sid, {})[request_id] = fut
         return request_id, fut

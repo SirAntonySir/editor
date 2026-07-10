@@ -662,6 +662,10 @@ const workspace = {
     recordSnapshot('Remove image node', () =>
       useEditorStore.getState().removeImageNode(id),
     );
+    // Free the node's cached internal + per-layer scratch canvases (full-res,
+    // tens of MB at 4K). Only closeDocument() cleared these before, so
+    // extract/delete cycles leaked a detached canvas set per removed node.
+    clearInternalCanvasCache(id);
   },
 
   /** Merge an image node's visible layers into one flat raster layer
@@ -710,6 +714,7 @@ const workspace = {
         try { s.removeLayer(lid); } catch { /* layer with children: skip */ }
       }
     });
+    clearInternalCanvasCache(id); // free the node's cached render canvases
   },
 
   setEdge(edge: TetherEdgeState): void {

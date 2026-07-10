@@ -96,6 +96,14 @@ function curveBindings(widget: Widget): ControlBinding[] {
   );
 }
 
+/** True when a binding is a curve control (vs a slider / other). A curves
+ *  widget can also carry non-curve bindings — e.g. teal_orange pairs a luma
+ *  curve with a saturation slider — which the shell renders as plain rows
+ *  beneath the curve editor rather than dropping them. */
+export function isCurveBinding(b: ControlBinding): boolean {
+  return CURVE_CONTROL_TYPES.has(b.controlSchema.controlType);
+}
+
 /** True when the widget should render through CurvesWidgetBody. Two shapes
  *  are accepted:
  *   1) Four bindings with `controlType='curve_editor'` covering rgb/red/

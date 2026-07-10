@@ -20,15 +20,32 @@ const RAW_EXTENSIONS = [
 export const RAW_ACCEPT = RAW_EXTENSIONS.join(',');
 
 export function isRawFile(file: File): boolean {
+  return RAW_EXTENSIONS.includes(extOf(file));
+}
+
+// Chromium has no TIFF decoder at all — createImageBitmap throws
+// InvalidStateError on any .tif, so TIFF rides the same backend develop
+// transport as RAW (and its 16-bit/float data survives into the PNG16).
+const TIFF_EXTENSIONS = ['.tif', '.tiff'];
+
+/** Does this file need the backend develop round-trip before the browser can
+ *  decode it — camera RAW or TIFF (neither is web-native)? */
+export function needsBackendDevelop(file: File): boolean {
+  const ext = extOf(file);
+  return RAW_EXTENSIONS.includes(ext) || TIFF_EXTENSIONS.includes(ext);
+}
+
+function extOf(file: File): string {
   const name = file.name.toLowerCase();
   const dot = name.lastIndexOf('.');
-  return dot !== -1 && RAW_EXTENSIONS.includes(name.slice(dot));
+  return dot === -1 ? '' : name.slice(dot);
 }
 
 /**
- * Develop a camera-RAW File into a JPEG File via the backend. The auth header
- * (when configured) is attached automatically by the global fetch wrapper
- * (see backend-auth.ts). Throws on failure; the caller surfaces a toast.
+ * Develop a camera-RAW (or TIFF) File into a 16-bit PNG File via the backend.
+ * The auth header (when configured) is attached automatically by the global
+ * fetch wrapper (see backend-auth.ts). Throws on failure; the caller surfaces
+ * a toast.
  */
 export async function developRawFile(file: File): Promise<File> {
   // depth=16 → a 16-bit sRGB PNG. The open path decodes its high-bit data for

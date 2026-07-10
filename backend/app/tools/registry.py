@@ -231,14 +231,20 @@ class BackendToolRegistry:
                     )
                 self._flush_history_to_bus(doc, session_id)
         else:
-            doc = self._store.get_document(session_id)
-            try:
-                output = await tool.handler(doc, parsed)
-            except Exception as exc:
-                classified = _classify_exception(exc)
-                if classified is not None:
-                    return classified
-                return _err("internal_error", repr(exc), retryable=False)
+            # Query tools take the lock too: without it a read that projects the
+            # graph or iterates doc.widgets/canonical can run mid-way through a
+            # concurrent mutate that reorders or deletes, producing torn reads or
+            # "dict changed size during iteration". Query handlers are documented
+            # to complete fast (see the register_task comment above), so holding
+            # the write lock for the read is acceptable.
+            async with self._store.with_document_lock(session_id) as doc:
+                try:
+                    output = await tool.handler(doc, parsed)
+                except Exception as exc:
+                    classified = _classify_exception(exc)
+                    if classified is not None:
+                        return classified
+                    return _err("internal_error", repr(exc), retryable=False)
 
         # Stamp the post-call document revision so the frontend can use any
         # tool response as an SSE-liveness probe (see ToolResponseEnvelope).

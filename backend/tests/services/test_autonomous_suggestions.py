@@ -89,6 +89,28 @@ async def test_severity_gate_and_success_are_journaled(make_doc, journal):
 
 
 @pytest.mark.asyncio
+async def test_gate_admits_severity_at_the_040_threshold(make_doc, journal):
+    """The gate lowered from 0.5 to 0.4: a grounded 0.4 problem must mint.
+    (Grounding floors a measured cast/underexposure to ~0.4–0.6; the old 0.5
+    gate would still have dropped a 0.4 grounded severity.)"""
+    doc = make_doc()
+    ctx = _ctx([
+        Problem(kind="clipped_highlights", severity=0.4, region_label="sky",
+                suggested_fused_tools=["recover_highlights"],
+                display_label="Blown sky"),
+    ])
+
+    await mint_autonomous_suggestions(doc, ctx, _FakeAnthropic(), layer_id="l1")
+
+    minted = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
+    assert len(minted) == 1
+    assert not any(
+        p.get("reason") == "severity_gate"
+        for (_s, _k, p) in journal
+    )
+
+
+@pytest.mark.asyncio
 async def test_other_problem_is_journaled_not_minted(make_doc, journal):
     """kind='other' is the vocabulary escape hatch: recorded as an observation
     (the empirical input for growing ProblemKind), never minted — no tool

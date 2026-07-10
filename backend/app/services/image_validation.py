@@ -41,6 +41,29 @@ class ValidatedImage:
     mime_type: str
 
 
+# Content-Length counts the whole multipart body (boundaries + part headers +
+# any extra fields), not just the image bytes, so the pre-read guard adds a
+# generous margin over max_image_bytes. It is only a coarse OOM backstop — the
+# precise limit is enforced on the decoded image bytes in validate_image_upload.
+_UPLOAD_OVERHEAD_BYTES = 1 * 1024 * 1024
+
+
+def reject_oversize_content_length(content_length: int | None) -> None:
+    """Cheap pre-read guard against OOM: reject an upload whose declared
+    ``Content-Length`` is so far over the cap that buffering it would risk
+    exhausting memory, BEFORE the body is read. The precise per-image check
+    still runs in :func:`validate_image_upload`."""
+    if content_length is None:
+        return
+    settings = get_settings()
+    ceiling = settings.max_image_bytes + _UPLOAD_OVERHEAD_BYTES
+    if content_length > ceiling:
+        raise ImageValidationError(
+            f"image too large ({content_length} > {ceiling} bytes)",
+            http_status=413,
+        )
+
+
 def validate_image_upload(image_bytes: bytes, mime_type: str | None) -> ValidatedImage:
     """Apply the shared MIME + size checks. Returns a frozen :class:`ValidatedImage`
     on success; raises :class:`ImageValidationError` with the appropriate

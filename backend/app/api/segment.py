@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import io
 import time
@@ -74,8 +75,13 @@ async def embed(
         rec = store.get(body.session_id)
     except SessionNotFound:
         raise HTTPException(status_code=404, detail="unknown or expired session")
-    image_rgb = _decode_image_rgb(rec.image_bytes)
-    sam.embed(body.session_id, image_rgb)
+    # SAM embedding + JPEG decode are CPU/torch-bound; run off the event loop so
+    # a single embed doesn't freeze every other request and SSE stream.
+    def _embed() -> None:
+        image_rgb = _decode_image_rgb(rec.image_bytes)
+        sam.embed(body.session_id, image_rgb)
+
+    await asyncio.to_thread(_embed)
     return EmbedResponse(ok=True, embedded_at=time.time())
 
 
@@ -103,20 +109,24 @@ async def decode(
     if box is not None and points:
         raise HTTPException(status_code=400, detail="mixing box and point prompts not supported")
 
-    try:
+    # torch forward pass — run off the event loop (see embed()).
+    def _decode() -> np.ndarray:
         if box is not None:
-            mask = sam.decode_box(body.session_id, np.array(box, dtype=np.float32))
-        else:
-            mask = sam.decode_point(
-                body.session_id,
-                points=np.array(points, dtype=np.float32),
-                labels=np.array(labels, dtype=np.float32),
-            )
+            return sam.decode_box(body.session_id, np.array(box, dtype=np.float32))
+        return sam.decode_point(
+            body.session_id,
+            points=np.array(points, dtype=np.float32),
+            labels=np.array(labels, dtype=np.float32),
+        )
+
+    try:
+        mask = await asyncio.to_thread(_decode)
     except RuntimeError as err:
         raise HTTPException(status_code=400, detail=str(err))
 
+    png = await asyncio.to_thread(_mask_to_png_base64, mask)
     return DecodeResponse(
-        mask_png_base64=_mask_to_png_base64(mask),
+        mask_png_base64=png,
         width=mask.shape[1],
         height=mask.shape[0],
         model=f"sam-{sam.model_name}" if hasattr(sam, "model_name") else "sam",

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -50,8 +51,25 @@ _ENV_SESSIONS_DIR = os.environ.get("SESSIONS_DIR", "").strip()
 SESSIONS_DIR = Path(_ENV_SESSIONS_DIR) if _ENV_SESSIONS_DIR else _BACKEND_ROOT / ".sessions"
 
 
+# Session ids are minted as uuid4().hex, but several routes accept a
+# client-supplied sid — constrain it to a safe charset so a crafted value like
+# `../other` can't traverse out of SESSIONS_DIR when joined into a path.
+_SAFE_SID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
 def _session_dir(sid: str) -> Path:
+    if not sid or not _SAFE_SID_RE.match(sid):
+        raise ValueError(f"unsafe session id: {sid!r}")
     return SESSIONS_DIR / sid
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write via a temp file + os.replace (atomic on POSIX) so a crash mid-write
+    can't leave a half-written JSON file that load_session then reads as a
+    corrupt / missing session."""
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text)
+    os.replace(tmp, path)
 
 
 def migrate_legacy_sessions_dir() -> int:
@@ -111,7 +129,8 @@ def save_session(
     d = _session_dir(sid)
     d.mkdir(parents=True, exist_ok=True)
     (d / f"image.{_ext_for(mime_type)}").write_bytes(image_bytes)
-    (d / "meta.json").write_text(
+    _atomic_write_text(
+        d / "meta.json",
         json.dumps({
             "mime_type": mime_type,
             "created_at": created_at,
@@ -134,7 +153,7 @@ def save_ai_access(sid: str, ai_access: bool) -> None:
     if not isinstance(meta, dict):
         return
     meta["ai_access"] = ai_access
-    meta_path.write_text(json.dumps(meta))
+    _atomic_write_text(meta_path, json.dumps(meta))
 
 
 def write_image(sid: str, image_node_id: str, image_bytes: bytes, mime_type: str) -> None:
@@ -232,7 +251,7 @@ def save_context(sid: str, context: dict[str, Any]) -> None:
     create the session first)."""
     d = _session_dir(sid)
     d.mkdir(parents=True, exist_ok=True)
-    (d / "context.json").write_text(json.dumps(context))
+    _atomic_write_text(d / "context.json", json.dumps(context))
 
 
 def load_session(sid: str) -> DiskRecord | None:

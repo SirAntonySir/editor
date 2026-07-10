@@ -25,7 +25,11 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, 
 from app.schemas.image_context import ImageContext
 from app.services import cohort_store, disk_session_io
 from app.services.event_journal import write_event
-from app.services.image_validation import ImageValidationError, validate_image_upload
+from app.services.image_validation import (
+    ImageValidationError,
+    reject_oversize_content_length,
+    validate_image_upload,
+)
 from app.services.session_store import SessionNotFound, SessionStore
 from app.state.document import DEFAULT_IMAGE_NODE_ID
 
@@ -55,6 +59,16 @@ def _resolve_user_id(request: Request, response: Response) -> str:
     )
     return new_uid
 
+def _parse_content_length(request: Request) -> int | None:
+    raw = request.headers.get("content-length")
+    if raw is None:
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        return None
+
+
 router = APIRouter()
 
 
@@ -65,6 +79,10 @@ async def create_session(
     image: UploadFile = File(...),
     store: SessionStore = Depends(get_session_store),
 ) -> dict[str, str]:
+    try:
+        reject_oversize_content_length(_parse_content_length(request))
+    except ImageValidationError as exc:
+        raise HTTPException(status_code=exc.http_status, detail=str(exc)) from exc
     data = await image.read()
     try:
         validated = validate_image_upload(data, image.content_type)
@@ -120,6 +138,7 @@ def _mint_image_node_id(existing_ids: list[str]) -> str:
 @router.post("/session/{sid}/images")
 async def add_image_to_session(
     sid: str,
+    request: Request,
     image: UploadFile = File(...),
     store: SessionStore = Depends(get_session_store),
 ) -> dict[str, str]:
@@ -127,6 +146,10 @@ async def add_image_to_session(
     minted `in-N` image_node_id. The primary single-file disk layout is
     preserved; the new image is persisted next to it keyed by node id so it
     survives a server restart. See Task 4 of the multi-image-canvas plan."""
+    try:
+        reject_oversize_content_length(_parse_content_length(request))
+    except ImageValidationError as exc:
+        raise HTTPException(status_code=exc.http_status, detail=str(exc)) from exc
     data = await image.read()
     try:
         validated = validate_image_upload(data, image.content_type)

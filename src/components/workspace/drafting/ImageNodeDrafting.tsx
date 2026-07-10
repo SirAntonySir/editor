@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { Handle, Position } from '@xyflow/react';
 import {
@@ -31,8 +32,6 @@ import { analyseImageLayer, suggestForImageNode, useIsImageNodeAnalysed } from '
 import { useAiAccess } from '@/lib/ai-access';
 import { backendTools } from '@/lib/backend-tools';
 import { editorDocument } from '@/core/document';
-import { useSuggestionsUi } from '@/store/suggestions-ui-slice';
-import { toast } from '@/components/ui/Toast';
 import {
   copyObjectToImageNode,
   deleteObject,
@@ -41,7 +40,6 @@ import {
 } from '@/lib/segmentation/object-actions';
 import { exportImageNode, redrawExtractedNode, rejoinSourceImage } from '@/lib/image-node-actions';
 import { duplicateImageNode } from '@/lib/duplicate-image-node';
-import { widgetTargetLayerIds } from '@/lib/widget-targets';
 import { computeEffectiveSize, type Crop } from '@/lib/image-node-geometry';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { ImageNodeBody } from '../ImageNodeBody';
@@ -63,7 +61,6 @@ interface ImageNodeDraftingProps {
   selected: boolean;
 }
 
-const EMPTY_WIDGETS: import('@/types/widget').Widget[] = [];
 
 const LEFT_MARGIN = 120;
 const RIGHT_MARGIN = 120;
@@ -133,37 +130,33 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   // crop replaces them outright. Both surface as op_graph nodes
   // (transform:<id>:rotate / :crop) so we read them from useBackendState.
   // Live edits in the Crop tab arrive via useEditorStore.cropPreview.
-  const snapshotRotateAngle = useBackendState((s) => {
-    const node = s.snapshot?.operationGraph.nodes.find((n) => n.id === `transform:${id}:rotate`);
-    if (!node) return null;
-    return (node.params.angle as number) ?? null;
-  });
-  const snapshotCropX = useBackendState((s) => {
-    const node = s.snapshot?.operationGraph.nodes.find((n) => n.id === `transform:${id}:crop`);
-    if (!node) return null;
-    const p = node.params as { x?: number; w?: number; h?: number };
-    return p.w != null && p.h != null ? (p.x ?? 0) : null;
-  });
-  const snapshotCropY = useBackendState((s) => {
-    const node = s.snapshot?.operationGraph.nodes.find((n) => n.id === `transform:${id}:crop`);
-    if (!node) return null;
-    const p = node.params as { y?: number; w?: number; h?: number };
-    return p.w != null && p.h != null ? (p.y ?? 0) : null;
-  });
-  const snapshotCropW = useBackendState((s) => {
-    const node = s.snapshot?.operationGraph.nodes.find((n) => n.id === `transform:${id}:crop`);
-    if (!node) return null;
-    return (node.params as { w?: number }).w ?? null;
-  });
-  const snapshotCropH = useBackendState((s) => {
-    const node = s.snapshot?.operationGraph.nodes.find((n) => n.id === `transform:${id}:crop`);
-    if (!node) return null;
-    return (node.params as { h?: number }).h ?? null;
-  });
-  const snapshotCrop: Crop | null =
-    snapshotCropW != null && snapshotCropH != null
-      ? { x: snapshotCropX ?? 0, y: snapshotCropY ?? 0, w: snapshotCropW, h: snapshotCropH }
-      : null;
+  // One shallow selector scanning the node list ONCE (was five selectors, each
+  // re-scanning `operationGraph.nodes` on every store change). Returns FLAT
+  // primitives so useShallow's per-key compare actually holds — a nested crop
+  // object would be a fresh ref each call and defeat the memo.
+  const transform = useBackendState(
+    useShallow((s) => {
+      const nodes = s.snapshot?.operationGraph.nodes;
+      const rotateNode = nodes?.find((n) => n.id === `transform:${id}:rotate`);
+      const cropNode = nodes?.find((n) => n.id === `transform:${id}:crop`);
+      const cp = cropNode?.params as { x?: number; y?: number; w?: number; h?: number } | undefined;
+      return {
+        rotateAngle: rotateNode ? ((rotateNode.params.angle as number) ?? null) : null,
+        cropX: cp?.x ?? null,
+        cropY: cp?.y ?? null,
+        cropW: cp?.w ?? null,
+        cropH: cp?.h ?? null,
+      };
+    }),
+  );
+  const snapshotRotateAngle = transform.rotateAngle;
+  const snapshotCrop: Crop | null = useMemo(
+    () =>
+      transform.cropW != null && transform.cropH != null
+        ? { x: transform.cropX ?? 0, y: transform.cropY ?? 0, w: transform.cropW, h: transform.cropH }
+        : null,
+    [transform.cropX, transform.cropY, transform.cropW, transform.cropH],
+  );
 
   const inspectorTab = usePreferencesStore((s) => s.inspectorTab);
   const activeImageNodeId = useEditorStore((s) => s.activeImageNodeId);
@@ -223,25 +216,6 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
   // True while an extracted node is dragged over THIS node (its source) —
   // drives the "release to rejoin" snap pulse.
   const isRejoinTarget = useEditorStore((s) => s.rejoinTargetNodeId === id);
-
-  // "Rejoin source image" un-does an extract by merging this node back into its
-  // source — only valid once the user's edits here are APPLIED. Gate on any
-  // engaged active widget (pending AI suggestions don't count as the user's
-  // changes) targeting this node's layers.
-  const snapshotWidgets = useBackendState((s) => s.snapshot?.widgets ?? EMPTY_WIDGETS);
-  const pendingSuggestionIds = useSuggestionsUi((s) => s.pendingSuggestionIds);
-  const hasUnappliedChanges = useMemo(
-    () =>
-      snapshotWidgets.some(
-        (w) =>
-          w.status === 'active' &&
-          !pendingSuggestionIds.has(w.id) &&
-          // Match on the widget's real target set (`layerIds ?? [layerId]`), so a
-          // widget the user tethered after spawn is recognised as this node's.
-          widgetTargetLayerIds(w).some((lid) => data.layerIds.includes(lid)),
-      ),
-    [snapshotWidgets, pendingSuggestionIds, data.layerIds],
-  );
 
   // Default is 'layers' — no auto-flip to objects when a segmented mask
   // exists. The user opts in explicitly via the menu.
@@ -390,10 +364,9 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
         <Item
           className={itemClass}
           onSelect={() => {
-            if (hasUnappliedChanges) {
-              toast.info('Apply or dismiss your changes before rejoining the source image.');
-              return;
-            }
+            // Rejoin unconditionally: the merge carries this node's layers (and
+            // any live widgets tethered to them) back into the source, so live
+            // widgets stay connected to the layer — nothing to apply/dismiss.
             rejoinSourceImage(id);
           }}
         >

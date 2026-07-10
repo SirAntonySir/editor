@@ -15,7 +15,7 @@ import { WhyPopover } from './WhyPopover';
 import { BindingRow } from '@/components/widget/BindingRow';
 import { HslWidgetBody, isHslWidget } from './HslWidgetBody';
 import { LevelsWidgetBody, isFullLevelsWidget } from './LevelsWidgetBody';
-import { CurvesWidgetBody, isCurvesWidget } from './CurvesWidgetBody';
+import { CurvesWidgetBody, isCurvesWidget, isCurveBinding } from './CurvesWidgetBody';
 import { CompoundWidgetBody } from './CompoundWidgetBody';
 import { GenfillWidgetBody } from './GenfillWidgetBody';
 import { WidgetAutoButton } from './WidgetAutoButton';
@@ -138,6 +138,21 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
     const node = widget.nodes.find((n) => n.id === b.target.nodeId);
     return node ? `canon:${node.layerId}:${node.type}` : b.target.nodeId;
   }
+
+  // Every canonical node a binding drives — one per layer in the node's
+  // replicate set (`layerIds ?? [layerId]`), not just the frozen singular
+  // `layerId`. A widget tethered to (or node-scoped over) several layers commits
+  // its edit to all of them, so the live optimistic override must cover all of
+  // them too; keying only the frozen layer left the other target layers
+  // un-previewed until the SSE roundtrip landed. Mirrors widgetTargetLayerIds().
+  function canonIdsFor(b: Widget['bindings'][number]): string[] {
+    const node = widget.nodes.find((n) => n.id === b.target.nodeId);
+    if (!node) return [b.target.nodeId];
+    const layerIds = node.layerIds ?? (node.layerId ? [node.layerId] : []);
+    return layerIds.length > 0
+      ? layerIds.map((lid) => `canon:${lid}:${node.type}`)
+      : [canonIdFor(b)];
+  }
   function readOptimistic(b: Widget['bindings'][number]): Widget['bindings'][number]['value'] | undefined {
     const patch = scopedOptimistic[canonIdFor(b)];
     if (!patch) return undefined;
@@ -157,12 +172,16 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
     const binding = widget.bindings.find((b) => b.paramKey === paramKey);
     if (binding) {
       const baseRevision = useBackendState.getState().snapshot?.revision ?? 0;
-      // Key the optimistic patch by canonical id so the WebGL render pass
-      // picks it up immediately — see canonIdFor() above.
-      useBackendState.getState().applyOptimistic(canonIdFor(binding), {
+      // Key the optimistic patch by canonical id so the WebGL render pass picks
+      // it up immediately — and write one per target layer so a multi-layer
+      // widget previews live on every layer it edits, not just the frozen one.
+      const patch = {
         bindings: [{ paramKey: binding.target.paramKey, value }],
         baseRevision,
-      });
+      };
+      for (const canonId of canonIdsFor(binding)) {
+        useBackendState.getState().applyOptimistic(canonId, patch);
+      }
       const node = widget.nodes.find((n) => n.id === binding.target.nodeId);
       if (node?.layerId) {
         useEditorStore.getState().markParamTouched(touchKey(node.layerId, node.type, binding.target.paramKey));
@@ -199,11 +218,14 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
           const binding = widget.bindings.find((b) => b.paramKey === paramKey);
           if (!binding) return Promise.resolve();
           // Read the latest optimistic value (if any) — that's the live slider
-          // position. Falls back to binding.value otherwise.
-          const node = widget.nodes.find((n) => n.id === binding.target.nodeId);
-          const canonId = node ? `canon:${node.layerId}:${node.type}` : binding.target.nodeId;
-          const patch = optMap.get(canonId);
-          const live = patch?.bindings.find((p) => p.paramKey === binding.target.paramKey)?.value;
+          // position. Falls back to binding.value otherwise. Look across ALL of
+          // the binding's target-layer keys (canonIdsFor mirrors setParam's
+          // fan-out); a multi-layer widget whose frozen layerId isn't in the
+          // replicate set would otherwise miss and send stale binding.value.
+          const live = canonIdsFor(binding)
+            .map((id) => optMap.get(id))
+            .find((patch) => patch !== undefined)
+            ?.bindings.find((p) => p.paramKey === binding.target.paramKey)?.value;
           const value = live !== undefined ? live : binding.value;
           return backendTools.set_widget_param(sessionId, {
             widgetId: widget.id, paramKey, value,
@@ -240,6 +262,44 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
     const opt = readOptimistic(b);
     return opt !== undefined ? opt : b.value;
   }
+
+  // One row renderer, shared by the flat body and by the non-curve "extras" a
+  // curves widget can carry (e.g. teal_orange's saturation slider next to its
+  // curve). Keeps provenance + mask wiring in one place.
+  const renderBindingRow = (b: Widget['bindings'][number]) => {
+    const eff = effectiveValue(b);
+    const node = widget.nodes.find((n) => n.id === b.target.nodeId);
+    const isTouched = node?.layerId
+      ? touched.has(touchKey(node.layerId, node.type, b.target.paramKey))
+      : false;
+    // Engine neutral feeds the provenance check so an AI slider reads VIOLET
+    // while still resting at the AI's resolved value (= binding.default, ≠
+    // engine 0). User touch flips it to ACCENT (blue).
+    const neutral = engineNeutralForBinding(b);
+    return (
+      <BindingRow
+        // A multi-op widget can carry two bindings with the same user paramKey
+        // (e.g. both ops expose "amount"). Key by the binding's unique target
+        // (node + node-param) so React keeps them distinct.
+        key={`${b.target.nodeId}:${b.target.paramKey}`}
+        binding={b}
+        effectiveValue={eff}
+        maskSummaries={masks}
+        onChange={(value) => setParam(b.paramKey, value)}
+        provenance={bindingProvenance(
+          eff,
+          b.default,
+          widget.origin.kind !== 'tool_invoked',
+          isTouched,
+          neutral,
+        )}
+      />
+    );
+  };
+
+  // Non-curve bindings on a curves widget (teal_orange = curve + saturation).
+  // Rendered as plain rows under the curve editor so they aren't dropped.
+  const curvesExtraBindings = widget.bindings.filter((b) => !isCurveBinding(b));
 
   return (
     <div
@@ -326,43 +386,20 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
           {!pinnedParamKeys && widget.bindings.length > 0 && isCurvesWidget(widget) && (
             <div className="py-1">
               <CurvesWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
+              {/* Non-curve bindings (e.g. teal_orange's saturation slider) that
+                  the curve body doesn't draw — render them as rows so they
+                  aren't silently dropped. */}
+              {curvesExtraBindings.length > 0 && (
+                <div className="flex flex-col gap-1.5 px-1.5 pt-1">
+                  {curvesExtraBindings.map(renderBindingRow)}
+                </div>
+              )}
             </div>
           )}
           {widget.bindings.length > 0 && (pinnedParamKeys || usesFlatBody) && (
             <div className="flex flex-col gap-1.5 px-1.5 py-1">
               {/* Auto pill lives on the action strip above (autoSlot), not here. */}
-              {visibleBindings.map((b) => {
-                const eff = effectiveValue(b);
-                const node = widget.nodes.find((n) => n.id === b.target.nodeId);
-                const isTouched = node?.layerId
-                  ? touched.has(touchKey(node.layerId, node.type, b.target.paramKey))
-                  : false;
-                // Engine neutral feeds the provenance check so an AI
-                // slider reads VIOLET while still resting at the AI's
-                // resolved value (= binding.default, ≠ engine 0). User
-                // touch flips it to ACCENT (blue).
-                const neutral = engineNeutralForBinding(b);
-                return (
-                  <BindingRow
-                    // A multi-op widget can carry two bindings with the same
-                    // user paramKey (e.g. both ops expose "amount"). Key by the
-                    // binding's unique target (node + node-param) so React keeps
-                    // them distinct.
-                    key={`${b.target.nodeId}:${b.target.paramKey}`}
-                    binding={b}
-                    effectiveValue={eff}
-                    maskSummaries={masks}
-                    onChange={(value) => setParam(b.paramKey, value)}
-                    provenance={bindingProvenance(
-                      eff,
-                      b.default,
-                      widget.origin.kind !== 'tool_invoked',
-                      isTouched,
-                      neutral,
-                    )}
-                  />
-                );
-              })}
+              {visibleBindings.map(renderBindingRow)}
             </div>
           )}
           {refineOpen && (

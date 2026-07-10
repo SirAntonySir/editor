@@ -421,13 +421,16 @@ export function CommandPalette() {
     setMode('edit');
     ask.reset();
   }, [ask]);
-  // Drop a previous Ask answer the moment the user toggles back to Edit
-  // (or vice versa) so the body doesn't flash stale state for one frame.
-  const [lastMode, setLastMode] = useState(mode);
-  if (lastMode !== mode) {
-    setLastMode(mode);
+  // Drop a previous Ask answer when the user toggles Edit/Ask/Fill. Done in an
+  // effect, not during render: ask.reset() mutates an external store, and a
+  // render-phase store write can double-fire (cancelling an in-flight Ask) when
+  // React discards and replays a render under StrictMode / concurrent mode.
+  const prevModeRef = useRef(mode);
+  useEffect(() => {
+    if (prevModeRef.current === mode) return;
+    prevModeRef.current = mode;
     ask.reset();
-  }
+  }, [mode, ask]);
   // All three modes (Edit · Ask · Fill) are available in BOTH study conditions —
   // the mode row is identical so it never leaks the condition. What differs by
   // aiAccess lives BELOW the toggle (Edit spawns widgets vs routes to the

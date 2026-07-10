@@ -108,6 +108,12 @@ async def mint_autonomous_suggestions(
     # to MAX from the problem-driven pass if Claude flagged that many issues.
     TARGET_AUTONOMOUS_SUGGESTIONS = 3
     MAX_AUTONOMOUS_SUGGESTIONS = 5
+    # Minimum severity to mint a problem-driven suggestion. Lowered from 0.5
+    # once severities became mechanically grounded (severity_grounding.py): a
+    # measured defect now carries an evidence-based floor, so the gate can sit
+    # lower without admitting noise — the floor, not the gate, is what stops a
+    # conservative LLM score from hiding a real problem.
+    SEVERITY_GATE = 0.4
     origin = WidgetOrigin(kind="mcp_autonomous", prompt=None)
     loop = asyncio.get_running_loop()
 
@@ -178,7 +184,7 @@ async def mint_autonomous_suggestions(
                            "label": problem.display_label,
                            "detail": problem.description})
             continue
-        if problem.severity < 0.5:
+        if problem.severity < SEVERITY_GATE:
             _journal(doc, {"event": "suggestion_skipped", "reason": "severity_gate",
                            "problem": problem.kind, "severity": problem.severity})
             continue

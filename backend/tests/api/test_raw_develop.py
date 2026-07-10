@@ -44,6 +44,23 @@ def test_develop_depth16_returns_png16():
     assert arr.shape == (192, 192, 3)
 
 
+def test_develop_depth16_accepts_plain_tiff():
+    import cv2
+    import numpy as np
+    ok, buf = cv2.imencode(".tiff", np.full((24, 24, 3), 20_000, dtype=np.uint16))
+    assert ok
+    client = _client()
+    r = client.post(
+        "/api/raw/develop?depth=16",
+        files={"image": ("photo.tif", buf.tobytes(), "image/tiff")},
+    )
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"] == "image/png"
+    arr = cv2.imdecode(np.frombuffer(r.content, np.uint8), cv2.IMREAD_UNCHANGED)
+    assert arr.dtype == np.uint16
+    assert arr.shape == (24, 24, 3)
+
+
 def test_develop_rejects_non_raw_with_415():
     client = _client()
     r = client.post(

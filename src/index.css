@@ -23,6 +23,9 @@
   --accent-hover: oklch(0.74 0.18 235);     /* cyan hover outline */
   --accent-selected: oklch(0.62 0.22 290);  /* violet selected outline */
   --accent-extracted: oklch(0.78 0.16 65);  /* amber extracted-from tether */
+  /* Destructive actions (delete, discard). Previously only a hardcoded
+     `#e5484d` fallback existed at every call site; centralise it here. */
+  --color-danger: oklch(0.58 0.21 25);
   /* AI provenance stays separate so AI-touched values still read as AI,
      not as marginalia ink. */
   --color-ai: oklch(0.55 0.18 295);
@@ -60,6 +63,7 @@
   --color-canvas-bg: oklch(0.20 0.010 80);
   --color-accent: oklch(0.68 0.20 40);
   --color-accent-hover: oklch(0.73 0.20 40);
+  --color-danger: oklch(0.65 0.20 25);
   --color-ai: oklch(0.55 0.18 295);
   --shadow-overlay-color: rgba(0, 0, 0, 0.50);
   --shadow-overlay: 0 4px 14px var(--shadow-overlay-color);

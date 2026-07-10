@@ -23,6 +23,13 @@ _CORRECTIVE_KINDS = frozenset({
 # sits just under the mint gate — the point is "don't decorate a broken image".
 _OPEN_CORRECTIVE_SEVERITY = 0.35
 
+# Minimum severity to mint a problem-driven suggestion. Lowered from 0.5 once
+# severities became mechanically grounded (severity_grounding.py): a measured
+# defect now carries an evidence-based floor, so the gate can sit lower without
+# admitting noise — the floor, not the gate, is what stops a conservative LLM
+# score from hiding a real problem.
+SEVERITY_GATE = 0.4
+
 
 def _journal(doc, payload: dict) -> None:
     """Journal an autonomous-pass decision (proposal.health, stage=autonomous).
@@ -121,12 +128,6 @@ async def mint_autonomous_suggestions(
     # to MAX from the problem-driven pass if Claude flagged that many issues.
     TARGET_AUTONOMOUS_SUGGESTIONS = 3
     MAX_AUTONOMOUS_SUGGESTIONS = 5
-    # Minimum severity to mint a problem-driven suggestion. Lowered from 0.5
-    # once severities became mechanically grounded (severity_grounding.py): a
-    # measured defect now carries an evidence-based floor, so the gate can sit
-    # lower without admitting noise — the floor, not the gate, is what stops a
-    # conservative LLM score from hiding a real problem.
-    SEVERITY_GATE = 0.4
     origin = WidgetOrigin(kind="mcp_autonomous", prompt=None)
     loop = asyncio.get_running_loop()
 

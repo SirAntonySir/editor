@@ -216,6 +216,33 @@ async def test_topup_widget_gets_template_label_as_display_name(make_doc, journa
 
 
 @pytest.mark.asyncio
+async def test_topup_skipped_while_a_corrective_problem_is_open(make_doc, journal):
+    """The original bug: a damaged image whose corrective problem didn't mint
+    would get its card quota filled with aesthetic grades. An unresolved
+    corrective problem (here a cast just under the gate) must SUPPRESS the
+    image-character top-up entirely."""
+    doc = make_doc()
+    ctx = _ctx([
+        Problem(kind="strong_color_cast", severity=0.36, region_label=None,
+                suggested_fused_tools=["cast_correct"]),
+    ])
+
+    class _WithTopup(_FakeAnthropic):
+        def suggest_fused_tools_for_character(self, **_):
+            return ["complementary_grade"]
+
+    await mint_autonomous_suggestions(doc, ctx, _WithTopup(), layer_id="l1")
+
+    minted = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
+    assert minted == []  # no aesthetic grade while a correction is outstanding
+    assert any(
+        p.get("event") == "topup_skipped"
+        and p.get("reason") == "open_corrective_problems"
+        for (_s, _k, p) in journal
+    )
+
+
+@pytest.mark.asyncio
 async def test_resolve_failure_is_journaled_not_swallowed(make_doc, journal):
     doc = make_doc()
     ctx = _ctx([

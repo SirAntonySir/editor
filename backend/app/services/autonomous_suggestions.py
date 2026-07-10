@@ -10,6 +10,19 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Problem kinds that describe a corrective NEED (something is wrong and should
+# be fixed), as opposed to judgement/stylistic observations. Used to suppress
+# the aesthetic image-character top-up while any of these is still unresolved —
+# a damaged image gets corrections or fewer cards, never decoration.
+_CORRECTIVE_KINDS = frozenset({
+    "strong_color_cast", "crushed_shadows", "clipped_highlights",
+    "low_contrast", "local_underexposure", "local_overexposure",
+    "uneven_white_balance", "noisy_shadows",
+})
+# A corrective problem at or above this severity blocks the top-up even if it
+# sits just under the mint gate — the point is "don't decorate a broken image".
+_OPEN_CORRECTIVE_SEVERITY = 0.35
+
 
 def _journal(doc, payload: dict) -> None:
     """Journal an autonomous-pass decision (proposal.health, stage=autonomous).
@@ -236,15 +249,16 @@ async def mint_autonomous_suggestions(
                 problem.kind.replace("_", " ") if tool_index == 0 else template.label
             )
             picks.append(Pick((template, intent, scope, fused_id, targets,
-                               problem.display_label)))
+                               problem.display_label, problem)))
             used_fused_ids.add(fused_id)
             used_targets |= targets
             break  # one per problem
 
     resolved = await asyncio.gather(
-        *[_resolve(t, i, s) for (t, i, s, _fid, _tgts, _lbl) in picks]
+        *[_resolve(t, i, s) for (t, i, s, _fid, _tgts, _lbl, _p) in picks]
     )
     successful = 0
+    minted_problem_ids: set[int] = set()
     for pick, widget in zip(picks, resolved):
         if widget is None:
             continue
@@ -252,9 +266,30 @@ async def mint_autonomous_suggestions(
         _stamp(widget)
         doc.add_widget(widget)
         successful += 1
+        minted_problem_ids.add(id(pick[6]))
 
     # ---- Top up via image-character match only when needed --------------
     if initial_count + successful >= TARGET_AUTONOMOUS_SUGGESTIONS:
+        return
+
+    # Never decorate a broken image: if any corrective problem relevant to this
+    # pass is still unresolved (gated, deduped, or resolve-failed), suppress the
+    # aesthetic top-up. Better to surface fewer cards than to answer "fix this
+    # cast" with "here's a teal-and-orange grade".
+    def _relevant(problem) -> bool:
+        if object_label is None:
+            return True
+        return (problem.region_label or "").strip().lower() == object_label.strip().lower()
+
+    open_corrective = any(
+        p.kind in _CORRECTIVE_KINDS
+        and p.severity >= _OPEN_CORRECTIVE_SEVERITY
+        and _relevant(p)
+        and id(p) not in minted_problem_ids
+        for p in ctx.problems
+    )
+    if open_corrective:
+        _journal(doc, {"event": "topup_skipped", "reason": "open_corrective_problems"})
         return
 
     already_used = {

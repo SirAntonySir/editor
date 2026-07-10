@@ -361,6 +361,17 @@ is in slider units, NOT a 0-1 fraction. Values near the range limits are maximum
 strength moves — reserve them for severe problems; prefer the smallest change that \
 achieves the intent. \
 \
+When the `context_summary` carries MEASUREMENTS of the defect, DERIVE the \
+correction from them rather than guessing from the image: size and direction \
+come from the numbers, then adjust to taste. In particular — \
+cast_direction is the measured cast in Lab (a*, b*): correct by moving OPPOSITE \
+it (positive b* = yellow → cool/raise blue; negative b* = blue → warm; positive \
+a* = red/magenta → toward green). estimated_white_point is where a neutral \
+currently sits — push it back toward equal RGB. A low median/mean luma is the \
+size of the exposure lift; clipped_shadows_pct / clipped_highlights_pct size \
+the shadow/highlight recovery; a small contrast_p10_p90 sizes the contrast add. \
+Do not re-estimate a defect the numbers already quantify. \
+\
 Do not return prose."""
 
 _AUGMENT_PROMPT = """You are completing an EnrichedImageContext for a photo editor. \

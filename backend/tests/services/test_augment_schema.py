@@ -46,3 +46,15 @@ def test_augment_prompt_carries_hybrid_instructions():
     # the prompt delegates measurable magnitude to the mechanical floors.
     assert "0.4 is the action threshold" in _AUGMENT_PROMPT
     assert "cast_strength" in _AUGMENT_PROMPT
+
+
+def test_resolve_prompt_directs_measurement_derivation():
+    """The fused-resolve prompt must tell the model to DERIVE corrective
+    parameters from the measured context_summary (cast_direction, white point,
+    luma gap) rather than re-estimate the defect from the thumbnail."""
+    from app.services.anthropic_client import _FUSED_RESOLVE_PROMPT
+
+    lowered = _FUSED_RESOLVE_PROMPT.lower()
+    assert "context_summary" in lowered
+    assert "cast_direction" in lowered
+    assert "derive" in lowered

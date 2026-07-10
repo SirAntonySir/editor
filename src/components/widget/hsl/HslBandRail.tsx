@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { HSL_BANDS, bandDisplayColor, type HslBand } from '@/components/widget/hsl/hsl-bands';
 
 interface HslBandRailProps {
@@ -11,6 +12,11 @@ interface HslBandRailProps {
    * shrink the rail to just those bands.
    */
   bands?: readonly HslBand[];
+  /**
+   * Optional trailing cell in the grid — the add-colour swatch. Sits in the
+   * same 8-column grid so it matches the band swatches' size exactly.
+   */
+  addSlot?: ReactNode;
 }
 
 /** The colour band picker. Selects the active band and flags edited ones.
@@ -21,7 +27,7 @@ interface HslBandRailProps {
  *  render two giant swatches instead of two compact ones. Anchoring to the
  *  8-cell grid keeps each swatch the same size in every variant — fewer
  *  bands just leave trailing empty cells. */
-export function HslBandRail({ activeBand, onSelect, bandEdited, bands }: HslBandRailProps) {
+export function HslBandRail({ activeBand, onSelect, bandEdited, bands, addSlot }: HslBandRailProps) {
   const visible = bands ?? HSL_BANDS;
   return (
     <div className="grid grid-cols-8 gap-1.5">
@@ -52,6 +58,7 @@ export function HslBandRail({ activeBand, onSelect, bandEdited, bands }: HslBand
           </button>
         );
       })}
+      {addSlot}
     </div>
   );
 }

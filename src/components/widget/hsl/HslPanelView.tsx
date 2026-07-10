@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Segmented, type SegmentedOption } from '@/components/ui/Segmented';
 import { HSL_BANDS } from '@/components/widget/hsl/hsl-bands';
 import { HslBandRail } from '@/components/widget/hsl/HslBandRail';
@@ -15,18 +15,21 @@ const VIEW_OPTS: SegmentedOption<View>[] = [
 interface HslPanelViewProps {
   renderSlider: RenderSlider;
   bandEdited: (band: string) => boolean;
-  onReset: () => void;
   /**
    * Optional subset of band keys the panel should expose. Defaults to all 8
    * bands. AI-spawned widgets (e.g. complementary-grade preset) pass only the
    * bands they actually bind, so the rail doesn't display dead rows.
    */
   availableBands?: string[];
+  /** Optional add-colour swatch appended to the band rail (widget only). */
+  addSlot?: ReactNode;
 }
 
-/** Source-agnostic two-view HSL panel. Owns the view/band/channel UI state;
- *  the data binding is injected via `renderSlider` / `bandEdited` / `onReset`. */
-export function HslPanelView({ renderSlider, bandEdited, onReset, availableBands }: HslPanelViewProps) {
+/** Source-agnostic two-view HSL panel. Owns the view/band/channel UI state; the
+ *  data binding is injected via `renderSlider` / `bandEdited`. Reset is NOT part
+ *  of the panel — the widget strip owns it, and the sidebar renders `HslReset`
+ *  itself. */
+export function HslPanelView({ renderSlider, bandEdited, availableBands, addSlot }: HslPanelViewProps) {
   const bands = availableBands && availableBands.length > 0
     ? HSL_BANDS.filter((b) => availableBands.includes(b.key))
     : [...HSL_BANDS];
@@ -47,7 +50,7 @@ export function HslPanelView({ renderSlider, bandEdited, onReset, availableBands
       <Segmented options={VIEW_OPTS} value={view} onChange={setView} aria-label="HSL view" />
       {view === 'band' ? (
         <>
-          <HslBandRail activeBand={activeBand} onSelect={setBand} bandEdited={bandEdited} bands={bands} />
+          <HslBandRail activeBand={activeBand} onSelect={setBand} bandEdited={bandEdited} bands={bands} addSlot={addSlot} />
           <div className="text-[10px] text-text-secondary">
             Editing <span className="text-text-primary font-medium">{activeLabel}</span>
           </div>
@@ -56,7 +59,6 @@ export function HslPanelView({ renderSlider, bandEdited, onReset, availableBands
       ) : (
         <HslChannelRows channel={channel} onChannelChange={setChannel} renderSlider={renderSlider} bands={bands} />
       )}
-      <HslReset onReset={onReset} />
     </div>
   );
 }

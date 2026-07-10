@@ -1,7 +1,7 @@
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
 import { HSL_BANDS } from '@/components/widget/hsl/hsl-bands';
-import { HslPanelView } from '@/components/widget/hsl/HslPanelView';
+import { HslPanelView, HslReset } from '@/components/widget/hsl/HslPanelView';
 import { HslParamSlider } from './HslParamSlider';
 
 const CHANNELS = ['hue', 'sat', 'lum'] as const;
@@ -41,8 +41,9 @@ export function HslSectionBody({ layerId }: { layerId: string }) {
   }
 
   return (
-    <div className="px-2.5 py-2">
-      <HslPanelView renderSlider={renderSlider} bandEdited={bandEdited} onReset={reset} />
+    <div className="px-2.5 py-2 flex flex-col gap-3">
+      <HslPanelView renderSlider={renderSlider} bandEdited={bandEdited} />
+      <HslReset onReset={reset} />
     </div>
   );
 }

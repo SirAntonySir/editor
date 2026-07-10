@@ -62,13 +62,10 @@ export function HslWidgetBody({ widget, effectiveValue, setParam }: HslWidgetBod
       return b ? effectiveValue(b) !== b.default : false;
     });
 
-  const onReset = () => {
-    for (const b of widget.bindings) setParam(b.paramKey, b.default);
-  };
-
   // Bands to display: edited bands ∪ the ones the user revealed via "+", falling
   // back to a single band (red) so a fresh HSL widget opens on one colour. The
-  // rest are reachable through the add-colour control.
+  // rest are reachable through the add-colour swatch. Reset lives on the widget
+  // strip (WidgetHistoryStepper), so this body renders none of its own.
   const shown = shownHslBands(widget, revealed ?? []);
   const addable = HSL_BANDS.filter(
     (b) => availableHslBands(widget).includes(b.key) && !shown.includes(b.key),
@@ -82,25 +79,28 @@ export function HslWidgetBody({ widget, effectiveValue, setParam }: HslWidgetBod
     revealBand(widget.id, band);
   };
 
-  const body =
-    shown.length === 1 ? (
-      <HslSingleBandView band={shown[0]} renderSlider={renderSlider} onReset={onReset} />
-    ) : (
-      // `availableBands={shown}` keeps the rail and by-channel view to the bands
-      // in play — a complementary-grade preset (orange + blue) shows just those.
-      <HslPanelView
+  // The add-colour swatch sits in the band rail (both views) at swatch size.
+  const addSlot = <HslAddBandControl bands={addable} onAdd={onAddBand} />;
+
+  if (shown.length === 1) {
+    return (
+      <HslSingleBandView
+        band={shown[0]}
         renderSlider={renderSlider}
         bandEdited={bandEdited}
-        onReset={onReset}
-        availableBands={shown}
+        addSlot={addSlot}
       />
     );
-
+  }
+  // `availableBands={shown}` keeps the rail and by-channel view to the bands in
+  // play — a complementary-grade preset (orange + blue) shows just those.
   return (
-    <div className="flex flex-col gap-3">
-      {body}
-      <HslAddBandControl bands={addable} onAdd={onAddBand} />
-    </div>
+    <HslPanelView
+      renderSlider={renderSlider}
+      bandEdited={bandEdited}
+      availableBands={shown}
+      addSlot={addSlot}
+    />
   );
 }
 

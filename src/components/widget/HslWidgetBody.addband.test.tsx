@@ -20,11 +20,18 @@ afterEach(cleanup);
 beforeEach(() => useEditorStore.setState({ hslRevealedBands: {} }));
 
 describe('HSL single-band spawn + add colour', () => {
-  it('a fresh all-bands widget opens on a single colour with an add-colour affordance', () => {
+  it('a fresh all-bands widget opens on a single colour swatch + add-colour swatch', () => {
     render(<HslWidgetBody widget={makeHslWidget(ALL)} effectiveValue={eff} setParam={() => {}} />);
     expect(screen.getAllByRole('slider').length).toBe(3); // one band's Hue/Sat/Lum
-    expect(screen.queryByLabelText('Select Red')).toBeNull(); // no multi-band rail yet
+    // The one colour shows as a swatch (same rail as multi-band), plus the "+".
+    expect(screen.getByLabelText('Select Red')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Select Blue')).toBeNull(); // no other colours yet
     expect(screen.getByLabelText('Add colour')).toBeInTheDocument();
+  });
+
+  it('does not render its own Reset — the widget strip owns reset', () => {
+    render(<HslWidgetBody widget={makeHslWidget(ALL)} effectiveValue={eff} setParam={() => {}} />);
+    expect(screen.queryByText('Reset')).toBeNull();
   });
 
   it('adding a colour augments the widget instead of replacing the first band', async () => {

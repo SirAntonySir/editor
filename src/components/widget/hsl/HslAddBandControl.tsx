@@ -9,9 +9,10 @@ interface HslAddBandControlProps {
 }
 
 /**
- * "+ Add colour" — reveals another HSL band's Hue/Sat/Lum on the widget. Lists
- * only bands not already shown; renders nothing once every band is shown. Each
- * item carries the band's representative swatch so the picker reads visually.
+ * Add-colour affordance — reveals another HSL band's Hue/Sat/Lum on the widget.
+ * Rendered as an "empty" swatch (same square footprint as the band swatches in
+ * the rail) with a plus in it; clicking lists the bands not yet shown, each as
+ * its own colour swatch. Renders nothing once every band is shown.
  */
 export function HslAddBandControl({ bands, onAdd }: HslAddBandControlProps) {
   if (bands.length === 0) return null;
@@ -19,10 +20,9 @@ export function HslAddBandControl({ bands, onAdd }: HslAddBandControlProps) {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
         aria-label="Add colour"
-        className="flex items-center gap-1 self-start text-[10px] text-text-secondary hover:text-text-primary border border-border-strong rounded-[4px] px-2 py-0.5"
+        className="relative aspect-square rounded-sm flex items-center justify-center border border-dashed border-border-strong text-text-secondary transition-colors hover:text-text-primary hover:border-text-secondary"
       >
-        <Plus size={11} />
-        <span>Add colour</span>
+        <Plus size={12} aria-hidden />
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content className="overlay p-1 min-w-[140px] z-50" sideOffset={4}>

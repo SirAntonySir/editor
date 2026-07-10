@@ -353,6 +353,7 @@ export const backendTools = {
     body: {
       intent: string; attached_objects: string[];
       forced_targets: { image_node_id: string; layer_ids: string[] }[];
+      reference_targets?: { image_node_id: string; layer_ids: string[] }[];
       client_tools: unknown[];
       active_node: { image_node_id: string; layer_ids: string[] } | null;
     },

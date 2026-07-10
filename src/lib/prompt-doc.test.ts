@@ -3,8 +3,36 @@ import {
   docToPlainText,
   wordBeforeCaret,
   serializePromptDoc,
+  parseReferenceSourceId,
+  parseAttachmentSourceId,
+  toReferenceSourceId,
+  toTargetSourceId,
   type PromptDoc,
 } from './prompt-doc';
+
+describe('reference vs target source ids', () => {
+  it('parses a reference node/layer id', () => {
+    expect(parseReferenceSourceId('reference:node:n1')).toEqual({ kind: 'node', id: 'n1' });
+    expect(parseReferenceSourceId('reference:layer:l1')).toEqual({ kind: 'layer', id: 'l1' });
+  });
+
+  it('does not treat a target id as a reference (and vice versa)', () => {
+    expect(parseReferenceSourceId('target:node:n1')).toBeNull();
+  });
+
+  it('parseAttachmentSourceId returns the role + ref', () => {
+    expect(parseAttachmentSourceId('target:node:n1')).toEqual({ role: 'target', ref: { kind: 'node', id: 'n1' } });
+    expect(parseAttachmentSourceId('reference:layer:l1')).toEqual({ role: 'reference', ref: { kind: 'layer', id: 'l1' } });
+    expect(parseAttachmentSourceId('region:object:m1')).toBeNull();
+  });
+
+  it('flips a chip source id between roles preserving kind+id', () => {
+    expect(toReferenceSourceId('target:node:n1')).toBe('reference:node:n1');
+    expect(toTargetSourceId('reference:layer:l1')).toBe('target:layer:l1');
+    // idempotent when already in the requested role
+    expect(toReferenceSourceId('reference:node:n1')).toBe('reference:node:n1');
+  });
+});
 
 describe('docToPlainText', () => {
   it('joins text segments verbatim', () => {

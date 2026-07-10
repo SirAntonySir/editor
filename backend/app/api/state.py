@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Header, HTTPException
@@ -16,6 +17,8 @@ from app.state.snapshot import SessionStateSnapshot, compute_snapshot
 from app.state.document import DEFAULT_IMAGE_NODE_ID
 from app.tools.agent_loop import run_agent_turn, dispatch_propose_adjustment
 from app.tools.client_tool_bridge import request_client_tool
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -61,10 +64,59 @@ def _bus() -> EventBus:
     return deps.get_event_bus()
 
 
+def _build_reference_summaries(
+    store: SessionStore, sid: str, reference_ids: set[str],
+) -> list[dict]:
+    """Compact appearance summary per reference image node, computed on demand
+    from the cheap pass (no dependency on the reference having been analyzed).
+    Best-effort: a node whose bytes can't be decoded is skipped. The summary is
+    what the agent uses to move the TARGET toward the reference's look."""
+    if not reference_ids:
+        return []
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    from app.state.context_stats import compute_cheap_pass
+
+    try:
+        doc = store.get_document(sid)
+    except SessionNotFound:
+        return []
+
+    out: list[dict] = []
+    for nid in sorted(reference_ids):
+        try:
+            arr = np.asarray(Image.open(io.BytesIO(doc.get_image_bytes(nid))).convert("RGB"))
+            cheap = compute_cheap_pass(arr)
+        except Exception:
+            logger.warning("reference summary failed for %s", nid, exc_info=True)
+            continue
+        a, b = cheap.cast_direction
+        parts = [
+            f"cast a*={a:.0f} b*={b:.0f} (strength {cheap.cast_strength:.2f})",
+            f"median_luma {cheap.median_luma:.0f}",
+            f"contrast_p10_p90 {cheap.contrast_p10_p90:.0f}",
+        ]
+        ctx = doc.get_image_context(nid)
+        grade = getattr(ctx, "grade_character", None) if ctx is not None else None
+        if grade:
+            parts.append(f"grade {grade}")
+        if cheap.color_palette:
+            swatches = ", ".join(
+                f"rgb({s.rgb[0]},{s.rgb[1]},{s.rgb[2]})" for s in cheap.color_palette[:3]
+            )
+            parts.append(f"palette {swatches}")
+        out.append({"image_node_id": nid, "summary": "; ".join(parts)})
+    return out
+
+
 class _AgentTurnBody(BaseModel):
     intent: str
     attached_objects: list[str] = []
     forced_targets: list[dict] = []
+    reference_targets: list[dict] = []
     client_tools: list[dict] = []
     active_node: dict | None = None
 
@@ -144,6 +196,15 @@ async def state_agent_turn(sid: str, body: _AgentTurnBody) -> dict:
         node_layers[node_id] = list(ft.get("layer_ids", []))
         forced_target_ids.append(node_id)
 
+    # Reference nodes: the user wants the target to LOOK LIKE these, but they
+    # must NEVER be edited. Kept OUT of node_layers (the target whitelist) so
+    # propose can't dispatch on them; each gets a compact appearance summary
+    # (mechanical, computed on demand) the loop feeds the model to match.
+    reference_ids = {
+        rt.get("image_node_id") for rt in body.reference_targets if rt.get("image_node_id")
+    } - set(node_layers.keys())  # a node that's also a target stays a target
+    references = _build_reference_summaries(store, sid, reference_ids)
+
     anthropic = deps.get_anthropic_client()
     registry = deps.get_tool_registry()
 
@@ -174,6 +235,7 @@ async def state_agent_turn(sid: str, body: _AgentTurnBody) -> dict:
         sid=sid, intent=body.intent, attached_objects=body.attached_objects,
         client_tools=body.client_tools, node_layers=node_layers,
         forced_targets=forced_target_ids,
+        references=references,
         propose_fn=propose_fn, client_tool_fn=client_tool_fn,
         image_context=image_context,
     )

@@ -64,8 +64,10 @@ def _build_system(
     attached_objects: list[str],
     node_ids: list[str],
     forced_targets: list[str] | None = None,
+    references: list[dict] | None = None,
 ) -> str:
     forced_targets = forced_targets or []
+    references = references or []
     targets = ", ".join(node_ids) if node_ids else "the active image node"
     base = (
         "You are an editing agent for a photo editor. The user gives an editing "
@@ -94,6 +96,19 @@ def _build_system(
             + ", ".join(attached_objects)
             + ". Prefer acting on them."
         )
+    if references:
+        lines = "\n".join(
+            f"  - {r.get('image_node_id')}: {r.get('summary', '')}" for r in references
+        )
+        base += (
+            "\n\nThe following image nodes are REFERENCES, not targets — the user "
+            "wants the target to LOOK LIKE them. You MUST NOT edit these nodes "
+            "(never call propose_adjustment_widgets or copy_object_to_image_node "
+            "with their ids). Use their appearance summaries to choose the "
+            "adjustments you apply to the TARGET (e.g. shift the target's white "
+            "balance and exposure toward the reference's cast / white point / "
+            "median luma):\n" + lines
+        )
     return base
 
 
@@ -113,6 +128,7 @@ async def run_agent_turn(
     propose_fn,
     client_tool_fn,
     forced_targets: list[str] | None = None,
+    references: list[dict] | None = None,
     image_context: dict | None = None,
     max_tool_calls: int = 10,
 ) -> dict[str, Any]:
@@ -121,8 +137,9 @@ async def run_agent_turn(
     - agent_step(system, messages, tools) -> response (one Anthropic turn)
     - propose_fn(target_image_node_id, intent) -> dict  (dispatch to propose_stack)
     - client_tool_fn(name, input) -> dict               (Plan 1 round-trip)
+    - references: appearance summaries of read-only reference nodes (match, don't edit)
     """
-    system = _build_system(attached_objects, list(node_layers.keys()), forced_targets)
+    system = _build_system(attached_objects, list(node_layers.keys()), forced_targets, references)
     tools = [*client_tools, PROPOSE_ADJUSTMENT_TOOL]
     opening = intent
     if image_context:

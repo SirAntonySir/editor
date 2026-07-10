@@ -10,7 +10,9 @@ import {
 import { triggerBeforeCaret, caretTokenToReplace, type PromptDoc } from '@/lib/prompt-doc';
 import {
   CHIP_REMOVE_ATTR,
+  CHIP_ROLE_TOGGLE_ATTR,
   CHIP_SOURCE_ATTR,
+  flipChipRole,
   makeChipElement,
   parseEditorDom,
 } from './prompt-editor-dom';
@@ -220,6 +222,16 @@ export const PromptEditor = forwardRef<PromptEditorHandle, PromptEditorProps>(
           const chip = removeBtn.closest(`[${CHIP_SOURCE_ATTR}]`);
           if (chip) {
             chip.remove();
+            emit();
+            reportCaret();
+            return;
+          }
+        }
+        const roleToggle = target.closest(`[${CHIP_ROLE_TOGGLE_ATTR}]`);
+        if (roleToggle) {
+          const chip = roleToggle.closest<HTMLElement>(`[${CHIP_SOURCE_ATTR}]`);
+          if (chip) {
+            flipChipRole(chip);
             emit();
             reportCaret();
             return;

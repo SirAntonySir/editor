@@ -8,7 +8,7 @@ import { objectOwnership } from '@/lib/segmentation/object-ownership';
 import { copyObjectToImageNode, copyObjectToLayer } from '@/lib/segmentation/object-actions';
 import { planForcedExtractions } from '@/lib/segmentation/forced-extraction';
 import { segmentRegionFromPoint } from '@/lib/segmentation/segment-region';
-import { extractObjectIds, parseTargetSourceId } from '@/lib/prompt-doc';
+import { extractObjectIds, parseTargetSourceId, parseReferenceSourceId } from '@/lib/prompt-doc';
 import { useRegionExtractionApproval, type ExtractChoice } from '@/store/region-extraction-approval';
 import type { CandidateRegion } from '@/types/image-context';
 
@@ -130,8 +130,11 @@ export async function runAgentTurn(
   // directly without a prompt — the user picked them explicitly.
   const regionSourceIds: string[] = [];
   const targetSourceIds: string[] = [];
+  const referenceSourceIds: string[] = [];
   for (const sid of chipSourceIds) {
-    (parseTargetSourceId(sid) ? targetSourceIds : regionSourceIds).push(sid);
+    if (parseTargetSourceId(sid)) targetSourceIds.push(sid);
+    else if (parseReferenceSourceId(sid)) referenceSourceIds.push(sid);
+    else regionSourceIds.push(sid);
   }
 
   // Ask the user per attached region (node / layer / deny), then extract.
@@ -160,6 +163,30 @@ export async function runAgentTurn(
     }
   }
 
+  // References: images the model should MATCH but never edit. Resolved the same
+  // way as targets (node → all its layers, layer → owning node + that layer),
+  // but routed to `reference_targets`, not `forced_targets`.
+  const referenceTargets: ForcedTarget[] = [];
+  for (const sid of referenceSourceIds) {
+    const ref = parseReferenceSourceId(sid);
+    if (!ref) continue;
+    if (ref.kind === 'node') {
+      const node = editor.imageNodes[ref.id];
+      if (node) referenceTargets.push({ image_node_id: ref.id, layer_ids: node.layerIds });
+    } else {
+      const ownerId = Object.keys(editor.imageNodes).find((nid) =>
+        editor.imageNodes[nid].layerIds.includes(ref.id),
+      );
+      if (ownerId) referenceTargets.push({ image_node_id: ownerId, layer_ids: [ref.id] });
+    }
+  }
+  // A node attached as both a target and a reference is a target: editing wins
+  // over matching, and a reference must never also be edited.
+  const targetNodeIds = new Set(forcedTargets.map((t) => t.image_node_id));
+  const references = dedupeForcedTargets(referenceTargets).filter(
+    (r) => !targetNodeIds.has(r.image_node_id),
+  );
+
   const activeNodePayload =
     activeNodeId && activeNode
       ? { image_node_id: activeNodeId, layer_ids: activeNode.layerIds }
@@ -169,6 +196,7 @@ export async function runAgentTurn(
     intent: prompt,
     attached_objects: fallbackIds,
     forced_targets: dedupeForcedTargets(forcedTargets),
+    reference_targets: references,
     client_tools: serializeForAgentLoop(AGENT_LOOP_TOOLS),
     active_node: activeNodePayload,
   });

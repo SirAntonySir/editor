@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { parseEditorDom, makeChipElement, CHIP_SOURCE_ATTR } from './prompt-editor-dom';
+import { parseEditorDom, makeChipElement, CHIP_SOURCE_ATTR, CHIP_ROLE_TOGGLE_ATTR, flipChipRole } from './prompt-editor-dom';
 
 function rootWith(html: string): HTMLElement {
   const el = document.createElement('div');
@@ -46,4 +46,29 @@ it('makeChipElement carries the source id, label and is non-editable', () => {
   expect(chip.getAttribute(CHIP_SOURCE_ATTR)).toBe('region:ai:sky');
   expect(chip.getAttribute('contenteditable')).toBe('false');
   expect(chip.textContent).toContain('sky');
+});
+
+it('renders a role toggle only on target/reference chips, not region chips', () => {
+  const region = makeChipElement({ label: 'sky', sourceId: 'region:object:m1' });
+  const target = makeChipElement({ label: 'Portrait', sourceId: 'target:node:in-1' });
+  expect(region.querySelector(`[${CHIP_ROLE_TOGGLE_ATTR}]`)).toBeNull();
+  expect(target.querySelector(`[${CHIP_ROLE_TOGGLE_ATTR}]`)).not.toBeNull();
+});
+
+it('flipChipRole toggles a target chip to a reference and back', () => {
+  const chip = makeChipElement({ label: 'Portrait', sourceId: 'target:node:in-1' });
+  flipChipRole(chip);
+  expect(chip.getAttribute(CHIP_SOURCE_ATTR)).toBe('reference:node:in-1');
+  flipChipRole(chip);
+  expect(chip.getAttribute(CHIP_SOURCE_ATTR)).toBe('target:node:in-1');
+});
+
+it('a reference chip parses back with its reference sourceId', () => {
+  const chip = makeChipElement({ label: 'Portrait', sourceId: 'target:node:in-1' });
+  flipChipRole(chip);
+  const root = document.createElement('div');
+  root.appendChild(chip);
+  expect(parseEditorDom(root)).toEqual([
+    { kind: 'chip', label: 'Portrait', sourceId: 'reference:node:in-1' },
+  ]);
 });

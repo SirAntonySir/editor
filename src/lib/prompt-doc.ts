@@ -67,6 +67,45 @@ export function parseTargetSourceId(sourceId: string | undefined): TargetRef | n
   return null;
 }
 
+/** A chip attached as a look REFERENCE (not a target): the model matches its
+ *  appearance but must not edit it. Same node/layer shape as a target. */
+export function parseReferenceSourceId(sourceId: string | undefined): TargetRef | null {
+  const s = sourceId ?? '';
+  if (s.startsWith('reference:node:')) return { kind: 'node', id: s.slice('reference:node:'.length) };
+  if (s.startsWith('reference:layer:')) return { kind: 'layer', id: s.slice('reference:layer:'.length) };
+  return null;
+}
+
+export type AttachmentRole = 'target' | 'reference';
+
+/** Parse an image-attachment chip into its role + ref, or null if the chip is
+ *  neither a target nor a reference (e.g. a region chip). */
+export function parseAttachmentSourceId(
+  sourceId: string | undefined,
+): { role: AttachmentRole; ref: TargetRef } | null {
+  const t = parseTargetSourceId(sourceId);
+  if (t) return { role: 'target', ref: t };
+  const r = parseReferenceSourceId(sourceId);
+  if (r) return { role: 'reference', ref: r };
+  return null;
+}
+
+/** Rewrite an attachment chip's sourceId to the given role, preserving
+ *  kind+id. Returns the input unchanged if it isn't an attachment chip. */
+function _withRole(sourceId: string, role: AttachmentRole): string {
+  const parsed = parseAttachmentSourceId(sourceId);
+  if (!parsed) return sourceId;
+  return `${role}:${parsed.ref.kind}:${parsed.ref.id}`;
+}
+
+export function toReferenceSourceId(sourceId: string): string {
+  return _withRole(sourceId, 'reference');
+}
+
+export function toTargetSourceId(sourceId: string): string {
+  return _withRole(sourceId, 'target');
+}
+
 /** Pull an object/mask id out of a chip's `sourceId`. Region chips carry the
  *  identifier in the trailing segment; other chip kinds return null. */
 export function objectIdFromSourceId(sourceId: string | undefined): string | null {

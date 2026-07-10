@@ -100,6 +100,29 @@ describe('runAgentTurn', () => {
     expect(body.forced_targets).toEqual([{ image_node_id: nodeId, layer_ids: ['ld-1', 'ld-2'] }]);
   });
 
+  it('routes a reference chip to reference_targets, never forced_targets', async () => {
+    const { useEditorStore } = await import('@/store');
+    const targetNode = useEditorStore.getState().addImageNode(['lt-1']);
+    useEditorStore.getState().setActiveImageNode(targetNode);
+    const refNode = useEditorStore.getState().addImageNode(['lr-1', 'lr-2']);
+    await runAgentTurn('make it look like the other one', [`reference:node:${refNode}`]);
+    const body = lastBody();
+    expect(body.reference_targets).toEqual([{ image_node_id: refNode, layer_ids: ['lr-1', 'lr-2'] }]);
+    // The reference must NOT be edited: forced_targets stays empty, active node
+    // (the target) is unchanged.
+    expect(body.forced_targets).toEqual([]);
+    expect(body.active_node.image_node_id).toBe(targetNode);
+  });
+
+  it('a node attached as BOTH target and reference is only a target', async () => {
+    const { useEditorStore } = await import('@/store');
+    const nodeId = useEditorStore.getState().addImageNode(['lb-1']);
+    await runAgentTurn('x', [`target:node:${nodeId}`, `reference:node:${nodeId}`]);
+    const body = lastBody();
+    expect(body.forced_targets).toEqual([{ image_node_id: nodeId, layer_ids: ['lb-1'] }]);
+    expect(body.reference_targets).toEqual([]);
+  });
+
   it('extracts a committed object chip to an image node when the user chooses "node"', async () => {
     const { useEditorStore } = await import('@/store');
     const nodeId = useEditorStore.getState().addImageNode(['l-1']);

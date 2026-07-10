@@ -21,6 +21,7 @@ from app.schemas.widget import (
 )
 from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
+from app.tools.hsl_bindings import pad_hsl_bindings
 
 
 class _MissingContext(Exception):
@@ -280,6 +281,9 @@ def _build_widget_multi(
                 target=NodeParamTarget(node_id=node_id, param_key=b.param_key),
             ))
 
+    # Composed widgets carrying an hsl node bind all 8 bands too (see above).
+    bindings = pad_hsl_bindings(nodes, bindings)
+
     return Widget(
         id=widget_id,
         intent=intent,
@@ -372,6 +376,11 @@ def _build_widget(
             default=op.params[b.param_key].default,
             target=NodeParamTarget(node_id=node_id, param_key=b.param_key),
         ))
+
+    # HSL widgets always bind all 8 bands so the frontend "+ add colour" can
+    # reveal any of them; a curated subset (e.g. the tone_red preset) only
+    # seeds the bands it tunes.
+    bindings = pad_hsl_bindings([node], bindings)
 
     return Widget(
         id=widget_id,

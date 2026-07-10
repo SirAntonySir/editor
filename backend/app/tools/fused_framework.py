@@ -21,6 +21,7 @@ from app.schemas.widget import (
     WidgetOrigin,
     WidgetPreview,
 )
+from app.tools.hsl_bindings import pad_hsl_bindings
 
 logger = logging.getLogger(__name__)
 
@@ -283,6 +284,10 @@ def _build_widget(
             value=value,
             default=default,
         ))
+
+    # HSL widgets always expose all 8 bands so the frontend "+ add colour" can
+    # reveal any band; the fused template only seeded the ones it tuned.
+    bindings = pad_hsl_bindings(nodes, bindings)
 
     return Widget(
         id=wid,

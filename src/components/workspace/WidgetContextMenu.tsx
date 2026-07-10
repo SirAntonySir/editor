@@ -1,9 +1,10 @@
 import { type ReactNode } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
-import { Check, Eye, EyeOff, Maximize2, Minimize2, Trash2 } from 'lucide-react';
+import { Check, Eye, EyeOff, Maximize2, Minimize2, PanelRight, Trash2 } from 'lucide-react';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { backendTools } from '@/lib/backend-tools';
+import { showWidgetInSidebar, widgetHasSidebarSection } from '@/lib/widget-show-in-sidebar';
 import type { Widget } from '@/types/widget';
 
 interface WidgetContextMenuProps {
@@ -84,6 +85,16 @@ export function WidgetContextMenu({ widget, children }: WidgetContextMenuProps) 
             {hidden ? <Eye size={11} /> : <EyeOff size={11} />}
             <span>{hidden ? 'Show' : 'Hide'}</span>
           </ContextMenu.Item>
+
+          {widgetHasSidebarSection(widget) && (
+            <ContextMenu.Item
+              className={itemClass}
+              onSelect={() => showWidgetInSidebar(widget)}
+            >
+              <PanelRight size={11} />
+              <span>Show in sidebar</span>
+            </ContextMenu.Item>
+          )}
 
           <ContextMenu.Separator className="h-px bg-separator my-1" />
 

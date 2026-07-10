@@ -189,8 +189,10 @@ async def test_preset_id_unfolds_into_widgets(make_doc):
 
 
 @pytest.mark.asyncio
-async def test_preset_id_tone_red_spawns_single_band_hsl(make_doc):
-    """tone_red preset spawns one hsl widget with only red params."""
+async def test_preset_id_tone_red_binds_all_hsl_bands(make_doc):
+    """tone_red spawns one hsl widget bound to ALL 8 bands (24 params). The
+    frontend opens it on red and reaches the rest via "+ add colour", so every
+    band must be bound to stay editable."""
     doc: SessionDocument = make_doc()
     tool = ProposeStackTool()
     out = await tool.handler(doc, _Input(
@@ -203,7 +205,9 @@ async def test_preset_id_tone_red_spawns_single_band_hsl(make_doc):
     w = out.widgets[0]
     assert w["opId"] == "hsl"
     binding_keys = {b["paramKey"] for b in w["bindings"]}
-    assert binding_keys == {"red_hue", "red_sat", "red_lum"}
+    assert len(binding_keys) == 24
+    assert {"red_hue", "red_sat", "red_lum"} <= binding_keys
+    assert {"blue_hue", "blue_lum", "magenta_sat"} <= binding_keys
 
 
 @pytest.mark.asyncio

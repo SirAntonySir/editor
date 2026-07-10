@@ -1,6 +1,9 @@
 import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
 import { HslPanelView } from '@/components/widget/hsl/HslPanelView';
 import { HslSingleBandView } from '@/components/widget/hsl/HslSingleBandView';
+import { HslAddBandControl } from '@/components/widget/hsl/HslAddBandControl';
+import { HSL_BANDS } from '@/components/widget/hsl/hsl-bands';
+import { shownHslBands, availableHslBands } from '@/components/widget/hsl/hsl-shown-bands';
 import { bindingProvenance, touchKey } from '@/hooks/useParamProvenance';
 import { useEditorStore } from '@/store';
 import type { Widget, ControlBinding, ControlValue } from '@/types/widget';
@@ -19,9 +22,10 @@ interface HslWidgetBodyProps {
  *  single-band view when the bindings cover exactly one band, else the full panel. */
 export function HslWidgetBody({ widget, effectiveValue, setParam }: HslWidgetBodyProps) {
   const touched = useEditorStore((s) => s.touchedParams);
+  const revealed = useEditorStore((s) => s.hslRevealedBands[widget.id]);
+  const revealBand = useEditorStore((s) => s.revealHslBand);
   const showAi = widget.origin.kind !== 'tool_invoked';
   const byParam = new Map(widget.bindings.map((b) => [b.paramKey, b] as const));
-  const bands = [...new Set(widget.bindings.map((b) => b.paramKey.split('_')[0]))];
 
   const renderSlider = (param: string, label: string, trackGradient: string) => {
     const b = byParam.get(param);
@@ -62,19 +66,41 @@ export function HslWidgetBody({ widget, effectiveValue, setParam }: HslWidgetBod
     for (const b of widget.bindings) setParam(b.paramKey, b.default);
   };
 
-  if (bands.length === 1) {
-    return <HslSingleBandView band={bands[0]} renderSlider={renderSlider} onReset={onReset} />;
-  }
-  // `availableBands` are the bands this widget actually has bindings for —
-  // a complementary-grade preset binds only orange + blue; the rail and the
-  // by-channel view should hide the empty ones rather than render dead rows.
+  // Bands to display: edited bands ∪ the ones the user revealed via "+", falling
+  // back to a single band (red) so a fresh HSL widget opens on one colour. The
+  // rest are reachable through the add-colour control.
+  const shown = shownHslBands(widget, revealed ?? []);
+  const addable = HSL_BANDS.filter(
+    (b) => availableHslBands(widget).includes(b.key) && !shown.includes(b.key),
+  );
+
+  const onAddBand = (band: string) => {
+    // Persist the currently-shown bands (incl. the fallback default) before
+    // adding, so the new colour augments the widget rather than replacing the
+    // single band that was only there by fallback.
+    for (const b of shown) revealBand(widget.id, b);
+    revealBand(widget.id, band);
+  };
+
+  const body =
+    shown.length === 1 ? (
+      <HslSingleBandView band={shown[0]} renderSlider={renderSlider} onReset={onReset} />
+    ) : (
+      // `availableBands={shown}` keeps the rail and by-channel view to the bands
+      // in play — a complementary-grade preset (orange + blue) shows just those.
+      <HslPanelView
+        renderSlider={renderSlider}
+        bandEdited={bandEdited}
+        onReset={onReset}
+        availableBands={shown}
+      />
+    );
+
   return (
-    <HslPanelView
-      renderSlider={renderSlider}
-      bandEdited={bandEdited}
-      onReset={onReset}
-      availableBands={bands}
-    />
+    <div className="flex flex-col gap-3">
+      {body}
+      <HslAddBandControl bands={addable} onAdd={onAddBand} />
+    </div>
   );
 }
 

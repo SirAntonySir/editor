@@ -47,6 +47,7 @@ describe('WidgetShell', () => {
     useEditorStore.getState().collapseAllWidgets();
     const ids = Array.from(useEditorStore.getState().hiddenWidgetIds);
     for (const id of ids) useEditorStore.getState().toggleWidgetHidden(id);
+    useEditorStore.setState({ hslRevealedBands: {} });
     vi.clearAllMocks();
   });
 
@@ -223,8 +224,11 @@ describe('WidgetShell', () => {
 
   const ALL_BANDS = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta'];
 
-  it('routes an all-bands HSL widget to the colour panel (By band / By channel)', () => {
+  it('routes a multi-band HSL widget to the colour panel (By band / By channel)', () => {
+    // With two bands in play (revealed here; edits do the same) the widget shows
+    // the full two-view panel instead of the single-band body.
     useEditorStore.getState().toggleWidgetExpanded('w-hsl-1');
+    useEditorStore.setState({ hslRevealedBands: { 'w-hsl-1': ['red', 'blue'] } });
     renderInFlow(<WidgetShell widget={makeHslWidget(ALL_BANDS)} />);
     expect(screen.getByText('By band')).toBeInTheDocument();
     expect(screen.getByText('By channel')).toBeInTheDocument();

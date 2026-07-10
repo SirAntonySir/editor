@@ -77,6 +77,12 @@ export interface ToolSlice {
   collapseAllWidgets: () => void;
   setHoveredWidget: (widgetId: string | null) => void;
   markParamTouched: (key: string) => void;
+  /** Per-widget HSL bands the user revealed via the widget's "+ add colour".
+   *  Ephemeral view state — edited bands always show regardless (see
+   *  `shownHslBands`), so an unrevealed-and-unedited band simply collapses on
+   *  the next session. Keyed by widget id. */
+  hslRevealedBands: Record<string, string[]>;
+  revealHslBand: (widgetId: string, band: string) => void;
 }
 
 export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]], []> = (set, get) => ({
@@ -92,6 +98,7 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   hoveredWidgetId: null,
   cropPreview: null,
   touchedParams: new Set<string>(),
+  hslRevealedBands: {},
   pinnedWidgetParams: {},
   pendingPinRequests: {},
   pendingObjectRenameId: null,
@@ -209,6 +216,12 @@ export const createToolSlice: StateCreator<ToolSlice, [['zustand/immer', never]]
   markParamTouched: (key) =>
     set((state) => {
       state.touchedParams.add(key);
+    }),
+
+  revealHslBand: (widgetId, band) =>
+    set((state) => {
+      const cur = state.hslRevealedBands[widgetId] ?? [];
+      if (!cur.includes(band)) state.hslRevealedBands[widgetId] = [...cur, band];
     }),
 
   collapseAllWidgets: () =>

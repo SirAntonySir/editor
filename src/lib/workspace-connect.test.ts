@@ -21,6 +21,13 @@ describe('parseLayerHandle', () => {
     expect(parseLayerHandle(null)).toBeNull();
     expect(parseLayerHandle(undefined)).toBeNull();
   });
+  it('resolves a side-suffixed body port to the same layer', () => {
+    const uuid = '2f1c9a4e-8b3d-4e77-9a1e-abc123def456';
+    expect(parseLayerHandle(`layer-tether-${uuid}`)).toBe(uuid);
+    expect(parseLayerHandle(`layer-tether-${uuid}@top`)).toBe(uuid);
+    expect(parseLayerHandle(`layer-tether-${uuid}@right`)).toBe(uuid);
+    expect(parseLayerHandle(`layer-tether-${uuid}@bottom`)).toBe(uuid);
+  });
 });
 
 describe('imageNodeForLayer', () => {

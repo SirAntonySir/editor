@@ -22,7 +22,7 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import type { NodeProps } from '@xyflow/react';
 import { WidgetNode, type WidgetNodeData } from './WidgetNode';
 import { TetherEdge, type TetherEdgeType } from './TetherEdge';
-import { pickTetherHandles } from './tether-handles';
+import { pickTetherHandles, layerHandleForSide } from './tether-handles';
 import {
   isValidTetherConnection, parseLayerHandle, imageNodeForLayer,
 } from '@/lib/workspace-connect';
@@ -177,7 +177,7 @@ function WorkspaceAutoFit() {
     // landed in ReactFlow's internal store before the fit math reads node
     // bboxes. fitView is async-safe; we don't await it.
     const handle = requestAnimationFrame(() => {
-      fitView({ padding: 0.18, duration: 0 });
+      fitView({ padding: 0.18, duration: 300 });
       pendingFit.current = false;
     });
     return () => cancelAnimationFrame(handle);
@@ -429,16 +429,19 @@ export function CanvasWorkspace() {
         x1: rfTarget.position.x + rfTarget.size.w,
         y1: rfTarget.position.y + rfTarget.size.h,
       };
-      const { sourceHandle } = pickTetherHandles(widgetCenter, targetBounds);
+      const { sourceHandle, targetHandle: side } = pickTetherHandles(widgetCenter, targetBounds);
       out.push({
         id: te.id,
         source: te.widgetNodeId,
         target: targetNodeId,
         sourceHandle,
-        // Always the per-layer port `layer-tether-<layerId>` — hosted on the
-        // layers node (multi-layer) or on the image body itself (single-layer,
-        // where the layers node is hidden).
-        targetHandle: `layer-tether-${te.layerId}`,
+        // The per-layer port `layer-tether-<layerId>`. On the layers node
+        // (multi-layer) there is one port, so use the base id. On the image
+        // body (single-layer) the port is mirrored on all four sides, so land
+        // on the side nearest the widget.
+        targetHandle: layersShown
+          ? `layer-tether-${te.layerId}`
+          : layerHandleForSide(te.layerId, side),
         // Only the target end reconnects — the source is always the widget.
         reconnectable: 'target',
         type: 'tether',

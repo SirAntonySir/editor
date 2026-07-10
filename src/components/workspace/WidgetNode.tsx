@@ -7,6 +7,7 @@ import { nextWidgetScale } from '@/lib/workspace-drag';
 import { widgetTargetLayerIds } from '@/lib/widget-targets';
 import type { Widget } from '@/types/widget';
 import { MarkerDot } from './MarkerDot';
+import { WidgetContextMenu } from './WidgetContextMenu';
 
 export interface WidgetNodeData extends Record<string, unknown> {
   widget: Widget;
@@ -78,18 +79,27 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
       {chromeVisible ? (
         // Outer box carries the SCALED footprint React Flow measures; the shell
         // inside is uniformly scaled from its top-left. `group` so the resize
-        // handle can reveal on hover.
-        <div className={`group ${dimClass}`} style={{ position: 'relative', width: `${scaledW}px`, height: `${scaledH}px` }}>
+        // handle can reveal on hover. Right-click opens the widget menu (Apply,
+        // Duplicate, Hide, Delete) instead of falling through to the canvas menu.
+        <WidgetContextMenu widget={data.widget}>
           <div
-            ref={innerRef}
-            style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: 'max-content' }}
+            className={`group ${dimClass}`}
+            style={{ position: 'relative', width: `${scaledW}px`, height: `${scaledH}px` }}
+            // Keep the right-click on the widget's own menu; don't let it bubble
+            // to the canvas-wide ContextMenu (Undo/Redo/Zoom) wrapping the pane.
+            onContextMenu={(e) => e.stopPropagation()}
           >
-            <WidgetShell widget={data.widget} selected={selected} />
+            <div
+              ref={innerRef}
+              style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: 'max-content' }}
+            >
+              <WidgetShell widget={data.widget} selected={selected} />
+            </div>
+            {/* Always mounted (so a scale-triggered re-render can't unmount it
+                mid-drag); revealed on hover or while selected. */}
+            <WidgetResizeHandle widgetId={id} naturalW={naturalSize.w} scale={scale} visible={selected} />
           </div>
-          {/* Always mounted (so a scale-triggered re-render can't unmount it
-              mid-drag); revealed on hover or while selected. */}
-          <WidgetResizeHandle widgetId={id} naturalW={naturalSize.w} scale={scale} visible={selected} />
-        </div>
+        </WidgetContextMenu>
       ) : (
         <div className={dimClass}>
           <MarkerDot widget={data.widget} />

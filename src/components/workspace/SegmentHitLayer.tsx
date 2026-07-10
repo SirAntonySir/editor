@@ -192,19 +192,26 @@ export function SegmentHitLayer({
       if (!el) return;
       const [nx, ny] = clientToNormalised(e, el);
       if (lassoActive || magicActive) {
-        // Lasso / magic-lasso: primary-button press starts a freehand path
-        // anywhere on the image (drag-to-extract stays a point-tool
-        // affordance). Pointer capture keeps every move on this element and
-        // away from React Flow.
+        // Lasso / magic-lasso freehand draw. Pointer capture keeps every move
+        // on this element and away from React Flow.
         if (e.button !== 0) return;
-        // Magic-lasso refinement: shift over a live candidate refines it via
-        // the click handler (append a SAM point) instead of starting a new
-        // draw. Let the press fall through to handleClick.
+        // Magic-lasso SAM-point refinement: shift over a live candidate appends
+        // a SAM point via handleClick instead of drawing. Fall through.
         if (magicActive && e.shiftKey && candidate?.mask) return;
-        el.setPointerCapture(e.pointerId);
-        lassoPathRef.current = [[nx, ny]];
-        setLassoDraft([[nx, ny]]);
-        return;
+        // Draw-gate: the FIRST selection draws on a plain press. Once a
+        // selection exists (a live candidate or any committed object), a plain
+        // press is instead a point-select gesture — grab + drag-to-extract
+        // (handled below) — and you hold Shift to draw the next (refine)
+        // stroke. Mirrors the point tool: no-shift manipulates what's already
+        // there, Shift makes something new.
+        const hasSelection = !!candidate?.mask || existingObjects.length > 0;
+        if (!hasSelection || e.shiftKey) {
+          el.setPointerCapture(e.pointerId);
+          lassoPathRef.current = [[nx, ny]];
+          setLassoDraft([[nx, ny]]);
+          return;
+        }
+        // hasSelection && !shift → fall through to extract-drag / select below.
       }
       // TEMP DIAGNOSTIC — "drag-to-extract doesn't arm on the object body".
       // Logs, at the press point, each object's mask dims + the sampled value +
@@ -640,13 +647,12 @@ export function SegmentHitLayer({
         >
           {candidate.mask ? (
             <>
-              {candidate.origin !== 'client_lasso' && (
-                <>
-                  <Kbd keys="shift" className="ml-0" />
-                  <span>+ click refine</span>
-                  <span className="opacity-40">·</span>
-                </>
-              )}
+              {/* With a live selection, a plain press drags-to-extract; Shift
+                  draws the next refine stroke (lasso) or adds a SAM point
+                  (magic). */}
+              <Kbd keys="shift" className="ml-0" />
+              <span>{magicActive ? '+ click refine' : '+ draw refine'}</span>
+              <span className="opacity-40">·</span>
               <Kbd keys="esc" className="ml-0" />
               <span>discard</span>
             </>

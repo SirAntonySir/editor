@@ -3,12 +3,15 @@ import type { ImageNodeState, TetherEdgeState } from '@/types/workspace';
 /** Rail handle id convention: `layer-tether-<layerId>` (see LayerStrip). */
 const LAYER_HANDLE_PREFIX = 'layer-tether-';
 
-/** Extract the layer id from a rail handle id, or null if it isn't one. */
+/** Extract the layer id from a rail handle id, or null if it isn't one.
+ *  The image body hosts the same layer port on all four sides via a
+ *  `@<side>` suffix (`layer-tether-<id>@top`); every side resolves to the same
+ *  layer. Layer ids are UUIDs, so the last `@` unambiguously starts the suffix. */
 export function parseLayerHandle(handleId: string | null | undefined): string | null {
-  if (!handleId) return null;
-  return handleId.startsWith(LAYER_HANDLE_PREFIX)
-    ? handleId.slice(LAYER_HANDLE_PREFIX.length)
-    : null;
+  if (!handleId || !handleId.startsWith(LAYER_HANDLE_PREFIX)) return null;
+  const rest = handleId.slice(LAYER_HANDLE_PREFIX.length);
+  const at = rest.lastIndexOf('@');
+  return at === -1 ? rest : rest.slice(0, at);
 }
 
 /** Resolve which image node owns a layer (layer ids are globally unique). */

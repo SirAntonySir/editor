@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { pickTetherHandles } from './tether-handles';
+import { pickTetherHandles, layerHandleForSide } from './tether-handles';
+
+describe('layerHandleForSide', () => {
+  it('keeps the base id for the left side, suffixes the others', () => {
+    expect(layerHandleForSide('L1', 'tether-in-left')).toBe('layer-tether-L1');
+    expect(layerHandleForSide('L1', 'tether-in-top')).toBe('layer-tether-L1@top');
+    expect(layerHandleForSide('L1', 'tether-in-right')).toBe('layer-tether-L1@right');
+    expect(layerHandleForSide('L1', 'tether-in-bottom')).toBe('layer-tether-L1@bottom');
+  });
+});
 
 // Image bounds used across cases: x0..x1 = 0..2000, y0..y1 = 1000..2000.
 const img = { x0: 0, y0: 1000, x1: 2000, y1: 2000 };

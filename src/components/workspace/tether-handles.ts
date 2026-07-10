@@ -32,6 +32,17 @@ export interface ImageBounds {
 
 export interface Point { x: number; y: number; }
 
+/** The per-layer connect port lives on every side of a single-layer image body.
+ *  Map a picked image-edge side to that side's port id. The `left` side keeps
+ *  the un-suffixed base id (`layer-tether-<id>`) for back-compat with the layers
+ *  node and persisted edges; the other sides carry an `@<side>` suffix. */
+export function layerHandleForSide(layerId: string, imageHandle: ImageHandleId): string {
+  const side = imageHandle.slice('tether-in-'.length);
+  return side === 'left'
+    ? `layer-tether-${layerId}`
+    : `layer-tether-${layerId}@${side}`;
+}
+
 export function pickTetherHandles(
   widgetCenter: Point,
   image: ImageBounds,

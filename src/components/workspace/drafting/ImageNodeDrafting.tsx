@@ -720,16 +720,42 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
           {/* Single-layer nodes hide the standalone layers node, which normally
               hosts the per-layer widget connection ports. Re-expose the sole
               layer's port ON the image body (same visible dot as the layers
-              node ports) so widgets can still tether to it. Multi-layer nodes
-              get their ports from the layers node instead. */}
+              node ports) so widgets can still tether to it — on all four sides
+              so a widget can connect from whichever edge it sits nearest. The
+              left port keeps the un-suffixed base id; the other three carry an
+              `@<side>` suffix that `parseLayerHandle` resolves to the same
+              layer. Multi-layer nodes get their ports from the layers node. */}
           {data.layerIds.length === 1 && (
-            <Handle
-              type="target"
-              position={Position.Left}
-              id={`layer-tether-${data.layerIds[0]}`}
-              className="tether-outlet"
-              aria-label="Connect a widget to this layer"
-            />
+            <>
+              <Handle
+                type="target"
+                position={Position.Left}
+                id={`layer-tether-${data.layerIds[0]}`}
+                className="tether-outlet"
+                aria-label="Connect a widget to this layer"
+              />
+              <Handle
+                type="target"
+                position={Position.Top}
+                id={`layer-tether-${data.layerIds[0]}@top`}
+                className="tether-outlet"
+                aria-label="Connect a widget to this layer"
+              />
+              <Handle
+                type="target"
+                position={Position.Right}
+                id={`layer-tether-${data.layerIds[0]}@right`}
+                className="tether-outlet"
+                aria-label="Connect a widget to this layer"
+              />
+              <Handle
+                type="target"
+                position={Position.Bottom}
+                id={`layer-tether-${data.layerIds[0]}@bottom`}
+                className="tether-outlet"
+                aria-label="Connect a widget to this layer"
+              />
+            </>
           )}
         </div>
         </div>

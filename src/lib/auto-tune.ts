@@ -55,12 +55,13 @@ export function autoContrast(m: MechanicalSnapshot): AutoSpawnSpec {
 /** Auto Tone — recover clipped highlights, lift crushed shadows. */
 export function autoTone(m: MechanicalSnapshot): AutoSpawnSpec {
   // Convert clipped percentages (0-100) into highlight/shadow nudges.
-  // 1% clipping ≈ -8 highlights / +8 shadows; cap at ±40.
+  // 1% highlight clipping ≈ -8 highlights; shadow lift is intentionally gentle
+  // at ~0.8/1% (crushed-shadow recovery was too aggressive), both capped at ±50.
   const highlights = m.clippedHighlightsPct > 0.5
     ? _clamp(-m.clippedHighlightsPct * 8, -50, 0)
     : 0;
   const shadows = m.clippedShadowsPct > 0.5
-    ? _clamp(m.clippedShadowsPct * 8, 0, 50)
+    ? _clamp(m.clippedShadowsPct * 0.8, 0, 50)
     : 0;
   return {
     opId: 'light',
@@ -111,7 +112,7 @@ export function autoParamsForOp(
     const highlights = m.clippedHighlightsPct > 0.5
       ? _clamp(-m.clippedHighlightsPct * 8, -50, 0) : 0;
     const shadows = m.clippedShadowsPct > 0.5
-      ? _clamp(m.clippedShadowsPct * 8, 0, 50) : 0;
+      ? _clamp(m.clippedShadowsPct * 0.8, 0, 50) : 0;
     return {
       exposure: Math.round(exposure),
       contrast: Math.round(contrast),

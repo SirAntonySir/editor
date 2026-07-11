@@ -59,3 +59,37 @@ def interpolate_1d(anchors: list[Any], t: float) -> dict[str, float]:
             v0.get(k, 0.0), v1.get(k, 0.0), v2.get(k, 0.0), v3.get(k, 0.0), u
         )
     return out
+
+
+def interpolate_extended(anchors: list[Any], t: float) -> dict[str, float]:
+    """`interpolate_1d`, plus linear extrapolation past the LAST anchor.
+
+    Used by fused intent widgets whose driver overshoots the proposal
+    (t in (1.0, 1.5]): the value continues along the last segment's slope.
+    Below the first anchor it clamps exactly like `interpolate_1d`.
+    Per-param range clamping is the CALLER's job (the registry knows ranges,
+    this module doesn't).
+    """
+    def _pos(a: Any) -> float:
+        return a["position"] if isinstance(a, dict) else a.position
+
+    def _vals(a: Any) -> dict[str, float]:
+        return a["values"] if isinstance(a, dict) else a.values
+
+    if len(anchors) < 2:
+        raise ValueError("need at least 2 anchors")
+    last_pos = _pos(anchors[-1])
+    if t <= last_pos:
+        return interpolate_1d(anchors, t)
+
+    prev, last = anchors[-2], anchors[-1]
+    span = last_pos - _pos(prev)
+    if span <= 0:
+        return dict(_vals(last))
+    pv, lv = _vals(prev), _vals(last)
+    keys = set(pv.keys()) | set(lv.keys())
+    overshoot = t - last_pos
+    return {
+        k: lv.get(k, 0.0) + ((lv.get(k, 0.0) - pv.get(k, 0.0)) / span) * overshoot
+        for k in keys
+    }

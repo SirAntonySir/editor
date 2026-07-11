@@ -67,4 +67,21 @@ describe('editorDocument.openImage over an existing image', () => {
     expect(state.layers[0].id).not.toBe('L1');
     expect(state.layers[0].name).toBe('second.jpg');
   });
+
+  it('resets the backend session so a stale analyzed snapshot cannot block auto-analyze', async () => {
+    // Simulate the first image already analyzed: a snapshot carrying an
+    // imageContext lingers in useBackendState. autoAnalyseImageOnLoad reads this
+    // synchronously via awaitFirstSnapshot, and its `imageContext != null` gate
+    // would skip the new image's analysis. openImage must tear the old session
+    // down (like closeDocument) so the fresh session drives auto-analyze.
+    useBackendState.setState({
+      sessionId: 'old-sid',
+      snapshot: { imageContext: { tones: [] } } as never,
+    });
+
+    await editorDocument.openImage(jpegFile('second.jpg'));
+
+    expect(useBackendState.getState().snapshot).toBeNull();
+    expect(useBackendState.getState().sessionId).toBeNull();
+  });
 });

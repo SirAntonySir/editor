@@ -277,6 +277,13 @@ async function openImage(file: File, source?: SourceMeta): Promise<void> {
   // spawn a node for the new image. Net effect: old image vanishes, new one
   // never appears. closeDocument already does this; openImage must too.
   useEditorStore.getState().resetWorkspace();
+  // Tear down the outgoing backend session too. Otherwise its snapshot — which
+  // carries the *previous* image's `imageContext` — lingers, and
+  // autoAnalyseImageOnLoad's `awaitFirstSnapshot` returns it synchronously: the
+  // `imageContext != null` gate then skips analysis, so the newly opened image
+  // never auto-analyzes. reset() also clears the stale sessionId so the
+  // useBackendSession bridge re-bootstraps cleanly for the new upload.
+  useBackendState.getState().reset();
 
   const layerId = crypto.randomUUID();
   pixelStore.register(layerId, offscreen);

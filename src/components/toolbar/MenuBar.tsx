@@ -18,6 +18,7 @@ import { useImageTransform } from '@/hooks/useImageTransform';
 import { UI } from '@/config';
 import { useAiAccess } from '@/lib/ai-access';
 import { spawnRegistryOp } from '@/lib/toolrail-spawn';
+import { dispatchOp } from '@/lib/palette-inspector-route';
 import { openPreferencesDialog } from '@/components/PreferencesDialog';
 import { loadRegistry } from '@/lib/registry/loader';
 import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';
@@ -315,8 +316,9 @@ function AutoSubmenu() {
 }
 
 /** Image → Adjustments: every registry op, grouped by `category`. Selecting
- *  an item spawns the op's widget on the active image node (same path Cmd+K
- *  takes via `spawnRegistryOp`). Submenu groups when there's >1 category. */
+ *  an item dispatches the op through the SAME path Cmd+K takes (`dispatchOp`):
+ *  it spawns a canvas widget when the AI widget layer is enabled, otherwise
+ *  routes into the sidebar inspector. Submenu groups when there's >1 category. */
 function AdjustmentItems() {
   const ops = Object.values(loadRegistry().ops);
   const byCategory = new Map<string, typeof ops>();
@@ -344,7 +346,7 @@ function AdjustmentItems() {
         return (
           <Sub key={cat} label={categoryTitle[cat] ?? cat}>
             {list.map((op) => (
-              <Item key={op.id} onSelect={() => spawnRegistryOp(op.id, op.display_name)}>
+              <Item key={op.id} onSelect={() => dispatchOp(op.id, op.display_name)}>
                 {op.display_name}
               </Item>
             ))}

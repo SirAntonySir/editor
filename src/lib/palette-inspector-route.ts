@@ -2,7 +2,8 @@ import { backendTools } from '@/lib/backend-tools';
 import { useEditorStore } from '@/store';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { loadRegistry } from '@/lib/registry/loader';
-import { resolveSpawnContext } from '@/lib/toolrail-spawn';
+import { resolveSpawnContext, spawnRegistryOp, spawnRegistryPreset } from '@/lib/toolrail-spawn';
+import { getAiAccess } from '@/lib/ai-access';
 import type { ControlValue } from '@/types/widget';
 
 /**
@@ -34,6 +35,25 @@ export function routeOpToInspector(opId: string): void {
   const editor = useEditorStore.getState();
   editor.expandSection(opId);
   editor.scrollToSection(opId);
+}
+
+/**
+ * Dispatch an op row the way every op surface should: when the AI widget
+ * layer is enabled (`aiAccess`) spawn a `tool_invoked` canvas widget;
+ * otherwise route deterministically into the sidebar inspector. Shared by
+ * Cmd+K (CommandPalette) and Image ▸ Adjustments (MenuBar) so both behave
+ * identically in either study condition — before, the menu always spawned a
+ * widget and did nothing in the baseline condition.
+ */
+export function dispatchOp(opId: string, label?: string): void {
+  if (getAiAccess()) spawnRegistryOp(opId, label);
+  else routeOpToInspector(opId);
+}
+
+/** Preset counterpart to {@link dispatchOp}. */
+export function dispatchPreset(presetId: string, label?: string): void {
+  if (getAiAccess()) spawnRegistryPreset(presetId, label);
+  else routePresetToInspector(presetId);
 }
 
 /** Route a preset row into the inspector: apply its params to canonical, open

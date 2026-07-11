@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/backend-tools', () => ({
-  backendTools: { set_param: vi.fn().mockResolvedValue({ ok: true }) },
+  backendTools: {
+    set_param: vi.fn().mockResolvedValue({ ok: true }),
+    proposeStack: vi.fn().mockResolvedValue({ ok: true }),
+  },
 }));
 vi.mock('@/components/ui/Toast', () => ({ toast: { info: vi.fn() } }));
 
-import { routeOpToInspector, routePresetToInspector } from './palette-inspector-route';
+import { routeOpToInspector, routePresetToInspector, dispatchOp, dispatchPreset } from './palette-inspector-route';
 import { backendTools } from '@/lib/backend-tools';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
@@ -58,6 +61,45 @@ describe('palette-inspector-route — baseline launcher', () => {
     useEditorStore.setState({ activeImageNodeId: null });
     routeOpToInspector('light');
     expect(usePreferencesStore.getState().inspectorTab).toBe('info'); // unchanged
+    expect(backendTools.set_param).not.toHaveBeenCalled();
+  });
+});
+
+describe('palette-inspector-route — dispatchOp / dispatchPreset (shared by Cmd+K + menu)', () => {
+  it('routes to the inspector when the AI widget layer is OFF (baseline)', () => {
+    useBackendState.setState({ snapshot: { aiAccess: false } as never });
+    dispatchOp('light', 'Light');
+    // Deterministic inspector launcher — no canvas widget spawned.
+    expect(backendTools.proposeStack).not.toHaveBeenCalled();
+    expect(usePreferencesStore.getState().inspectorTab).toBe('adjustments');
+    expect(useEditorStore.getState().expandedSectionIds.has('light')).toBe(true);
+  });
+
+  it('spawns a tool_invoked canvas widget when the AI widget layer is ON', () => {
+    useBackendState.setState({ snapshot: { aiAccess: true } as never });
+    dispatchOp('light', 'Light');
+    expect(backendTools.proposeStack).toHaveBeenCalledWith('s1', expect.objectContaining({
+      forced_ops: ['light'],
+      origin: 'tool_invoked',
+      layerId: 'l1',
+    }));
+    // Widget path does not commandeer the inspector tab.
+    expect(usePreferencesStore.getState().inspectorTab).toBe('info');
+  });
+
+  it('dispatchPreset gates the same way: canonical write in baseline, preset stack when ON', () => {
+    useBackendState.setState({ snapshot: { aiAccess: false } as never });
+    dispatchPreset('blue_hour', 'Blue Hour');
+    expect(backendTools.proposeStack).not.toHaveBeenCalled();
+    expect(backendTools.set_param).toHaveBeenCalled();
+
+    vi.clearAllMocks();
+    useBackendState.setState({ snapshot: { aiAccess: true } as never });
+    dispatchPreset('blue_hour', 'Blue Hour');
+    expect(backendTools.proposeStack).toHaveBeenCalledWith('s1', expect.objectContaining({
+      preset_id: 'blue_hour',
+      origin: 'tool_invoked',
+    }));
     expect(backendTools.set_param).not.toHaveBeenCalled();
   });
 });

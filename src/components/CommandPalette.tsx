@@ -6,8 +6,7 @@ import { Kbd } from '@/components/ui/kbd';
 import { pixelStore } from '@/core/pixel-store';
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
-import { spawnRegistryOp, spawnRegistryPreset } from '@/lib/toolrail-spawn';
-import { routeOpToInspector, routePresetToInspector } from '@/lib/palette-inspector-route';
+import { dispatchOp, dispatchPreset } from '@/lib/palette-inspector-route';
 import { PromptEditor, type PromptEditorHandle } from '@/components/ui/PromptEditor';
 import { RegionSuggestions } from './RegionSuggestions';
 import { rankElements, type PaletteElement } from '@/lib/region-suggest';
@@ -520,17 +519,16 @@ export function CommandPalette() {
     async (cmd: PaletteCommand | undefined) => {
       if (!cmd) return;
       if (cmd.kind === 'op' && cmd.opId) {
-        // Baseline (aiAccess=false): route into the sidebar inspector instead
-        // of spawning a tool_invoked canvas widget (the manipulated variable).
-        if (aiAccess) spawnRegistryOp(cmd.opId, cmd.label);
-        else routeOpToInspector(cmd.opId);
+        // Shared with Image ▸ Adjustments. `dispatchOp` gates on aiAccess:
+        // spawn a tool_invoked canvas widget, or (baseline) route into the
+        // sidebar inspector — the manipulated variable.
+        dispatchOp(cmd.opId, cmd.label);
         resetPalette();
         setOpen(false);
         return;
       }
       if (cmd.kind === 'preset' && cmd.presetId) {
-        if (aiAccess) spawnRegistryPreset(cmd.presetId, cmd.label);
-        else routePresetToInspector(cmd.presetId);
+        dispatchPreset(cmd.presetId, cmd.label);
         resetPalette();
         setOpen(false);
         return;
@@ -567,7 +565,7 @@ export function CommandPalette() {
         setOpen(false);
       }
     },
-    [doc, attachedContext, resetPalette, acceptSuggestion, aiAccess],
+    [doc, attachedContext, resetPalette, acceptSuggestion],
   );
 
   const onKeyDown = useCallback(

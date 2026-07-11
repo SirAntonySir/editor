@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, render, fireEvent } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { FusedWidgetBody } from './FusedWidgetBody';
 import type { Widget, WidgetCompound } from '@/types/widget';
@@ -206,7 +206,7 @@ describe('FusedWidgetBody', () => {
     expect(getByText('Intensity')).toBeTruthy();
   });
 
-  it('falls back to "Strength" label when compound.label is absent', () => {
+  it('falls back to "Intensity" label when compound.label is absent', () => {
     const widget = makeFusedWidget();
     // Remove the label
     const compound: WidgetCompound = { ...widget.compound!, label: null };
@@ -220,6 +220,71 @@ describe('FusedWidgetBody', () => {
         />
       </ReactFlowProvider>,
     );
-    expect(getByText('Strength')).toBeTruthy();
+    expect(getByText('Intensity')).toBeTruthy();
+  });
+
+  // Fix 7a: expanding an op section reveals its real controls
+  it('clicking a section header expands it and reveals the op controls', () => {
+    const widget = makeFusedWidget();
+    const { getByText, queryByText } = render(
+      <ReactFlowProvider>
+        <FusedWidgetBody
+          widget={widget}
+          effectiveValue={(b) => b.value as number}
+          setParam={vi.fn()}
+        />
+      </ReactFlowProvider>,
+    );
+    // Before expand: 'Exposure' label from RegistryDrivenPanel should not be in DOM
+    expect(queryByText('Exposure')).toBeNull();
+    // Click the section header button to expand
+    const sectionButton = getByText('Light').closest('button');
+    expect(sectionButton).toBeTruthy();
+    fireEvent.click(sectionButton!);
+    // After expand: 'Exposure' should appear inside RegistryDrivenPanel
+    expect(getByText('Exposure')).toBeTruthy();
+  });
+
+  // Fix 7b: locked params show pinned indicator
+  it('shows pinned indicator when a section has locked params', () => {
+    const widget = makeFusedWidget({ lockedParams: ['exposure'] });
+    const { getByTitle } = render(
+      <ReactFlowProvider>
+        <FusedWidgetBody
+          widget={widget}
+          effectiveValue={(b) => b.value as number}
+          setParam={vi.fn()}
+        />
+      </ReactFlowProvider>,
+    );
+    expect(getByTitle(/1 pinned/i)).toBeTruthy();
+  });
+
+  // Fix 7c: changing driver slider calls setParam with '__driver' and value / 100
+  it('driver slider onChange calls setParam with __driver and value/100', () => {
+    vi.useFakeTimers();
+    const widget = makeFusedWidget({ driverValue: 1.0 });
+    const setParam = vi.fn();
+    const { getAllByRole } = render(
+      <ReactFlowProvider>
+        <FusedWidgetBody
+          widget={widget}
+          effectiveValue={(b) => b.value as number}
+          setParam={setParam}
+        />
+      </ReactFlowProvider>,
+    );
+    // AdjustmentSlider renders a Radix slider thumb with role="slider".
+    // Use getAllByRole since the Radix slider may render multiple accessible elements.
+    const sliders = getAllByRole('slider', { name: /intensity/i });
+    const slider = sliders[0];
+    // Press End key to jump to max value (150), well outside snap range (snapTo=100, threshold=2.5).
+    // This ensures the snap doesn't pull the value back to 100.
+    fireEvent.keyDown(slider, { key: 'End', code: 'End' });
+    // Advance timers to flush the debounce
+    vi.runAllTimers();
+    // setParam should have been called with '__driver' and t = 150 / 100 = 1.5
+    expect(setParam).toHaveBeenCalledWith('__driver', expect.closeTo(1.5, 5));
+    vi.useRealTimers();
   });
 });

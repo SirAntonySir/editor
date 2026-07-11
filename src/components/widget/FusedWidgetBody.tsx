@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { ChevronDown, ChevronRight, Pin } from 'lucide-react';
 import type { Widget, ControlBinding } from '@/types/widget';
 import type { Anchor } from '@/lib/perceptual-dial/types';
 import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
@@ -28,10 +28,11 @@ interface FusedOpSectionProps {
   values: Record<string, unknown>;
   onParamChange: (paramKey: string, value: unknown) => void;
   disabled?: boolean;
+  pinnedCount: number;
 }
 
 /** Collapsible section for one op within a fused widget. */
-function FusedOpSection({ op, values, onParamChange, disabled }: FusedOpSectionProps) {
+function FusedOpSection({ op, values, onParamChange, disabled, pinnedCount }: FusedOpSectionProps) {
   const [open, setOpen] = useState(false);
   return (
     <div className="border-t border-separator/50 first:border-t-0">
@@ -47,6 +48,15 @@ function FusedOpSection({ op, values, onParamChange, disabled }: FusedOpSectionP
           <ChevronRight className="size-3 shrink-0" />
         )}
         <span>{op.display_name}</span>
+        {pinnedCount > 0 && (
+          <span
+            className="ml-auto flex items-center gap-0.5 text-text-secondary"
+            title={`${pinnedCount} pinned`}
+          >
+            <Pin className="size-2.5 shrink-0" />
+            <span>{pinnedCount}</span>
+          </span>
+        )}
       </button>
       {open && (
         <RegistryDrivenPanel
@@ -87,7 +97,20 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
   // Ref to stabilise the timer map across renders without re-creating callbacks.
   const driverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Fix 1: Clear the debounce timer on unmount to avoid state updates after unmount.
+  useEffect(() => () => {
+    if (driverTimerRef.current) clearTimeout(driverTimerRef.current);
+  }, []);
+
+  // Fix 6: Sync driver state to SSoT when widget.driverValue changes from the backend.
+  useEffect(() => {
+    setDriverT(widget.driverValue ?? 1);
+  }, [widget.driverValue]);
+
   const slices = sliceWidgetByOp(widget);
+
+  // Fix 3: Build locked set to skip locked params in optimistic patch.
+  const lockedSet = useMemo(() => new Set(widget.lockedParams), [widget.lockedParams]);
 
   // Build anchors once; keys inside values will have nodeId stripped.
   const anchors: Anchor[] = compound ? toAnchors(compound.anchors) : [];
@@ -107,7 +130,11 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
 
     for (const slice of slices) {
       const node = widget.nodes.find((n) => n.id === slice.nodeId);
-      if (!node?.layerId) continue;
+      if (!node) continue;
+
+      // Fix 4: Write to EVERY layer in node.layerIds ?? [node.layerId], not just node.layerId.
+      const targetLayerIds = node.layerIds ?? (node.layerId ? [node.layerId] : []);
+      if (targetLayerIds.length === 0) continue;
 
       // Build per-slice bindings: strip the nodeId prefix from anchor keys,
       // then pick only the params that belong to this node/op.
@@ -125,15 +152,19 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
           )
         : [];
       const opInterpolated = interpolateExtended(opAnchors, t);
+      // Fix 3: Filter out locked params from the optimistic bindings.
       const bindings = Object.entries(opInterpolated)
-        .filter(([k]) => sliceParamKeys.has(k))
+        .filter(([k]) => sliceParamKeys.has(k) && !lockedSet.has(k))
         .map(([paramKey, value]) => ({ paramKey, value }));
 
       if (bindings.length > 0) {
-        useBackendState.getState().applyOptimistic(
-          `canon:${node.layerId}:${node.type}`,
-          { bindings, baseRevision },
-        );
+        // Fix 4: Apply optimistic patch for each target layer.
+        for (const layerId of targetLayerIds) {
+          useBackendState.getState().applyOptimistic(
+            `canon:${layerId}:${node.type}`,
+            { bindings, baseRevision },
+          );
+        }
       }
     }
 
@@ -142,11 +173,12 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
     driverTimerRef.current = setTimeout(() => {
       setParam('__driver', t);
     }, 100);
-  }, [slices, widget.nodes, compound, setParam]);
+  }, [slices, widget.nodes, compound, setParam, lockedSet]);
 
   if (!compound) return null;
 
-  const driverLabel = compound.label ?? 'Strength';
+  // Fix 2: Label fallback must be 'Intensity', not 'Strength'.
+  const driverLabel = compound.label ?? 'Intensity';
   const displayT = driverT * 100;
 
   return (
@@ -179,6 +211,11 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
             opValues[b.paramKey] = eff;
           }
 
+          // Fix 5: Count pinned params in this section's bindings.
+          const pinnedCount = slice.bindings.filter(
+            (b) => lockedSet.has(b.target.paramKey),
+          ).length;
+
           const handleOpParamChange = (paramKey: string, value: unknown) => {
             // Find the binding for this paramKey and call setParam.
             const binding = slice.bindings.find(
@@ -195,6 +232,7 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
               op={slice.op}
               values={opValues}
               onParamChange={handleOpParamChange}
+              pinnedCount={pinnedCount}
             />
           );
         })}

@@ -4,13 +4,13 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { backendTools } from '@/lib/backend-tools';
 import { loadRegistry } from '@/lib/registry/loader';
+import { sliceWidgetByOp } from '@/lib/widget-slices';
 import { RegistryDrivenPanel } from '../RegistryDrivenPanel';
 import { ScalarSectionBody } from './ScalarSectionBody';
 import { SliderPinMenu } from './SliderPinMenu';
 import { touchKey } from '@/hooks/useParamProvenance';
 import type { ParamDefinition } from '@/types/processing';
-import type { Widget, ControlBinding } from '@/types/widget';
-import type { RegistryOp } from '../../../../shared/registry/schema';
+import type { Widget } from '@/types/widget';
 import { RUNTIME } from '@/config';
 
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -45,38 +45,6 @@ interface WidgetProps {
 }
 
 type RegistryDrivenSectionBodyProps = ToolrailProps | WidgetProps;
-
-// ---------------------------------------------------------------------------
-// Multi-op slicing helpers
-// ---------------------------------------------------------------------------
-
-interface OpSlice {
-  op: RegistryOp;
-  bindings: ControlBinding[];
-  values: Record<string, unknown>;
-  nodeId: string;
-}
-
-function sliceWidgetByOp(widget: Widget): OpSlice[] {
-  const reg = loadRegistry();
-  const slices: OpSlice[] = [];
-  for (const node of widget.nodes) {
-    let op = node.opId ? reg.ops[node.opId] : undefined;
-    if (!op) {
-      // Back-compat: nodes without opId (e.g. persisted before this feature) — match by node_type.
-      op = Object.values(reg.ops).find((o) => o.engine.node_type === node.type);
-    }
-    if (!op) {
-      console.warn(`RegistryDrivenSectionBody: no registry op for node ${node.id} (type=${node.type}, opId=${node.opId ?? 'none'})`);
-      continue;
-    }
-    const bindings = widget.bindings.filter((b) => b.target?.nodeId === node.id);
-    const values: Record<string, unknown> = {};
-    for (const b of bindings) values[b.paramKey] = b.value;
-    slices.push({ op, bindings, values, nodeId: node.id });
-  }
-  return slices;
-}
 
 // ---------------------------------------------------------------------------
 // Widget-based multi-op renderer (stateless — parent owns onParamChange).

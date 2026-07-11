@@ -151,36 +151,9 @@ class SetWidgetParamTool(BackendTool[_Input, _Output]):
         for layer in target_layers:
             doc.set_param(layer, node.type, binding.target.param_key, input.value)
 
-        # Compound widget driver-recompute / implicit lock.
-        # - Driver param change: recompute the bundle via the registry's anchor
-        #   table and write all non-locked derived keys back to the node + canon.
-        # - Derived key edit: implicit lock-on-edit so a subsequent driver
-        #   change won't overwrite the user's value.
-        from app.registry.compound_resolver import resolve_compound
-        from app.registry.loader import get_registry
-
-        reg = get_registry()
-        op = reg.ops.get(w.op_id) if w.op_id else None
-        if op is not None and op.compound is not None:
-            if input.param_key == op.compound.driver:
-                derived = resolve_compound(w, op, float(input.value))
-                # The bundle lives on the same node as the driver — `node`
-                # is guaranteed non-None here because we'd have raised
-                # `_OrphanBinding` above.
-                for bkey, bvalue in derived.items():
-                    node.params[bkey] = bvalue
-                    for layer in target_layers:
-                        doc.set_param(layer, node.type, bkey, bvalue)
-                    bbind = next((b for b in w.bindings if b.param_key == bkey), None)
-                    if bbind is not None:
-                        bbind.value = bvalue
-            else:
-                # Derived key edit → implicit lock.
-                if input.param_key not in w.locked_params:
-                    w.locked_params.append(input.param_key)
-        elif w.compound is not None:
-            # Fused intent widget: any derived-key edit implicit-locks so the
-            # driver stops moving it. ('__driver' itself returned early above.)
+        # Fused intent widget: any derived-key edit implicit-locks so the
+        # driver stops moving it. ('__driver' itself returned early above.)
+        if w.compound is not None:
             if input.param_key not in w.locked_params:
                 w.locked_params.append(input.param_key)
 

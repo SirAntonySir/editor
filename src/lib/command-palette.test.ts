@@ -126,22 +126,6 @@ describe('registry semantic_tags wire into palette aliases', () => {
     expect(hit).toBeTruthy();
   });
 
-  it('finds Weather when the user types "foggy"', () => {
-    const sections = buildAdjustmentSections();
-    const { primary } = filterSections(sections, 'foggy');
-    const hit = primary.flatMap((s) => s.commands).find((c) => c.opId === 'weather');
-    expect(hit).toBeTruthy();
-  });
-
-  it('finds Time of Day when the user types "golden hour"', () => {
-    const sections = buildAdjustmentSections();
-    // The tag is "golden-hour" (one synonym token); prefix-on-tokenless
-    // match still hits via the substring score on the synonym.
-    const { primary } = filterSections(sections, 'golden');
-    const hit = primary.flatMap((s) => s.commands).find((c) => c.opId === 'time-of-day');
-    expect(hit).toBeTruthy();
-  });
-
   it('finds Grain when the user types "analog"', () => {
     const sections = buildAdjustmentSections();
     const { primary } = filterSections(sections, 'analog');

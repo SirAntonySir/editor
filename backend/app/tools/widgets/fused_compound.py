@@ -32,9 +32,8 @@ def synthesize_compound(
 ) -> OpCompoundConfig | None:
     """Build the widget-local compound block, or None when not applicable.
 
-    Not applicable when: the widget is a single-op registry dial (its
-    compound lives in the registry and CompoundWidgetBody owns the UI), or
-    no scalar param actually differs from its baseline.
+    Not applicable when: no scalar param actually differs from its baseline
+    (resolver landed on defaults, or the op is not in the registry).
     """
     reg = get_registry()
 

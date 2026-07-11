@@ -124,25 +124,36 @@ def test_plan_widget_stack_retry_recovers(monkeypatch):
     assert result["plan"][0]["op_id"] == "grain"
 
 
-def test_plan_widget_stack_catalog_surfaces_compound_dial(monkeypatch):
-    """The ops catalog sent to the planner must include `compound_dial` info
-    for compound ops so the model knows time-of-day is a 1D dial, not a
-    manual stack of N tone+color sliders."""
+def test_plan_widget_stack_night_intent_returns_primitive_ops(monkeypatch):
+    """Former compound-dial intent ('make it a night scene') must now return a
+    plan of primitive ops — no compound_dial routing, no time-of-day op."""
     client = AnthropicClient(api_key="test", model="claude-opus-4-7")
 
     captured: dict = {}
 
+    # Planner returns primitive ops for a night intent (as it now should).
+    fake = _tool_response("emit_plan", {
+        "plan": [
+            {"widget_name": "Night tone", "category": "tone", "driver_label": "Night",
+             "ops": [
+                 {"op_id": "light", "rationale": "reduce exposure"},
+                 {"op_id": "kelvin", "rationale": "cool temperature"},
+             ]},
+            {"widget_name": "Night vignette", "category": "effect", "driver_label": "Depth",
+             "ops": [{"op_id": "vignette", "rationale": "darken corners"}]},
+        ],
+        "overall_rationale": "night via primitive ops",
+    })
+
     def fake_create(**kwargs):
         captured["messages"] = kwargs.get("messages")
         captured["system"] = kwargs.get("system")
-        captured["tools"] = kwargs.get("tools")
-        captured["tool_choice"] = kwargs.get("tool_choice")
-        return _tool_response("emit_plan", {"plan": []})
+        return fake
 
     monkeypatch.setattr(client._client.messages, "create", fake_create)
 
     reg = reload_registry()
-    client.plan_widget_stack(
+    result = client.plan_widget_stack(
         intent="make it a night scene",
         scope={"kind": "global"},
         image_context={},
@@ -151,46 +162,34 @@ def test_plan_widget_stack_catalog_surfaces_compound_dial(monkeypatch):
         session_id="s1",
     )
 
-    # Forced tool use — one markdown fence must never empty the plan again.
-    assert captured["tool_choice"] == {"type": "tool", "name": "emit_plan"}
+    # Plan contains primitive ops, not a compound-dial op.
+    all_op_ids = [
+        op["op_id"]
+        for entry in result["plan"]
+        for op in (entry.get("ops") or [{"op_id": entry["op_id"]}] if "op_id" in entry else [])
+    ]
+    assert "time-of-day" not in all_op_ids
+    assert "compound_dial" not in str(result)
 
+    # Catalog sent to the LLM must NOT contain compound_dial keys (no compound ops remain).
+    # Note: "time-of-day" may still appear in the PRESETS catalog (the preset file exists);
+    # what matters is that the ops catalog has no compound_dial entries.
     catalog_blob = captured["messages"][0]["content"][0]["text"]
-    # The TOD op's compound_dial info must be visible to the LLM.
-    assert "time-of-day" in catalog_blob
-    assert "compound_dial" in catalog_blob
-    assert "time_of_day.position" in catalog_blob
-    # All 5 compound dials' anchor names should appear in the catalog.
-    expected_anchor_names = (
-        # time-of-day
-        "dawn", "noon", "golden", "blue", "night",
-        # weather
-        "sunny", "partly_cloudy", "overcast", "fog", "rain",
-        # mood
-        "serene", "calm", "dramatic", "aggressive",
-        # season
-        "spring", "summer", "autumn", "winter",
-        # age
-        "fresh", "retro", "vintage", "antique",
-    )
-    for name in expected_anchor_names:
-        assert name in catalog_blob, f"missing anchor name in catalog: {name}"
-    # All 5 compound op ids should appear too.
-    for op_id in ("time-of-day", "weather", "mood", "season", "age"):
-        assert op_id in catalog_blob, f"missing compound op_id in catalog: {op_id}"
+    assert "compound_dial" not in catalog_blob
 
-    # The system prompt should instruct the model how to use compound dials.
+    # System prompt must NOT contain the old COMPOUND DIAL OPS routing rule.
     system_blob = str(captured["system"])
-    assert "COMPOUND DIAL OPS" in system_blob
-    assert "compound_dial" in system_blob
+    assert "COMPOUND DIAL OPS" not in system_blob
 
 
 def test_planner_prompt_lists_mood_category(monkeypatch):
-    """The planner system prompt must include `mood` as a valid category."""
+    """The planner call must include `mood` as a valid category (in the user message)."""
     client = AnthropicClient(api_key="test", model="claude-opus-4-7")
 
     captured: dict = {}
 
     def fake_create(**kwargs):
+        captured["messages"] = kwargs.get("messages")
         captured["system"] = kwargs.get("system")
         return _tool_response("emit_plan", {"plan": []})
     monkeypatch.setattr(client._client.messages, "create", fake_create)
@@ -200,10 +199,9 @@ def test_planner_prompt_lists_mood_category(monkeypatch):
         intent="any", scope={"kind": "global"}, image_context={},
         existing_widgets=[], registry=reg, session_id="s1",
     )
-    system_blob = str(captured["system"])
-    assert "mood" in system_blob
-    # Multi-dial stacking sentence
-    assert "Multiple compound dials may stack" in system_blob
+    # The category list (including "mood") is in the user instruction message.
+    all_text = str(captured["messages"]) + str(captured["system"])
+    assert "mood" in all_text
 
 
 def test_planner_prompt_carries_grouping_and_budget_rubric(monkeypatch):

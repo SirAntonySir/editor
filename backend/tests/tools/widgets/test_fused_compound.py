@@ -110,10 +110,12 @@ def test_synthesize_returns_none_when_nothing_changed():
     assert synthesize_compound(w, _FakeDoc()) is None
 
 
-def test_synthesize_skips_registry_dial_single_op():
+def test_synthesize_returns_none_for_unknown_op():
+    # A node whose op_id is not in the registry contributes no param diffs;
+    # synthesize_compound returns None (nothing to drive).
     w = _fused_candidate_widget()
-    w.nodes[0].op_id = "time-of-day"
-    w.nodes[0].type = "time_of_day"
+    w.nodes[0].op_id = "unknown-op-not-in-registry"
+    w.nodes[0].type = "unknown"
     assert synthesize_compound(w, _FakeDoc()) is None
 
 

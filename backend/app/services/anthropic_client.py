@@ -473,15 +473,6 @@ Rules:
   to your resolved values (100).
 - Prefer raw ops over presets unless the intent matches a preset closely.
 - You may unfold a preset's ops as starting points and modify them.
-- COMPOUND DIAL OPS: ops with a `compound_dial` field in the catalog ARE
-  the right answer for intents that describe a point on that dial. Set
-  `starting_params` to {driver: target_value} and return a SINGLE-OP widget.
-  Example: "make it night" → time-of-day with position=1.0. Do NOT manually
-  compose individual tone+color+vignette ops when a compound dial op covers
-  the intent — the dial does that math from its anchor table automatically.
-  Multiple compound dials may stack when the intent spans more than one
-  dial axis (e.g., "winter sunset" = season + time-of-day, "vintage stormy"
-  = age + weather). Prefer ONE dial when the intent fits a single axis.
 - Order widgets by intent priority (most defining effect first).
 - Emit the plan via the `emit_plan` tool.
 
@@ -503,21 +494,6 @@ Example for "vintage film":
      "ops": [{"op_id": "grain", "rationale": "fine 18% grain"}]}
   ],
   "overall_rationale": "vintage film: faded blacks + warm desaturated color + grain"
-}
-
-Example for "make it a night scene" (COMPOUND DIAL):
-{
-  "plan": [
-    {
-      "widget_name": "Night scene", "category": "mood",
-      "ops": [{
-        "op_id": "time-of-day",
-        "rationale": "user wants night — set time-of-day position to 1.0 (night anchor)",
-        "starting_params": {"time_of_day.position": 1.0}
-      }]
-    }
-  ],
-  "overall_rationale": "night via the day-arc dial; user can fine-tune individual sliders"
 }"""
 
 
@@ -1325,7 +1301,7 @@ class AnthropicClient:
         import json
 
         def _op_catalog_entry(op):
-            entry = {
+            return {
                 "id": op.id,
                 "category": op.category,
                 "description": op.llm.description,
@@ -1334,29 +1310,6 @@ class AnthropicClient:
                 "params": list(op.params.keys()),
                 "render_order": op.engine.render_order,
             }
-            # Compound ops are 1-D dial presets — the planner needs to know
-            # they're not a manual stack of N sliders. Surfacing the driver
-            # key + anchor names + hint makes the model pick the holistic
-            # dial for "make it night / golden hour" intents instead of
-            # composing individual tone+color ops.
-            if op.compound is not None:
-                anchor_summary = ", ".join(
-                    f"{a.name}={a.position}" for a in op.compound.anchors
-                )
-                entry["compound_dial"] = {
-                    "driver": op.compound.driver,
-                    "anchor_names": [a.name for a in op.compound.anchors],
-                    "hint": (
-                        f"This is a 1-D dial preset. Set `{op.compound.driver}` "
-                        f"(range from the param schema) to one value and the entire "
-                        f"bundle of derived params interpolates automatically. "
-                        f"Anchors: {anchor_summary}. "
-                        f"PREFER this single op over composing individual ops "
-                        f"when the user's intent describes a point on the dial "
-                        f"(e.g. a time of day, a mood the dial captures)."
-                    ),
-                }
-            return entry
 
         ops_catalog = [_op_catalog_entry(op) for op in registry.ops.values()]
         presets_catalog = [

@@ -1,5 +1,5 @@
 import { render, screen, cleanup } from '@testing-library/react';
-import { it, expect, afterEach } from 'vitest';
+import { it, expect, describe, afterEach } from 'vitest';
 import { AdjustmentSlider } from './AdjustmentSlider';
 
 afterEach(cleanup);
@@ -33,4 +33,48 @@ it('with trackGradient paints the gradient and shows a visible thumb', () => {
   expect(screen.getByRole('slider').className).not.toContain('opacity-0');
   // The fill-from-min Range is omitted in colour-track mode (no double track).
   expect(container.querySelector('[style*="color-mix"]')).toBeNull();
+});
+
+describe('overshoot', () => {
+  it('formats the value as "base +over" past overshootFrom', () => {
+    render(
+      <AdjustmentSlider
+        label="Blackness" value={112} min={0} max={150}
+        defaultValue={100} neutralValue={100} overshootFrom={100}
+        onChange={() => {}}
+      />,
+    );
+    expect(screen.getByText('100 +12')).toBeInTheDocument();
+  });
+
+  it('formats plainly at or below overshootFrom', () => {
+    render(
+      <AdjustmentSlider
+        label="Blackness" value={87} min={0} max={150}
+        defaultValue={100} neutralValue={100} overshootFrom={100}
+        onChange={() => {}}
+      />,
+    );
+    expect(screen.getByText('87')).toBeInTheDocument();
+  });
+
+  it('renders an overfill segment past overshootFrom', () => {
+    const { container } = render(
+      <AdjustmentSlider
+        label="Blackness" value={120} min={0} max={150}
+        overshootFrom={100} onChange={() => {}}
+      />,
+    );
+    expect(container.querySelector('[data-overshoot-fill]')).not.toBeNull();
+  });
+
+  it('renders no overfill segment below overshootFrom', () => {
+    const { container } = render(
+      <AdjustmentSlider
+        label="Blackness" value={80} min={0} max={150}
+        overshootFrom={100} onChange={() => {}}
+      />,
+    );
+    expect(container.querySelector('[data-overshoot-fill]')).toBeNull();
+  });
 });

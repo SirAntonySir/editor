@@ -40,6 +40,14 @@ interface AdjustmentSliderProps {
    * primitive doesn't know about pins, callers supply the affordance.
    */
   pinSlot?: ReactNode;
+  /**
+   * Fused-driver overshoot: fill past this value renders in
+   * `--color-overshoot` and the readout formats as "100 +12". The tick at
+   * `neutralValue` marks the same point. Omitted → unchanged.
+   */
+  overshootFrom?: number;
+  /** Magnet-snap track drags to this value (threshold (max−min)/60). */
+  snapTo?: number;
 }
 
 function fillColorFor(provenance: SliderProvenance): string {
@@ -62,9 +70,16 @@ export function AdjustmentSlider({
   onCommit,
   trackGradient,
   pinSlot,
+  overshootFrom,
+  snapTo,
 }: AdjustmentSliderProps) {
   const colorTrack = trackGradient != null;
-  const display = formatValue ? formatValue(value) : String(Math.round(value));
+  const over = overshootFrom != null && value > overshootFrom;
+  const display = formatValue
+    ? formatValue(value)
+    : over
+      ? `${Math.round(overshootFrom)} +${Math.round(value - overshootFrom)}`
+      : String(Math.round(value));
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -74,8 +89,11 @@ export function AdjustmentSlider({
 
   const resetValue = defaultValue ?? (min + max) / 2;
 
+  const applySnap = (v: number) =>
+    snapTo != null && Math.abs(v - snapTo) < (max - min) / 60 ? snapTo : v;
+
   const handleValueChange = ([v]: number[]) => {
-    onChange(v);
+    onChange(applySnap(v));
   };
 
   const handleValueCommit = ([v]: number[]) => {
@@ -141,7 +159,8 @@ export function AdjustmentSlider({
   }, [editing]);
 
   // Fill width as percentage of track for the minimal style.
-  const fillPct = ((value - min) / (max - min || 1)) * 100;
+  const fillPct =
+    ((Math.min(value, overshootFrom ?? value) - min) / (max - min || 1)) * 100;
   const fillColor = fillColorFor(provenance);
 
   // Neutral tick: render a small vertical mark on the track at the ENGINE-
@@ -184,6 +203,7 @@ export function AdjustmentSlider({
             onPointerDown={onNumPointerDown}
             onPointerMove={onNumPointerMove}
             onPointerUp={onNumPointerUp}
+            style={over ? { color: 'var(--color-overshoot)' } : undefined}
           >{display}</span>
         )}
       </div>
@@ -209,6 +229,18 @@ export function AdjustmentSlider({
                   color-mix(in srgb, ${fillColor} 55%, transparent),
                   ${fillColor})`,
                 width: `${fillPct}%`,
+              }}
+            />
+          )}
+          {!colorTrack && over && (
+            <span
+              aria-hidden
+              data-overshoot-fill
+              className="absolute h-full"
+              style={{
+                left: `${((overshootFrom! - min) / (max - min || 1)) * 100}%`,
+                width: `${((value - overshootFrom!) / (max - min || 1)) * 100}%`,
+                background: 'var(--color-overshoot)',
               }}
             />
           )}

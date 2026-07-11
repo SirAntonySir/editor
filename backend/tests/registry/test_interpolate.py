@@ -1,6 +1,7 @@
 import pytest
 
 from app.registry.interpolate import interpolate_1d
+from app.registry.interpolate import interpolate_extended
 
 
 _ANCHORS = [
@@ -31,9 +32,6 @@ def test_raises_on_too_few_anchors():
         interpolate_1d([_ANCHORS[0]], 0.5)
 
 
-from app.registry.interpolate import interpolate_extended
-
-
 def _two_anchors():
     return [
         {"position": 0.0, "name": "as shot", "values": {"n_a:exposure": 0.0, "n_a:shadows": 10.0}},
@@ -48,6 +46,8 @@ def test_extended_matches_interpolate_1d_in_range():
     mid = interpolate_extended(anchors, 0.5)
     assert mid["n_a:exposure"] == -40.0
     assert mid["n_a:shadows"] == -20.0
+    # Delegation: in-range calls must produce identical results to interpolate_1d.
+    assert interpolate_extended(anchors, 0.5) == interpolate_1d(anchors, 0.5)
 
 
 def test_extended_extrapolates_past_last_anchor():

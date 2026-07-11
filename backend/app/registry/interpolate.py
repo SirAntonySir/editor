@@ -6,6 +6,14 @@ from __future__ import annotations
 from typing import Any
 
 
+def _pos(a: Any) -> float:
+    return a["position"] if isinstance(a, dict) else a.position
+
+
+def _vals(a: Any) -> dict[str, float]:
+    return a["values"] if isinstance(a, dict) else a.values
+
+
 def _catmull_rom(v0: float, v1: float, v2: float, v3: float, u: float) -> float:
     u2 = u * u
     u3 = u2 * u
@@ -27,13 +35,6 @@ def interpolate_1d(anchors: list[Any], t: float) -> dict[str, float]:
     """
     if len(anchors) < 2:
         raise ValueError("need at least 2 anchors")
-
-    # Allow both dicts and Pydantic models.
-    def _pos(a: Any) -> float:
-        return a["position"] if isinstance(a, dict) else a.position
-
-    def _vals(a: Any) -> dict[str, float]:
-        return a["values"] if isinstance(a, dict) else a.values
 
     if t <= _pos(anchors[0]):
         return dict(_vals(anchors[0]))
@@ -70,12 +71,6 @@ def interpolate_extended(anchors: list[Any], t: float) -> dict[str, float]:
     Per-param range clamping is the CALLER's job (the registry knows ranges,
     this module doesn't).
     """
-    def _pos(a: Any) -> float:
-        return a["position"] if isinstance(a, dict) else a.position
-
-    def _vals(a: Any) -> dict[str, float]:
-        return a["values"] if isinstance(a, dict) else a.values
-
     if len(anchors) < 2:
         raise ValueError("need at least 2 anchors")
     last_pos = _pos(anchors[-1])
@@ -93,3 +88,4 @@ def interpolate_extended(anchors: list[Any], t: float) -> dict[str, float]:
         k: lv.get(k, 0.0) + ((lv.get(k, 0.0) - pv.get(k, 0.0)) / span) * overshoot
         for k in keys
     }
+

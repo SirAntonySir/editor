@@ -16,12 +16,10 @@ import { BindingRow } from '@/components/widget/BindingRow';
 import { HslWidgetBody, isHslWidget } from './HslWidgetBody';
 import { LevelsWidgetBody, isFullLevelsWidget } from './LevelsWidgetBody';
 import { CurvesWidgetBody, isCurvesWidget, isCurveBinding } from './CurvesWidgetBody';
-import { CompoundWidgetBody } from './CompoundWidgetBody';
 import { FusedWidgetBody } from './FusedWidgetBody';
 import { GenfillWidgetBody } from './GenfillWidgetBody';
 import { WidgetAutoButton } from './WidgetAutoButton';
 import { WidgetHistoryStepper } from './WidgetHistoryStepper';
-import { loadRegistry } from '@/lib/registry/loader';
 import { maskMatchesImageNode } from '@/lib/mask-filters';
 
 /**
@@ -92,18 +90,15 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
   const showAiAffordances = widget.origin.kind !== 'tool_invoked';
 
   // True when the widget carries a widget-local compound block (fused intent
-  // widgets synthesized by the LLM). Registry compound ops (time-of-day etc.)
-  // have `loadRegistry().ops[widget.opId]?.compound` but NOT `widget.compound` —
-  // they dispatch to CompoundWidgetBody as before; this gate doesn't affect them.
+  // widgets synthesized by the LLM).
   const isFused = !!widget.compound;
 
   // A widget renders the flat BindingRow list (as opposed to a rich body:
-  // compound / HSL rail / Levels histogram / Curves editor). The mechanical
+  // HSL rail / Levels histogram / Curves editor). The mechanical
   // "Auto" pill is only meaningful for these, and only when unpinned — the
   // recipe writes every binding, not a single-param subset.
   const usesFlatBody =
     !isFused &&
-    !loadRegistry().ops[widget.opId ?? '']?.compound &&
     !isHslWidget(widget) &&
     !isFullLevelsWidget(widget) &&
     !isCurvesWidget(widget);
@@ -381,11 +376,6 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
               falls through to the flat BindingRow list below. */}
           {!pinnedParamKeys && isFused && (
             <FusedWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
-          )}
-          {!pinnedParamKeys && !isFused && loadRegistry().ops[widget.opId ?? '']?.compound && (
-            <div className="px-1.5 py-1">
-              <CompoundWidgetBody widget={widget} />
-            </div>
           )}
           {!pinnedParamKeys && !isFused && widget.bindings.length > 0 && isHslWidget(widget) && (
             <div className="px-1.5 py-1">

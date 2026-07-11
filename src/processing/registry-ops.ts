@@ -20,8 +20,6 @@ const BESPOKE_PANEL_OPS = new Set(['curves', 'hsl', 'levels', 'filters']);
  * Build ProcessingDefinition objects for all registry ops EXCEPT those with
  * bespoke panel files. The icon is read from each op's `icon` field
  * (Material icon name); ops without one fall back to `tune`.
- * Compound ops (time-of-day) are included; ToolSection dispatches them to
- * CompoundWidgetBody when a compound widget is active.
  */
 export function buildRegistryProcessingDefs(): ProcessingDefinition[] {
   const reg = loadRegistry();

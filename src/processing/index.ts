@@ -6,9 +6,8 @@ import { levelsProcessing } from './levels';
 
 export function registerAllProcessing(): void {
   // Registry-driven ops (light, color, kelvin, sharpen, blur, clarity,
-  // grain, vignette, splitTone, time-of-day): ProcessingDefinitions are
-  // generated from the SSoT registry ops. Inspector rendering handled by
-  // RegistryDrivenSectionBody or CompoundWidgetBody for compound ops.
+  // grain, vignette, splitTone): ProcessingDefinitions are generated from
+  // the SSoT registry ops. Inspector rendering handled by RegistryDrivenSectionBody.
   for (const def of buildRegistryProcessingDefs()) {
     ProcessingRegistry.register(def);
   }

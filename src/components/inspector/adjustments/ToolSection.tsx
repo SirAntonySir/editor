@@ -32,7 +32,6 @@ import { LevelsSectionBody } from './LevelsSectionBody';
 import { HslOpenOnCanvasButton } from './HslOpenOnCanvasButton';
 import { promoteToCanvas } from './promote';
 import { useAiAccess } from '@/lib/ai-access';
-import { CompoundWidgetBody } from '@/components/widget/CompoundWidgetBody';
 import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';
 import { autoParamsForOp } from '@/lib/auto-tune';
 
@@ -52,19 +51,6 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
   const canonical = useBackendState((s) => {
     const id = layerId ? `canon:${layerId}:${def.adjustmentType}` : '';
     return (s.snapshot?.operationGraph.nodes.find((n) => n.id === id)?.params ?? EMPTY_PARAMS) as Record<string, unknown>;
-  });
-  // For compound ops: locate the active widget from the snapshot so the generic
-  // CompoundWidgetBody can drive the dial + anchor cards. Only used when the
-  // registry op has a `compound` block AND a matching widget exists.
-  const compoundWidget = useBackendState((s) => {
-    if (!layerId) return null;
-    const op = loadRegistry().ops[def.id];
-    if (!op?.compound) return null;
-    return s.snapshot?.widgets.find(
-      (w) => w.opId === def.id &&
-        w.status === 'active' &&
-        w.nodes.some((n) => n.layerId === layerId),
-    ) ?? null;
   });
   // For curves the section has no scalar params — the touched signal is per
   // channel (rgb/red/green/blue stored as `[[x, y], ...]` pairs in 0–255 space
@@ -243,10 +229,6 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
           <LevelsSectionBody layerId={layerId} />
         ) : def.adjustmentType === 'lut' ? (
           <PromoteOnlyBody toolId={def.id} />
-        ) : compoundWidget ? (
-          // Generic compound body — fires for any registry op with a `compound`
-          // block that has an active widget, including time-of-day.
-          <CompoundWidgetBody widget={compoundWidget} />
         ) : loadRegistry().ops[def.id] ? (
           <RegistryDrivenSectionBody
             defId={def.id}

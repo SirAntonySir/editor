@@ -111,25 +111,12 @@ class RegistryOp(BaseModel):
     bindings: list[OpBinding]
     engine: OpEngineConfig
     tool_defaults: list[str] | None = None  # curated subset of param keys for toolrail widget
-    compound: OpCompoundConfig | None = None
 
     @model_validator(mode="after")
     def _bindings_reference_params(self) -> RegistryOp:
         for b in self.bindings:
             if b.param_key not in self.params:
                 raise ValueError(f"binding param_key {b.param_key!r} not in params")
-        # compound validation
-        if self.compound:
-            if self.compound.driver not in self.params:
-                raise ValueError(
-                    f"compound driver {self.compound.driver!r} not in params"
-                )
-            for a in self.compound.anchors:
-                for k in a.values:
-                    if k not in self.params:
-                        raise ValueError(
-                            f"anchor value key {k!r} not in op.params"
-                        )
         return self
 
 

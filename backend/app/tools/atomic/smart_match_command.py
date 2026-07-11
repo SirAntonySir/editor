@@ -50,21 +50,16 @@ class _Output(BaseModel):
 
 
 def _op_catalog_entry(op) -> dict:
-    """Tight per-op summary for the LLM — id, what it does, its semantic tags
-    (the user-language synonyms we just enriched), and whether it is a 1-D
-    compound dial. Description + typical_use intentionally compact: the
-    catalog goes into a cached block, but we still pay for the first call."""
-    entry = {
+    """Tight per-op summary for the LLM — id, what it does, and its semantic
+    tags (user-language synonyms). Description + typical_use intentionally
+    compact: the catalog goes into a cached block, but we still pay for the
+    first call."""
+    return {
         "id": op.id,
         "category": op.category,
         "summary": op.llm.description,
         "tags": op.llm.semantic_tags,
     }
-    if op.compound is not None:
-        entry["compound"] = {
-            "anchors": [a.name for a in op.compound.anchors],
-        }
-    return entry
 
 
 def _preset_catalog_entry(p) -> dict:

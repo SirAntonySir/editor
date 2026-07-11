@@ -104,7 +104,7 @@ interface FusedWidgetBodyProps {
  *
  * The driver value (t) lives in [0, 1.5] internally; the UI multiplies by 100.
  * Changing the driver calls applyOptimistic for every op node so the preview
- * stays live, mirroring the pattern in CompoundWidgetBody.
+ * stays live across all op sections.
  */
 export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidgetBodyProps) {
   const compound = widget.compound;

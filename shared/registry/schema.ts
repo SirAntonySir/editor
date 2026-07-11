@@ -111,7 +111,6 @@ export const RegistryOpSchema = z.object({
    * Defaults to all binding paramKeys when absent.
    */
   tool_defaults: z.array(z.string()).optional(),
-  compound: OpCompoundConfigSchema.optional(),
 }).strict().superRefine((op, ctx) => {
   for (const b of op.bindings) {
     if (!(b.paramKey in op.params)) {
@@ -119,25 +118,6 @@ export const RegistryOpSchema = z.object({
         code: 'custom',
         message: `binding paramKey "${b.paramKey}" not in params`,
       });
-    }
-  }
-  // compound validation
-  if (op.compound) {
-    if (!(op.compound.driver in op.params)) {
-      ctx.addIssue({
-        code: 'custom',
-        message: `compound driver "${op.compound.driver}" not in params`,
-      });
-    }
-    for (const a of op.compound.anchors) {
-      for (const k of Object.keys(a.values)) {
-        if (!(k in op.params)) {
-          ctx.addIssue({
-            code: 'custom',
-            message: `anchor value key "${k}" not in op.params`,
-          });
-        }
-      }
     }
   }
 });

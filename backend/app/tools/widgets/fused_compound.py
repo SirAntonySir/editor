@@ -37,11 +37,6 @@ def synthesize_compound(
     """
     reg = get_registry()
 
-    if len(widget.nodes) == 1:
-        only_op = reg.ops.get(widget.nodes[0].op_id or "")
-        if only_op is not None and only_op.compound is not None:
-            return None
-
     baseline: dict[str, float] = {}
     target: dict[str, float] = {}
     for node in widget.nodes:

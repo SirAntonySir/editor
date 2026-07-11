@@ -14,6 +14,16 @@ import type { CandidateRegion } from '@/types/image-context';
 
 type ForcedTarget = { image_node_id: string; layer_ids: string[] };
 
+/** Snapshot every layer's id → name from the (fresh) store. Sent with the agent
+ *  turn so the backend loop can label each target node's layers, letting the LLM
+ *  scope a proposal to the layer that matches a named region. Read at call time,
+ *  not from a captured `editor`, so layers extracted mid-turn are included. */
+function buildLayerLabels(): Record<string, string> {
+  return Object.fromEntries(
+    useEditorStore.getState().layers.map((l) => [l.id, l.name] as const),
+  );
+}
+
 /** Asks the user, per attached region, whether to extract to a new image node,
  *  a new layer, or skip it. Defaults to the dock approval store; tests inject. */
 type RegionChoiceFn = (label: string) => Promise<ExtractChoice>;
@@ -199,6 +209,7 @@ export async function runAgentTurn(
     reference_targets: references,
     client_tools: serializeForAgentLoop(AGENT_LOOP_TOOLS),
     active_node: activeNodePayload,
+    layer_labels: buildLayerLabels(),
   });
 }
 
@@ -251,6 +262,7 @@ export async function runAgentTurnForRegion(
     forced_targets: dedupeForcedTargets(forcedTargets),
     client_tools: serializeForAgentLoop(AGENT_LOOP_TOOLS),
     active_node: activeNodePayload,
+    layer_labels: buildLayerLabels(),
   });
   return { extracted: true, ...res };
 }

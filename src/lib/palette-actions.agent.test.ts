@@ -84,6 +84,18 @@ describe('runAgentTurn', () => {
     expect(extractMock).not.toHaveBeenCalled();
   });
 
+  it('sends layer_labels mapping layer ids to their names', async () => {
+    const { useEditorStore } = await import('@/store');
+    useEditorStore.getState().addLayer({
+      id: 'l-sky', type: 'image', name: 'Sky',
+      visible: true, opacity: 1, blendMode: 'normal', locked: false,
+    });
+    const nodeId = useEditorStore.getState().addImageNode(['l-sky']);
+    await runAgentTurn('x', [`target:node:${nodeId}`]);
+    const body = lastBody();
+    expect(body.layer_labels['l-sky']).toBe('Sky');
+  });
+
   it('resolves an @-picked layer target to its owning node + that one layer', async () => {
     const { useEditorStore } = await import('@/store');
     const nodeId = useEditorStore.getState().addImageNode(['lt-solo']);

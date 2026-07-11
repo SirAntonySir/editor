@@ -356,6 +356,9 @@ export const backendTools = {
       reference_targets?: { image_node_id: string; layer_ids: string[] }[];
       client_tools: unknown[];
       active_node: { image_node_id: string; layer_ids: string[] } | null;
+      /** Layer id → human name, so the agent loop can offer per-layer scoping
+       *  (propose_adjustment_widgets.layer_ids) with labels the model matches. */
+      layer_labels?: Record<string, string>;
     },
   ): Promise<{ ok: boolean; toolCalls: number }> {
     const response = await fetch(`${BASE_URL}/api/state/${sessionId}/agent_turn`, {

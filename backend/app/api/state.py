@@ -119,6 +119,9 @@ class _AgentTurnBody(BaseModel):
     reference_targets: list[dict] = []
     client_tools: list[dict] = []
     active_node: dict | None = None
+    # layer id → human name, so the agent loop can offer per-layer scoping
+    # (propose_adjustment_widgets.layer_ids) with labels the model can match.
+    layer_labels: dict[str, str] = {}
 
 
 class _ToolResultBody(BaseModel):
@@ -221,10 +224,12 @@ async def state_agent_turn(sid: str, body: _AgentTurnBody) -> dict:
     except Exception:
         image_context = None  # context is a best-effort prompt aid, never fatal
 
-    async def propose_fn(target_image_node_id: str, intent: str) -> dict:
+    async def propose_fn(target_image_node_id: str, intent: str, layer_ids: list[str]) -> dict:
+        # The loop resolves layer_ids (full node set by default, or the subset
+        # the model asked for) and passes them here — no re-derivation needed.
         return await dispatch_propose_adjustment(
             registry, sid, target_image_node_id=target_image_node_id,
-            layer_ids=node_layers.get(target_image_node_id, []), intent=intent,
+            layer_ids=layer_ids, intent=intent,
         )
 
     async def client_tool_fn(name: str, input: dict) -> dict:
@@ -236,6 +241,7 @@ async def state_agent_turn(sid: str, body: _AgentTurnBody) -> dict:
         client_tools=body.client_tools, node_layers=node_layers,
         forced_targets=forced_target_ids,
         references=references,
+        layer_labels=body.layer_labels,
         propose_fn=propose_fn, client_tool_fn=client_tool_fn,
         image_context=image_context,
     )

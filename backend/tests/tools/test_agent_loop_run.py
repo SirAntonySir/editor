@@ -37,7 +37,7 @@ async def test_loop_dispatches_propose_then_ends():
     ])
     proposed = []
 
-    async def propose_fn(target_image_node_id, intent):
+    async def propose_fn(target_image_node_id, intent, layer_ids=None):
         proposed.append((target_image_node_id, intent))
         return {"ok": True, "widget_count": 1}
 
@@ -68,7 +68,7 @@ async def test_loop_routes_client_tool_and_unknown_node_errors():
         _Resp("end_turn", [_Block("text")]),
     ])
 
-    async def propose_fn(target_image_node_id, intent):
+    async def propose_fn(target_image_node_id, intent, layer_ids=None):
         raise AssertionError("unknown node must not reach propose_fn")
 
     seen = []
@@ -96,7 +96,7 @@ async def test_loop_threads_extracted_node_then_proposes_on_it():
     ])
     proposed = []
 
-    async def propose_fn(target_image_node_id, intent):
+    async def propose_fn(target_image_node_id, intent, layer_ids=None):
         proposed.append((target_image_node_id, intent))
         return {"ok": True, "widget_count": 1}
 
@@ -115,11 +115,118 @@ async def test_loop_threads_extracted_node_then_proposes_on_it():
 
 
 @pytest.mark.asyncio
+async def test_loop_scopes_propose_to_requested_layer_ids():
+    """The LLM can pass layer_ids to scope a proposal to a subset of a node's
+    layers — so two regions on the same node get independent edits."""
+    llm = _ScriptedLLM([
+        _Resp("tool_use", [_Block("tool_use", "propose_adjustment_widgets",
+              {"target_image_node_id": "in-1", "intent": "warm", "layer_ids": ["l-2"]}, "tu_1")]),
+        _Resp("end_turn", [_Block("text")]),
+    ])
+    proposed = []
+
+    async def propose_fn(node, intent, layer_ids=None):
+        proposed.append((node, intent, layer_ids))
+        return {"ok": True, "widget_count": 1}
+
+    async def client_tool_fn(name, input):
+        raise AssertionError("no client tool expected")
+
+    await run_agent_turn(
+        agent_step=llm, sid="s", intent="warm", attached_objects=[],
+        client_tools=[], node_layers={"in-1": ["l-1", "l-2"]},
+        propose_fn=propose_fn, client_tool_fn=client_tool_fn,
+    )
+    assert proposed == [("in-1", "warm", ["l-2"])]
+
+
+@pytest.mark.asyncio
+async def test_loop_defaults_to_all_layers_when_layer_ids_omitted():
+    """Omitting layer_ids keeps the old behaviour: the proposal covers every
+    layer of the target node."""
+    llm = _ScriptedLLM([
+        _Resp("tool_use", [_Block("tool_use", "propose_adjustment_widgets",
+              {"target_image_node_id": "in-1", "intent": "warm"}, "tu_1")]),
+        _Resp("end_turn", [_Block("text")]),
+    ])
+    proposed = []
+
+    async def propose_fn(node, intent, layer_ids=None):
+        proposed.append((node, intent, layer_ids))
+        return {"ok": True, "widget_count": 1}
+
+    async def client_tool_fn(name, input):
+        raise AssertionError("no client tool expected")
+
+    await run_agent_turn(
+        agent_step=llm, sid="s", intent="warm", attached_objects=[],
+        client_tools=[], node_layers={"in-1": ["l-1", "l-2"]},
+        propose_fn=propose_fn, client_tool_fn=client_tool_fn,
+    )
+    assert proposed == [("in-1", "warm", ["l-1", "l-2"])]
+
+
+@pytest.mark.asyncio
+async def test_loop_filters_requested_layers_to_the_nodes_own():
+    """Requested layer_ids that aren't on the node are dropped; the valid
+    subset survives."""
+    llm = _ScriptedLLM([
+        _Resp("tool_use", [_Block("tool_use", "propose_adjustment_widgets",
+              {"target_image_node_id": "in-1", "intent": "warm",
+               "layer_ids": ["l-2", "l-NOPE"]}, "tu_1")]),
+        _Resp("end_turn", [_Block("text")]),
+    ])
+    proposed = []
+
+    async def propose_fn(node, intent, layer_ids=None):
+        proposed.append((node, intent, layer_ids))
+        return {"ok": True, "widget_count": 1}
+
+    async def client_tool_fn(name, input):
+        raise AssertionError("no client tool expected")
+
+    await run_agent_turn(
+        agent_step=llm, sid="s", intent="warm", attached_objects=[],
+        client_tools=[], node_layers={"in-1": ["l-1", "l-2"]},
+        propose_fn=propose_fn, client_tool_fn=client_tool_fn,
+    )
+    assert proposed == [("in-1", "warm", ["l-2"])]
+
+
+@pytest.mark.asyncio
+async def test_loop_rejects_when_no_requested_layer_belongs_to_node():
+    """If none of the requested layers are on the node, don't propose — return
+    an error the LLM can react to."""
+    llm = _ScriptedLLM([
+        _Resp("tool_use", [_Block("tool_use", "propose_adjustment_widgets",
+              {"target_image_node_id": "in-1", "intent": "warm",
+               "layer_ids": ["l-NOPE"]}, "tu_1")]),
+        _Resp("end_turn", [_Block("text")]),
+    ])
+    proposed = []
+
+    async def propose_fn(node, intent, layer_ids=None):
+        proposed.append((node, intent, layer_ids))
+        return {"ok": True, "widget_count": 1}
+
+    async def client_tool_fn(name, input):
+        raise AssertionError("no client tool expected")
+
+    out = await run_agent_turn(
+        agent_step=llm, sid="s", intent="warm", attached_objects=[],
+        client_tools=[], node_layers={"in-1": ["l-1", "l-2"]},
+        propose_fn=propose_fn, client_tool_fn=client_tool_fn,
+    )
+    assert proposed == []  # propose_fn never called
+    assert out["tool_calls"] == 1  # the rejected call still counts
+
+
+@pytest.mark.asyncio
 async def test_loop_stops_at_max_tool_calls():
     forever = [_Resp("tool_use", [_Block("tool_use", "list_objects", {}, f"tu_{i}")]) for i in range(20)]
     llm = _ScriptedLLM(forever)
 
-    async def propose_fn(target_image_node_id, intent):
+    async def propose_fn(target_image_node_id, intent, layer_ids=None):
         return {"ok": True, "widget_count": 0}
 
     async def client_tool_fn(name, input):

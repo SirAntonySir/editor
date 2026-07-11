@@ -73,6 +73,28 @@ def test_agent_turn_forced_targets_seed_node_layers():
     assert captured["forced_targets"] == ["node-new"]
 
 
+def test_agent_turn_threads_layer_labels_to_loop():
+    client = TestClient(app)
+    store = deps.get_session_store()
+    sid = store.create(image_bytes=b"x", mime_type="image/jpeg")
+    captured = {}
+
+    async def fake_run_agent_turn(**kwargs):
+        captured["layer_labels"] = kwargs["layer_labels"]
+        return {"ok": True, "tool_calls": 0}
+
+    with patch("app.api.state.run_agent_turn", fake_run_agent_turn):
+        resp = client.post(
+            f"/api/state/{sid}/agent_turn",
+            json={
+                "intent": "x", "attached_objects": [], "client_tools": [],
+                "layer_labels": {"L1": "Sky", "L2": "Grass"},
+            },
+        )
+    assert resp.status_code == 200
+    assert captured["layer_labels"] == {"L1": "Sky", "L2": "Grass"}
+
+
 def test_agent_turn_reference_kept_out_of_targets_and_summarized():
     """A reference node must not enter node_layers (the target whitelist) and
     must arrive as a `references` summary — so it's matched, never edited."""

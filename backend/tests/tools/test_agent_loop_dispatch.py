@@ -13,6 +13,20 @@ def test_build_system_forces_proposal_on_extracted_targets():
     assert "whole image" in low or "original image" in low
 
 
+def test_build_system_lists_layer_labels_and_selector():
+    """When forced-target nodes carry multiple labelled layers, the prompt must
+    surface the labels and tell the model it can scope with layer_ids — so a
+    'region1 like this, region2 like that' request lands per-layer."""
+    sys = _build_system(
+        [], ["n1"], ["n1"],
+        node_layers={"n1": ["L1", "L2"]},
+        layer_labels={"L1": "sky", "L2": "grass"},
+    )
+    low = sys.lower()
+    assert "sky" in low and "grass" in low
+    assert "layer_ids" in low
+
+
 def test_build_system_without_forced_targets_is_unchanged_shape():
     sys = _build_system([], ["the active image node"], [])
     assert "propose_adjustment_widgets" in sys

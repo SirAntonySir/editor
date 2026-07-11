@@ -23,7 +23,6 @@ import { applyGeometry, getInternalCanvas, getMemoisedScratchCanvas, type Crop, 
 import { useEditorStore } from '@/store';
 import { maskStore } from '@/core/mask-store';
 import { nodeToAdjustment } from './node-to-adjustment';
-import { expandCompoundNodes } from './perceptual-dial/expand-compound';
 import { matchesLayer } from './select-pipeline-nodes';
 import { selectOverlayVisibility } from './overlay-visibility';
 import {
@@ -243,42 +242,25 @@ export function renderImageNodeComposite(args: RenderImageNodeCompositeArgs): vo
 
   const allLayers = useEditorStore.getState().layers;
   const layersById = new Map(allLayers.map((l) => [l.id, l] as const));
-  // Compound nodes (e.g. Time-of-Day) split here into one virtual node per
-  // adjustmentType ('basic', 'kelvin', 'hsl', …) so the WebGL pipeline can
-  // dispatch them to the existing per-op shaders.
-  //
-  // Optimistic patches keyed by the compound node id (canon:<layer>:compound)
-  // merge into the compound node's params *before* expansion so live drags
-  // on the dial flow through to the virtual nodes' params. Per-node
-  // `withOptimistic` below still handles non-compound widget patches.
   const projected = opGraph?.nodes ?? [];
-  const compoundMerged = projected.map((n) => {
-    if (n.type !== 'compound') return n;
-    const patch = optimistic?.get(n.id);
-    if (!patch) return n;
-    const params = { ...n.params };
-    for (const b of patch.bindings) params[b.paramKey] = b.value;
-    return { ...n, params };
-  });
   // Synthesise phantom canonical nodes for in-flight optimistic patches
   // whose backing canonical node hasn't been projected yet (first inspector
   // edit of a layer/op — see helper docstring).
   const projectedIds = new Set(projected.map((n) => n.id));
   const phantoms = phantomCanonicalNodes(optimistic, projectedIds);
-  if (phantoms.length > 0) compoundMerged.push(...phantoms);
+  const withPhantoms = phantoms.length > 0 ? [...projected, ...phantoms] : projected;
   // Splice in preview nodes (suggestion-chip eye toggle). Same-id collisions
   // are resolved by REPLACING the canonical node with the preview's copy, so
   // pending widgets whose canonical projection lags behind still light up the
   // canvas with the AI's proposed params.
-  const baseNodes = (() => {
+  const nodes = (() => {
     const extras = args.extraNodes;
-    if (!extras || extras.length === 0) return compoundMerged;
+    if (!extras || extras.length === 0) return withPhantoms;
     const overrides = new Map(extras.map((n) => [n.id, n] as const));
-    const merged = compoundMerged.map((n) => overrides.get(n.id) ?? n);
+    const merged = withPhantoms.map((n) => overrides.get(n.id) ?? n);
     for (const ex of extras) if (!merged.some((n) => n.id === ex.id)) merged.push(ex);
     return merged;
   })();
-  const nodes = expandCompoundNodes(baseNodes);
 
   for (const layerId of layerIds) {
     const layer = layersById.get(layerId);

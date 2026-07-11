@@ -13,7 +13,7 @@ export interface Anchor {
 /** Flat output of `interpolate`: the same `${op}.${param}` key shape as Anchor.params. */
 export type CompoundParams = Record<string, number>;
 
-/** Per-op patch produced by `compileToWidgetParams`. */
+/** Per-op patch: one op and its param overrides. */
 export interface OpPatch {
   op: string;                 // ProcessingDefinition id ('light', 'kelvin', …)
   params: Record<string, number>;

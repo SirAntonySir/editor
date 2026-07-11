@@ -17,6 +17,7 @@ import { HslWidgetBody, isHslWidget } from './HslWidgetBody';
 import { LevelsWidgetBody, isFullLevelsWidget } from './LevelsWidgetBody';
 import { CurvesWidgetBody, isCurvesWidget, isCurveBinding } from './CurvesWidgetBody';
 import { CompoundWidgetBody } from './CompoundWidgetBody';
+import { FusedWidgetBody } from './FusedWidgetBody';
 import { GenfillWidgetBody } from './GenfillWidgetBody';
 import { WidgetAutoButton } from './WidgetAutoButton';
 import { WidgetHistoryStepper } from './WidgetHistoryStepper';
@@ -90,11 +91,18 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
 
   const showAiAffordances = widget.origin.kind !== 'tool_invoked';
 
+  // True when the widget carries a widget-local compound block (fused intent
+  // widgets synthesized by the LLM). Registry compound ops (time-of-day etc.)
+  // have `loadRegistry().ops[widget.opId]?.compound` but NOT `widget.compound` —
+  // they dispatch to CompoundWidgetBody as before; this gate doesn't affect them.
+  const isFused = !!widget.compound;
+
   // A widget renders the flat BindingRow list (as opposed to a rich body:
   // compound / HSL rail / Levels histogram / Curves editor). The mechanical
   // "Auto" pill is only meaningful for these, and only when unpinned — the
   // recipe writes every binding, not a single-param subset.
   const usesFlatBody =
+    !isFused &&
     !loadRegistry().ops[widget.opId ?? '']?.compound &&
     !isHslWidget(widget) &&
     !isFullLevelsWidget(widget) &&
@@ -368,22 +376,28 @@ export function WidgetShell({ widget, selected = false }: WidgetShellProps) {
               flat BindingRow list regardless of widget shape — the rich
               bodies (HSL band rail, Levels histogram, Curves editor) expect
               all bindings to be present, so they're skipped here. */}
-          {!pinnedParamKeys && loadRegistry().ops[widget.opId ?? '']?.compound && (
+          {/* Fused intent widgets: driver slider + collapsible per-op sections.
+              Takes priority over all other rich bodies. pinnedParamKeys still
+              falls through to the flat BindingRow list below. */}
+          {!pinnedParamKeys && isFused && (
+            <FusedWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
+          )}
+          {!pinnedParamKeys && !isFused && loadRegistry().ops[widget.opId ?? '']?.compound && (
             <div className="px-1.5 py-1">
               <CompoundWidgetBody widget={widget} />
             </div>
           )}
-          {!pinnedParamKeys && widget.bindings.length > 0 && isHslWidget(widget) && (
+          {!pinnedParamKeys && !isFused && widget.bindings.length > 0 && isHslWidget(widget) && (
             <div className="px-1.5 py-1">
               <HslWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
             </div>
           )}
-          {!pinnedParamKeys && widget.bindings.length > 0 && isFullLevelsWidget(widget) && (
+          {!pinnedParamKeys && !isFused && widget.bindings.length > 0 && isFullLevelsWidget(widget) && (
             <div className="px-1.5 py-1">
               <LevelsWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
             </div>
           )}
-          {!pinnedParamKeys && widget.bindings.length > 0 && isCurvesWidget(widget) && (
+          {!pinnedParamKeys && !isFused && widget.bindings.length > 0 && isCurvesWidget(widget) && (
             <div className="py-1">
               <CurvesWidgetBody widget={widget} effectiveValue={effectiveValue} setParam={setParam} />
               {/* Non-curve bindings (e.g. teal_orange's saturation slider) that

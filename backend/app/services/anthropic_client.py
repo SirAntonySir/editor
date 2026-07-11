@@ -466,6 +466,11 @@ Rules:
   and overshoot.
 - Give each widget a short, descriptive `widget_name` (2–4 words) describing
   the EFFECT, not the op (e.g. "Lifted blacks", not "Levels op").
+- Give each widget a `driver_label`: a 1–2 word noun naming the INTENT AXIS
+  its strength slider will control ("Blackness", "Warmth", "Drama") — the
+  quality the user asked for, not an op name. The frontend renders one
+  slider with this label that scales the whole widget from "as shot" (0)
+  to your resolved values (100).
 - Prefer raw ops over presets unless the intent matches a preset closely.
 - You may unfold a preset's ops as starting points and modify them.
 - COMPOUND DIAL OPS: ops with a `compound_dial` field in the catalog ARE
@@ -484,17 +489,17 @@ Example for "vintage film":
 {
   "plan": [
     {
-      "widget_name": "Lifted blacks", "category": "tone",
+      "widget_name": "Lifted blacks", "category": "tone", "driver_label": "Faded blacks",
       "ops": [{"op_id": "levels", "rationale": "raise inBlack to 12 for film fade"}]
     },
     {
-      "widget_name": "Warm fade", "category": "color",
+      "widget_name": "Warm fade", "category": "color", "driver_label": "Warmth",
       "ops": [
         {"op_id": "color",     "rationale": "drop saturation -15"},
         {"op_id": "splitTone", "rationale": "warm shadows, cool highlights"}
       ]
     },
-    {"widget_name": "Film grain", "category": "texture",
+    {"widget_name": "Film grain", "category": "texture", "driver_label": "Grain",
      "ops": [{"op_id": "grain", "rationale": "fine 18% grain"}]}
   ],
   "overall_rationale": "vintage film: faded blacks + warm desaturated color + grain"
@@ -545,6 +550,7 @@ _PLAN_TOOL = {
                     "properties": {
                         "widget_name": {"type": "string"},
                         "category": {"type": "string"},
+                        "driver_label": {"type": "string"},
                         "ops": {
                             "type": "array",
                             "items": {

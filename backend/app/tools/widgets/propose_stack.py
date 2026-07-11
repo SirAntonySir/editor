@@ -110,11 +110,13 @@ def _normalize_plan_entries(raw_entries: list[dict]) -> list[dict]:
     normalized: list[dict] = []
     for entry in raw_entries:
         if "ops" in entry:
+            entry.setdefault("driver_label", None)
             normalized.append(entry)
             continue
         normalized.append({
             "widget_name": None,
             "category": None,
+            "driver_label": None,
             "ops": [{
                 "op_id": entry.get("op_id"),
                 "rationale": entry.get("rationale", ""),

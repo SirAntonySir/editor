@@ -126,3 +126,18 @@ def test_update_target_anchor_rewrites_unlocked_only():
     w.locked_params = ["exposure"]
     update_target_anchor(w, {"exposure": -10.0})
     assert w.compound.anchors[1].values["n_a:exposure"] == -40.0  # locked → kept
+
+
+from app.tools.widgets.propose_stack import _normalize_plan_entries
+
+
+def test_normalize_old_shape_adds_driver_label_none():
+    out = _normalize_plan_entries([{"op_id": "light", "rationale": "darken"}])
+    assert out[0]["driver_label"] is None
+
+
+def test_normalize_new_shape_passes_driver_label_through():
+    entry = {"widget_name": "Make it black", "driver_label": "Blackness",
+             "ops": [{"op_id": "light"}]}
+    out = _normalize_plan_entries([entry])
+    assert out[0]["driver_label"] == "Blackness"

@@ -113,6 +113,44 @@ def test_refine_adds_a_binding(client) -> None:
     assert "skin_protect" in keys
 
 
+def test_refine_updates_fused_target_anchor(client) -> None:
+    """Single-op fused widget with compound: instruction-only refine rewrites
+    anchor-1 for unlocked params.  The fake resolver pushes all scalars to
+    range max (100), so after refine exposure's anchor-1 value must be 100."""
+    from tests.tools.widgets.test_fused_compound import _fused_candidate_widget
+    from app.tools.widgets.fused_compound import synthesize_compound
+
+    sid, _ = _setup(client)
+    doc = deps.get_session_store().get_document(sid)
+
+    # Build a light-op widget with compound anchors (baseline 0, target -80).
+    # Set widget-level op_id so the refine handler reaches the registry-op branch.
+    w = _fused_candidate_widget()
+    w.op_id = "light"
+    w.compound = synthesize_compound(w, doc)
+    assert w.compound is not None
+    assert w.compound.anchors[1].values["n_a:exposure"] == -80.0
+
+    doc.add_widget(w)
+
+    body = client.post(
+        "/api/tools/refine_widget",
+        json={"session_id": sid, "input": {
+            "widget_id": w.id,
+            "edits": [],
+            "additions": [],
+            "instruction": "even darker",
+        }},
+    ).json()
+    assert body["ok"] is True, body
+
+    # Fake resolver returns range max (100) for all scalars — anchor-1 must
+    # now reflect that instead of the original -80.
+    w_out = doc.widgets[w.id]
+    assert w_out.compound is not None
+    assert w_out.compound.anchors[1].values["n_a:exposure"] == 100.0
+
+
 def test_refine_preserves_layer_id_on_appended_nodes(client) -> None:
     """Composition refine appends LLM-fleshed nodes. Those nodes don't carry
     layer anchoring info, so without explicit stamping they end up with the

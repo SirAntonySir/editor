@@ -170,6 +170,11 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
             binding = next((b for b in w.bindings if b.param_key == key), None)
             if binding is not None:
                 binding.value = value
+        # Fused intent widget: refine re-aimed the proposal — rewrite the
+        # target anchor (position 1.0) for unlocked params so the driver's
+        # "100" now means the refined values. Baseline + driver_value stay.
+        from app.tools.widgets.fused_compound import update_target_anchor
+        update_target_anchor(w, resolved)
         w.revision += 1
         doc.update_widget(w)
         return _Output(widget=w.model_dump(mode="json", by_alias=True))

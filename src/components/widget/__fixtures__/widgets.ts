@@ -82,27 +82,27 @@ export function makeGlobalWidget(overrides: Partial<Widget> = {}): Widget {
   });
 }
 
-/** A compound Time-of-Day widget. Its sole binding is `time_of_day.position`. */
+/** A light (exposure) widget. Its sole binding is `exposure`. */
 export function makeTimeOfDayWidget(overrides: Partial<Widget> = {}): Widget {
-  const nodeId = 'c1';
-  const widgetId = 'w-tod-1';
+  const nodeId = 'n-light';
+  const widgetId = 'w-light-tod';
   return makeAiWidget({
     id: widgetId,
-    intent: 'Time of Day',
+    intent: 'Light',
     reasoning: undefined,
     origin: { kind: 'tool_invoked' },
-    opId: 'time-of-day',
+    opId: 'light',
     scope: { kind: 'global' },
     preview: { kind: 'none', autoBeforeAfter: false },
     nodes: [{
-      id: nodeId, type: 'compound', scope: { kind: 'global' }, inputs: [], widgetId: widgetId,
-      layerId: 'L1', params: { 'time_of_day.position': 0.30 },
+      id: nodeId, type: 'basic', scope: { kind: 'global' }, inputs: [], widgetId: widgetId,
+      layerId: 'L1', params: { exposure: 0 },
     }],
     bindings: [{
-      paramKey: 'time_of_day.position', label: 'Time', controlType: 'slider',
-      target: { nodeId: nodeId, paramKey: 'time_of_day.position' },
-      controlSchema: { controlType: 'slider', min: 0, max: 1, step: 0.001 },
-      value: 0.30, default: 0.30,
+      paramKey: 'exposure', label: 'Exposure', controlType: 'slider',
+      target: { nodeId: nodeId, paramKey: 'exposure' },
+      controlSchema: { controlType: 'slider', min: -1, max: 1, step: 0.01 },
+      value: 0, default: 0,
     }],
     ...overrides,
   });

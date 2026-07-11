@@ -45,15 +45,6 @@ export interface ProcessingDefinition {
    */
   paramKeys?: string[];
 
-  /**
-   * For compound widgets (adjustmentType: 'compound'): the order in which
-   * embedded ops run when the renderer expands the compound node into
-   * per-adjustmentType virtual nodes. If absent, the framework uses the
-   * default pipeline order (basic → hsl → kelvin → curves → levels → lut
-   * → clarity → sharpen → blur). Listed entries are adjustmentType strings.
-   */
-  compoundOrder?: string[];
-
   /** Parameter definitions — drives scrubbers, ranges, and auto-generated UI. */
   params: ParamDefinition[];
 

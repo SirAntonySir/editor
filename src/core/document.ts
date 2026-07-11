@@ -270,6 +270,13 @@ async function openImage(file: File, source?: SourceMeta): Promise<void> {
   // Same reasoning as closeDocument: everything keyed by layer/node id is
   // about to be replaced — stale SAM embeddings + masks must not survive.
   resetSegmentationClientState();
+  // Clear the workspace (image nodes / widget nodes / tethers / selection).
+  // Without this the previous image's node survives, still pointing at the
+  // now-removed layer: it renders nothing (its layer is gone) AND the
+  // CanvasWorkspace auto-mount — gated on `imageNodes` being empty — can't
+  // spawn a node for the new image. Net effect: old image vanishes, new one
+  // never appears. closeDocument already does this; openImage must too.
+  useEditorStore.getState().resetWorkspace();
 
   const layerId = crypto.randomUUID();
   pixelStore.register(layerId, offscreen);

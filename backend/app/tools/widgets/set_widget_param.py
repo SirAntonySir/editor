@@ -86,6 +86,52 @@ class SetWidgetParamTool(BackendTool[_Input, _Output]):
             raise _WidgetDismissed(
                 f"widget {input.widget_id!r} is dismissed — cannot edit its params"
             )
+        # Fused intent widget driver: '__driver' has no binding — it drives
+        # the widget-local compound block. Interpolate/extrapolate the anchor
+        # table, clamp per registry param range, and write every UNLOCKED
+        # derived key to its node + canonical + binding. Locked params keep
+        # the user's hand-set value.
+        if w.compound is not None and input.param_key == w.compound.driver:
+            from app.registry.interpolate import interpolate_extended
+            from app.registry.loader import get_registry
+            from app.tools.widgets.fused_compound import DRIVER_MAX
+
+            reg = get_registry()
+            t = max(0.0, min(DRIVER_MAX, float(input.value)))
+            derived = interpolate_extended(w.compound.anchors, t)
+            locked = set(w.locked_params)
+            for qkey, raw_val in derived.items():
+                node_id, _, pkey = qkey.partition(":")
+                d_node = next((n for n in w.nodes if n.id == node_id), None)
+                if d_node is None:
+                    continue
+                d_binding = next(
+                    (b for b in w.bindings
+                     if b.target.node_id == node_id and b.target.param_key == pkey),
+                    None,
+                )
+                if d_binding is not None and d_binding.param_key in locked:
+                    continue
+                val = float(raw_val)
+                d_op = reg.ops.get(d_node.op_id or "")
+                d_param = d_op.params.get(pkey) if d_op is not None else None
+                if d_param is not None and d_param.range is not None:
+                    lo, hi = d_param.range
+                    val = max(lo, min(hi, val))
+                d_node.params[pkey] = val
+                d_layers = (
+                    d_node.layer_ids if d_node.layer_ids is not None
+                    else [d_node.layer_id]
+                )
+                for layer in d_layers:
+                    doc.set_param(layer, d_node.type, pkey, val)
+                if d_binding is not None:
+                    d_binding.value = val
+            w.driver_value = t
+            w.revision += 1
+            doc.update_widget(w)
+            return _Output(ok=True)
+
         binding = next((b for b in w.bindings if b.param_key == input.param_key), None)
         if binding is None:
             raise _UnknownBinding(input.param_key)
@@ -132,6 +178,11 @@ class SetWidgetParamTool(BackendTool[_Input, _Output]):
                 # Derived key edit → implicit lock.
                 if input.param_key not in w.locked_params:
                     w.locked_params.append(input.param_key)
+        elif w.compound is not None:
+            # Fused intent widget: any derived-key edit implicit-locks so the
+            # driver stops moving it. ('__driver' itself returned early above.)
+            if input.param_key not in w.locked_params:
+                w.locked_params.append(input.param_key)
 
         w.revision += 1
         doc.update_widget(w)

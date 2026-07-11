@@ -49,3 +49,24 @@ describe('interpolate1D', () => {
     expect(interpolate1D(shuffled, 1)).toEqual({ 'light.exposure': -0.5 });
   });
 });
+
+import { interpolateExtended } from './interpolate';
+
+describe('interpolateExtended', () => {
+  const anchors: Anchor[] = [
+    { id: 'a0', label: 'as shot', position: [0], params: { 'n_a:exposure': 0, 'n_a:shadows': 10 } },
+    { id: 'a1', label: 'proposed', position: [1], params: { 'n_a:exposure': -80, 'n_a:shadows': -50 } },
+  ];
+
+  it('matches interpolate1D at and below the last anchor', () => {
+    expect(interpolateExtended(anchors, 0)).toEqual({ 'n_a:exposure': 0, 'n_a:shadows': 10 });
+    expect(interpolateExtended(anchors, 1)).toEqual({ 'n_a:exposure': -80, 'n_a:shadows': -50 });
+    expect(interpolateExtended(anchors, 0.5)['n_a:exposure']).toBe(-40);
+  });
+
+  it('extrapolates linearly past the last anchor', () => {
+    const out = interpolateExtended(anchors, 1.5);
+    expect(out['n_a:exposure']).toBe(-120); // -80 + 0.5 * (-80 - 0)
+    expect(out['n_a:shadows']).toBe(-80);   // -50 + 0.5 * (-50 - 10)
+  });
+});

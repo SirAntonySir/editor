@@ -42,6 +42,32 @@ export function interpolate1D(anchors: Anchor[], t: number): CompoundParams {
   return out;
 }
 
+/**
+ * `interpolate1D` plus linear extrapolation past the LAST anchor — mirrors
+ * backend `interpolate_extended` (app/registry/interpolate.py) so fused-widget
+ * optimistic previews match what the server will compute. Per-param range
+ * clamping is the caller's job.
+ */
+export function interpolateExtended(anchors: Anchor[], t: number): CompoundParams {
+  if (anchors.length < 2) return interpolate1D(anchors, t);
+  const sorted = [...anchors].sort((a, b) => a.position[0] - b.position[0]);
+  const last = sorted[sorted.length - 1];
+  if (t <= last.position[0]) return interpolate1D(anchors, t);
+
+  const prev = sorted[sorted.length - 2];
+  const span = last.position[0] - prev.position[0];
+  if (span <= 0) return { ...last.params };
+  const keys = new Set<string>([...Object.keys(prev.params), ...Object.keys(last.params)]);
+  const overshoot = t - last.position[0];
+  const out: CompoundParams = {};
+  for (const k of keys) {
+    const lv = last.params[k] ?? 0;
+    const pv = prev.params[k] ?? 0;
+    out[k] = lv + ((lv - pv) / span) * overshoot;
+  }
+  return out;
+}
+
 /** Centripetal-style Catmull-Rom scalar interpolation; tension 0.5 (standard). */
 function catmullRom(v0: number, v1: number, v2: number, v3: number, u: number): number {
   const u2 = u * u;

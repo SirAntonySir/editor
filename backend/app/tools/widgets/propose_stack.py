@@ -193,6 +193,20 @@ def _op_display(op_id: str) -> str:
     return words[:1].upper() + words[1:].lower()
 
 
+def _attach_fused_compound(widget: Widget, doc: Any, driver_label: str | None) -> None:
+    """Fused intent widgets: LLM-proposed widgets get a synthesized driver.
+    tool_invoked / preset spawns don't — "I picked a tool" ships raw controls.
+    Mutates the widget in place (no-op when synthesis declines)."""
+    if widget.origin.kind not in ("mcp_user_prompt", "mcp_autonomous"):
+        return
+    from app.tools.widgets.fused_compound import synthesize_compound
+    block = synthesize_compound(widget, doc, driver_label=driver_label)
+    if block is None:
+        return
+    widget.compound = block
+    widget.driver_value = 1.0
+
+
 def _build_widget_multi(
     *, widget_name: str | None,
     category: str | None,
@@ -598,6 +612,7 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
                 image_node_layer_ids=image_node_layer_ids,
                 doc=doc,
             )
+            _attach_fused_compound(widget, doc, entry.get("driver_label"))
             doc.add_widget(widget)
             widgets.append(widget)
 

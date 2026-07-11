@@ -128,7 +128,22 @@ def test_update_target_anchor_rewrites_unlocked_only():
     assert w.compound.anchors[1].values["n_a:exposure"] == -40.0  # locked → kept
 
 
-from app.tools.widgets.propose_stack import _normalize_plan_entries
+from app.tools.widgets.propose_stack import _normalize_plan_entries, _attach_fused_compound
+
+
+def test_attach_fused_compound_sets_block_and_driver_value():
+    w = _fused_candidate_widget()          # origin kind mcp_user_prompt
+    _attach_fused_compound(w, _FakeDoc(), driver_label="Blackness")
+    assert w.compound is not None
+    assert w.driver_value == 1.0
+
+
+def test_attach_fused_compound_noop_for_tool_invoked():
+    w = _fused_candidate_widget()
+    w.origin = WidgetOrigin(kind="tool_invoked")
+    _attach_fused_compound(w, _FakeDoc(), driver_label=None)
+    assert w.compound is None
+    assert w.driver_value is None
 
 
 def test_normalize_old_shape_adds_driver_label_none():

@@ -19,7 +19,7 @@ export function sliceWidgetByOp(widget: Widget): OpSlice[] {
       op = Object.values(reg.ops).find((o) => o.engine.node_type === node.type);
     }
     if (!op) {
-      console.warn(`RegistryDrivenSectionBody: no registry op for node ${node.id} (type=${node.type}, opId=${node.opId ?? 'none'})`);
+      console.warn(`sliceWidgetByOp: no registry op for node ${node.id} (type=${node.type}, opId=${node.opId ?? 'none'})`);
       continue;
     }
     const bindings = widget.bindings.filter((b) => b.target?.nodeId === node.id);

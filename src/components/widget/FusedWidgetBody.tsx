@@ -8,6 +8,25 @@ import { interpolateExtended } from '@/lib/perceptual-dial/interpolate';
 import { sliceWidgetByOp } from '@/lib/widget-slices';
 import { useBackendState } from '@/store/backend-state-slice';
 
+/** Clamp a number to [min, max]. */
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
+/** Return the clamped value for a binding if its controlSchema carries a numeric range,
+ *  otherwise return v unchanged. Applies to slider, kelvin_strip, and tint_strip. */
+function clampToSchema(v: number, b: ControlBinding): number {
+  const cs = b.controlSchema;
+  if (
+    cs.controlType === 'slider' ||
+    cs.controlType === 'kelvin_strip' ||
+    cs.controlType === 'tint_strip'
+  ) {
+    return clamp(v, cs.min, cs.max);
+  }
+  return v;
+}
+
 /** Convert widget-local compound anchors → Anchor[] for interpolateExtended.
  *  Strips the nodeId prefix from keys: `"nodeId:paramKey"` → `"paramKey"`. */
 function toAnchors(
@@ -110,13 +129,15 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
   const slices = sliceWidgetByOp(widget);
 
   // Fix 3: Build locked set to skip locked params in optimistic patch.
-  const lockedSet = useMemo(() => new Set(widget.lockedParams), [widget.lockedParams]);
+  const lockedSet = useMemo(() => new Set(widget.lockedParams ?? []), [widget.lockedParams]);
 
   // Build anchors once; keys inside values will have nodeId stripped.
   const anchors: Anchor[] = compound ? toAnchors(compound.anchors) : [];
 
   // Interpolated per-paramKey values at current t. Used to seed RegistryDrivenPanel
   // and the optimistic patch (keyed `"{paramKey}"`).
+  // NOTE: this is a fallback seed only — per-binding effectiveValue overwrites it below,
+  // and the per-op optimistic path does node-scoped key stripping via opInterpolated.
   const interpolated = compound ? interpolateExtended(anchors, driverT) : {};
 
   const handleDriverChange = useCallback((displayVal: number) => {
@@ -153,9 +174,16 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
         : [];
       const opInterpolated = interpolateExtended(opAnchors, t);
       // Fix 3: Filter out locked params from the optimistic bindings.
+      // Fix 1: Clamp each value to its binding's controlSchema range before applyOptimistic.
       const bindings = Object.entries(opInterpolated)
         .filter(([k]) => sliceParamKeys.has(k) && !lockedSet.has(k))
-        .map(([paramKey, value]) => ({ paramKey, value }));
+        .map(([paramKey, value]) => {
+          const binding = slice.bindings.find((b) => b.target.paramKey === paramKey);
+          const clamped = (binding !== undefined && typeof value === 'number')
+            ? clampToSchema(value, binding)
+            : value;
+          return { paramKey, value: clamped };
+        });
 
       if (bindings.length > 0) {
         // Fix 4: Apply optimistic patch for each target layer.
@@ -179,6 +207,7 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
 
   // Fix 2: Label fallback must be 'Intensity', not 'Strength'.
   const driverLabel = compound.label ?? 'Intensity';
+  // backend stores t∈[0, DRIVER_MAX=1.5] (fused_compound.py); UI renders ×100, proposal at 100
   const displayT = driverT * 100;
 
   return (

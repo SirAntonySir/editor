@@ -20,7 +20,7 @@ from app.registry.loader import get_registry
 from app.registry.schema import CompoundAnchor, OpCompoundConfig
 
 DRIVER_KEY = "__driver"
-DRIVER_MAX = 1.5
+DRIVER_MAX = 1.5  # Frontend renders this ×100 as the AdjustmentSlider max={150} in FusedWidgetBody.tsx
 
 # Resolver values within this distance of the baseline don't earn an anchor
 # entry — driving them would just add float noise.

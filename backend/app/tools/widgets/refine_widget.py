@@ -174,6 +174,10 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
         # target anchor (position 1.0) for unlocked params so the driver's
         # "100" now means the refined values. Baseline + driver_value stay.
         from app.tools.widgets.fused_compound import update_target_anchor
+        # For a MULTI-OP fused widget this single-registry-op refine branch resolves only
+        # w.nodes[0], so update_target_anchor re-aims only the first op's anchor-1 entries;
+        # other ops keep their prior targets. Known Phase-A limitation (single-op refine is
+        # pre-existing); full multi-op fused refine is deferred to a later phase.
         update_target_anchor(w, resolved)
         w.revision += 1
         doc.update_widget(w)

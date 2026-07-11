@@ -287,4 +287,50 @@ describe('FusedWidgetBody', () => {
     expect(setParam).toHaveBeenCalledWith('__driver', expect.closeTo(1.5, 5));
     vi.useRealTimers();
   });
+
+  // Fix 1: Overshoot clamping — applyOptimistic must receive values within the op's range.
+  it('clamps optimistic binding values to the controlSchema range on overshoot', () => {
+    vi.useFakeTimers();
+    // makeFusedWidget uses exposure with slider min=-100, max=100.
+    // anchor 0 = 10 (position 0), anchor 1 = 60 (position 1).
+    // At t=1.5 (display 150), linear extrapolation gives 10 + 1.5*(60-10) = 85 — still within range.
+    // Use a wider extrapolation: anchor 0 = -100, anchor 1 = 100 → at t=1.5 → 200, clamped to 100.
+    const nodeId = 'n-basic-1';
+    const widgetWithWideRange = makeFusedWidget({
+      compound: {
+        driver: '__driver',
+        label: 'Intensity',
+        anchors: [
+          { position: 0, name: 'subtle', values: { [`${nodeId}:exposure`]: -100 } },
+          { position: 1, name: 'strong', values: { [`${nodeId}:exposure`]: 100 } },
+        ],
+      },
+      driverValue: 1.0,
+    });
+    const setParam = vi.fn();
+    const { getAllByRole } = render(
+      <ReactFlowProvider>
+        <FusedWidgetBody
+          widget={widgetWithWideRange}
+          effectiveValue={(b) => b.value as number}
+          setParam={setParam}
+        />
+      </ReactFlowProvider>,
+    );
+    const sliders = getAllByRole('slider', { name: /intensity/i });
+    // Drive to display=150 (t=1.5): extrapolated exposure = -100 + 1.5*(200) = 200, clamped → 100.
+    fireEvent.keyDown(sliders[0], { key: 'End', code: 'End' });
+    vi.runAllTimers();
+    // applyOptimistic should have been called with exposure clamped to 100 (not 200).
+    const calls = mockApplyOptimistic.mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    const lastCall = calls[calls.length - 1];
+    const patchArg = lastCall[1] as { bindings: { paramKey: string; value: number }[] };
+    const exposureBinding = patchArg.bindings.find((b) => b.paramKey === 'exposure');
+    expect(exposureBinding).toBeDefined();
+    // Must be clamped to max=100, NOT the raw extrapolation (which would be >100).
+    expect(exposureBinding!.value).toBeLessThanOrEqual(100);
+    expect(exposureBinding!.value).toBeGreaterThanOrEqual(-100);
+    vi.useRealTimers();
+  });
 });

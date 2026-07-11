@@ -214,6 +214,26 @@ export interface GenfillErrorInfo {
   message: string;
 }
 
+/** One anchor of a widget-local compound block (fused intent widgets).
+ *  `values` keys are node-qualified: `"{nodeId}:{paramKey}"`. */
+export interface WidgetCompoundAnchor {
+  position: number;
+  name: string;
+  values: Record<string, number>;
+  color?: string | null;
+}
+
+/** Widget-local compound block — same shape as the registry op `compound`
+ *  block, synthesized per-widget by the backend for LLM-proposed widgets.
+ *  See docs/superpowers/specs/2026-07-11-fused-intent-widgets-design.md. */
+export interface WidgetCompound {
+  driver: string;
+  label?: string | null;
+  interpolation?: 'catmull_rom_1d';
+  anchors: WidgetCompoundAnchor[];
+  topology?: 'linear' | 'wheel';
+}
+
 /** State block for generative-fill widgets (Replicate flux-fill-pro).
  *  Non-null marks the widget as genfill: bespoke body, no op-graph nodes,
  *  pixels land on a NEW layer at Accept. FLUX Fill has no negative prompt. */
@@ -245,6 +265,10 @@ export interface Widget {
    *  (e.g. Time-of-Day dial) skip these so manual values aren't overwritten.
    *  Cleared via the `unlock_widget_param` backend tool. */
   lockedParams: string[];
+  /** Fused intent widget block — present ⇒ WidgetShell renders FusedWidgetBody. */
+  compound?: WidgetCompound | null;
+  /** Driver position t in [0, 1.5]; UI renders ×100 (proposal = 100). */
+  driverValue?: number | null;
   displayName?: string | null;
   category?: string | null;
   createdAt: string;

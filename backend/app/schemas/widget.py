@@ -6,6 +6,7 @@ from typing import Annotated, Literal, Union
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, RootModel
 
 from app.schemas._camel import camel_config
+from app.registry.schema import OpCompoundConfig
 
 
 # ------------------------------------------------------------------
@@ -402,6 +403,14 @@ class Widget(BaseModel):
     # `unlock_widget_param`. Empty by default for backwards-compatible
     # spawning.
     locked_params: list[str] = Field(default_factory=list)
+    # Widget-local compound block for FUSED INTENT WIDGETS: synthesized by
+    # propose_stack after phase-2 resolution (anchor 0 = pre-widget baseline,
+    # anchor 1 = resolved targets; values keyed "{node_id}:{param_key}").
+    # None for tool_invoked widgets and registry compound ops (their block
+    # lives in the registry). See 2026-07-11-fused-intent-widgets-design.md.
+    compound: OpCompoundConfig | None = None
+    # Driver position t in [0, 1.5]; UI renders ×100 (0–150, proposal = 100).
+    driver_value: float | None = None
     display_name: str | None = None    # NEW — per-widget label (smart composition)
     category: str | None = None         # NEW — for grouping (smart composition)
     # How the widget's values were produced, stamped by the fused framework:

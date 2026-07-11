@@ -72,6 +72,10 @@ class CompoundAnchor(BaseModel):
 class OpCompoundConfig(BaseModel):
     model_config = camel_config(extra="forbid")
     driver: str
+    # Human label for the driver control. Registry compound ops leave this
+    # None (their dial UI labels itself); fused intent widgets carry the
+    # planner's driver_label here ("Blackness", "Warmth").
+    label: str | None = None
     interpolation: Literal["catmull_rom_1d"] = "catmull_rom_1d"
     anchors: list[CompoundAnchor] = Field(min_length=2)
     topology: Literal["linear", "wheel"] = "linear"

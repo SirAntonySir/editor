@@ -286,6 +286,47 @@
       "title": "ColorSwatch",
       "type": "object"
     },
+    "CompoundAnchor": {
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "position": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Position",
+          "type": "number"
+        },
+        "values": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Values",
+          "type": "object"
+        }
+      },
+      "required": [
+        "position",
+        "name",
+        "values"
+      ],
+      "title": "CompoundAnchor",
+      "type": "object"
+    },
     "ControlBinding": {
       "additionalProperties": false,
       "properties": {
@@ -1395,6 +1436,59 @@
       "title": "NumericPairSchema",
       "type": "object"
     },
+    "OpCompoundConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "anchors": {
+          "items": {
+            "$ref": "#/$defs/CompoundAnchor"
+          },
+          "minItems": 2,
+          "title": "Anchors",
+          "type": "array"
+        },
+        "driver": {
+          "title": "Driver",
+          "type": "string"
+        },
+        "interpolation": {
+          "const": "catmull_rom_1d",
+          "default": "catmull_rom_1d",
+          "enum": [
+            "catmull_rom_1d"
+          ],
+          "title": "Interpolation",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "topology": {
+          "default": "linear",
+          "enum": [
+            "linear",
+            "wheel"
+          ],
+          "title": "Topology",
+          "type": "string"
+        }
+      },
+      "required": [
+        "driver",
+        "anchors"
+      ],
+      "title": "OpCompoundConfig",
+      "type": "object"
+    },
     "OperationGraph": {
       "additionalProperties": false,
       "properties": {
@@ -2063,6 +2157,17 @@
           "title": "Composed",
           "type": "boolean"
         },
+        "compound": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpCompoundConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "createdAt": {
           "format": "date-time",
           "title": "Createdat",
@@ -2091,6 +2196,18 @@
           ],
           "default": null,
           "title": "Displayname"
+        },
+        "driverValue": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Drivervalue"
         },
         "genfill": {
           "anyOf": [

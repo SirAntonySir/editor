@@ -47,9 +47,11 @@ export interface Widget {
   bindings: ControlBinding[];
   category: string | null;
   composed: boolean;
+  compound: OpCompoundConfig | null;
   createdAt: string;
   dismissedAtRevision: number | null;
   displayName: string | null;
+  driverValue: number | null;
   genfill: GenfillState | null;
   id: string;
   intent: string;
@@ -269,6 +271,24 @@ export interface TintStripSchema {
 export interface NodeParamTarget {
   nodeId: string;
   paramKey: string;
+}
+export interface OpCompoundConfig {
+  /**
+   * @minItems 2
+   */
+  anchors: [CompoundAnchor, CompoundAnchor, ...CompoundAnchor[]];
+  driver: string;
+  interpolation: "catmull_rom_1d";
+  label: string | null;
+  topology: "linear" | "wheel";
+}
+export interface CompoundAnchor {
+  color: string | null;
+  name: string;
+  position: number;
+  values: {
+    [k: string]: number;
+  };
 }
 /**
  * State block for generative-fill widgets. Genfill widgets carry NO

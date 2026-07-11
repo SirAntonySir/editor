@@ -275,6 +275,44 @@
       "title": "ColorSwatch",
       "type": "object"
     },
+    "CompoundAnchor": {
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "name": {
+          "type": "string"
+        },
+        "position": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "values": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "color",
+        "name",
+        "position",
+        "values"
+      ],
+      "title": "CompoundAnchor",
+      "type": "object"
+    },
     "ControlBinding": {
       "additionalProperties": false,
       "properties": {
@@ -1395,6 +1433,57 @@
       "title": "NumericPairSchema",
       "type": "object"
     },
+    "OpCompoundConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "anchors": {
+          "items": {
+            "$ref": "#/$defs/CompoundAnchor"
+          },
+          "minItems": 2,
+          "type": "array"
+        },
+        "driver": {
+          "type": "string"
+        },
+        "interpolation": {
+          "const": "catmull_rom_1d",
+          "default": "catmull_rom_1d",
+          "enum": [
+            "catmull_rom_1d"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "topology": {
+          "default": "linear",
+          "enum": [
+            "linear",
+            "wheel"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "anchors",
+        "driver",
+        "interpolation",
+        "label",
+        "topology"
+      ],
+      "title": "OpCompoundConfig",
+      "type": "object"
+    },
     "OperationGraph": {
       "additionalProperties": false,
       "properties": {
@@ -2159,6 +2248,17 @@
           "default": false,
           "type": "boolean"
         },
+        "compound": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpCompoundConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "createdAt": {
           "format": "date-time",
           "type": "string"
@@ -2178,6 +2278,17 @@
           "anyOf": [
             {
               "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "driverValue": {
+          "anyOf": [
+            {
+              "type": "number"
             },
             {
               "type": "null"
@@ -2286,9 +2397,11 @@
         "bindings",
         "category",
         "composed",
+        "compound",
         "createdAt",
         "dismissedAtRevision",
         "displayName",
+        "driverValue",
         "genfill",
         "id",
         "intent",

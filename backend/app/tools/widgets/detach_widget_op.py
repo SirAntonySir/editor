@@ -9,6 +9,13 @@ as a satellite.  The canonical adjustment values are NOT touched — the node
 already wrote its params into the op_graph; moving its widget ownership has no
 pixel effect.
 
+``locked_params`` namespace note: ``locked_params`` is a bare-param_key
+namespace shared across all nodes in a widget (schema limitation inherited from
+set_widget_param / unlock_widget_param).  Under key collisions (two nodes both
+expose e.g. "amount") the lock is ambiguous system-wide.  This tool handles
+collisions conservatively: a locked key is only dropped when *no* surviving
+binding still references that key, so surviving pins are never wrongly unlocked.
+
 See docs/superpowers/specs/2026-07-11-fused-intent-widgets-design.md §6.5.
 """
 from __future__ import annotations
@@ -199,9 +206,16 @@ class DetachWidgetOpTool(BackendTool[_Input, _Output]):
                 w.compound = None
                 w.driver_value = None
 
-        # Drop locked_params entries that belong to the detached node's bindings.
+        # Drop locked_params entries that belonged exclusively to the detached
+        # node's bindings.  If a SURVIVING binding shares the same bare
+        # param_key (collision — two nodes both exposing e.g. "amount"), we
+        # keep the lock so the surviving pin is not wrongly unlocked.
         detached_param_keys = {b.param_key for b in detached_bindings}
-        w.locked_params = [p for p in w.locked_params if p not in detached_param_keys]
+        surviving_param_keys = {b.param_key for b in w.bindings}  # post-move
+        w.locked_params = [
+            p for p in w.locked_params
+            if p not in detached_param_keys or p in surviving_param_keys
+        ]
 
         # Back-compat: op_id = first remaining node's op_id.
         if w.op_id == node.op_id and w.nodes:

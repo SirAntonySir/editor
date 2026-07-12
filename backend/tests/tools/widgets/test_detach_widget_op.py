@@ -390,6 +390,120 @@ def test_locked_params_of_detached_node_removed_from_parent():
 
 
 # ---------------------------------------------------------------------------
+# Collision-safe lock cleanup: shared param_key survives when other node keeps it
+# ---------------------------------------------------------------------------
+
+def test_locked_param_preserved_when_surviving_binding_shares_param_key():
+    """If two nodes share the same bare param_key ('amount'), detaching one
+    node must NOT remove 'amount' from locked_params because the other node's
+    binding still references it."""
+    from app.schemas.widget import GlobalScope
+
+    client = _client()
+    sid = _session(client)
+    doc = deps.get_session_store().get_document(sid)
+    scope = Scope(root=GlobalScope(kind="global"))
+    widget_id = "w_collision"
+
+    node_a = WidgetNode(
+        id="n_amt_a", type="basic", op_id="light",
+        params={"amount": 50.0},
+        scope=scope, widget_id=widget_id, layer_id="layer-1",
+    )
+    node_b = WidgetNode(
+        id="n_amt_b", type="basic", op_id="color",
+        params={"amount": 30.0},
+        scope=scope, widget_id=widget_id, layer_id="layer-1",
+    )
+
+    binding_a = ControlBinding(
+        param_key="amount",
+        label="Amount A",
+        control_type="slider",
+        control_schema=ControlSchema.model_validate(
+            {"control_type": "slider", "min": 0, "max": 100, "step": 1},
+        ),
+        value=50.0,
+        default=0.0,
+        target=NodeParamTarget(node_id="n_amt_a", param_key="amount"),
+    )
+    binding_b = ControlBinding(
+        param_key="amount",
+        label="Amount B",
+        control_type="slider",
+        control_schema=ControlSchema.model_validate(
+            {"control_type": "slider", "min": 0, "max": 100, "step": 1},
+        ),
+        value=30.0,
+        default=0.0,
+        target=NodeParamTarget(node_id="n_amt_b", param_key="amount"),
+    )
+
+    from app.registry.schema import CompoundAnchor, OpCompoundConfig
+    compound = OpCompoundConfig(
+        driver="__driver",
+        label="Strength",
+        anchors=[
+            CompoundAnchor(
+                position=0.0, name="baseline",
+                values={"n_amt_a:amount": 0.0, "n_amt_b:amount": 0.0},
+            ),
+            CompoundAnchor(
+                position=1.0, name="proposed",
+                values={"n_amt_a:amount": 50.0, "n_amt_b:amount": 30.0},
+            ),
+        ],
+    )
+
+    w = Widget(
+        id=widget_id, intent="collision test", scope=scope,
+        origin=WidgetOrigin(kind="mcp_user_prompt", prompt="collision test"),
+        op_id="light", nodes=[node_a, node_b],
+        bindings=[binding_a, binding_b],
+        status="active", revision=1,
+        compound=compound, driver_value=1.0,
+        locked_params=["amount"],  # locked — shared key
+    )
+    doc.add_widget(w)
+
+    # Detach node_a — node_b's "amount" binding survives.
+    out = _call(client, sid, widget_id, "n_amt_a")
+    assert "widget" in out, f"unexpected response: {out}"
+
+    parent = doc.widgets[widget_id]
+    # "amount" must remain locked because node_b still has a binding for it.
+    assert "amount" in parent.locked_params, (
+        f"'amount' was wrongly removed from locked_params: {parent.locked_params}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# op_id re-points when detaching the primary (op_id-matching) node
+# ---------------------------------------------------------------------------
+
+def test_op_id_repoints_when_primary_node_detached():
+    """Detaching the node whose op_id matches w.op_id must cause w.op_id to
+    re-point to the first remaining node's op_id."""
+    client = _client()
+    sid = _session(client)
+    w = _fused_2op_widget(sid)
+
+    # Sanity: the fused widget's op_id is "light" (matches n_light).
+    doc = deps.get_session_store().get_document(sid)
+    assert doc.widgets[w.id].op_id == "light"
+
+    # Detach n_light (the primary node — its op_id == w.op_id).
+    out = _call(client, sid, w.id, "n_light")
+    assert "widget" in out, f"unexpected response: {out}"
+
+    parent = doc.widgets[w.id]
+    # w.op_id must have re-pointed to the remaining node (n_color → op_id="color").
+    assert parent.op_id == "color", (
+        f"w.op_id did not re-point after detaching primary node; got: {parent.op_id!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Pixel stability: canonical params unchanged by detach
 # ---------------------------------------------------------------------------
 

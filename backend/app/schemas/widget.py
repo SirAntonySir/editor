@@ -402,6 +402,10 @@ class Widget(BaseModel):
     # later compound/bundle recomputation skips it. Cleared via
     # `unlock_widget_param`. Empty by default for backwards-compatible
     # spawning.
+    # NOTE: bare-key namespace — keys are not node-qualified, so when two nodes
+    # in a fused widget share the same param_key the lock is ambiguous; callers
+    # should handle collisions conservatively (preserve the key if any surviving
+    # binding still references it).
     locked_params: list[str] = Field(default_factory=list)
     # Widget-local compound block for FUSED INTENT WIDGETS: synthesized by
     # propose_stack after phase-2 resolution (anchor 0 = pre-widget baseline,

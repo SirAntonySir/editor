@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Position } from '@xyflow/react';
+import { Position, getBezierPath } from '@xyflow/react';
 import type { Widget } from '@/types/widget';
 import {
   deriveStrands,
@@ -100,6 +100,37 @@ describe('sampleBezier', () => {
     const pts = sampleBezier(src, tgt, positions, 0.3, BRAID_SAMPLES);
     expect(pts[0]).toEqual(src);
     expect(pts[pts.length - 1]).toEqual(tgt);
+  });
+
+  // Regression guard: our analytic control points must match React Flow's
+  // getBezierPath, or the braid visibly detaches from where RF routes the
+  // single-path tether. Parse RF's `M sx,sy C c1x,c1y c2x,c2y tx,ty` output,
+  // evaluate the cubic at interior t, and compare against sampleBezier —
+  // for BOTH a horizontal and a vertical handle pair. Catches upstream drift
+  // in @xyflow's curvature math.
+  it.each([
+    { source: Position.Right, target: Position.Left },
+    { source: Position.Bottom, target: Position.Top },
+  ])('interior samples match getBezierPath controls ($source→$target)', (pos) => {
+    const [pathStr] = getBezierPath({
+      sourceX: src.x, sourceY: src.y, targetX: tgt.x, targetY: tgt.y,
+      sourcePosition: pos.source, targetPosition: pos.target,
+      curvature: 0.3,
+    });
+    const nums = pathStr.match(/-?\d+(\.\d+)?/g)!.map(Number);
+    // M sx sy C c1x c1y c2x c2y tx ty
+    const [sx, sy, c1x, c1y, c2x, c2y, tx, ty] = nums;
+    const cubic = (a: number, b: number, c: number, d: number, t: number) => {
+      const u = 1 - t;
+      return u * u * u * a + 3 * u * u * t * b + 3 * u * t * t * c + t * t * t * d;
+    };
+    const N = 8;
+    const pts = sampleBezier(src, tgt, pos, 0.3, N);
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      expect(pts[i].x).toBeCloseTo(cubic(sx, c1x, c2x, tx, t), 6);
+      expect(pts[i].y).toBeCloseTo(cubic(sy, c1y, c2y, ty, t), 6);
+    }
   });
 });
 

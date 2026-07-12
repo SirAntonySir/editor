@@ -11,6 +11,7 @@ import { useBackendState } from '@/store/backend-state-slice';
 import { useEditorStore } from '@/store';
 import { backendTools } from '@/lib/backend-tools';
 import { breakOutFusedOp } from '@/lib/fused-breakout';
+import { strandColorVarForCategory } from '@/lib/tether-strands';
 
 // ---------------------------------------------------------------------------
 // FusedPinButton — module-scope to avoid inline component definition.
@@ -134,6 +135,14 @@ function FusedOpSection({
           ) : (
             <ChevronRight className="size-3 shrink-0" />
           )}
+          {/* Category swatch — same token the braided strand reads, so card and
+              canvas can never drift on colour. */}
+          <span
+            className="size-[7px] shrink-0 rounded-sm"
+            data-strand-swatch={op.category ?? 'default'}
+            style={{ background: strandColorVarForCategory(op.category) }}
+            aria-hidden
+          />
           <span className="truncate">{op.display_name}</span>
         </button>
         <button

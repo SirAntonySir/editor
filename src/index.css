@@ -32,6 +32,17 @@
   --color-ai: oklch(0.55 0.18 295);
   --color-canvas-bg: oklch(0.97 0.012 90);
 
+  /* Braided-tether strand tints — one per registry op category. Constraint:
+     must NOT collide with --color-ai (saturated violet ~295) or --color-accent
+     (red-orange ~30). color uses MAGENTA (~345, not violet); effect is a LOW
+     chroma slate-violet so it can't read as --color-ai. */
+  --strand-tone: oklch(0.70 0.13 70);      /* amber */
+  --strand-color: oklch(0.62 0.19 345);    /* magenta */
+  --strand-detail: oklch(0.62 0.13 195);   /* cyan (distinct from --accent-hover 235) */
+  --strand-texture: oklch(0.60 0.12 145);  /* green */
+  --strand-effect: oklch(0.55 0.06 280);   /* muted slate-violet, low chroma */
+  --strand-default: oklch(0.60 0.02 280);  /* neutral, no category */
+
   /* Display family — used by drafting components. */
   --font-display: 'Fraunces', ui-serif, Georgia, serif;
 
@@ -67,6 +78,14 @@
   --color-danger: oklch(0.65 0.20 25);
   --color-ai: oklch(0.55 0.18 295);
   --color-overshoot: oklch(0.76 0.15 70);
+  /* Strand tints, +lightness for dark-bg legibility (mirrors the +0.03–0.05
+     convention). Same hue landscape; magenta color, low-chroma slate effect. */
+  --strand-tone: oklch(0.74 0.13 70);
+  --strand-color: oklch(0.66 0.19 345);
+  --strand-detail: oklch(0.67 0.13 195);
+  --strand-texture: oklch(0.65 0.12 145);
+  --strand-effect: oklch(0.60 0.06 280);
+  --strand-default: oklch(0.65 0.02 280);
   --shadow-overlay-color: rgba(0, 0, 0, 0.50);
   --shadow-overlay: 0 4px 14px var(--shadow-overlay-color);
 }

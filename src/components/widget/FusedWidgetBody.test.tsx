@@ -515,4 +515,23 @@ describe('FusedWidgetBody', () => {
       expect(Object.keys(useEditorStore.getState().fusedSliceNodes)).toHaveLength(1);
     });
   });
+
+  describe('category swatch', () => {
+    it('renders a category swatch before the op name reading the same strand token', () => {
+      const widget = makeFusedWidget();
+      const { container } = render(
+        <ReactFlowProvider>
+          <FusedWidgetBody
+            widget={widget}
+            effectiveValue={(b) => b.value as number}
+            setParam={vi.fn()}
+          />
+        </ReactFlowProvider>,
+      );
+      // The light op has category 'tone' → --strand-tone token.
+      const swatch = container.querySelector('[data-strand-swatch="tone"]');
+      expect(swatch).not.toBeNull();
+      expect((swatch as HTMLElement).getAttribute('style')).toMatch(/var\(--strand-tone\)/);
+    });
+  });
 });

@@ -38,6 +38,8 @@ import type { Widget } from '@/types/widget';
 import { rejoinSourceImage } from '@/lib/image-node-actions';
 import { rejoinTargetByCenter } from '@/lib/workspace-drag';
 import { useAiAccess } from '@/lib/ai-access';
+import { deriveStrands, strandColorVarForCategory } from '@/lib/tether-strands';
+import { loadRegistry } from '@/lib/registry/loader';
 
 /** Per-node ErrorBoundary so a render throw in one ImageNode doesn't
  *  unmount the whole React Flow canvas (and with it every sibling node).
@@ -407,6 +409,11 @@ export function CanvasWorkspace() {
   const derivedEdges = useMemo<TetherEdgeType[]>(() => {
     const out: TetherEdgeType[] = [];
 
+    // Widget lookup for braid-strand derivation. Strands depend on
+    // widget.compound, node op categories, and lockedParams — all reactive via
+    // snapshotWidgets — so they must be recomputed here per render, not stored.
+    const widgetById = new Map<string, Widget>(snapshotWidgets.map((w) => [w.id, w]));
+
     // Build a quick lookup of React Flow's current node positions + measured dims.
     // Using the local `nodes` state (vs the Zustand store) keeps the picker
     // in sync with React Flow's rendered positions, especially right after a drag.
@@ -471,6 +478,10 @@ export function CanvasWorkspace() {
         y1: rfTarget.position.y + rfTarget.size.h,
       };
       const { sourceHandle, targetHandle: side } = pickTetherHandles(widgetCenter, targetBounds);
+      // Braid strands: only fused widgets (widget.compound) produce them.
+      // Non-fused → undefined → TetherEdge renders the single accent path.
+      const teWidget = widgetById.get(te.widgetNodeId);
+      const strands = teWidget ? deriveStrands(teWidget) : [];
       out.push({
         id: te.id,
         source: te.widgetNodeId,
@@ -486,7 +497,12 @@ export function CanvasWorkspace() {
         // Only the target end reconnects — the source is always the widget.
         reconnectable: 'target',
         type: 'tether',
-        data: { scopeKind: 'layer' as const, widgetId: te.widgetNodeId, layerId: te.layerId },
+        data: {
+          scopeKind: 'layer' as const,
+          widgetId: te.widgetNodeId,
+          layerId: te.layerId,
+          ...(strands.length > 0 ? { strands } : {}),
+        },
         selectable: true, // selectable so ⌫ can remove a single target
       });
     }
@@ -581,6 +597,17 @@ export function CanvasWorkspace() {
       // widget's outlet on the same side — the edge just anchors to that
       // handle's position.
       const parentSide = targetHandle.slice('tether-in-'.length);
+      // Hub tint: stroke the satellite→hub tether with the op's category token,
+      // so a break-out reads as "this strand, lifted onto the canvas".
+      const parentWidget = widgetById.get(slice.parentWidgetId);
+      const node = parentWidget?.nodes.find((n) => n.id === slice.nodeId);
+      const reg = loadRegistry();
+      const op = node?.opId
+        ? reg.ops[node.opId]
+        : node
+          ? Object.values(reg.ops).find((o) => o.engine.node_type === node.type)
+          : undefined;
+      const strandColorVar = strandColorVarForCategory(op?.category);
       out.push({
         id: fusedSliceEdgeIdFor(slice.id),
         source: slice.id,
@@ -588,7 +615,7 @@ export function CanvasWorkspace() {
         sourceHandle,
         targetHandle: `tether-out-${parentSide}`,
         type: 'tether',
-        data: { scopeKind: 'node', variant: 'hub' as const },
+        data: { scopeKind: 'node', variant: 'hub' as const, strandColorVar },
         selectable: false,
       });
     }
@@ -626,7 +653,7 @@ export function CanvasWorkspace() {
       });
     }
     return out;
-  }, [tetherEdges, imageNodes, infoNodes, layerNodes, fusedSliceNodes, nodes]);
+  }, [tetherEdges, imageNodes, infoNodes, layerNodes, fusedSliceNodes, nodes, snapshotWidgets]);
 
   // Local RF edge state mirrors the derived edges. React Flow owns edge
   // `selected` state (needed so a click can select a tether and ⌫ can delete

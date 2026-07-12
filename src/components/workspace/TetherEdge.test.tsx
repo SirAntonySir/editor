@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 import { Position, ReactFlowProvider } from '@xyflow/react';
 import { TetherEdge } from './TetherEdge';
+import type { TetherStrand } from '@/lib/tether-strands';
 
 afterEach(cleanup);
 
@@ -75,5 +76,76 @@ describe('TetherEdge canvas-space stroke', () => {
     for (const c of Array.from(circles)) {
       expect(c.getAttribute('r')).toBe('3');
     }
+  });
+});
+
+function renderBraid(strands: TetherStrand[]) {
+  return render(
+    <ReactFlowProvider>
+      <svg>
+        <TetherEdge
+          {...defaultEdgeProps}
+          data={{ scopeKind: 'layer' as const, strands }}
+        />
+      </svg>
+    </ReactFlowProvider>,
+  );
+}
+
+describe('TetherEdge braided (fused) variant', () => {
+  it('renders one strand path per op node, tinted by category token', () => {
+    const { container } = renderBraid([
+      { nodeId: 'n_a', opId: 'light', colorVar: 'var(--strand-tone)', separated: false },
+      { nodeId: 'n_b', opId: 'color', colorVar: 'var(--strand-color)', separated: false },
+      { nodeId: 'n_c', opId: 'blur', colorVar: 'var(--strand-detail)', separated: false },
+    ]);
+    const strandPaths = container.querySelectorAll('path[data-strand-node]');
+    expect(strandPaths.length).toBe(3);
+    expect(container.querySelector('path[data-strand-node="n_a"]')?.getAttribute('style')).toMatch(/var\(--strand-tone\)/);
+    // Shared cable-end dots still present.
+    expect(container.querySelectorAll('circle').length).toBe(2);
+  });
+
+  it('a separated strand lifts out: accent stroke, solid, apex dot present', () => {
+    const { container } = renderBraid([
+      { nodeId: 'n_a', opId: 'light', colorVar: 'var(--strand-tone)', separated: false },
+      { nodeId: 'n_b', opId: 'color', colorVar: 'var(--strand-color)', separated: true },
+    ]);
+    const sep = container.querySelector('path[data-strand-separated="true"]');
+    expect(sep).not.toBeNull();
+    expect(sep?.getAttribute('data-strand-node')).toBe('n_b');
+    // Separated strand is accent-blue (hand provenance) and solid (no ants).
+    expect(sep?.getAttribute('style')).toMatch(/var\(--color-accent\)/);
+    expect(sep?.getAttribute('stroke-dasharray')).toBeNull();
+    expect(sep?.classList.contains('tether-march')).toBe(false);
+    // Apex dot for the separated strand.
+    expect(container.querySelector('circle[data-strand-apex="n_b"]')).not.toBeNull();
+  });
+
+  it('single-strand fused widget shows its tint with no weave and no apex dot', () => {
+    const { container } = renderBraid([
+      { nodeId: 'n_a', opId: 'grain', colorVar: 'var(--strand-texture)', separated: false },
+    ]);
+    const strandPaths = container.querySelectorAll('path[data-strand-node]');
+    expect(strandPaths.length).toBe(1);
+    expect(strandPaths[0].getAttribute('style')).toMatch(/var\(--strand-texture\)/);
+    expect(container.querySelector('circle[data-strand-apex]')).toBeNull();
+  });
+});
+
+describe('TetherEdge hub tint', () => {
+  it('strokes the single hub path with the supplied strandColorVar', () => {
+    const { container } = render(
+      <ReactFlowProvider>
+        <svg>
+          <TetherEdge
+            {...defaultEdgeProps}
+            data={{ scopeKind: 'node' as const, variant: 'hub' as const, strandColorVar: 'var(--strand-detail)' }}
+          />
+        </svg>
+      </ReactFlowProvider>,
+    );
+    const path = container.querySelector('path');
+    expect(path?.getAttribute('style')).toMatch(/var\(--strand-detail\)/);
   });
 });

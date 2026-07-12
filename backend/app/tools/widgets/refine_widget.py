@@ -14,8 +14,6 @@ from app.schemas.widget import (
 )
 from app.state.document import DEFAULT_IMAGE_NODE_ID, SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
-from app.tools.fused import all_fused_templates
-from app.tools.fused_framework import run_fused_tool
 
 
 class _UnknownWidget(KeyError):
@@ -95,9 +93,8 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
         # Anchor info to preserve across the refine — the prior widget's
         # primary layer_id and layer_ids define which image-node the
         # frontend's workspace-tether resolves this widget to. Without
-        # carrying these through, run_fused_tool returns nodes with the
-        # WidgetNode "legacy" default and the widget visibly demounts
-        # from its current image to the active one (or to nowhere).
+        # carrying these through, the widget visibly demounts from its
+        # current image to the active one (or to nowhere).
         anchor_layer_id = w.nodes[0].layer_id if w.nodes else "legacy"
         anchor_layer_ids = w.nodes[0].layer_ids if w.nodes else None
 
@@ -117,40 +114,17 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
             return _Output(widget=w.model_dump(mode="json", by_alias=True))
 
         # No composition change → re-tune numbers from the instruction.
-        if w.op_id is None:
-            return _Output(widget=w.model_dump(mode="json", by_alias=True))
-
-        templates = {t.id: t for t in all_fused_templates()}
-        template = templates.get(w.op_id)
-        if template is not None:
-            # Fused widget → re-resolve the whole template with the instruction.
-            new_widget = await run_fused_tool(
-                template, intent=w.intent, scope=w.scope,
-                ctx=doc.get_image_context(DEFAULT_IMAGE_NODE_ID), prior=w, instruction=input.instruction,
-                anthropic=anthropic, origin=w.origin, session_id=doc.session_id,
-            )
-            new_widget.id = w.id
-            new_widget.revision = w.revision + 1
-            # Preserve the prior anchoring. The fused template rebuilds the
-            # widget from scratch (new nodes, new scope), which would otherwise
-            # snap it back to the default layer / global scope and detach the
-            # frontend tether from the current image-node.
-            new_widget.scope = w.scope
-            for n in new_widget.nodes:
-                n.layer_id = anchor_layer_id
-                if anchor_layer_ids is not None:
-                    n.layer_ids = anchor_layer_ids
-            doc.update_widget(new_widget)
-            return _Output(widget=new_widget.model_dump(mode="json", by_alias=True))
-
-        # Single registry-op widget (kelvin / light / color / curves / …): there
-        # is no fused template to re-run, so re-tune the op's params directly
-        # from the instruction via the param resolver, then write them back
-        # through the widget's node + bindings + canonical so the image updates
-        # live and the sliders track. (Without this branch instruction-only
-        # refine of a registry-op widget KeyError'd on `templates[op_id]`.)
+        # Resolve the registry op via w.op_id first; fall back to nodes[0].op_id
+        # for persisted template widgets (whose op_id is a template name like
+        # "golden_hour" rather than a registry op id) and for multi-op widgets
+        # whose widget-level op_id predates the registry-op convention.
         from app.registry.loader import get_registry
-        op = get_registry().ops.get(w.op_id)
+        reg = get_registry()
+        op = reg.ops.get(w.op_id or "") or (
+            reg.ops.get(w.nodes[0].op_id)
+            if w.nodes and w.nodes[0].op_id
+            else None
+        )
         node = w.nodes[0] if w.nodes else None
         if op is None or node is None or not input.instruction:
             return _Output(widget=w.model_dump(mode="json", by_alias=True))

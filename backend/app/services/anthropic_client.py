@@ -1417,6 +1417,7 @@ a strong prior if provided. Do not include markdown fences."""
         starting_params: dict,
         image_context: dict,
         session_id: str | None = None,
+        rejected_attempts: list[dict] | None = None,
     ) -> dict:
         import json
 
@@ -1430,13 +1431,28 @@ a strong prior if provided. Do not include markdown fences."""
             }
             for k, p in op.params.items()
         }
+        # Build the rejected-attempts block when prior rolls were rejected.
+        # Each entry is a dict of param_key → value. The block instructs the
+        # resolver to produce values that are meaningfully different from all
+        # listed attempts so the user sees a genuine re-roll, not noise.
+        rejected_block = ""
+        if rejected_attempts:
+            lines = "\n".join(
+                f"  Attempt {i + 1}: {attempt}"
+                for i, attempt in enumerate(rejected_attempts)
+            )
+            rejected_block = (
+                f"\nPREVIOUSLY REJECTED ATTEMPTS (do NOT repeat these values; "
+                f"produce a meaningfully different result):\n{lines}\n"
+            )
         # Per-op text — the only fresh content in this call. Kept compact.
         per_op_text = (
             f"OP: {op.id} ({op.llm.description})\n"
             f"PARAM SCHEMA: {params_spec}\n"
             f"INTENT: {intent}\n"
             f"RATIONALE FROM PLANNER: {rationale}\n"
-            f"STARTING PARAMS (priors): {starting_params}\n\n"
+            f"STARTING PARAMS (priors): {starting_params}\n"
+            f"{rejected_block}\n"
             "Return JSON object with one key per param, values within the schema range."
         )
         # When propose_stack resolves N ops in parallel for one user

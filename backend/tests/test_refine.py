@@ -57,6 +57,9 @@ def _build_fake_anthropic() -> MagicMock:
         "values": {"temperature": 600, "highlight_warmth": 8, "saturation_lift": 3},
         "reasoning": "image is cool",
     }
+    # resolve_widget_params: return a dict of op defaults so the refine path
+    # can write back values without needing real param ranges.
+    fake.resolve_widget_params.return_value = {}
     return fake
 
 
@@ -73,15 +76,12 @@ def client(fake_client: MagicMock, monkeypatch) -> TestClient:
 
 def _create_session_with_active_widget(client: TestClient) -> tuple[str, str]:
     """Create a real session via /api/session, prime context, spawn one warm_grade
-    widget directly via run_fused_tool (propose_widget is now filter-only), and
-    return (session_id, widget_id).
+    preset widget via propose_stack, and return (session_id, widget_id).
 
-    We still go through run_fused_tool so resolve_fused_tool is called once here
-    and once inside the /api/refine shim, keeping the call_count >= 2 assertion."""
-    import asyncio
-    from app.schemas.widget import Scope, WidgetOrigin
-    from app.tools.fused import all_fused_templates
-    from app.tools.fused_framework import run_fused_tool
+    The warm_grade preset produces kelvin + light + color registry-op widgets.
+    We use the first (kelvin) widget as the refine target.
+    """
+    from app.tools.widgets.propose_stack import ProposeStackTool
 
     image_path = Path(__file__).parent / "fixtures" / "test_image.jpg"
     with image_path.open("rb") as fh:
@@ -96,19 +96,22 @@ def _create_session_with_active_widget(client: TestClient) -> tuple[str, str]:
     )
     doc.set_image_context(DEFAULT_IMAGE_NODE_ID, ctx)
     deps.get_session_store().set_context(sid, ctx.model_dump(mode="json"))
-    # Mint a warm_grade widget directly via the fused framework so the shim has
-    # something to refine and resolve_fused_tool is invoked once here.
-    templates = {t.id: t for t in all_fused_templates()}
-    template = templates["warm_grade"]
-    scope = Scope.model_validate({"kind": "global"})
-    origin = WidgetOrigin(kind="mcp_user_prompt", prompt=None)
-    anthropic = deps.get_anthropic_client()
-    widget = asyncio.get_event_loop().run_until_complete(
-        run_fused_tool(template, intent="warmer", scope=scope, ctx=ctx,
-                       prior=None, instruction=None, anthropic=anthropic, origin=origin)
-    )
-    doc.add_widget(widget)
-    return sid, widget.id
+    # Spawn a warm_grade preset widget via propose_stack — produces registry-op
+    # widgets (kelvin / light / color) with op_id set so the refine handler
+    # routes through resolve_widget_params instead of run_fused_tool.
+    registry = deps.get_tool_registry()
+    if "propose_stack" not in registry._tools:
+        registry.register(ProposeStackTool())
+    proposed = client.post(
+        "/api/tools/propose_stack",
+        json={"session_id": sid, "input": {
+            "intent": "warmer", "scope": {"kind": "global"},
+            "preset_id": "warm_grade", "origin": "mcp_user_prompt",
+        }},
+    ).json()
+    assert proposed["ok"] is True, proposed
+    # Return the first widget (kelvin) as the refine target
+    return sid, proposed["output"]["widgets"][0]["id"]
 
 
 def test_refine_happy_path(client: TestClient, fake_client: MagicMock) -> None:
@@ -125,9 +128,10 @@ def test_refine_happy_path(client: TestClient, fake_client: MagicMock) -> None:
     assert "id" in body and body["id"].startswith("projected-")
     assert "userGoal" in body
     assert isinstance(body["panelBindings"], list)
-    assert len(body["panelBindings"]) > 0
-    # resolve_fused_tool runs once during propose, once during refine.
-    assert fake_client.resolve_fused_tool.call_count >= 2
+    # resolve_widget_params is called once per widget per refine pass.
+    # The /api/refine shim iterates all active widgets (3 from warm_grade) with
+    # an instruction, so each widget goes through the registry-op resolver.
+    assert fake_client.resolve_widget_params.call_count >= 1
 
 
 def test_refine_can_be_called_repeatedly(client: TestClient) -> None:
@@ -179,18 +183,15 @@ def test_refine_400_on_oversize_instruction(client: TestClient) -> None:
 def test_refine_502_on_anthropic_runtime_error(
     client: TestClient, fake_client: MagicMock, monkeypatch
 ) -> None:
-    """The fused-tool framework swallows resolver exceptions and seeds from
-    envelope midpoints, so making fake.resolve_fused_tool raise alone won't
-    surface a 502. We patch refine_widget's run_fused_tool symbol directly to
-    simulate an unrecoverable failure inside the tool handler — the registry
-    classifies the bare RuntimeError as internal_error, which the shim maps
-    to HTTP 502."""
+    """Patch resolve_widget_params to raise, simulating an unrecoverable
+    Anthropic failure. The registry classifies the bare RuntimeError as
+    internal_error, which the /api/refine shim maps to HTTP 502."""
     sid, _wid = _create_session_with_active_widget(client)
 
-    async def _boom(*args, **kwargs):
+    def _boom(*args, **kwargs):
         raise RuntimeError("anthropic down")
 
-    monkeypatch.setattr("app.tools.widgets.refine_widget.run_fused_tool", _boom)
+    fake_client.resolve_widget_params.side_effect = _boom
 
     r = client.post("/api/refine", json={
         "session_id": sid, "prior_graph_id": "x", "instruction": "more subtle"

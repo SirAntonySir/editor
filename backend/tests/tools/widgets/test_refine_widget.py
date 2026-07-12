@@ -22,7 +22,7 @@ class _FakeAnthropic:
             ],
         }
 
-    def resolve_widget_params(self, *, op, intent, rationale, starting_params, image_context, session_id=None):
+    def resolve_widget_params(self, *, op, intent, rationale, starting_params, image_context, session_id=None, rejected_attempts=None):
         # Re-tune: push each scalar param to the top of its range so a test can
         # assert the values actually changed from the starting priors.
         out = {}
@@ -175,3 +175,41 @@ def test_refine_preserves_layer_id_on_appended_nodes(client) -> None:
         assert n["layerId"] == prior_layer_id, (
             f"node {n['id']!r} has layer_id={n['layerId']!r}, expected {prior_layer_id!r}"
         )
+
+
+def test_refine_fallback_to_nodes0_op_id(client) -> None:
+    """When w.op_id isn't a registry op (persisted template id like 'golden_hour'),
+    the refine handler must fall back to nodes[0].op_id to resolve the real op
+    and still perform instruction-based re-tuning (§5.5 + §6 edge case)."""
+    from tests.tools.widgets.test_fused_compound import _fused_candidate_widget
+
+    sid, _ = _setup(client)
+    doc = deps.get_session_store().get_document(sid)
+
+    # Widget whose widget-level op_id is a stale template name (not in registry).
+    # nodes[0].op_id = "light" (a real registry op), so the fallback should
+    # resolve the "light" op and re-tune its params.
+    w = _fused_candidate_widget()
+    w.op_id = "golden_hour"          # template name — not in registry.ops
+    # nodes[0].op_id is already "light" from _fused_candidate_widget
+    assert w.nodes[0].op_id == "light"
+    doc.add_widget(w)
+
+    body = client.post(
+        "/api/tools/refine_widget",
+        json={"session_id": sid, "input": {
+            "widget_id": w.id,
+            "edits": [],
+            "additions": [],
+            "instruction": "make it even brighter",
+        }},
+    ).json()
+    assert body["ok"] is True, body
+
+    # Fake resolver pushes scalar params to range max (100). Since the fallback
+    # resolved the "light" op via nodes[0].op_id, exposure must now be 100.
+    w_out = doc.widgets[w.id]
+    assert w_out.nodes[0].params.get("exposure") == 100.0, (
+        f"expected exposure=100.0 via nodes[0].op_id fallback, got {w_out.nodes[0].params}"
+    )
+    assert w_out.revision == 2  # bumped once by refine

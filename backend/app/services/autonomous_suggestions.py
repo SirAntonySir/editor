@@ -139,8 +139,11 @@ async def mint_autonomous_suggestions(
     # ---- Problem-driven pass: select first, resolve in batch ----------------
     # Selection is sequential (dedup decisions depend on previous picks);
     # resolution is ONE batch call to resolve_problem_widgets.
+    # Single-batch design is per spec §5.2 — a whole-call resolver failure
+    # mints nothing this pass (journaled tool:"batch"); per-op omissions still
+    # mint via clamp fallback.
 
-    # Pick = (problem, valid_ops, op_sig, targets, scope, intent)
+    # Pick = (problem, valid_ops, op_sig, targets, scope)
     picks: list[tuple] = []
     problem_budget = MAX_AUTONOMOUS_SUGGESTIONS - initial_count
 
@@ -165,6 +168,9 @@ async def mint_autonomous_suggestions(
                                "object_label": object_label})
                 continue
 
+        # `suggested_ops` is treated as ONE composite fix (spec §4/§5.2) — on
+        # knob-collision the whole problem is dropped; there is deliberately no
+        # per-op fallthrough (the old per-template fallback semantics).
         valid_ops = [op_id for op_id in problem.suggested_ops if op_id in reg.ops]
         if not valid_ops:
             _journal(doc, {"event": "suggestion_skipped", "reason": "no_valid_ops",
@@ -198,7 +204,7 @@ async def mint_autonomous_suggestions(
         used_targets |= targets
 
     # Resolve all picked problems in one batch call.
-    widgets_by_pick: list = [None] * len(picks)
+    pairs_by_pick: list = [None] * len(picks)
     if picks:
         picked_problems = [p[0] for p in picks]
         # scope_for wrapper that returns the pre-computed scope from the pick
@@ -208,7 +214,7 @@ async def mint_autonomous_suggestions(
             return pick_scope_map[id(problem)]
 
         try:
-            batch_widgets = await asyncio.wait_for(
+            batch_pairs = await asyncio.wait_for(
                 resolve_problem_widgets(
                     doc, picked_problems,
                     scope_for=_scope_for_picked,
@@ -221,12 +227,17 @@ async def mint_autonomous_suggestions(
         except Exception as exc:  # noqa: BLE001
             _journal(doc, {"event": "resolve_failed", "tool": "batch",
                            "detail": str(exc)[:500]})
-            batch_widgets = []
+            batch_pairs = []
 
-        # Map resolved widgets back to picks by order.
-        for i, w in enumerate(batch_widgets):
-            if i < len(picks):
-                widgets_by_pick[i] = w
+        # Map resolved (problem, widget) pairs back to picks by problem identity.
+        # resolve_problem_widgets returns pairs in plan order; problems that had
+        # no valid ops are dropped, so we match by problem identity (id()) rather
+        # than positional index to avoid silent mis-binding.
+        pick_problem_to_index = {id(p[0]): i for i, p in enumerate(picks)}
+        for prob, widget in batch_pairs:
+            idx = pick_problem_to_index.get(id(prob))
+            if idx is not None:
+                pairs_by_pick[idx] = (prob, widget)
 
     # Verification + mint.
     successful = 0
@@ -234,9 +245,10 @@ async def mint_autonomous_suggestions(
 
     for i, pick in enumerate(picks):
         problem, valid_ops, op_sig, _targets, scope = pick
-        widget = widgets_by_pick[i]
-        if widget is None:
+        pair = pairs_by_pick[i]
+        if pair is None:
             continue
+        _prob, widget = pair
 
         widget = await _verify_corrective(
             doc, anthropic, op_sig, scope, problem, widget,
@@ -274,16 +286,40 @@ async def mint_autonomous_suggestions(
         _journal(doc, {"event": "topup_skipped", "reason": "open_corrective_problems"})
         return
 
-    already_used_sigs = {
-        w.op_id for w in doc.widgets.values()
-        if w.origin.kind == "mcp_autonomous" and w.op_id
-    }
+    # Build already_used_sigs as op SIGNATURES of existing/minted widgets.
+    # Using widget.nodes[*].op_id (not w.op_id which is only the first op's id)
+    # gives the correct multi-op canonical signature so the dedup is in the same
+    # namespace as preset op signatures computed below.
+    already_used_sigs: set[str] = set()
+    for w in doc.widgets.values():
+        if w.origin.kind == "mcp_autonomous" and w.status == "active":
+            node_op_ids = [n.op_id for n in w.nodes if n.op_id]
+            if node_op_ids:
+                already_used_sigs.add(_op_sig(node_op_ids))
+    # Include problem-pass op sigs (already tracked in used_op_sigs).
+    already_used_sigs |= used_op_sigs
+
     dismissed_global = {
         rule.fused_tool_id for rule in doc.dismissals
         if rule.scope_signature == "global"
     }
     needed = TARGET_AUTONOMOUS_SUGGESTIONS - (initial_count + successful)
-    exclude = list(already_used_sigs | dismissed_global)
+
+    # Build the exclude list as PRESET IDs for suggest_fused_tools_for_character,
+    # which filters its catalog by preset id. We include preset ids whose op
+    # signature is already in already_used_sigs plus globally-dismissed preset ids.
+    # This is a best-effort hint to the LLM — the authoritative dedup gate is the
+    # local op-signature check in the candidate loop below (same namespace as
+    # problem-pass sigs). If a preset slips through the hint, the sig check catches
+    # it; if a valid preset was excluded needlessly, no harm done.
+    used_preset_ids: set[str] = set()
+    for pid, preset in reg.presets.items():
+        preset_op_ids = [o.op_id for o in preset.ops if o.op_id in reg.ops]
+        if preset_op_ids:
+            sig = _op_sig(preset_op_ids)
+            if sig in already_used_sigs:
+                used_preset_ids.add(pid)
+    exclude = list(used_preset_ids | dismissed_global)
 
     try:
         candidates = await asyncio.wait_for(
@@ -319,22 +355,27 @@ async def mint_autonomous_suggestions(
         if len(topup_picks) >= needed:
             break
         preset = reg.presets.get(preset_id)
-        if preset is None or preset_id in already_used_sigs:
+        if preset is None:
             _journal(doc, {"event": "suggestion_skipped", "tool": preset_id,
-                           "reason": ("unknown_preset" if preset is None
-                                      else "duplicate_op_sig")})
+                           "reason": "unknown_preset"})
             continue
         preset_op_ids = [o.op_id for o in preset.ops if o.op_id in reg.ops]
         if not preset_op_ids:
             _journal(doc, {"event": "suggestion_skipped", "tool": preset_id,
                            "reason": "no_valid_ops"})
             continue
+        # Dedup by op signature — same namespace as problem-pass sigs.
+        preset_sig = _op_sig(preset_op_ids)
+        if preset_sig in already_used_sigs:
+            _journal(doc, {"event": "suggestion_skipped", "tool": preset_id,
+                           "reason": "duplicate_op_sig"})
+            continue
         targets = _canonical_targets_for_ops(preset_op_ids)
         if targets & used_targets:
             _journal(doc, {"event": "suggestion_skipped", "reason": "knob_collision",
                            "tool": preset_id})
             continue
-        if _dismissed(preset_id, global_scope):
+        if _dismissed(preset_sig, global_scope):
             _journal(doc, {"event": "suggestion_skipped", "reason": "dismissed",
                            "tool": preset_id})
             continue
@@ -348,7 +389,7 @@ async def mint_autonomous_suggestions(
         )
         topup_picks.append((preset_id, preset, synthetic_problem))
         used_targets |= targets
-        already_used_sigs.add(preset_id)
+        already_used_sigs.add(preset_sig)
 
     if topup_picks:
         topup_problems = [p[2] for p in topup_picks]
@@ -357,7 +398,7 @@ async def mint_autonomous_suggestions(
             return global_scope
 
         try:
-            topup_widgets = await asyncio.wait_for(
+            topup_pairs = await asyncio.wait_for(
                 resolve_problem_widgets(
                     doc, topup_problems,
                     scope_for=_topup_scope,
@@ -370,12 +411,19 @@ async def mint_autonomous_suggestions(
         except Exception as exc:  # noqa: BLE001
             _journal(doc, {"event": "resolve_failed", "tool": "topup_batch",
                            "detail": str(exc)[:500]})
-            topup_widgets = []
+            topup_pairs = []
 
-        for pick, widget in zip(topup_picks, topup_widgets):
-            preset_id, preset, _sp = pick
-            if widget is None:
+        # Match pairs back to picks by synthetic_problem identity (safe since
+        # resolve_problem_widgets returns pairs in plan order and skipped
+        # problems are dropped rather than emitting None placeholders).
+        topup_problem_to_pick: dict[int, tuple] = {
+            id(p[2]): p for p in topup_picks
+        }
+        for prob, widget in topup_pairs:
+            pick = topup_problem_to_pick.get(id(prob))
+            if pick is None or widget is None:
                 continue
+            _pid, preset, _sp = pick
             # Top-up display name comes from the preset label.
             widget.display_name = preset.display_name
             for node in widget.nodes:
@@ -431,21 +479,22 @@ async def _verify_corrective(doc, anthropic, op_sig: str, scope, problem, widget
         return pick_scope_map[id(p)]
 
     try:
-        retry_widgets = await asyncio.wait_for(
+        # feedback keyed by problem index (0 — singleton list passed).
+        retry_pairs = await asyncio.wait_for(
             resolve_problem_widgets(
                 doc, [problem],
                 scope_for=_scope_for_retry,
                 origin_kind="mcp_autonomous",
                 anthropic=anthropic,
                 session_id=doc.session_id,
-                feedback={problem.kind: feedback_text},
+                feedback={0: feedback_text},
             ),
             timeout=resolve_timeout_s * 2 + 5,
         )
     except Exception:  # noqa: BLE001
         return widget
 
-    retry = retry_widgets[0] if retry_widgets else None
+    retry = retry_pairs[0][1] if retry_pairs else None
     if retry is None:
         return widget
 

@@ -587,3 +587,86 @@ async def test_object_label_filters_to_the_object_and_forces_global_scope(make_d
     assert minted[0].scope.root.kind == "global"
     assert all(n.scope.root.kind == "global" for n in minted[0].nodes)
     assert all(n.layer_id == "cut-1" for n in minted[0].nodes)
+
+
+@pytest.mark.asyncio
+async def test_topup_dedup_by_op_signature_blocks_same_op_preset(make_doc, journal):
+    """Regression for Fix 1: top-up dedup must compare by op SIGNATURE not by
+    preset id / w.op_id.  A problem-pass widget minted from ops ["light"] must
+    prevent a top-up preset whose ops are also ["light"] from minting, while a
+    disjoint preset (different ops) is still allowed through."""
+    from app.registry.loader import get_registry
+    from app.schemas.enriched_context import Problem
+    from app.registry.schema import RegistryPreset, PresetOp
+
+    reg = get_registry()
+    if "light" not in reg.ops:
+        pytest.skip("registry must have a 'light' op")
+
+    # Build a second op that does NOT share any params with "light" so its sig
+    # differs.  Reuse any existing op other than "light", or skip if none.
+    other_op_id = next((k for k in reg.ops if k != "light"), None)
+    if other_op_id is None:
+        pytest.skip("need at least 2 ops in registry")
+
+    # Inject two synthetic presets into the registry: one with ops=["light"]
+    # (same as the problem-pass widget), one with ops=[other_op_id] (disjoint).
+    same_preset = RegistryPreset(
+        id="__test_same__",
+        display_name="Same-op preset",
+        description="uses light op",
+        typical_use="test",
+        ops=[PresetOp(op_id="light", params={})],
+    )
+    diff_preset = RegistryPreset(
+        id="__test_diff__",
+        display_name="Diff-op preset",
+        description="uses other op",
+        typical_use="test",
+        ops=[PresetOp(op_id=other_op_id, params={})],
+    )
+
+    augmented_presets = dict(reg.presets)
+    augmented_presets["__test_same__"] = same_preset
+    augmented_presets["__test_diff__"] = diff_preset
+
+    from unittest.mock import patch
+
+    class _MockReg:
+        ops = reg.ops
+        presets = augmented_presets
+
+    with patch("app.registry.loader.get_registry", return_value=_MockReg()):
+        doc = make_doc()
+
+        # Problem-pass mints ONE widget whose ops == ["light"].
+        ctx = _ctx([
+            Problem(kind="clipped_highlights", severity=0.8, region_label=None,
+                    suggested_ops=["light"]),
+        ])
+
+        class _TopupBoth(_FakeAnthropic):
+            def suggest_fused_tools_for_character(self, **_):
+                # Offer both presets.
+                return ["__test_same__", "__test_diff__"]
+
+        await mint_autonomous_suggestions(doc, ctx, _TopupBoth(), layer_id="l1")
+
+    minted = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
+    # The "light" problem widget + the disjoint preset = 2.
+    # The "same" preset must be blocked by op-signature dedup.
+    assert len(minted) == 2, (
+        f"expected 2 (problem widget + disjoint preset), got {len(minted)}: "
+        f"{[w.display_name for w in minted]}"
+    )
+    display_names = {w.display_name for w in minted}
+    assert "Diff-op preset" in display_names, "disjoint preset must mint"
+    assert "Same-op preset" not in display_names, "same-op preset must be blocked"
+
+    dup_events = [
+        p for (_s, _k, p) in journal
+        if p.get("event") == "suggestion_skipped"
+        and p.get("reason") == "duplicate_op_sig"
+        and p.get("tool") == "__test_same__"
+    ]
+    assert len(dup_events) == 1, "same-op preset must be journaled as duplicate_op_sig"

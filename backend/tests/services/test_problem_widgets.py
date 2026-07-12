@@ -6,6 +6,8 @@ These tests verify:
 3. Resolver raising → [] + journaled (resolver_failed)
 4. param_source stamping: "llm" when resolver supplied all ops, "llm_clamped" when any clamped
 5. Missing image context → [] + journaled (missing_context)
+
+resolve_problem_widgets now returns list[tuple[Problem, Widget]] (Fix 2).
 """
 from __future__ import annotations
 
@@ -109,7 +111,8 @@ async def test_valid_problem_mints_widget_with_compound(doc_with_ctx, journal):
     problem = _problem(kind="clipped_highlights", suggested_ops=[op_id])
     anthropic = _FakeAnthropic(by_entry={0: {op_id: resolved_params}})
 
-    widgets = await resolve_problem_widgets(
+    # Returns list[tuple[Problem, Widget]]
+    pairs = await resolve_problem_widgets(
         doc_with_ctx,
         [problem],
         scope_for=_global_scope_for,
@@ -118,8 +121,9 @@ async def test_valid_problem_mints_widget_with_compound(doc_with_ctx, journal):
         session_id="test-session",
     )
 
-    assert len(widgets) == 1
-    w = widgets[0]
+    assert len(pairs) == 1
+    returned_problem, w = pairs[0]
+    assert returned_problem is problem
     assert w.origin.kind == "mcp_autonomous"
     # Synthesis must succeed — no conditional here.
     assert w.compound is not None
@@ -154,7 +158,7 @@ async def test_unknown_ops_filtered_and_problem_skipped(doc_with_ctx, journal):
     )
     anthropic = _FakeAnthropic(by_entry={})
 
-    widgets = await resolve_problem_widgets(
+    pairs = await resolve_problem_widgets(
         doc_with_ctx,
         [problem],
         scope_for=_global_scope_for,
@@ -163,7 +167,7 @@ async def test_unknown_ops_filtered_and_problem_skipped(doc_with_ctx, journal):
         session_id="test-session",
     )
 
-    assert widgets == []
+    assert pairs == []
 
     health_events = [
         p for (_sid, kind, p) in journal
@@ -192,7 +196,7 @@ async def test_mixed_ops_only_valid_ones_used(doc_with_ctx, journal):
     )
     anthropic = _FakeAnthropic(by_entry={0: {op_id: resolved_params}})
 
-    widgets = await resolve_problem_widgets(
+    pairs = await resolve_problem_widgets(
         doc_with_ctx,
         [problem],
         scope_for=_global_scope_for,
@@ -201,7 +205,7 @@ async def test_mixed_ops_only_valid_ones_used(doc_with_ctx, journal):
         session_id="test-session",
     )
 
-    assert len(widgets) == 1
+    assert len(pairs) == 1
     # No no_valid_ops event should have been emitted.
     no_valid = [
         p for (_s, _k, p) in journal
@@ -225,7 +229,7 @@ async def test_resolver_failure_returns_empty_and_journals(doc_with_ctx, journal
     problem = _problem(kind="low_contrast", suggested_ops=[op_id])
     anthropic = _FakeAnthropic(raises=RuntimeError("Anthropic timed out"))
 
-    widgets = await resolve_problem_widgets(
+    pairs = await resolve_problem_widgets(
         doc_with_ctx,
         [problem],
         scope_for=_global_scope_for,
@@ -234,7 +238,7 @@ async def test_resolver_failure_returns_empty_and_journals(doc_with_ctx, journal
         session_id="test-session",
     )
 
-    assert widgets == []
+    assert pairs == []
 
     health = [
         p for (_s, kind, p) in journal
@@ -261,7 +265,7 @@ async def test_param_source_llm_when_resolver_supplies_all(doc_with_ctx, journal
     problem = _problem(kind="low_contrast", suggested_ops=[op_id])
     anthropic = _FakeAnthropic(by_entry={0: {op_id: resolved_params}})
 
-    widgets = await resolve_problem_widgets(
+    pairs = await resolve_problem_widgets(
         doc_with_ctx,
         [problem],
         scope_for=_global_scope_for,
@@ -270,8 +274,9 @@ async def test_param_source_llm_when_resolver_supplies_all(doc_with_ctx, journal
         session_id="test-session",
     )
 
-    assert len(widgets) == 1
-    assert widgets[0].param_source == "llm"
+    assert len(pairs) == 1
+    _p, w = pairs[0]
+    assert w.param_source == "llm"
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +302,7 @@ async def test_param_source_llm_clamped_when_op_omitted_by_resolver(doc_with_ctx
     problem = _problem(kind="low_contrast", suggested_ops=[op_id_a, op_id_b])
     anthropic = _FakeAnthropic(by_entry={0: {op_id_a: resolved_params_a}})  # op_id_b omitted
 
-    widgets = await resolve_problem_widgets(
+    pairs = await resolve_problem_widgets(
         doc_with_ctx,
         [problem],
         scope_for=_global_scope_for,
@@ -306,8 +311,9 @@ async def test_param_source_llm_clamped_when_op_omitted_by_resolver(doc_with_ctx
         session_id="test-session",
     )
 
-    assert len(widgets) == 1
-    assert widgets[0].param_source == "llm_clamped"
+    assert len(pairs) == 1
+    _p, w = pairs[0]
+    assert w.param_source == "llm_clamped"
 
 
 # ---------------------------------------------------------------------------
@@ -330,7 +336,7 @@ async def test_missing_context_returns_empty_and_journals(make_doc, journal):
     problem = _problem(kind="clipped_highlights", suggested_ops=[op_id])
     anthropic = _FakeAnthropic(by_entry={0: {op_id: {}}})
 
-    widgets = await resolve_problem_widgets(
+    pairs = await resolve_problem_widgets(
         doc,
         [problem],
         scope_for=_global_scope_for,
@@ -339,7 +345,7 @@ async def test_missing_context_returns_empty_and_journals(make_doc, journal):
         session_id="test-session",
     )
 
-    assert widgets == []
+    assert pairs == []
 
     health = [
         p for (_s, kind, p) in journal
@@ -347,3 +353,94 @@ async def test_missing_context_returns_empty_and_journals(make_doc, journal):
     ]
     assert len(health) == 1
     assert health[0]["reason"] == "missing_context"
+
+
+# ---------------------------------------------------------------------------
+# Test 6 — feedback is keyed by problem INDEX, not problem.kind
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_feedback_keyed_by_index_not_kind(doc_with_ctx, journal):
+    """Two problems with the same kind must each get their own feedback text
+    when keyed by index (0 and 1), not by kind — no collision."""
+    from app.services.problem_widgets import resolve_problem_widgets
+    from app.registry.loader import get_registry
+
+    reg = get_registry()
+    op_id = next(iter(reg.ops))
+    op = reg.ops[op_id]
+    resolved_params = {k: p.default for k, p in op.params.items()}
+
+    rationales_seen: list[str] = []
+
+    class _CapturingAnthropic:
+        def resolve_stack_params(self, *, plan_entries, **_kw):
+            for entry in plan_entries:
+                for op_entry in entry.get("ops", []):
+                    rationales_seen.append(op_entry.get("rationale", ""))
+            result: dict = {}
+            for i in range(len(plan_entries)):
+                result[i] = [(op_id, resolved_params)]
+            return result
+
+    # Same kind, different problems — feedback should be per-index.
+    p0 = _problem(kind="low_contrast", suggested_ops=[op_id])
+    p1 = _problem(kind="low_contrast", suggested_ops=[op_id])
+    # Both problems have the same kind but different feedback by index.
+    feedback = {0: "feedback for problem 0", 1: "feedback for problem 1"}
+
+    pairs = await resolve_problem_widgets(
+        doc_with_ctx,
+        [p0, p1],
+        scope_for=_global_scope_for,
+        origin_kind="mcp_autonomous",
+        anthropic=_CapturingAnthropic(),
+        session_id="test-session",
+        feedback=feedback,
+    )
+
+    assert len(pairs) == 2
+    # Each entry's rationale should carry its own feedback (not the other's).
+    assert any("feedback for problem 0" in r for r in rationales_seen)
+    assert any("feedback for problem 1" in r for r in rationales_seen)
+
+
+# ---------------------------------------------------------------------------
+# Test 7 — returned pairs bind correct problem to correct widget
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_pairs_bind_correct_problem_to_widget(doc_with_ctx, journal):
+    """Returned list is (problem, widget) pairs; the problem in each pair must
+    be the same object that was passed in."""
+    from app.services.problem_widgets import resolve_problem_widgets
+    from app.registry.loader import get_registry
+
+    reg = get_registry()
+    op_id = next(iter(reg.ops))
+    op = reg.ops[op_id]
+    resolved_params = {k: p.default for k, p in op.params.items()}
+
+    p0 = _problem(kind="clipped_highlights", suggested_ops=[op_id])
+    p1 = _problem(kind="low_contrast", suggested_ops=[op_id])
+    anthropic = _FakeAnthropic(by_entry={
+        0: {op_id: resolved_params},
+        1: {op_id: resolved_params},
+    })
+
+    pairs = await resolve_problem_widgets(
+        doc_with_ctx,
+        [p0, p1],
+        scope_for=_global_scope_for,
+        origin_kind="mcp_autonomous",
+        anthropic=anthropic,
+        session_id="test-session",
+    )
+
+    assert len(pairs) == 2
+    prob0, w0 = pairs[0]
+    prob1, w1 = pairs[1]
+    assert prob0 is p0
+    assert prob1 is p1
+    # Widgets are distinct objects.
+    assert w0 is not w1

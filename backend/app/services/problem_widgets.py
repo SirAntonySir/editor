@@ -8,7 +8,7 @@ objects the helper:
    ids from ``problem.suggested_ops``).
 2. Calls ``anthropic.resolve_stack_params`` once for the whole batch.
 3. Builds each widget via ``_build_widget_multi`` + ``_attach_fused_compound``.
-4. Returns the built :class:`Widget` list — **does not call doc.add_widget**.
+4. Returns (problem, widget) pairs — **does not call doc.add_widget**.
 
 ``param_source`` is stamped:
   - ``"llm"``        when the resolver supplied explicit params for every op.
@@ -49,8 +49,8 @@ async def resolve_problem_widgets(
     origin_kind: str,
     anthropic: Any,
     session_id: str,
-    feedback: "dict[str, str] | None" = None,
-) -> "list[Widget]":
+    feedback: "dict[int, str] | None" = None,
+) -> "list[tuple[Problem, Widget]]":
     """Mint widgets for a list of Problems via the registry-op path.
 
     Parameters
@@ -71,15 +71,17 @@ async def resolve_problem_widgets(
     session_id:
         For journaling.
     feedback:
-        Optional mapping of ``problem.kind`` → feedback text to append to
-        each matching entry's op rationale.  Used by the verification
-        retry path in ``autonomous_suggestions`` to steer the resolver
-        after a first attempt failed the metric check.
+        Optional mapping of problem INDEX (in the ``problems`` list) →
+        feedback text to append to that entry's op rationale.  Keyed by
+        index (not ``problem.kind``) so two problems of the same kind each
+        get their own feedback.  Used by the verification retry path in
+        ``autonomous_suggestions`` to steer the resolver after a first
+        attempt failed the metric check.
 
     Returns
     -------
-    list[Widget]
-        Minted widgets, not yet added to the document.
+    list[tuple[Problem, Widget]]
+        (problem, widget) pairs in plan order, not yet added to the document.
     """
     import asyncio
 
@@ -97,8 +99,10 @@ async def resolve_problem_widgets(
     # index back to problems so we can get driver_label etc. after resolution
     plan_entries: list[dict] = []
     plan_index_to_problem: dict[int, "Problem"] = {}
+    # Map plan entry index → original problem index (for feedback lookup)
+    plan_index_to_problem_index: dict[int, int] = {}
 
-    for problem in problems:
+    for problem_index, problem in enumerate(problems):
         valid_ops = [op_id for op_id in problem.suggested_ops if op_id in reg.ops]
         if not valid_ops:
             write_event(session_id, "proposal.health", {
@@ -111,9 +115,12 @@ async def resolve_problem_widgets(
 
         entry_index = len(plan_entries)
         plan_index_to_problem[entry_index] = problem
+        plan_index_to_problem_index[entry_index] = problem_index
         label = _humanize(problem.kind)
         base_rationale = problem.description or problem.kind
-        extra = (feedback or {}).get(problem.kind)
+        # feedback is keyed by problem index (not kind) to avoid collision when
+        # two problems share the same kind.
+        extra = (feedback or {}).get(problem_index)
         if extra:
             base_rationale = f"{base_rationale}. {extra}"
         entry: dict = {
@@ -182,7 +189,7 @@ async def resolve_problem_widgets(
 
     from app.services.anthropic_client import clamp_op_params
 
-    widgets: list["Widget"] = []
+    pairs: list[tuple["Problem", "Widget"]] = []
 
     for entry_index, entry in enumerate(plan_entries):
         problem = plan_index_to_problem[entry_index]
@@ -247,6 +254,6 @@ async def resolve_problem_widgets(
         if problem.display_label:
             widget.display_name = problem.display_label
 
-        widgets.append(widget)
+        pairs.append((problem, widget))
 
-    return widgets
+    return pairs

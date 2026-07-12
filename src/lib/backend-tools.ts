@@ -221,6 +221,11 @@ export const backendTools = {
   unlock_widget_param(sessionId: string, args: { widgetId: string; paramKey: string }) {
     return invokeTool<{ widget: Widget }>('unlock_widget_param', sessionId, args);
   },
+  /** Split one op out of a fused intent widget into a standalone widget.
+   *  Returns the new detached widget and the mutated parent. */
+  detach_widget_op(sessionId: string, args: { widgetId: string; nodeId: string }) {
+    return invokeTool<{ widget: Widget; parent: Widget }>('detach_widget_op', sessionId, args);
+  },
   set_param(sessionId: string, args: { layerId: string; op: string; param: string; value: ControlValue }) {
     return invokeTool<{ ok: boolean }>('set_param', sessionId, args);
   },

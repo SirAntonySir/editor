@@ -5,6 +5,7 @@ from app.tools.registry import BackendToolRegistry
 from .accept_widget import AcceptWidgetTool
 from .correct_problem import CorrectProblemTool
 from .delete_widget import DeleteWidgetTool
+from .detach_widget_op import DetachWidgetOpTool
 from .duplicate_layer_edits import DuplicateLayerEditsTool
 from .genfill import GenfillCreateTool, GenfillRegenerateTool
 from .propose_stack import ProposeStackTool
@@ -26,6 +27,7 @@ def register_all_widget_tools(registry: BackendToolRegistry) -> None:
     registry.register(AcceptWidgetTool())
     registry.register(SetWidgetParamTool())
     registry.register(UnlockWidgetParamTool())
+    registry.register(DetachWidgetOpTool())
     registry.register(UpdateWidgetTargetsTool())
     registry.register(DuplicateLayerEditsTool())
     registry.register(CorrectProblemTool())

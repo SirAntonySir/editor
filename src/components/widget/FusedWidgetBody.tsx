@@ -39,7 +39,7 @@ function FusedPinButton({ widgetId, paramKey, isPinned }: FusedPinButtonProps) {
       title="Pinned — click to release"
       aria-label="Pinned — click to release"
       className="inline-flex items-center text-accent
-        hover:text-accent/70 p-0.5 rounded-[3px]
+        hover:text-accent/70 p-0.5 rounded-sm
         disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
     >
       <Pin size={10} aria-hidden />
@@ -331,6 +331,9 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
             }
           };
 
+          // unlock_widget_param keys on BARE paramKey (widget-wide namespace) —
+          // if two op sections share a param key, releasing here unlocks both.
+          // Schema limitation, same as set_widget_param's implicit lock.
           const handleReleaseAll = () => {
             if (!sessionId || offline) return;
             for (const paramKey of sectionLockedKeys) {

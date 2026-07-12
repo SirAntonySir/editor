@@ -98,4 +98,25 @@ describe('syncWidgetTethers', () => {
     const te = useEditorStore.getState().tetherEdges;
     expect(Object.keys(te)).toEqual(['te-w1-L1']);
   });
+
+  it('sweeps orphaned fused-slice nodes whose parent widget is no longer active', () => {
+    const store = useEditorStore.getState();
+
+    // The `widget()` helper generates node id as `n_${widgetId}`. The satellite
+    // must reference that same nodeId so the detach guard leaves it intact.
+    const activeSlice  = store.addFusedSliceNode('w-active',    'n_w-active', { x: 10, y: 10 });
+    const orphanSlice  = store.addFusedSliceNode('w-dismissed', 'n_w-dismissed', { x: 20, y: 20 });
+
+    expect(useEditorStore.getState().fusedSliceNodes[activeSlice]).toBeDefined();
+    expect(useEditorStore.getState().fusedSliceNodes[orphanSlice]).toBeDefined();
+
+    // Sync against a snapshot where only w-active is still active.
+    store.syncWidgetTethers([widget('w-active', { layerId: 'L1' })]);
+
+    const after = useEditorStore.getState();
+    // Active parent with matching nodeId → satellite survives.
+    expect(after.fusedSliceNodes[activeSlice]).toBeDefined();
+    // Dismissed parent → satellite swept.
+    expect(after.fusedSliceNodes[orphanSlice]).toBeUndefined();
+  });
 });

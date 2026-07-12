@@ -37,12 +37,24 @@ export function breakOutFusedOp(parentWidgetId: string, nodeId: string): string 
     size: parentNode.size ?? { w: 226, h: 220 },
   };
 
-  // Collision list: every image node, positioned widget, and existing satellite.
+  // Collision list: every image node, positioned widget, info node, layer node,
+  // and existing satellite. Info and layer nodes use their persisted size (or a
+  // sensible fallback) so satellites don't spawn over pinned cards or layer strips.
+  const INFO_FALLBACK = { w: 280, h: 120 } as const;
+  const LAYER_NODE_FALLBACK = { w: 150, h: 80 } as const;
   const occupied: PlacedRect[] = [
     ...Object.values(editor.imageNodes).map((n) => ({ position: n.position, size: n.size })),
     ...Object.values(editor.widgetNodes).map((wn) => ({
       position: wn.position,
       size: wn.size ?? SLICE_SPAWN_SIZE,
+    })),
+    ...Object.values(editor.infoNodes).map((info) => ({
+      position: info.position,
+      size: info.size ?? INFO_FALLBACK,
+    })),
+    ...Object.values(editor.layerNodes).map((ln) => ({
+      position: ln.position,
+      size: ln.size ?? LAYER_NODE_FALLBACK,
     })),
     ...Object.values(editor.fusedSliceNodes).map((sn) => ({
       position: sn.position,

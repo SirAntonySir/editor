@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useEditorStore } from '@/store';
+import type { Widget } from '@/types/widget';
 
 describe('workspace-slice', () => {
   beforeEach(() => {
@@ -553,6 +554,89 @@ describe('workspace-slice', () => {
 
     it('returns null when the source info node is missing', () => {
       expect(useEditorStore.getState().duplicateInfoNode('nope')).toBeNull();
+    });
+  });
+
+  // ── fusedSliceNodes orphan sweep (store-level, via syncWidgetTethers) ──────
+  // The production prune path is the sweep inside syncWidgetTethers — it runs
+  // whenever CanvasWorkspace reconciles the snapshot. The in-component
+  // self-prune in FusedSliceNode is belt-and-braces for the detach case.
+  describe('fusedSliceNodes orphan sweep via syncWidgetTethers', () => {
+    /** Minimal active Widget fixture with a single node. */
+    function makeWidget(id: string, nodeId: string): Widget {
+      return {
+        id,
+        intent: 'test',
+        scope: { kind: 'global' },
+        origin: { kind: 'tool_invoked' },
+        composed: false,
+        nodes: [
+          {
+            id: nodeId,
+            type: 'basic',
+            opId: 'light',
+            params: {},
+            scope: { kind: 'global' },
+            inputs: [],
+            widgetId: id,
+            layerId: 'l-1',
+          },
+        ],
+        bindings: [],
+        preview: { kind: 'none', autoBeforeAfter: false },
+        rejectedAttempts: [],
+        status: 'active',
+        revision: 1,
+        lockedParams: [],
+        createdAt: '',
+        updatedAt: '',
+      } satisfies Widget;
+    }
+
+    it('removes a slice entry when its parent widget is not in the active set', () => {
+      const s = useEditorStore.getState();
+      // Seed a slice whose parent is NOT in the widget list we'll pass.
+      s.addFusedSliceNode('w-gone', 'n-1', { x: 0, y: 0 });
+      expect(Object.keys(useEditorStore.getState().fusedSliceNodes)).toHaveLength(1);
+
+      // Sweep with an empty widget list (parent dismissed).
+      useEditorStore.getState().syncWidgetTethers([]);
+
+      expect(Object.keys(useEditorStore.getState().fusedSliceNodes)).toHaveLength(0);
+    });
+
+    it('keeps a slice entry when its parent widget is still active and carries the nodeId', () => {
+      const s = useEditorStore.getState();
+      const sliceId = s.addFusedSliceNode('w-1', 'n-1', { x: 0, y: 0 });
+
+      useEditorStore.getState().syncWidgetTethers([makeWidget('w-1', 'n-1')]);
+
+      expect(useEditorStore.getState().fusedSliceNodes[sliceId]).toBeDefined();
+    });
+
+    it('removes a slice entry when the parent is active but the op-node was detached', () => {
+      const s = useEditorStore.getState();
+      // Slice points to op-node 'n-detached', but the parent widget no longer has it.
+      s.addFusedSliceNode('w-1', 'n-detached', { x: 0, y: 0 });
+
+      // Widget is active but its node list does NOT include 'n-detached'.
+      useEditorStore.getState().syncWidgetTethers([makeWidget('w-1', 'n-other')]);
+
+      expect(Object.keys(useEditorStore.getState().fusedSliceNodes)).toHaveLength(0);
+    });
+
+    it('sweeps only orphaned slices, leaving valid siblings untouched', () => {
+      const s = useEditorStore.getState();
+      const keepId = s.addFusedSliceNode('w-keep', 'n-1', { x: 0, y: 0 });
+      s.addFusedSliceNode('w-gone', 'n-2', { x: 50, y: 0 });
+      expect(Object.keys(useEditorStore.getState().fusedSliceNodes)).toHaveLength(2);
+
+      // Only w-keep is in the active list.
+      useEditorStore.getState().syncWidgetTethers([makeWidget('w-keep', 'n-1')]);
+
+      const remaining = useEditorStore.getState().fusedSliceNodes;
+      expect(Object.keys(remaining)).toHaveLength(1);
+      expect(remaining[keepId]).toBeDefined();
     });
   });
 });

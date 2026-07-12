@@ -587,6 +587,31 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
 
   syncWidgetTethers: (widgets) =>
     set((state) => {
+      // ── Orphan sweep: remove fusedSliceNodes whose parent widget is no
+      //    longer in the active set, OR whose op-node has been detached from
+      //    the parent (parent still active but no longer carries the nodeId).
+      //    Runs before the tether rebuild so stale satellites don't linger
+      //    after a widget is dismissed.
+      const activeWidgetIds = new Set(
+        widgets.filter((w) => w.status === 'active').map((w) => w.id),
+      );
+      // Build a per-widget set of current node ids for the detach check.
+      const activeWidgetNodeIds = new Map<string, Set<string>>();
+      for (const w of widgets) {
+        if (w.status !== 'active') continue;
+        activeWidgetNodeIds.set(w.id, new Set(w.nodes.map((n) => n.id)));
+      }
+      for (const sliceId of Object.keys(state.fusedSliceNodes)) {
+        const slice = state.fusedSliceNodes[sliceId];
+        if (!activeWidgetIds.has(slice.parentWidgetId)) {
+          // Parent dismissed.
+          delete state.fusedSliceNodes[sliceId];
+        } else if (!activeWidgetNodeIds.get(slice.parentWidgetId)?.has(slice.nodeId)) {
+          // Parent active but the specific op-node was detached.
+          delete state.fusedSliceNodes[sliceId];
+        }
+      }
+
       const next: Record<string, TetherEdgeState> = {};
       for (const w of widgets) {
         if (w.status !== 'active') continue;

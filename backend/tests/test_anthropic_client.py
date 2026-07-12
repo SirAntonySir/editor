@@ -207,3 +207,115 @@ def test_cap_image_soft_fails_on_garbage():
     data, media = AnthropicClient._cap_image(b"not an image", "image/png")
     assert data == b"not an image"
     assert media == "image/png"
+
+
+# ── resolve_widget_params: cap-5 rejected-attempts prompt block ──────────────
+
+def _make_fake_op():
+    """Minimal RegistryOp-like object with one scalar param."""
+    from app.registry.schema import OpEngineConfig, OpLlmMetadata, OpParamSchema, RegistryOp
+    return RegistryOp(
+        id="light",
+        display_name="Light",
+        module="core",
+        llm=OpLlmMetadata(description="Exposure and contrast", typical_use="brighten", semantic_tags=[]),
+        params={"exposure": OpParamSchema(type="scalar", range=(-2.0, 2.0), default=0.0)},
+        bindings=[],
+        engine=OpEngineConfig(shader="basic", render_order=1, node_type="basic"),
+    )
+
+
+def _captured_call(monkeypatch, client):
+    """Monkeypatch _messages_create to capture kwargs and return a fake JSON response."""
+    captured = {}
+
+    def _fake_create(**kwargs):
+        captured.update(kwargs)
+        # Minimal response that resolve_widget_params can parse (JSON text block).
+        class _Block:
+            text = '{"exposure": 0.5}'
+        class _Resp:
+            content = [_Block()]
+        return _Resp()
+
+    monkeypatch.setattr(client, "_messages_create", _fake_create)
+    return captured
+
+
+def test_resolve_widget_params_cap5_with_7_rejected_attempts(monkeypatch):
+    """With 7 rejected attempts, the prompt must include only the last 5 and
+    contain the 'do NOT repeat' instruction; value from attempt #1 must be
+    absent while #7 is present."""
+    from app.services.anthropic_client import AnthropicClient
+
+    client = AnthropicClient(api_key="test", model="claude-opus-4-7")
+    captured = _captured_call(monkeypatch, client)
+    op = _make_fake_op()
+
+    attempts = [{"exposure": float(i)} for i in range(1, 8)]  # attempts 1..7
+
+    client.resolve_widget_params(
+        op=op,
+        intent="brighten",
+        rationale="image is dark",
+        starting_params={"exposure": 0.0},
+        image_context={"lighting": "dim"},
+        session_id="s",
+        rejected_attempts=attempts,
+    )
+
+    # Extract the per_op_text block from the captured messages.
+    messages = captured.get("messages", [])
+    assert messages, "no messages captured"
+    content_blocks = messages[0].get("content", [])
+    per_op_block = next(
+        (b for b in content_blocks if isinstance(b, dict) and "per_op" not in b.get("text", "IMAGE CONTEXT")),
+        None,
+    )
+    # Simpler: join all text blocks and inspect the combined prompt.
+    all_text = " ".join(
+        b.get("text", "") for b in content_blocks if isinstance(b, dict)
+    )
+
+    # Attempt #1 (exposure=1.0) must be absent — capped at last 5.
+    assert "1.0" not in all_text, (
+        "attempt #1 (exposure=1.0) must be excluded when capped at last 5"
+    )
+    # Attempt #7 (exposure=7.0) must be present.
+    assert "7.0" in all_text, (
+        "attempt #7 (exposure=7.0) must be present (within last 5)"
+    )
+    # The 'do NOT repeat' instruction must be in the prompt.
+    assert "do NOT repeat" in all_text, (
+        "the 'do NOT repeat' instruction must appear in the rejected-attempts block"
+    )
+
+
+def test_resolve_widget_params_no_rejected_block_when_none(monkeypatch):
+    """With rejected_attempts=None, the rejected-attempts block must be absent."""
+    from app.services.anthropic_client import AnthropicClient
+
+    client = AnthropicClient(api_key="test", model="claude-opus-4-7")
+    captured = _captured_call(monkeypatch, client)
+    op = _make_fake_op()
+
+    client.resolve_widget_params(
+        op=op,
+        intent="brighten",
+        rationale="image is dark",
+        starting_params={"exposure": 0.0},
+        image_context={"lighting": "dim"},
+        session_id="s",
+        rejected_attempts=None,
+    )
+
+    messages = captured.get("messages", [])
+    all_text = " ".join(
+        b.get("text", "") for b in messages[0].get("content", []) if isinstance(b, dict)
+    )
+    assert "PREVIOUSLY REJECTED" not in all_text, (
+        "rejected-attempts block must be absent when rejected_attempts=None"
+    )
+    assert "do NOT repeat" not in all_text, (
+        "do NOT repeat instruction must be absent when rejected_attempts=None"
+    )

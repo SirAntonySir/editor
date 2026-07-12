@@ -41,6 +41,21 @@ def _humanize(kind: str) -> str:
     return words[:1].upper() + words[1:].lower()
 
 
+def widget_op_signature(widget: Any) -> str:
+    """Canonical dedup/dismissal key for a Widget — shared by the dismissal
+    writer (delete_widget) and the autonomous suggestion reader so they
+    always agree.
+
+    Uses the op_id of every non-None node op, sorted, joined with '+'.
+    Falls back to ``widget.op_id`` (the legacy single-op field) if no
+    node-level op_ids are present (e.g. genfill widgets or very old sessions).
+    """
+    node_op_ids = [n.op_id for n in widget.nodes if n.op_id]
+    if node_op_ids:
+        return "+".join(sorted(node_op_ids))
+    return widget.op_id or ""
+
+
 async def resolve_problem_widgets(
     doc: "SessionDocument",
     problems: "list[Problem]",
@@ -116,7 +131,10 @@ async def resolve_problem_widgets(
         entry_index = len(plan_entries)
         plan_index_to_problem[entry_index] = problem
         plan_index_to_problem_index[entry_index] = problem_index
-        label = _humanize(problem.kind)
+        # For kind="other" (top-up presets), display_label holds the preset's
+        # human name — use it as the driver/name so the widget card shows the
+        # preset display name rather than the generic "Other" label.
+        label = problem.display_label if (problem.kind == "other" and problem.display_label) else _humanize(problem.kind)
         base_rationale = problem.description or problem.kind
         # feedback is keyed by problem index (not kind) to avoid collision when
         # two problems share the same kind.

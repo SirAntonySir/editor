@@ -469,6 +469,97 @@ async def test_dismissal_matching_by_op_signature(make_doc, journal):
     assert len(dismissed_events) == 1
 
 
+@pytest.mark.asyncio
+async def test_multi_op_dismissal_blocks_autonomous_suggestion(make_doc, journal):
+    """Fix 1 regression: dismiss (delete with suppressSimilar) a MULTI-op widget
+    (ops light+color) and verify the autonomous pass suppresses a problem that
+    suggests [light, color], while a single-op [light] problem still mints.
+
+    The bug: delete_widget wrote fused_tool_id=w.op_id (first op only) but the
+    autonomous reader matched on "+".join(sorted(all_node_op_ids)).  Multi-op
+    dismissals silently never matched.
+
+    Now both paths use widget_op_signature(), so writer and reader agree.
+    """
+    from app.registry.loader import get_registry
+    from app.schemas.widget import (
+        DismissalRule,
+        GlobalScope,
+        Scope,
+        Widget,
+        WidgetNode,
+        WidgetOrigin,
+        WidgetPreview,
+    )
+    from app.services.problem_widgets import widget_op_signature
+
+    reg = get_registry()
+    if "light" not in reg.ops or "color" not in reg.ops:
+        pytest.skip("registry must have 'light' and 'color' ops")
+
+    doc = make_doc()
+
+    # Build a multi-op widget (light + color) and synthesize its dismissal rule,
+    # exactly as delete_widget would do.
+    scope = Scope(root=GlobalScope(kind="global"))
+    wn_light = WidgetNode(
+        id="n_light", type="basic", op_id="light",
+        scope=scope, params={}, widget_id="w_multi",
+    )
+    wn_color = WidgetNode(
+        id="n_color", type="basic", op_id="color",
+        scope=scope, params={}, widget_id="w_multi",
+    )
+    multi_widget = Widget(
+        id="w_multi",
+        intent="fix light and color",
+        scope=scope,
+        origin=WidgetOrigin(kind="mcp_autonomous"),
+        preview=WidgetPreview(kind="none"),
+        nodes=[wn_light, wn_color],
+    )
+
+    # Compute the canonical op signature (what widget_op_signature returns).
+    expected_sig = widget_op_signature(multi_widget)
+    assert expected_sig == "color+light", f"unexpected sig: {expected_sig!r}"
+
+    # Write the dismissal rule as delete_widget does now.
+    doc.dismissals.append(DismissalRule(
+        id="dr_multi",
+        source_widget_id="w_multi",
+        intent_norm="fix light and color",
+        scope_signature="global",
+        fused_tool_id=expected_sig,   # "color+light"
+    ))
+
+    # Autonomous pass with a problem suggesting both ops — must be suppressed.
+    ctx = _ctx([
+        Problem(kind="low_contrast", severity=0.8, suggested_ops=["light", "color"]),
+        # A single-op problem must still mint.
+        Problem(kind="clipped_highlights", severity=0.8, suggested_ops=["light"]),
+    ])
+
+    await mint_autonomous_suggestions(doc, ctx, _FakeAnthropic(), layer_id="l1")
+
+    minted = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
+    # The multi-op problem should be suppressed; the single-op one should mint.
+    assert len(minted) == 1, (
+        f"expected 1 minted (single-op passes, multi-op dismissed), got {len(minted)}: "
+        f"{[w.intent for w in minted]}"
+    )
+    assert "clipped highlights" in minted[0].intent.lower(), (
+        f"wrong widget minted: {minted[0].intent!r}"
+    )
+
+    dismissed_events = [
+        p for (_s, _k, p) in journal
+        if p.get("event") == "suggestion_skipped" and p.get("reason") == "dismissed"
+    ]
+    assert len(dismissed_events) == 1, (
+        "multi-op dismissal must journal suggestion_skipped/dismissed"
+    )
+
+
 def _blue_cast_jpeg() -> bytes:
     import io
 
@@ -670,3 +761,62 @@ async def test_topup_dedup_by_op_signature_blocks_same_op_preset(make_doc, journ
         and p.get("tool") == "__test_same__"
     ]
     assert len(dup_events) == 1, "same-op preset must be journaled as duplicate_op_sig"
+
+
+@pytest.mark.asyncio
+async def test_topup_driver_label_equals_preset_display_name(make_doc, journal):
+    """Fix 4 regression: the synthetic Problem for a top-up uses kind='other',
+    which previously yielded driver_label='Other'. After the fix, when
+    kind='other' and display_label is set, the label comes from display_label
+    (= preset.display_name), so the compound's label equals the preset display name.
+    """
+    from app.registry.loader import get_registry
+    from app.registry.schema import RegistryPreset, PresetOp
+
+    reg = get_registry()
+    if not reg.ops:
+        pytest.skip("need at least one op in registry")
+
+    # Pick any real op for the preset.
+    op_id = next(iter(reg.ops))
+
+    topup_preset = RegistryPreset(
+        id="__test_topup_label__",
+        display_name="Cool Cinematic Grade",
+        description="uses one op",
+        typical_use="test",
+        ops=[PresetOp(op_id=op_id, params={})],
+    )
+    augmented_presets = dict(reg.presets)
+    augmented_presets["__test_topup_label__"] = topup_preset
+
+    from unittest.mock import patch
+
+    class _MockReg:
+        ops = reg.ops
+        presets = augmented_presets
+
+    with patch("app.registry.loader.get_registry", return_value=_MockReg()):
+        doc = make_doc()
+        ctx = _ctx([])  # no problems → pure top-up
+
+        class _OnePreset(_FakeAnthropic):
+            def suggest_fused_tools_for_character(self, **_):
+                return ["__test_topup_label__"]
+
+        await mint_autonomous_suggestions(doc, ctx, _OnePreset(), layer_id="l1")
+
+    minted = [w for w in doc.widgets.values() if w.origin.kind == "mcp_autonomous"]
+    assert len(minted) == 1, f"expected 1 top-up widget, got {len(minted)}"
+
+    widget = minted[0]
+    # compound.label is what the frontend renders as the driver dial label.
+    if widget.compound is not None:
+        assert widget.compound.label == "Cool Cinematic Grade", (
+            f"driver label should be preset display name 'Cool Cinematic Grade', "
+            f"got {widget.compound.label!r}"
+        )
+    # display_name is also the preset display name (pre-existing behaviour).
+    assert widget.display_name == "Cool Cinematic Grade", (
+        f"display_name should be preset display name, got {widget.display_name!r}"
+    )

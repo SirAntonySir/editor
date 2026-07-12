@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from app.schemas._camel import camel_config
 from app.schemas.widget import DismissalRule, Scope
+from app.services.problem_widgets import widget_op_signature
 from app.state.document import SessionDocument
 from app.tools.base import BackendTool, ToolPermissions
 
@@ -67,7 +68,7 @@ class DeleteWidgetTool(BackendTool[_Input, _Output]):
                 source_widget_id=w.id,
                 intent_norm=_normalise_intent(w.intent),
                 scope_signature=_scope_signature(w.scope),
-                fused_tool_id=w.op_id,
+                fused_tool_id=widget_op_signature(w),
             )
         doc.dismiss_widget(input.widget_id, rule=rule)
         return _Output(ok=True)

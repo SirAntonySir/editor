@@ -65,12 +65,13 @@ async def mint_autonomous_suggestions(
     """
     from app.registry.loader import get_registry
     from app.schemas.widget import Scope, WidgetOrigin  # noqa: F401 (Scope used below)
-    from app.services.problem_widgets import resolve_problem_widgets
+    from app.services.problem_widgets import resolve_problem_widgets, widget_op_signature
 
     reg = get_registry()
 
     def _op_sig(op_ids: list[str]) -> str:
-        """Canonical dedup/dismissal key for a set of ops."""
+        """Canonical dedup/dismissal key for a list of op ids (problem-pass).
+        Uses the same canonical form as widget_op_signature so writer and reader agree."""
         return "+".join(sorted(op_ids))
 
     def _canonical_targets_for_ops(op_ids: list[str]) -> set[tuple[str, str]]:
@@ -214,15 +215,15 @@ async def mint_autonomous_suggestions(
             return pick_scope_map[id(problem)]
 
         try:
-            batch_pairs = await asyncio.wait_for(
-                resolve_problem_widgets(
-                    doc, picked_problems,
-                    scope_for=_scope_for_picked,
-                    origin_kind="mcp_autonomous",
-                    anthropic=anthropic,
-                    session_id=doc.session_id,
-                ),
-                timeout=resolve_timeout_s * 2 + 5,
+            # resolve_problem_widgets already bounds its own resolver call
+            # internally (stack_timeout_s = anthropic_timeout_s * 2 + 5); no
+            # outer wait_for needed.
+            batch_pairs = await resolve_problem_widgets(
+                doc, picked_problems,
+                scope_for=_scope_for_picked,
+                origin_kind="mcp_autonomous",
+                anthropic=anthropic,
+                session_id=doc.session_id,
             )
         except Exception as exc:  # noqa: BLE001
             _journal(doc, {"event": "resolve_failed", "tool": "batch",
@@ -287,15 +288,15 @@ async def mint_autonomous_suggestions(
         return
 
     # Build already_used_sigs as op SIGNATURES of existing/minted widgets.
-    # Using widget.nodes[*].op_id (not w.op_id which is only the first op's id)
-    # gives the correct multi-op canonical signature so the dedup is in the same
-    # namespace as preset op signatures computed below.
+    # widget_op_signature() uses the same canonical form as _op_sig() (sorted "+"
+    # joined) so the top-up dedup namespace matches the problem-pass and the
+    # dismissal writer in delete_widget.
     already_used_sigs: set[str] = set()
     for w in doc.widgets.values():
         if w.origin.kind == "mcp_autonomous" and w.status == "active":
-            node_op_ids = [n.op_id for n in w.nodes if n.op_id]
-            if node_op_ids:
-                already_used_sigs.add(_op_sig(node_op_ids))
+            sig = widget_op_signature(w)
+            if sig:
+                already_used_sigs.add(sig)
     # Include problem-pass op sigs (already tracked in used_op_sigs).
     already_used_sigs |= used_op_sigs
 
@@ -398,15 +399,13 @@ async def mint_autonomous_suggestions(
             return global_scope
 
         try:
-            topup_pairs = await asyncio.wait_for(
-                resolve_problem_widgets(
-                    doc, topup_problems,
-                    scope_for=_topup_scope,
-                    origin_kind="mcp_autonomous",
-                    anthropic=anthropic,
-                    session_id=doc.session_id,
-                ),
-                timeout=resolve_timeout_s * 2 + 5,
+            # resolve_problem_widgets self-bounds; no outer wait_for needed.
+            topup_pairs = await resolve_problem_widgets(
+                doc, topup_problems,
+                scope_for=_topup_scope,
+                origin_kind="mcp_autonomous",
+                anthropic=anthropic,
+                session_id=doc.session_id,
             )
         except Exception as exc:  # noqa: BLE001
             _journal(doc, {"event": "resolve_failed", "tool": "topup_batch",

@@ -4,6 +4,7 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { FusedWidgetBody } from './FusedWidgetBody';
 import type { Widget, WidgetCompound } from '@/types/widget';
 import { makeAiWidget } from './__fixtures__/widgets';
+import { backendTools } from '@/lib/backend-tools';
 
 vi.mock('@/lib/backend-tools', () => ({
   backendTools: {
@@ -332,5 +333,131 @@ describe('FusedWidgetBody', () => {
     expect(exposureBinding!.value).toBeLessThanOrEqual(100);
     expect(exposureBinding!.value).toBeGreaterThanOrEqual(-100);
     vi.useRealTimers();
+  });
+
+  // -------------------------------------------------------------------------
+  // Phase C2: unpin affordances
+  // -------------------------------------------------------------------------
+
+  describe('Phase C2: unpin affordances', () => {
+    it('pinned param renders the release button inside the expanded section', async () => {
+      const widget = makeFusedWidget({ lockedParams: ['exposure'] });
+      const { getByText, getByTitle } = render(
+        <ReactFlowProvider>
+          <FusedWidgetBody
+            widget={widget}
+            effectiveValue={(b) => b.value as number}
+            setParam={vi.fn()}
+          />
+        </ReactFlowProvider>,
+      );
+
+      // Expand the section
+      const sectionButton = getByText('Light').closest('button');
+      expect(sectionButton).toBeTruthy();
+      fireEvent.click(sectionButton!);
+
+      // The per-param release button should appear inside the expanded section
+      const pinBtn = getByTitle('Pinned — click to release');
+      expect(pinBtn).toBeTruthy();
+    });
+
+    it('clicking per-param release button calls unlock_widget_param with correct args', async () => {
+      const mockUnlock = vi.mocked(backendTools.unlock_widget_param);
+      const widget = makeFusedWidget({ lockedParams: ['exposure'] });
+      const { getByText, getByTitle } = render(
+        <ReactFlowProvider>
+          <FusedWidgetBody
+            widget={widget}
+            effectiveValue={(b) => b.value as number}
+            setParam={vi.fn()}
+          />
+        </ReactFlowProvider>,
+      );
+
+      // Expand the section
+      const sectionButton = getByText('Light').closest('button');
+      fireEvent.click(sectionButton!);
+
+      // Click the per-param release button
+      const pinBtn = getByTitle('Pinned — click to release');
+      fireEvent.click(pinBtn);
+
+      expect(mockUnlock).toHaveBeenCalledWith('s-1', {
+        widgetId: 'w-fused-1',
+        paramKey: 'exposure',
+      });
+    });
+
+    it('section-header release-all calls unlock_widget_param for every pinned param in that section', async () => {
+      const mockUnlock = vi.mocked(backendTools.unlock_widget_param);
+      const widget = makeFusedWidget({ lockedParams: ['exposure'] });
+      const { getByTitle } = render(
+        <ReactFlowProvider>
+          <FusedWidgetBody
+            widget={widget}
+            effectiveValue={(b) => b.value as number}
+            setParam={vi.fn()}
+          />
+        </ReactFlowProvider>,
+      );
+
+      // Click the section header pin indicator (release-all button)
+      const releaseAllBtn = getByTitle(/1 pinned — click to release all/i);
+      fireEvent.click(releaseAllBtn);
+
+      expect(mockUnlock).toHaveBeenCalledTimes(1);
+      expect(mockUnlock).toHaveBeenCalledWith('s-1', {
+        widgetId: 'w-fused-1',
+        paramKey: 'exposure',
+      });
+    });
+
+    it('clicking the header pin/release-all button does NOT collapse/expand the section', async () => {
+      const widget = makeFusedWidget({ lockedParams: ['exposure'] });
+      const { getByTitle, queryByRole } = render(
+        <ReactFlowProvider>
+          <FusedWidgetBody
+            widget={widget}
+            effectiveValue={(b) => b.value as number}
+            setParam={vi.fn()}
+          />
+        </ReactFlowProvider>,
+      );
+
+      // Initially collapsed: no sliders from the section should be visible
+      // (only the driver slider is present)
+      const slidersBeforeClick = queryByRole('slider', { name: /exposure/i });
+      expect(slidersBeforeClick).toBeNull();
+
+      // Click the release-all button
+      const releaseAllBtn = getByTitle(/1 pinned — click to release all/i);
+      fireEvent.click(releaseAllBtn);
+
+      // Section should still be collapsed — no exposure slider in the DOM
+      const slidersAfterClick = queryByRole('slider', { name: /exposure/i });
+      expect(slidersAfterClick).toBeNull();
+    });
+
+    it('unpinned params get no pin slot (no "Pinned — click to release" button)', async () => {
+      // No lockedParams → exposure is not pinned
+      const widget = makeFusedWidget({ lockedParams: [] });
+      const { getByText, queryByTitle } = render(
+        <ReactFlowProvider>
+          <FusedWidgetBody
+            widget={widget}
+            effectiveValue={(b) => b.value as number}
+            setParam={vi.fn()}
+          />
+        </ReactFlowProvider>,
+      );
+
+      // Expand the section to see per-param controls
+      const sectionButton = getByText('Light').closest('button');
+      fireEvent.click(sectionButton!);
+
+      // No release button should appear for unpinned params
+      expect(queryByTitle('Pinned — click to release')).toBeNull();
+    });
   });
 });

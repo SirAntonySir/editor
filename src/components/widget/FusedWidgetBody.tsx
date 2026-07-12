@@ -7,6 +7,45 @@ import { RegistryDrivenPanel } from '@/components/inspector/RegistryDrivenPanel'
 import { interpolateExtended } from '@/lib/perceptual-dial/interpolate';
 import { sliceWidgetByOp } from '@/lib/widget-slices';
 import { useBackendState } from '@/store/backend-state-slice';
+import { backendTools } from '@/lib/backend-tools';
+
+// ---------------------------------------------------------------------------
+// FusedPinButton — module-scope to avoid inline component definition.
+// Renders a small accent-coloured Pin button for pinned params inside a
+// fused op section. Returns null for unpinned params.
+// ---------------------------------------------------------------------------
+interface FusedPinButtonProps {
+  widgetId: string;
+  paramKey: string;
+  isPinned: boolean;
+}
+
+function FusedPinButton({ widgetId, paramKey, isPinned }: FusedPinButtonProps) {
+  const sessionId = useBackendState((s) => s.sessionId);
+  const offline = useBackendState((s) => s.sseStatus !== 'open');
+
+  if (!isPinned) return null;
+
+  const handleClick = () => {
+    if (!sessionId || offline) return;
+    void backendTools.unlock_widget_param(sessionId, { widgetId, paramKey });
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={!sessionId || offline}
+      title="Pinned — click to release"
+      aria-label="Pinned — click to release"
+      className="inline-flex items-center text-accent
+        hover:text-accent/70 p-0.5 rounded-[3px]
+        disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+    >
+      <Pin size={10} aria-hidden />
+    </button>
+  );
+}
 
 /** Clamp a number to [min, max]. */
 function clamp(v: number, min: number, max: number): number {
@@ -48,41 +87,72 @@ interface FusedOpSectionProps {
   onParamChange: (paramKey: string, value: unknown) => void;
   disabled?: boolean;
   pinnedCount: number;
+  /** The widget ID — forwarded to FusedPinButton for unlock calls. */
+  widgetId: string;
+  /** Set of paramKeys that are currently pinned in this section. */
+  lockedParamKeys: Set<string>;
+  /** Called when the user clicks the section-header "release all" button. */
+  onReleaseAll: () => void;
 }
 
 /** Collapsible section for one op within a fused widget. */
-function FusedOpSection({ op, values, onParamChange, disabled, pinnedCount }: FusedOpSectionProps) {
+function FusedOpSection({
+  op,
+  values,
+  onParamChange,
+  disabled,
+  pinnedCount,
+  widgetId,
+  lockedParamKeys,
+  onReleaseAll,
+}: FusedOpSectionProps) {
   const [open, setOpen] = useState(false);
+
   return (
     <div className="border-t border-separator/50 first:border-t-0">
-      <button
-        type="button"
-        className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-[10px] text-text-secondary hover:text-text-primary transition-colors select-none"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
-        {open ? (
-          <ChevronDown className="size-3 shrink-0" />
-        ) : (
-          <ChevronRight className="size-3 shrink-0" />
-        )}
-        <span>{op.display_name}</span>
+      {/* Header row: collapse button + sibling release-all pin button.
+          button-in-button is invalid HTML, so the pin control is a sibling
+          element sitting after the collapse <button>. */}
+      <div className="flex items-center w-full">
+        <button
+          type="button"
+          className="flex items-center gap-1.5 flex-1 min-w-0 px-2.5 py-1.5 text-left text-[10px] text-text-secondary hover:text-text-primary transition-colors select-none"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+        >
+          {open ? (
+            <ChevronDown className="size-3 shrink-0" />
+          ) : (
+            <ChevronRight className="size-3 shrink-0" />
+          )}
+          <span className="truncate">{op.display_name}</span>
+        </button>
         {pinnedCount > 0 && (
-          <span
-            className="ml-auto flex items-center gap-0.5 text-text-secondary"
-            title={`${pinnedCount} pinned`}
+          <button
+            type="button"
+            className="flex items-center gap-0.5 px-2 py-1.5 text-[10px] text-text-secondary hover:text-accent transition-colors select-none shrink-0"
+            title={`${pinnedCount} pinned — click to release all`}
+            aria-label={`${pinnedCount} pinned — click to release all`}
+            onClick={onReleaseAll}
           >
             <Pin className="size-2.5 shrink-0" />
             <span>{pinnedCount}</span>
-          </span>
+          </button>
         )}
-      </button>
+      </div>
       {open && (
         <RegistryDrivenPanel
           op={op}
           values={values}
           onParamChange={onParamChange}
           disabled={disabled}
+          renderPinSlot={(paramKey) => (
+            <FusedPinButton
+              widgetId={widgetId}
+              paramKey={paramKey}
+              isPinned={lockedParamKeys.has(paramKey)}
+            />
+          )}
         />
       )}
     </div>
@@ -108,6 +178,9 @@ interface FusedWidgetBodyProps {
  */
 export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidgetBodyProps) {
   const compound = widget.compound;
+
+  const sessionId = useBackendState((s) => s.sessionId);
+  const offline = useBackendState((s) => s.sseStatus !== 'open');
 
   // Driver t in [0, 1.5]: driverValue from the snapshot, default 1.0 (= 100).
   const initialT = (widget.driverValue != null ? widget.driverValue : 1.0);
@@ -240,10 +313,13 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
             opValues[b.paramKey] = eff;
           }
 
-          // Fix 5: Count pinned params in this section's bindings.
-          const pinnedCount = slice.bindings.filter(
-            (b) => lockedSet.has(b.target.paramKey),
-          ).length;
+          // Collect pinned paramKeys for this section's bindings.
+          const sectionLockedKeys = new Set(
+            slice.bindings
+              .filter((b) => lockedSet.has(b.target.paramKey))
+              .map((b) => b.target.paramKey),
+          );
+          const pinnedCount = sectionLockedKeys.size;
 
           const handleOpParamChange = (paramKey: string, value: unknown) => {
             // Find the binding for this paramKey and call setParam.
@@ -255,6 +331,13 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
             }
           };
 
+          const handleReleaseAll = () => {
+            if (!sessionId || offline) return;
+            for (const paramKey of sectionLockedKeys) {
+              void backendTools.unlock_widget_param(sessionId, { widgetId: widget.id, paramKey });
+            }
+          };
+
           return (
             <FusedOpSection
               key={slice.nodeId}
@@ -262,6 +345,9 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
               values={opValues}
               onParamChange={handleOpParamChange}
               pinnedCount={pinnedCount}
+              widgetId={widget.id}
+              lockedParamKeys={sectionLockedKeys}
+              onReleaseAll={handleReleaseAll}
             />
           );
         })}

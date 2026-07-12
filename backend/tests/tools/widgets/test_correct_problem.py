@@ -189,6 +189,31 @@ def test_unknown_suggested_ops_returns_tool_error():
 
 
 # ---------------------------------------------------------------------------
+# Test 2c — _InvalidInput surfaces as invalid_input error code (cleanup 6)
+# ---------------------------------------------------------------------------
+
+def test_empty_suggested_ops_surfaces_invalid_input_code():
+    """_NoApplicableAdjustments was renamed _InvalidInput so it is matched by
+    _classify_exception in registry.py (which checks cls.__name__ == '_InvalidInput').
+    Verify the error code is 'invalid_input', not 'internal_error'."""
+    fake = _FakeAnthropic(by_entry={})
+    client = _make_client(fake)
+    sid = _setup_session(client, suggested_ops=[])
+
+    env = _invoke(client, sid, {
+        "problemKind": "clipped_highlights",
+        "regionLabel": "sky",
+        "layerId": "l-1",
+    })
+
+    assert env["ok"] is False
+    assert env["error"]["code"] == "invalid_input", (
+        f"Expected 'invalid_input' but got {env['error']['code']!r} — "
+        "_NoApplicableAdjustments must be named _InvalidInput for registry mapping"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Test 3 — widget is added to the document
 # ---------------------------------------------------------------------------
 

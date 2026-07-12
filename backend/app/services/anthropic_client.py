@@ -1437,9 +1437,13 @@ a strong prior if provided. Do not include markdown fences."""
         # listed attempts so the user sees a genuine re-roll, not noise.
         rejected_block = ""
         if rejected_attempts:
+            # Cap at the last 5 attempts to prevent unbounded prompt growth and
+            # cache-busting on long re-roll sessions — older entries add noise
+            # without improving diversity.
+            recent = rejected_attempts[-5:]
             lines = "\n".join(
                 f"  Attempt {i + 1}: {attempt}"
-                for i, attempt in enumerate(rejected_attempts)
+                for i, attempt in enumerate(recent)
             )
             rejected_block = (
                 f"\nPREVIOUSLY REJECTED ATTEMPTS (do NOT repeat these values; "
@@ -1452,7 +1456,7 @@ a strong prior if provided. Do not include markdown fences."""
             f"INTENT: {intent}\n"
             f"RATIONALE FROM PLANNER: {rationale}\n"
             f"STARTING PARAMS (priors): {starting_params}\n"
-            f"{rejected_block}\n"
+            f"{rejected_block}"
             "Return JSON object with one key per param, values within the schema range."
         )
         # When propose_stack resolves N ops in parallel for one user

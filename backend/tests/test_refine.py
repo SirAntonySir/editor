@@ -98,7 +98,7 @@ def _create_session_with_active_widget(client: TestClient) -> tuple[str, str]:
     deps.get_session_store().set_context(sid, ctx.model_dump(mode="json"))
     # Spawn a warm_grade preset widget via propose_stack — produces registry-op
     # widgets (kelvin / light / color) with op_id set so the refine handler
-    # routes through resolve_widget_params instead of run_fused_tool.
+    # routes through resolve_widget_params (the registry-op path).
     registry = deps.get_tool_registry()
     if "propose_stack" not in registry._tools:
         registry.register(ProposeStackTool())

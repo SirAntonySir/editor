@@ -26,8 +26,8 @@ class _UnknownProblem(KeyError):
     pass
 
 
-class _NoApplicableAdjustments(Exception):
-    """Mapped to invalid_input in the envelope by the registry."""
+class _InvalidInput(Exception):
+    """No valid registry ops for this problem — surfaces as invalid_input."""
     pass
 
 
@@ -87,7 +87,7 @@ class CorrectProblemTool(BackendTool[_Input, _Output]):
         reg = get_registry()
         valid_ops = [op_id for op_id in (problem.suggested_ops or []) if op_id in reg.ops]
         if not valid_ops:
-            raise _NoApplicableAdjustments(
+            raise _InvalidInput(
                 f"problem {input.problem_kind!r} has no applicable adjustments "
                 f"(suggested_ops: {problem.suggested_ops!r})"
             )
@@ -112,7 +112,7 @@ class CorrectProblemTool(BackendTool[_Input, _Output]):
         )
 
         if not pairs:
-            raise _NoApplicableAdjustments(
+            raise _InvalidInput(
                 f"problem {input.problem_kind!r} has no applicable adjustments "
                 f"(suggested_ops: {problem.suggested_ops!r})"
             )

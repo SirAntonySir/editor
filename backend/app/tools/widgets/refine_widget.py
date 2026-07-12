@@ -138,9 +138,14 @@ class RefineWidgetTool(BackendTool[_Input, _Output]):
             image_context=ctx.model_dump(mode="json") if ctx is not None else {},
             session_id=doc.session_id,
         )
+        locked = set(w.locked_params)
         for key, value in resolved.items():
+            if key in locked:
+                continue  # Phase A doctrine: locked params survive refine
             node.params[key] = value
-            doc.set_param(node.layer_id, node.type, key, value)
+            # Fan out to every target layer (mirrors set_widget_param multi-layer write)
+            for layer in (node.layer_ids if node.layer_ids is not None else [node.layer_id]):
+                doc.set_param(layer, node.type, key, value)
             binding = next((b for b in w.bindings if b.param_key == key), None)
             if binding is not None:
                 binding.value = value

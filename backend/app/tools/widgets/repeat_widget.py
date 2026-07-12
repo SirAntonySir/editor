@@ -33,7 +33,7 @@ class RepeatWidgetTool(BackendTool[_Input, _Output]):
     kind = "mutate"
     description = (
         "Re-roll a widget: ask Claude for a meaningfully different result for the "
-        "same intent + scope. Only valid on un-composed fused-tool widgets."
+        "same intent + scope. Only valid on un-composed registry-op widgets."
     )
     input_schema = _Input
     output_schema = _Output
@@ -48,7 +48,7 @@ class RepeatWidgetTool(BackendTool[_Input, _Output]):
         if w is None:
             raise _UnknownWidget(input.widget_id)
         if w.op_id is None or w.composed:
-            raise _InvalidInput("repeat is only valid on un-composed fused-tool widgets")
+            raise _InvalidInput("repeat is only valid on un-composed registry-op widgets")
 
         # Resolve the registry op via w.op_id first; fall back to nodes[0].op_id
         # for persisted template widgets (op_id is a template name like "golden_hour")
@@ -94,9 +94,14 @@ class RepeatWidgetTool(BackendTool[_Input, _Output]):
         # Write resolved values back through node params, canonical state, and bindings
         # so the image updates live and sliders track — same write-back as refine's
         # registry-op branch.
+        locked = set(w.locked_params)
         for key, value in resolved.items():
+            if key in locked:
+                continue  # Phase A doctrine: locked params survive repeat
             node.params[key] = value
-            doc.set_param(node.layer_id, node.type, key, value)
+            # Fan out to every target layer (mirrors set_widget_param multi-layer write)
+            for layer in (node.layer_ids if node.layer_ids is not None else [node.layer_id]):
+                doc.set_param(layer, node.type, key, value)
             binding = next((b for b in w.bindings if b.param_key == key), None)
             if binding is not None:
                 binding.value = value

@@ -71,8 +71,6 @@ def _classify_exception(exc: Exception) -> ToolResponseEnvelope | None:
             code = "orphan_binding"
         elif ex_name == "_ScopeUnresolvable":
             code = "scope_unresolvable"
-        elif ex_name == "_FusedToolNotFound":
-            code = "fused_tool_not_found"
         return _err(code, str(exc), retryable=False)
     cls_name = exc.__class__.__name__
     if cls_name == "_WidgetDismissed":

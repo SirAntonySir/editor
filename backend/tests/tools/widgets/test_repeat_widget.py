@@ -262,6 +262,34 @@ def test_repeat_rejects_widget_with_no_op_id(client) -> None:
     assert body["error"]["code"] == "invalid_input"
 
 
+def test_repeat_skips_locked_params(client, fake_anthropic) -> None:
+    """Locked params survive repeat — Phase A doctrine: pins are inviolable."""
+    from tests.tools.widgets.test_fused_compound import _fused_candidate_widget
+
+    sid, _ = _make_session_with_kelvin_widget(client)
+    doc = deps.get_session_store().get_document(sid)
+
+    w = _fused_candidate_widget()
+    w.op_id = "light"
+    doc.add_widget(w)
+
+    original_exposure = w.nodes[0].params.get("exposure", 0.0)
+    w.locked_params = ["exposure"]
+    doc.update_widget(w)
+
+    body = client.post(
+        "/api/tools/repeat_widget",
+        json={"session_id": sid, "input": {"widget_id": w.id}},
+    ).json()
+    assert body["ok"] is True, body
+
+    w_out = doc.widgets[w.id]
+    assert w_out.nodes[0].params.get("exposure") == original_exposure, (
+        f"locked param 'exposure' must survive repeat, "
+        f"got {w_out.nodes[0].params.get('exposure')!r}"
+    )
+
+
 def test_resolve_widget_params_with_no_rejected_attempts_unchanged(client, fake_anthropic) -> None:
     """resolve_widget_params with rejected_attempts=None behaves exactly as
     before — the rejected_attempts block is absent from the call."""

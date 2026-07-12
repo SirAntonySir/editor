@@ -177,6 +177,80 @@ def test_refine_preserves_layer_id_on_appended_nodes(client) -> None:
         )
 
 
+def test_refine_skips_locked_params(client) -> None:
+    """Locked params (set by the user via set_widget_param) must survive refine.
+    The fake resolver returns range-max for all params; if a param is locked its
+    value must NOT change after refine."""
+    from tests.tools.widgets.test_fused_compound import _fused_candidate_widget
+
+    sid, _ = _setup(client)
+    doc = deps.get_session_store().get_document(sid)
+
+    w = _fused_candidate_widget()
+    w.op_id = "light"
+    doc.add_widget(w)
+
+    # Lock the "exposure" param (simulating a user hand-set via set_widget_param)
+    original_exposure = w.nodes[0].params.get("exposure", 0.0)
+    w.locked_params = ["exposure"]
+    doc.update_widget(w)
+
+    body = client.post(
+        "/api/tools/refine_widget",
+        json={"session_id": sid, "input": {
+            "widget_id": w.id,
+            "edits": [],
+            "additions": [],
+            "instruction": "even brighter",
+        }},
+    ).json()
+    assert body["ok"] is True, body
+
+    # "exposure" is locked — must remain unchanged despite fake returning range-max
+    w_out = doc.widgets[w.id]
+    assert w_out.nodes[0].params.get("exposure") == original_exposure, (
+        f"locked param 'exposure' must survive refine, "
+        f"got {w_out.nodes[0].params.get('exposure')!r}"
+    )
+
+
+def test_refine_writes_to_all_layers(client) -> None:
+    """When a widget node has layer_ids, refine fans the write out to every
+    target layer — mirroring the set_widget_param multi-layer write."""
+    from tests.tools.widgets.test_fused_compound import _fused_candidate_widget
+
+    sid, _ = _setup(client)
+    doc = deps.get_session_store().get_document(sid)
+
+    w = _fused_candidate_widget()
+    w.op_id = "light"
+    # Give the node a layer_ids list spanning two layers
+    w.nodes[0].layer_ids = ["layer_a", "layer_b"]
+    w.nodes[0].layer_id = "layer_a"
+    doc.add_widget(w)
+
+    body = client.post(
+        "/api/tools/refine_widget",
+        json={"session_id": sid, "input": {
+            "widget_id": w.id,
+            "edits": [],
+            "additions": [],
+            "instruction": "darker",
+        }},
+    ).json()
+    assert body["ok"] is True, body
+
+    # Both layers must have the resolved exposure value in canonical state
+    w_out = doc.widgets[w.id]
+    new_exposure = w_out.nodes[0].params.get("exposure")
+    for layer_id in ["layer_a", "layer_b"]:
+        canon_exposure = doc.canonical.get(layer_id, {}).get("basic", {}).get("exposure")
+        assert canon_exposure == new_exposure, (
+            f"layer {layer_id!r} exposure in canonical state expected {new_exposure}, "
+            f"got {canon_exposure!r}"
+        )
+
+
 def test_refine_fallback_to_nodes0_op_id(client) -> None:
     """When w.op_id isn't a registry op (persisted template id like 'golden_hour'),
     the refine handler must fall back to nodes[0].op_id to resolve the real op

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { Scissors, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
-import type { Widget, ControlBinding } from '@/types/widget';
+import type { Widget } from '@/types/widget';
 import { RegistryDrivenPanel } from '@/components/inspector/RegistryDrivenPanel';
 import { FusedPinButton } from '@/components/widget/FusedWidgetBody';
 import { sliceWidgetByOp } from '@/lib/widget-slices';
@@ -356,6 +356,3 @@ export function FusedSliceNode({ data, selected }: FusedSliceNodeProps) {
     </>
   );
 }
-
-/** Typed control-binding alias used by tests/consumers. */
-export type FusedSliceBinding = ControlBinding;

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { X } from 'lucide-react';
+import { Scissors, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import type { Widget, ControlBinding } from '@/types/widget';
 import { RegistryDrivenPanel } from '@/components/inspector/RegistryDrivenPanel';
@@ -14,6 +14,9 @@ import { loadRegistry } from '@/lib/registry/loader';
 
 const EMPTY_WIDGETS: Widget[] = [];
 
+/** How long (ms) the detach button stays "armed" before auto-resetting. */
+const DETACH_REARM_MS = 3000;
+
 /** Parent intent/displayName, mirroring WidgetShellHeader's resolveTitle. */
 function resolveParentTitle(widget: Widget): string {
   if (widget.displayName) return widget.displayName;
@@ -22,6 +25,120 @@ function resolveParentTitle(widget: Widget): string {
   if (op) return op.display_name;
   return widget.intent;
 }
+
+// ─── DetachButton ──────────────────────────────────────────────────────────────
+//
+// Two-click inline confirm:
+//   click 1 → arms the button (accent color, title changes)
+//   click 2 → calls detach_widget_op and immediately removes the satellite
+//
+// Auto-resets if the user doesn't confirm within DETACH_REARM_MS or blurs away.
+// Hidden/disabled when the parent only has one node (detaching the only op
+// would leave the fused widget empty — dismiss it instead).
+
+interface DetachButtonProps {
+  sessionId: string | null;
+  offline: boolean;
+  parentWidgetId: string;
+  nodeId: string;
+  /** Number of nodes in the parent widget. Used to guard the single-node case. */
+  parentNodeCount: number;
+  onDetached: () => void;
+}
+
+function DetachButton({
+  sessionId,
+  offline,
+  parentWidgetId,
+  nodeId,
+  parentNodeCount,
+  onDetached,
+}: DetachButtonProps) {
+  const [armed, setArmed] = useState(false);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear the auto-reset timer when the component unmounts.
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current !== null) clearTimeout(resetTimerRef.current);
+    };
+  }, []);
+
+  const clearResetTimer = () => {
+    if (resetTimerRef.current !== null) {
+      clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = null;
+    }
+  };
+
+  const disarm = useCallback(() => {
+    clearResetTimer();
+    setArmed(false);
+  }, []);
+
+  const isSingleNode = parentNodeCount <= 1;
+  const isDisabled = isSingleNode || offline || !sessionId;
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (isDisabled) return;
+
+      if (!armed) {
+        // First click: arm the button.
+        setArmed(true);
+        resetTimerRef.current = setTimeout(disarm, DETACH_REARM_MS);
+        return;
+      }
+
+      // Second click: confirm detach.
+      clearResetTimer();
+      setArmed(false);
+      if (!sessionId) return;
+      void backendTools
+        .detach_widget_op(sessionId, { widgetId: parentWidgetId, nodeId })
+        .then((res) => {
+          if (res.ok) onDetached();
+        });
+    },
+    [armed, isDisabled, sessionId, parentWidgetId, nodeId, onDetached, disarm],
+  );
+
+  const handleBlur = useCallback(() => {
+    if (armed) disarm();
+  }, [armed, disarm]);
+
+  const title = isSingleNode
+    ? 'Only adjustment — dismiss the widget instead'
+    : armed
+      ? 'Click again to confirm detach'
+      : 'Detach from intent — make this a standalone widget';
+
+  const ariaLabel = armed ? 'Confirm detach from intent' : 'Detach from intent';
+
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      title={title}
+      disabled={isDisabled}
+      onClick={handleClick}
+      onBlur={handleBlur}
+      className={[
+        'nodrag inline-flex items-center justify-center size-4 rounded-[3px] transition-colors shrink-0',
+        isDisabled
+          ? 'text-text-tertiary cursor-not-allowed opacity-50'
+          : armed
+            ? 'text-color-accent bg-color-accent/10 hover:bg-color-accent/20'
+            : 'text-text-secondary hover:text-text-primary hover:bg-surface-secondary',
+      ].join(' ')}
+    >
+      <Scissors size={12} aria-hidden />
+    </button>
+  );
+}
+
+// ─── FusedSliceNode ─────────────────────────────────────────────────────────────
 
 export interface FusedSliceNodeData extends Record<string, unknown> {
   /** Store id of the satellite (`slice:<parentWidgetId>:<nodeId>`). */
@@ -45,6 +162,10 @@ interface FusedSliceNodeProps {
  * Prune guard: if the parent widget is gone from the snapshot (dismissed) OR the
  * op-node is gone (detached via the ⋯ menu), the satellite renders nothing and
  * self-removes on the next frame.
+ *
+ * Detach: the "Detach from intent" button on the header calls `detach_widget_op`
+ * on the backend and then immediately removes the satellite. The new standalone
+ * widget arrives via SSE `widget.created` and is tethered by `workspace-tether.ts`.
  */
 export function FusedSliceNode({ data, selected }: FusedSliceNodeProps) {
   const { sliceId } = data;
@@ -142,6 +263,13 @@ export function FusedSliceNode({ data, selected }: FusedSliceNodeProps) {
     [sessionId, offline, parentWidgetId, parentNode, opSlice],
   );
 
+  // On successful detach: remove this satellite immediately. The new standalone
+  // widget arrives via SSE widget.created and is positioned+tethered by
+  // workspace-tether.ts (fused_expansion origin now allowed there).
+  const handleDetached = useCallback(() => {
+    removeFusedSliceNode(sliceId);
+  }, [removeFusedSliceNode, sliceId]);
+
   if (gone || !parent || !opSlice || !parentWidgetId) return null;
 
   const lockedSet = new Set(parent.lockedParams ?? []);
@@ -166,17 +294,25 @@ export function FusedSliceNode({ data, selected }: FusedSliceNodeProps) {
         className={`overlay w-fit ${selected ? 'workspace-node-selected' : ''}`}
         style={{ minWidth: 226 }}
       >
-        {/* Header — op name + provenance ("from …") + close (pure UI). The
-            whole strip is the drag handle; the close button opts out. */}
+        {/* Header — op name + provenance ("from …") + detach + close (pure UI).
+            The whole strip is the drag handle; action buttons opt out. */}
         <div className="workspace-drag-handle flex items-center gap-1.5 px-2.5 py-1.5 border-b border-separator/60 cursor-grab">
           <div className="flex flex-col min-w-0 flex-1">
             <span className="truncate text-[11px] font-medium text-text-primary leading-tight">
               {opSlice.op.display_name}
             </span>
             <span className="truncate text-[9px] text-text-secondary leading-tight">
-              from “{resolveParentTitle(parent)}”
+              from "{resolveParentTitle(parent)}"
             </span>
           </div>
+          <DetachButton
+            sessionId={sessionId}
+            offline={offline}
+            parentWidgetId={parentWidgetId}
+            nodeId={nodeId ?? ''}
+            parentNodeCount={parent.nodes.length}
+            onDetached={handleDetached}
+          />
           <button
             type="button"
             aria-label="Close projection"

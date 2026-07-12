@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, render, fireEvent } from '@testing-library/react';
+import { cleanup, render, fireEvent, act } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { FusedSliceNode } from './FusedSliceNode';
 import { useEditorStore } from '@/store';
@@ -11,6 +11,7 @@ vi.mock('@/lib/backend-tools', () => ({
   backendTools: {
     set_widget_param: vi.fn(),
     unlock_widget_param: vi.fn(),
+    detach_widget_op: vi.fn(),
   },
 }));
 
@@ -39,6 +40,7 @@ vi.mock('@/store/backend-state-slice', async () => {
 });
 
 const NODE_ID = 'n-basic-1';
+const NODE_ID_2 = 'n-basic-2';
 const PARENT_ID = 'w-fused-1';
 
 function makeFusedWidget(overrides: Partial<Widget> = {}): Widget {
@@ -78,6 +80,35 @@ function makeFusedWidget(overrides: Partial<Widget> = {}): Widget {
         controlSchema: { controlType: 'slider', min: -100, max: 100, step: 1 },
         value: 60,
         default: 0,
+      },
+    ],
+    ...overrides,
+  });
+}
+
+/** A parent widget with two nodes (multi-node scenario for detach test). */
+function makeFusedWidgetMultiNode(overrides: Partial<Widget> = {}): Widget {
+  return makeFusedWidget({
+    nodes: [
+      {
+        id: NODE_ID,
+        type: 'basic',
+        opId: 'light',
+        scope: { kind: 'global' },
+        inputs: [],
+        widgetId: PARENT_ID,
+        layerId: 'L1',
+        params: { exposure: 0 },
+      },
+      {
+        id: NODE_ID_2,
+        type: 'basic',
+        opId: 'color',
+        scope: { kind: 'global' },
+        inputs: [],
+        widgetId: PARENT_ID,
+        layerId: 'L1',
+        params: { saturation: 0 },
       },
     ],
     ...overrides,
@@ -158,5 +189,107 @@ describe('FusedSliceNode', () => {
     const sliceId = useEditorStore.getState().addFusedSliceNode(PARENT_ID, NODE_ID, { x: 0, y: 0 });
     const { getByTitle } = renderSlice(sliceId);
     expect(getByTitle('Pinned — click to release')).toBeTruthy();
+  });
+
+  // ─── DetachButton tests ─────────────────────────────────────────────────────
+
+  describe('DetachButton — armed/confirm flow', () => {
+    it('first click arms the button (aria-label changes to confirm)', () => {
+      // Multi-node parent so detach is enabled.
+      snapshotWidgets = [makeFusedWidgetMultiNode()];
+      const sliceId = useEditorStore.getState().addFusedSliceNode(PARENT_ID, NODE_ID, { x: 0, y: 0 });
+      const { getByLabelText } = renderSlice(sliceId);
+
+      const detachBtn = getByLabelText('Detach from intent');
+      fireEvent.click(detachBtn);
+
+      // After first click the button is armed → aria-label updates.
+      expect(getByLabelText('Confirm detach from intent')).toBeTruthy();
+      // No backend call yet.
+      expect(backendTools.detach_widget_op).not.toHaveBeenCalled();
+    });
+
+    it('second click calls detach_widget_op with correct parentWidgetId + nodeId', async () => {
+      vi.mocked(backendTools.detach_widget_op).mockResolvedValue({
+        ok: true,
+        output: { widget: makeFusedWidgetMultiNode(), parent: makeFusedWidgetMultiNode() },
+      });
+
+      snapshotWidgets = [makeFusedWidgetMultiNode()];
+      const sliceId = useEditorStore.getState().addFusedSliceNode(PARENT_ID, NODE_ID, { x: 0, y: 0 });
+      const { getByLabelText } = renderSlice(sliceId);
+
+      // Arm.
+      fireEvent.click(getByLabelText('Detach from intent'));
+      // Confirm.
+      await act(async () => {
+        fireEvent.click(getByLabelText('Confirm detach from intent'));
+      });
+
+      expect(backendTools.detach_widget_op).toHaveBeenCalledWith('s-1', {
+        widgetId: PARENT_ID,
+        nodeId: NODE_ID,
+      });
+    });
+
+    it('on success: removeFusedSliceNode is called to close the satellite', async () => {
+      vi.mocked(backendTools.detach_widget_op).mockResolvedValue({
+        ok: true,
+        output: { widget: makeFusedWidgetMultiNode(), parent: makeFusedWidgetMultiNode() },
+      });
+
+      snapshotWidgets = [makeFusedWidgetMultiNode()];
+      const sliceId = useEditorStore.getState().addFusedSliceNode(PARENT_ID, NODE_ID, { x: 0, y: 0 });
+      expect(useEditorStore.getState().fusedSliceNodes[sliceId]).toBeDefined();
+
+      const { getByLabelText } = renderSlice(sliceId);
+      fireEvent.click(getByLabelText('Detach from intent'));
+      await act(async () => {
+        fireEvent.click(getByLabelText('Confirm detach from intent'));
+      });
+
+      expect(useEditorStore.getState().fusedSliceNodes[sliceId]).toBeUndefined();
+    });
+
+    it('auto-resets armed state after timeout without confirming', () => {
+      vi.useFakeTimers();
+      snapshotWidgets = [makeFusedWidgetMultiNode()];
+      const sliceId = useEditorStore.getState().addFusedSliceNode(PARENT_ID, NODE_ID, { x: 0, y: 0 });
+      const { getByLabelText } = renderSlice(sliceId);
+
+      fireEvent.click(getByLabelText('Detach from intent'));
+      expect(getByLabelText('Confirm detach from intent')).toBeTruthy();
+
+      // Advance past DETACH_REARM_MS (3000ms).
+      act(() => { vi.advanceTimersByTime(3100); });
+
+      // Should be back to initial label.
+      expect(getByLabelText('Detach from intent')).toBeTruthy();
+      expect(backendTools.detach_widget_op).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+  });
+
+  describe('DetachButton — single-node guard', () => {
+    it('is disabled when the parent has only one node', () => {
+      // Default makeFusedWidget has 1 node.
+      snapshotWidgets = [makeFusedWidget()];
+      const sliceId = useEditorStore.getState().addFusedSliceNode(PARENT_ID, NODE_ID, { x: 0, y: 0 });
+      const { getByTitle } = renderSlice(sliceId);
+
+      const btn = getByTitle('Only adjustment — dismiss the widget instead');
+      expect(btn).toBeTruthy();
+      expect((btn as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('clicking disabled button does not arm or call backend', () => {
+      snapshotWidgets = [makeFusedWidget()];
+      const sliceId = useEditorStore.getState().addFusedSliceNode(PARENT_ID, NODE_ID, { x: 0, y: 0 });
+      const { getByTitle } = renderSlice(sliceId);
+
+      const btn = getByTitle('Only adjustment — dismiss the widget instead');
+      fireEvent.click(btn);
+      expect(backendTools.detach_widget_op).not.toHaveBeenCalled();
+    });
   });
 });

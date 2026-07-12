@@ -105,15 +105,15 @@ function buildTetherForWidget(widget: Widget, viewport?: Viewport): void {
  * When a new widget appears in the snapshot, position it next to the
  * currently active ImageNode and create a TetherEdge attaching it.
  *
- * Tethers tool_invoked (toolrail) and mcp_user_prompt (Cmd+K palette) widgets
- * immediately — both are explicit user actions where the user expects the
- * widget on the canvas. Autonomous AI suggestions stay in the Suggestions
- * panel and acquire a footprint only when engaged via
- * {@link tetherWorkspaceWidgetOnEngage}.
+ * Tethers tool_invoked (toolrail), mcp_user_prompt (Cmd+K palette), and
+ * fused_expansion (detached op from a fused intent widget) widgets immediately —
+ * all are explicit user actions where the user expects the widget on the canvas.
+ * Autonomous AI suggestions stay in the Suggestions panel and acquire a footprint
+ * only when engaged via {@link tetherWorkspaceWidgetOnEngage}.
  */
 export function tetherWorkspaceWidget(widget: Widget, viewport?: Viewport): void {
   const k = widget.origin.kind;
-  if (k !== 'tool_invoked' && k !== 'mcp_user_prompt') return;
+  if (k !== 'tool_invoked' && k !== 'mcp_user_prompt' && k !== 'fused_expansion') return;
   buildTetherForWidget(widget, viewport);
 }
 

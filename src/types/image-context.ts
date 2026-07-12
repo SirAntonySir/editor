@@ -30,6 +30,9 @@ export interface Problem {
   severity: number;
   regionLabel?: string | null;
   bbox?: [number, number, number, number] | null;
+  /** Registry op ids the analyzer recommends for this problem (e.g. ["light", "color"]). */
+  suggestedOps: string[];
+  /** @deprecated Legacy template ids — kept so persisted sessions deserialize. Nothing writes this anymore. */
   suggestedFusedTools: string[];
 }
 

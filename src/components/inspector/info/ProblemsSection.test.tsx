@@ -112,4 +112,40 @@ describe('ProblemsSection — Correct action', () => {
     // Baseline still never leaks internal ids.
     expect(document.body.textContent).not.toMatch(/shadows_lift/);
   });
+
+  it('shows Correct when suggestedOps is populated (new path)', () => {
+    const ctx = {
+      ...makeFullContext(),
+      problems: [
+        { kind: 'crushed_shadows' as const, severity: 0.6, regionLabel: 'foreground',
+          suggestedOps: ['light', 'levels'], suggestedFusedTools: [] },
+      ],
+    };
+    render(<ProblemsSection ctx={ctx} />);
+    expect(screen.getByRole('button', { name: /^correct/i })).toBeDefined();
+  });
+
+  it('shows Correct when only legacy suggestedFusedTools is populated (old sessions)', () => {
+    const ctx = {
+      ...makeFullContext(),
+      problems: [
+        { kind: 'crushed_shadows' as const, severity: 0.6, regionLabel: 'foreground',
+          suggestedOps: [], suggestedFusedTools: ['shadows_lift'] },
+      ],
+    };
+    render(<ProblemsSection ctx={ctx} />);
+    expect(screen.getByRole('button', { name: /^correct/i })).toBeDefined();
+  });
+
+  it('hides Correct when both suggestedOps and suggestedFusedTools are empty', () => {
+    const ctx = {
+      ...makeFullContext(),
+      problems: [
+        { kind: 'crushed_shadows' as const, severity: 0.6, regionLabel: 'foreground',
+          suggestedOps: [], suggestedFusedTools: [] },
+      ],
+    };
+    render(<ProblemsSection ctx={ctx} />);
+    expect(screen.queryByRole('button', { name: /^correct/i })).toBeNull();
+  });
 });

@@ -736,6 +736,7 @@ export interface Problem {
   regionLabel: string | null;
   severity: number;
   suggestedFusedTools: string[];
+  suggestedOps: string[];
 }
 export interface RegionStats {
   contrastP10P90: number;

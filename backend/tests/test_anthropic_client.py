@@ -97,7 +97,7 @@ def test_augment_context_returns_typed_fields(monkeypatch) -> None:
                 "problems": [{
                     "kind": "clipped_highlights", "severity": 0.7,
                     "region_label": None, "bbox": None,
-                    "suggested_fused_tools": ["sky_recovery"],
+                    "suggested_ops": ["light"],
                 }],
                 "region_soft_fields": [],
             },
@@ -124,6 +124,22 @@ def test_augment_context_returns_typed_fields(monkeypatch) -> None:
     )
     assert result.grade_character == "warm-amber"
     assert isinstance(result.problems[0], Problem)
+
+
+def test_soft_fields_tool_schema_uses_suggested_ops() -> None:
+    """The emit_context_soft_fields tool schema must require suggested_ops,
+    not the deprecated suggested_fused_tools, so the model emits registry op ids."""
+    from app.services.anthropic_client import _SOFT_FIELDS_TOOL
+    problem_schema = _SOFT_FIELDS_TOOL["input_schema"]["properties"]["problems"]["items"]
+    assert "suggested_ops" in problem_schema["required"], (
+        "suggested_ops must be required in the problems tool schema"
+    )
+    assert "suggested_fused_tools" not in problem_schema["required"], (
+        "suggested_fused_tools must NOT be required (deprecated)"
+    )
+    assert "suggested_ops" in problem_schema["properties"], (
+        "suggested_ops property must exist in tool schema"
+    )
 
 
 def test_resolve_fused_tool_returns_dict(monkeypatch) -> None:

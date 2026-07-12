@@ -266,7 +266,7 @@ _SOFT_FIELDS_TOOL = {
                 "type": "array",
                 "items": {
                     "type": "object",
-                    "required": ["kind", "severity", "suggested_fused_tools"],
+                    "required": ["kind", "severity", "suggested_ops"],
                     "properties": {
                         "kind": {
                             "type": "string",
@@ -311,9 +311,10 @@ _SOFT_FIELDS_TOOL = {
                             "maxItems": 4,
                             "description": "Normalized [x, y, w, h] copied from the named candidate region. Set whenever region_label is set.",
                         },
-                        "suggested_fused_tools": {
+                        "suggested_ops": {
                             "type": "array",
                             "items": {"type": "string"},
+                            "description": "Registry op ids that address this problem. Choose only from the op catalog attached in the user message.",
                         },
                     },
                 },
@@ -395,7 +396,7 @@ shadows only inside the foreground subject). For every per-region problem set \
 region_label to the EXACT candidate region label and copy that region's bbox. \
 \
 Emit one entry per genuinely detected issue with severity 0..1 and \
-suggested_fused_tools. Do not invent issues to fill both passes; an image may have \
+suggested_ops. Do not invent issues to fill both passes; an image may have \
 zero local problems. Do not duplicate the same issue at both scopes unless the \
 local severity clearly exceeds the global one. \
 \
@@ -434,7 +435,7 @@ Judgement-only kinds (soft_focus, distracting_element, dull_subject, \
 skin_tone_shift, noisy_shadows, uneven_white_balance) have no mechanical floor \
 — score those fully on what you see. \
 \
-The valid `suggested_fused_tools` ids and what each does are listed in the catalog \
+The valid `suggested_ops` ids and what each does are listed in the op catalog \
 attached as a user-message text block; choose ids only from that catalog. \
 \
 Call the `emit_context_soft_fields` tool exactly once. Do not return prose."""
@@ -1628,17 +1629,19 @@ emit_stack_params call covering every (entry_index, op_id) in the plan."""
         cheap_pass_summary: dict,
         session_id: str | None = None,
     ) -> _ContextSoftFields:
-        # Build the catalogue dynamically from the SSoT registry presets so
-        # adding/removing a preset JSON automatically widens or narrows the
-        # autonomous picker. System prompt stays static (cache-friendly);
-        # the catalogue rides in a user-message block.
+        # Build the op catalogue dynamically from the SSoT registry so adding/
+        # removing an op JSON automatically widens or narrows the picker.
+        # System prompt stays static (cache-friendly); the catalogue rides in a
+        # user-message block. The model emits registry op ids in suggested_ops.
         from app.registry.loader import get_registry
         catalog_lines = [
-            f"- {t.id}: {t.typical_use}" for t in get_registry().presets.values()
+            f"- {op.id}: {op.llm.description} ({op.llm.typical_use})"
+            for op in get_registry().ops.values()
         ]
         catalog_block = (
-            "Catalogue of valid `suggested_fused_tools` ids "
-            f"({len(catalog_lines)} total):\n" + "\n".join(catalog_lines)
+            "Op catalog for `suggested_ops` "
+            f"({len(catalog_lines)} ops — use only these ids):\n"
+            + "\n".join(catalog_lines)
         )
 
         last_error = None

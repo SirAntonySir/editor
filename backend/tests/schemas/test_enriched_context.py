@@ -17,14 +17,32 @@ def test_color_swatch_rgb_and_weight() -> None:
 def test_problem_required_fields() -> None:
     p = Problem(
         kind="clipped_highlights", severity=0.7, region_label=None, bbox=None,
-        suggested_fused_tools=["sky_recovery"],
+        suggested_ops=["light"],
     )
     assert p.kind == "clipped_highlights"
+    assert p.suggested_ops == ["light"]
+
+
+def test_problem_round_trip_with_suggested_ops() -> None:
+    """Problems with suggested_ops round-trip correctly."""
+    p = Problem(kind="crushed_shadows", severity=0.5, suggested_ops=["light", "levels"])
+    data = p.model_dump()
+    p2 = Problem.model_validate(data)
+    assert p2.suggested_ops == ["light", "levels"]
+    assert p2.suggested_fused_tools == []
+
+
+def test_problem_legacy_field_still_validates() -> None:
+    """Old persisted payloads with only suggested_fused_tools still validate."""
+    p = Problem.model_validate({"kind": "clipped_highlights", "severity": 0.7,
+                                "suggested_fused_tools": ["sky_recovery"]})
+    assert p.suggested_fused_tools == ["sky_recovery"]
+    assert p.suggested_ops == []
 
 
 def test_problem_kind_rejects_unknown() -> None:
     with pytest.raises(ValidationError):
-        Problem(kind="brokenz", severity=0.5, suggested_fused_tools=[])
+        Problem(kind="brokenz", severity=0.5, suggested_ops=[])
 
 
 def test_region_stats_round_trip() -> None:

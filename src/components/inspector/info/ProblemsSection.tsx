@@ -51,7 +51,9 @@ function ProblemRow({ problem, showCorrect }: { problem: Problem; showCorrect: b
   const contextValue = problem.regionLabel
     ? `${kindLabel} (${severityPct}%) @ ${problem.regionLabel}`
     : `${kindLabel} (${severityPct}%)`;
-  const hasCorrection = (problem.suggestedFusedTools?.length ?? 0) > 0;
+  const hasCorrection =
+    (problem.suggestedOps?.length ?? 0) > 0 ||
+    (problem.suggestedFusedTools?.length ?? 0) > 0;
 
   async function handleCorrect() {
     if (busy) return;

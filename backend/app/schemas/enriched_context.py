@@ -36,6 +36,11 @@ class Problem(BaseModel):
     severity: float = Field(ge=0.0, le=1.0)
     region_label: str | None = None
     bbox: list[float] | None = Field(default=None, min_length=4, max_length=4)
+    # Registry op ids the analyzer recommends for this problem (e.g. ["light", "color"]).
+    # Replaces suggested_fused_tools — analysis LLM now emits registry op ids directly.
+    suggested_ops: list[str] = Field(default_factory=list)
+    # DEPRECATED: legacy template ids; kept so persisted sessions validate.
+    # Nothing writes this field anymore — consumers read suggested_ops instead.
     suggested_fused_tools: list[str] = Field(default_factory=list)
     # Free-text, image-specific name for the issue as seen in THIS photo
     # ("Blown-out sky behind the wires"). Becomes the minted widget's

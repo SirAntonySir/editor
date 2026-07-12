@@ -1751,6 +1751,12 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "suggestedOps": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -1760,7 +1766,8 @@
         "kind",
         "regionLabel",
         "severity",
-        "suggestedFusedTools"
+        "suggestedFusedTools",
+        "suggestedOps"
       ],
       "title": "Problem",
       "type": "object"

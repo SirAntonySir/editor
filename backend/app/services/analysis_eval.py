@@ -50,12 +50,12 @@ def floors_from_cheap(cheap: CheapPassResult) -> dict[str, float]:
         saturation_mean=0.0, contrast_p10_p90=cheap.contrast_p10_p90,
     )
     probes = [
-        Problem(kind=k, severity=0.0, suggested_fused_tools=[])
+        Problem(kind=k, severity=0.0, suggested_ops=[])
         for k in _WHOLE_IMAGE_KINDS
     ]
     probes += [
         Problem(kind=k, severity=0.0, region_label=_FRAME_REGION,
-                suggested_fused_tools=[])
+                suggested_ops=[])
         for k in ("local_underexposure", "local_overexposure")
     ]
     grounded = ground_problem_severities(probes, cheap, [frame])

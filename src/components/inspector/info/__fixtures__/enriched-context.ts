@@ -39,7 +39,7 @@ export function makeFullContext(): ImageContext {
     wbNeutralConfidence: 0.78,
     gradeCharacter: 'cool teal-orange',
     problems: [
-      { kind: 'crushed_shadows', severity: 0.6, regionLabel: 'foreground', suggestedFusedTools: ['shadows_lift'] },
+      { kind: 'crushed_shadows', severity: 0.6, regionLabel: 'foreground', suggestedOps: ['light', 'levels'], suggestedFusedTools: [] },
     ],
   };
 }

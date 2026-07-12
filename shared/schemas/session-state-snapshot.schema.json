@@ -1771,6 +1771,13 @@
           },
           "title": "Suggestedfusedtools",
           "type": "array"
+        },
+        "suggestedOps": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Suggestedops",
+          "type": "array"
         }
       },
       "required": [

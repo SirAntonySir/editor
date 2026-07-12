@@ -193,11 +193,19 @@ def _op_display(op_id: str) -> str:
     return words[:1].upper() + words[1:].lower()
 
 
-def _attach_fused_compound(widget: Widget, doc: Any, driver_label: str | None) -> None:
+def _attach_fused_compound(
+    widget: Widget, doc: Any, driver_label: str | None, *, force: bool = False,
+) -> None:
     """Fused intent widgets: LLM-proposed widgets get a synthesized driver.
     tool_invoked / preset spawns don't — "I picked a tool" ships raw controls.
-    Mutates the widget in place (no-op when synthesis declines)."""
-    if widget.origin.kind not in ("mcp_user_prompt", "mcp_autonomous"):
+    Mutates the widget in place (no-op when synthesis declines).
+
+    Pass ``force=True`` to bypass the origin check — used by
+    ``resolve_problem_widgets`` so that ``tool_invoked``-origin problem-correct
+    widgets still receive a driver (the user clicked "Correct", which implies
+    they want the guided dial experience, not raw sliders).
+    """
+    if not force and widget.origin.kind not in ("mcp_user_prompt", "mcp_autonomous"):
         return
     from app.tools.widgets.fused_compound import synthesize_compound
     block = synthesize_compound(widget, doc, driver_label=driver_label)

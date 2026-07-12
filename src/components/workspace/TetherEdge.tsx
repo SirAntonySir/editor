@@ -5,8 +5,10 @@ import { useEditorStore } from '@/store';
 export interface TetherEdgeData extends Record<string, unknown> {
   scopeKind: 'layer' | 'node';
   /** 'extracted' renders a calm, semi-transparent grey provenance connector
-   *  from an extracted image node back to its source (not the accent tether). */
-  variant?: 'extracted';
+   *  from an extracted image node back to its source (not the accent tether).
+   *  'hub' marks a break-out satellite → parent fused-widget tether; it reuses
+   *  the default accent styling (Phase B adds category-tinted strands). */
+  variant?: 'extracted' | 'hub';
   /** For widget tethers: the (widget, layer) target this edge represents, so
    *  reconnect / delete handlers don't have to parse the edge id. */
   widgetId?: string;

@@ -30,7 +30,8 @@ import type { Edge } from '@xyflow/react';
 import { WIDGET_SHELL_MIN_WIDTH } from '@/components/widget/WidgetShell';
 import { InfoNode, type InfoNodeData } from './InfoNode';
 import { LayerNode, type LayerNodeData } from './LayerNode';
-import { layerNodeIdFor } from '@/store/workspace-slice';
+import { FusedSliceNode, type FusedSliceNodeData } from './FusedSliceNode';
+import { layerNodeIdFor, fusedSliceEdgeIdFor } from '@/store/workspace-slice';
 import { duplicateImageNode, duplicateActiveImageNode } from '@/lib/duplicate-image-node';
 import { duplicateSelection } from '@/lib/duplicate-selection';
 import type { Widget } from '@/types/widget';
@@ -51,7 +52,7 @@ function ImageNodeWithBoundary(props: NodeProps) {
   );
 }
 
-const nodeTypes = { image: ImageNodeWithBoundary, widget: WidgetNode, info: InfoNode, layers: LayerNode };
+const nodeTypes = { image: ImageNodeWithBoundary, widget: WidgetNode, info: InfoNode, layers: LayerNode, fusedSlice: FusedSliceNode };
 const edgeTypes = { tether: TetherEdge };
 
 /**
@@ -200,13 +201,15 @@ type ImageNodeType = Node<ImageNodeData, 'image'>;
 type WidgetNodeType = Node<WidgetNodeData, 'widget'>;
 type InfoNodeType  = Node<InfoNodeData, 'info'>;
 type LayerNodeType = Node<LayerNodeData, 'layers'>;
-type WorkspaceNode = ImageNodeType | WidgetNodeType | InfoNodeType | LayerNodeType;
+type FusedSliceNodeType = Node<FusedSliceNodeData, 'fusedSlice'>;
+type WorkspaceNode = ImageNodeType | WidgetNodeType | InfoNodeType | LayerNodeType | FusedSliceNodeType;
 
 export function CanvasWorkspace() {
   const imageNodes = useEditorStore((s) => s.imageNodes);
   const widgetNodes = useEditorStore((s) => s.widgetNodes);
   const infoNodes = useEditorStore((s) => s.infoNodes);
   const layerNodes = useEditorStore((s) => s.layerNodes);
+  const fusedSliceNodes = useEditorStore((s) => s.fusedSliceNodes);
   const ensureLayerNode = useEditorStore((s) => s.ensureLayerNode);
   const layers = useEditorStore((s) => s.layers);
   const documentMeta = useEditorStore((s) => s.documentMeta);
@@ -335,8 +338,24 @@ export function CanvasWorkspace() {
         dragHandle: '.workspace-drag-handle',
         data: { imageNodeId: n.imageNodeId },
       }));
-    return [...imgs, ...widgets, ...infos, ...layerStrips];
-  }, [imageNodes, widgetNodes, snapshotWidgets, infoNodes, layerNodes, layers, aiAccess]);
+    // Break-out projection satellites — one per fused-slice node whose parent
+    // widget is still an active fused widget in the snapshot. The node itself
+    // does the fine-grained prune (op-node gone → self-remove); this filter
+    // avoids even mounting a satellite whose parent widget has been dismissed.
+    const activeWidgetIds = new Set(
+      snapshotWidgets.filter((w) => w.status === 'active').map((w) => w.id),
+    );
+    const slices: FusedSliceNodeType[] = Object.values(fusedSliceNodes)
+      .filter((n) => activeWidgetIds.has(n.parentWidgetId))
+      .map((n) => ({
+        id: n.id,
+        type: 'fusedSlice',
+        position: n.position,
+        dragHandle: '.workspace-drag-handle',
+        data: { sliceId: n.id },
+      }));
+    return [...imgs, ...widgets, ...infos, ...layerStrips, ...slices];
+  }, [imageNodes, widgetNodes, snapshotWidgets, infoNodes, layerNodes, fusedSliceNodes, layers, aiAccess]);
 
   // Local RF state mirrors the store. React Flow needs to own positions during
   // drag (via onNodesChange) so the visual position follows the cursor without
@@ -361,15 +380,23 @@ export function CanvasWorkspace() {
     // (workspace-tether) avoids each widget's REAL expanded footprint instead
     // of a fixed header estimate. Dimension changes are event-driven (RF emits
     // them on measure/resize), so this doesn't run on every render.
-    const wn = useEditorStore.getState().widgetNodes;
+    const st = useEditorStore.getState();
     for (const c of changes) {
       if (c.type !== 'dimensions' || !c.dimensions) continue;
-      const node = wn[c.id];
-      if (!node) continue; // only positioned widget nodes carry a footprint
       const w = c.dimensions.width;
       const h = c.dimensions.height;
-      if (!node.size || Math.abs(node.size.w - w) > 1 || Math.abs(node.size.h - h) > 1) {
-        useEditorStore.getState().setWidgetSize(c.id, { w, h });
+      const wNode = st.widgetNodes[c.id];
+      if (wNode) {
+        if (!wNode.size || Math.abs(wNode.size.w - w) > 1 || Math.abs(wNode.size.h - h) > 1) {
+          st.setWidgetSize(c.id, { w, h });
+        }
+        continue;
+      }
+      // Break-out satellites persist their measured size too, so the hub tether
+      // routes to the real extent.
+      const sNode = st.fusedSliceNodes[c.id];
+      if (sNode && (!sNode.size || Math.abs(sNode.size.w - w) > 1 || Math.abs(sNode.size.h - h) > 1)) {
+        st.setFusedSliceNodeSize(c.id, { w, h });
       }
     }
   }, []);
@@ -403,6 +430,12 @@ export function CanvasWorkspace() {
         const persisted = layerNodes[n.id]?.size;
         w = n.measured?.width  ?? persisted?.w ?? 150;
         h = n.measured?.height ?? persisted?.h ?? 80;
+      } else if (n.type === 'fusedSlice') {
+        // Break-out satellites size with their op panel; prefer measured, fall
+        // back to the persisted size, then the shell min width / a body estimate.
+        const persisted = fusedSliceNodes[n.id]?.size;
+        w = n.measured?.width  ?? persisted?.w ?? WIDGET_SHELL_MIN_WIDTH;
+        h = n.measured?.height ?? persisted?.h ?? 120;
       } else {
         w = n.measured?.width  ?? (n.data as ImageNodeData).size.w;
         h = n.measured?.height ?? (n.data as ImageNodeData).size.h;
@@ -523,6 +556,43 @@ export function CanvasWorkspace() {
       });
     }
 
+    // ─── Break-out satellite hub tethers ───────────────────────────
+    // Each fused-slice satellite tethers to its PARENT WIDGET node (the hub),
+    // not to the image — the braid from the intent widget to the photo stays
+    // whole. Only render when both endpoints exist in RF (parent widget node
+    // present + satellite mounted). Edge id `hub:<sliceId>`.
+    for (const slice of Object.values(fusedSliceNodes)) {
+      const rfSlice = rfLookup.get(slice.id);
+      const rfParent = rfLookup.get(slice.parentWidgetId);
+      if (!rfSlice || !rfParent) continue;
+      const sliceCenter = {
+        x: rfSlice.position.x + rfSlice.size.w / 2,
+        y: rfSlice.position.y + rfSlice.size.h / 2,
+      };
+      const parentBounds = {
+        x0: rfParent.position.x,
+        y0: rfParent.position.y,
+        x1: rfParent.position.x + rfParent.size.w,
+        y1: rfParent.position.y + rfParent.size.h,
+      };
+      const { sourceHandle, targetHandle } = pickTetherHandles(sliceCenter, parentBounds);
+      // The parent widget node exposes only `tether-out-*` handles (no
+      // `tether-in-*`), so remap the picked image-style target side to the
+      // widget's outlet on the same side — the edge just anchors to that
+      // handle's position.
+      const parentSide = targetHandle.slice('tether-in-'.length);
+      out.push({
+        id: fusedSliceEdgeIdFor(slice.id),
+        source: slice.id,
+        target: slice.parentWidgetId,
+        sourceHandle,
+        targetHandle: `tether-out-${parentSide}`,
+        type: 'tether',
+        data: { scopeKind: 'node', variant: 'hub' as const },
+        selectable: false,
+      });
+    }
+
     // ─── Extracted-object provenance tethers ───────────────────────
     // Every image node extracted from a source (`sourceImageNodeId`) gets a
     // calm, semi-transparent grey connector back to that source, so the cutout
@@ -556,7 +626,7 @@ export function CanvasWorkspace() {
       });
     }
     return out;
-  }, [tetherEdges, imageNodes, infoNodes, layerNodes, nodes]);
+  }, [tetherEdges, imageNodes, infoNodes, layerNodes, fusedSliceNodes, nodes]);
 
   // Local RF edge state mirrors the derived edges. React Flow owns edge
   // `selected` state (needed so a click can select a tether and ⌫ can delete
@@ -590,6 +660,9 @@ export function CanvasWorkspace() {
       else if (n.type === 'widget') editorDocument.workspace.setWidgetPosition(n.id, n.position);
       else if (n.type === 'info')   editorDocument.workspace.setInfoNodePosition(n.id, n.position);
       else if (n.type === 'layers') editorDocument.workspace.setLayerNodePosition(n.id, n.position);
+      // Satellite drags are pure UI (frontend-only), so persist straight to the
+      // slice rather than through the undoable workspace facade.
+      else if (n.type === 'fusedSlice') useEditorStore.getState().setFusedSliceNodePosition(n.id, n.position);
     }
   }, []);
 

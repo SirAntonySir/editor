@@ -5,6 +5,8 @@ import { FusedWidgetBody } from './FusedWidgetBody';
 import type { Widget, WidgetCompound } from '@/types/widget';
 import { makeAiWidget } from './__fixtures__/widgets';
 import { backendTools } from '@/lib/backend-tools';
+import { useEditorStore } from '@/store';
+import { fusedSliceNodeIdFor } from '@/store/workspace-slice';
 
 vi.mock('@/lib/backend-tools', () => ({
   backendTools: {
@@ -458,6 +460,59 @@ describe('FusedWidgetBody', () => {
 
       // No release button should appear for unpinned params
       expect(queryByTitle('Pinned — click to release')).toBeNull();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Phase C3: break-out (⤢) spawn affordance
+  // -------------------------------------------------------------------------
+  describe('Phase C3: break-out affordance', () => {
+    const PARENT_ID = 'w-fused-1';
+    const NODE_ID = 'n-basic-1';
+
+    beforeEach(() => {
+      useEditorStore.getState().resetWorkspace();
+      // The break-out helper anchors placement to the parent's canvas node, so
+      // seed a widget node position for it.
+      useEditorStore.getState().setWidgetPosition(PARENT_ID, { x: 100, y: 100 });
+    });
+
+    it('clicking ⤢ spawns a fused-slice node with the correct id, parent, and nodeId', () => {
+      const widget = makeFusedWidget();
+      const { getByLabelText } = render(
+        <ReactFlowProvider>
+          <FusedWidgetBody
+            widget={widget}
+            effectiveValue={(b) => b.value as number}
+            setParam={vi.fn()}
+          />
+        </ReactFlowProvider>,
+      );
+      fireEvent.click(getByLabelText('Open as widget on canvas'));
+
+      const sliceId = fusedSliceNodeIdFor(PARENT_ID, NODE_ID);
+      const slice = useEditorStore.getState().fusedSliceNodes[sliceId];
+      expect(slice).toBeDefined();
+      expect(slice.parentWidgetId).toBe(PARENT_ID);
+      expect(slice.nodeId).toBe(NODE_ID);
+    });
+
+    it('does not spawn a duplicate on a second ⤢ click', () => {
+      const widget = makeFusedWidget();
+      const { getByLabelText } = render(
+        <ReactFlowProvider>
+          <FusedWidgetBody
+            widget={widget}
+            effectiveValue={(b) => b.value as number}
+            setParam={vi.fn()}
+          />
+        </ReactFlowProvider>,
+      );
+      // First click spawns; the button then reads "broken out".
+      fireEvent.click(getByLabelText('Open as widget on canvas'));
+      fireEvent.click(getByLabelText('Broken out — focus the satellite'));
+
+      expect(Object.keys(useEditorStore.getState().fusedSliceNodes)).toHaveLength(1);
     });
   });
 });

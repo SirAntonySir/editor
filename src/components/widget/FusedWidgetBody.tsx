@@ -1,26 +1,29 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Pin } from 'lucide-react';
+import { ChevronDown, ChevronRight, Pin, Maximize2 } from 'lucide-react';
 import type { Widget, ControlBinding } from '@/types/widget';
 import type { Anchor } from '@/lib/perceptual-dial/types';
 import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
 import { RegistryDrivenPanel } from '@/components/inspector/RegistryDrivenPanel';
 import { interpolateExtended } from '@/lib/perceptual-dial/interpolate';
 import { sliceWidgetByOp } from '@/lib/widget-slices';
+import { useShallow } from 'zustand/react/shallow';
 import { useBackendState } from '@/store/backend-state-slice';
+import { useEditorStore } from '@/store';
 import { backendTools } from '@/lib/backend-tools';
+import { breakOutFusedOp } from '@/lib/fused-breakout';
 
 // ---------------------------------------------------------------------------
 // FusedPinButton — module-scope to avoid inline component definition.
 // Renders a small accent-coloured Pin button for pinned params inside a
 // fused op section. Returns null for unpinned params.
 // ---------------------------------------------------------------------------
-interface FusedPinButtonProps {
+export interface FusedPinButtonProps {
   widgetId: string;
   paramKey: string;
   isPinned: boolean;
 }
 
-function FusedPinButton({ widgetId, paramKey, isPinned }: FusedPinButtonProps) {
+export function FusedPinButton({ widgetId, paramKey, isPinned }: FusedPinButtonProps) {
   const sessionId = useBackendState((s) => s.sessionId);
   const offline = useBackendState((s) => s.sseStatus !== 'open');
 
@@ -93,6 +96,10 @@ interface FusedOpSectionProps {
   lockedParamKeys: Set<string>;
   /** Called when the user clicks the section-header "release all" button. */
   onReleaseAll: () => void;
+  /** Break this op out onto the canvas as a projection satellite (⤢). */
+  onBreakOut: () => void;
+  /** True when a satellite for this op already exists — the ⤢ focuses it. */
+  brokenOut: boolean;
 }
 
 /** Collapsible section for one op within a fused widget. */
@@ -105,6 +112,8 @@ function FusedOpSection({
   widgetId,
   lockedParamKeys,
   onReleaseAll,
+  onBreakOut,
+  brokenOut,
 }: FusedOpSectionProps) {
   const [open, setOpen] = useState(false);
 
@@ -126,6 +135,18 @@ function FusedOpSection({
             <ChevronRight className="size-3 shrink-0" />
           )}
           <span className="truncate">{op.display_name}</span>
+        </button>
+        <button
+          type="button"
+          className={`inline-flex items-center px-1.5 py-1.5 text-[10px] transition-colors select-none shrink-0 ${
+            brokenOut ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
+          }`}
+          title={brokenOut ? 'Broken out — focus the satellite' : 'Open as widget on canvas'}
+          aria-label={brokenOut ? 'Broken out — focus the satellite' : 'Open as widget on canvas'}
+          aria-pressed={brokenOut}
+          onClick={onBreakOut}
+        >
+          <Maximize2 className="size-2.5 shrink-0" aria-hidden />
         </button>
         {pinnedCount > 0 && (
           <button
@@ -181,6 +202,11 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
 
   const sessionId = useBackendState((s) => s.sessionId);
   const offline = useBackendState((s) => s.sseStatus !== 'open');
+  // Which op nodes already have a break-out satellite (so the ⤢ reads
+  // "broken out" and re-clicking focuses instead of duplicating).
+  const sliceNodeIds = useEditorStore(
+    useShallow((s) => new Set(Object.values(s.fusedSliceNodes).map((n) => n.nodeId))),
+  );
 
   // Driver t in [0, 1.5]: driverValue from the snapshot, default 1.0 (= 100).
   const initialT = (widget.driverValue != null ? widget.driverValue : 1.0);
@@ -341,6 +367,11 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
             }
           };
 
+          const brokenOut = sliceNodeIds.has(slice.nodeId);
+          const handleBreakOut = () => {
+            breakOutFusedOp(widget.id, slice.nodeId);
+          };
+
           return (
             <FusedOpSection
               key={slice.nodeId}
@@ -351,6 +382,8 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
               widgetId={widget.id}
               lockedParamKeys={sectionLockedKeys}
               onReleaseAll={handleReleaseAll}
+              onBreakOut={handleBreakOut}
+              brokenOut={brokenOut}
             />
           );
         })}

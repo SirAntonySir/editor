@@ -1,5 +1,6 @@
 import type { StateCreator } from 'zustand';
 import type {
+  FusedSliceNodeState,
   ImageNodeState,
   InfoNodeContent,
   InfoNodeState,
@@ -40,6 +41,18 @@ const LAYER_NODE_GAP = 28;
 /** Deterministic layers-node id for an image node (1:1). */
 export function layerNodeIdFor(imageNodeId: string): string {
   return `layers-${imageNodeId}`;
+}
+
+/** Deterministic break-out satellite id for a (parent widget, op-node) pair.
+ *  Slices are per-NODE (like extract), so a second ⤢ click on the same op
+ *  focuses the existing satellite instead of spawning a duplicate. */
+export function fusedSliceNodeIdFor(parentWidgetId: string, nodeId: string): string {
+  return `slice:${parentWidgetId}:${nodeId}`;
+}
+
+/** Deterministic hub-tether edge id for a break-out satellite. */
+export function fusedSliceEdgeIdFor(sliceId: string): string {
+  return `hub:${sliceId}`;
 }
 
 /** Seed position: park the layers node just left of its image node, top-aligned. */
@@ -103,6 +116,10 @@ export interface WorkspaceSlice {
   /** Standalone layers nodes — one per image node, keyed by `layers-<imageNodeId>`.
    *  Created/removed by the image-node lifecycle ops below. */
   layerNodes: Record<string, LayerNodeState>;
+  /** Break-out projection satellites — frontend-only views of one op slice of a
+   *  fused parent widget, keyed by `slice:<parentWidgetId>:<nodeId>`. Not backed
+   *  by a backend Widget; pruned at render time when the parent goes away. */
+  fusedSliceNodes: Record<string, FusedSliceNodeState>;
   workspaceViewport: WorkspaceViewport;
   activeImageNodeId: string | null;
   /**
@@ -205,6 +222,22 @@ export interface WorkspaceSlice {
   /** Set the widget's user uniform scale (bottom-right corner resize). Creates
    *  the entry if it doesn't exist yet. */
   setWidgetScale: (id: string, scale: number) => void;
+
+  // ─── Break-out projection satellites (fused-slice nodes) ────────────
+  /**
+   * Spawn a break-out satellite for one op-node of a fused parent widget.
+   * Idempotent per (parentWidgetId, nodeId): a second call with the same pair
+   * is a no-op (the ⤢ affordance focuses the existing satellite instead). The
+   * caller supplies the spawn position (collision-aware, computed against the
+   * parent widget's node rect). Returns the deterministic satellite id.
+   */
+  addFusedSliceNode: (parentWidgetId: string, nodeId: string, position: Point) => string;
+  /** Close a satellite (pure UI). No backend round-trip. */
+  removeFusedSliceNode: (id: string) => void;
+  /** Persist a satellite's canvas position (drag-stop). */
+  setFusedSliceNodePosition: (id: string, position: Point) => void;
+  /** Persist a satellite's React-Flow-measured size for tether routing. */
+  setFusedSliceNodeSize: (id: string, size: Size) => void;
   /**
    * Insert or replace an edge by `edge.id`. The caller owns the id.
    */
@@ -273,6 +306,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
   tetherEdges: {},
   infoNodes: {},
   layerNodes: {},
+  fusedSliceNodes: {},
   workspaceViewport: { zoom: 1, pan: { x: 0, y: 0 } },
   activeImageNodeId: null,
   previousImageNodeId: null,
@@ -481,6 +515,33 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       else state.widgetNodes[id] = { id, position: { x: 0, y: 0 }, scale };
     }),
 
+  // ─── Break-out projection satellites ──────────────────────────────
+  addFusedSliceNode: (parentWidgetId, nodeId, position) => {
+    const id = fusedSliceNodeIdFor(parentWidgetId, nodeId);
+    set((state) => {
+      if (state.fusedSliceNodes[id]) return; // idempotent per (parent, node)
+      state.fusedSliceNodes[id] = { id, parentWidgetId, nodeId, position };
+    });
+    return id;
+  },
+
+  removeFusedSliceNode: (id) =>
+    set((state) => {
+      delete state.fusedSliceNodes[id];
+    }),
+
+  setFusedSliceNodePosition: (id, position) =>
+    set((state) => {
+      const n = state.fusedSliceNodes[id];
+      if (n) n.position = position;
+    }),
+
+  setFusedSliceNodeSize: (id, size) =>
+    set((state) => {
+      const n = state.fusedSliceNodes[id];
+      if (n) n.size = { ...size };
+    }),
+
   setEdge: (edge) =>
     set((state) => {
       state.tetherEdges[edge.id] = { ...edge };
@@ -670,6 +731,7 @@ export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [['zustand/immer
       state.tetherEdges = {};
       state.infoNodes = {};
       state.layerNodes = {};
+      state.fusedSliceNodes = {};
       state.workspaceViewport = { zoom: 1, pan: { x: 0, y: 0 } };
       state.activeImageNodeId = null;
       state.previousImageNodeId = null;

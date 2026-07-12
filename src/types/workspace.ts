@@ -51,6 +51,35 @@ export interface LayerNodeState {
   size?: Size;
 }
 
+/**
+ * Break-out projection satellite — a frontend-only view of ONE op-node slice of
+ * a fused (widget-local `compound`) parent widget, pinned to the canvas.
+ *
+ * The satellite is NOT a backend Widget: it looks up its parent widget in the
+ * snapshot and renders that op's real controls via `sliceWidgetByOp`. Every edit
+ * routes to `set_widget_param(parentWidgetId, …)`, so the backend never learns a
+ * satellite exists — pinning, refine, and undo all fall out of the parent's own
+ * flow. Closing a satellite is pure UI (`removeFusedSliceNode`); dismissing the
+ * parent widget (or detaching the op node) prunes the satellite at render time.
+ *
+ * Slices are per-NODE (like the extract flow): one satellite per op-graph node.
+ * Deterministic id `slice:<parentWidgetId>:<nodeId>` keeps it 1:1 with its
+ * parent op node, so a second ⤢ click focuses the existing satellite instead of
+ * spawning a duplicate.
+ */
+export interface FusedSliceNodeState {
+  /** Deterministic: `slice:<parentWidgetId>:<nodeId>`. */
+  id: string;
+  /** The fused parent widget this satellite projects. */
+  parentWidgetId: string;
+  /** The parent widget's op-graph node id this satellite slices out. */
+  nodeId: string;
+  position: Point;
+  /** Last React-Flow-measured canvas size, persisted so the hub tether routes
+   *  to the satellite's real extent. Absent until measured. */
+  size?: Size;
+}
+
 export interface WidgetNodeState {
   id: string;
   position: Point;

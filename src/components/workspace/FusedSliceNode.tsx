@@ -56,6 +56,10 @@ function DetachButton({
 }: DetachButtonProps) {
   const [armed, setArmed] = useState(false);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Double-fire guard: setArmed(false) is batched, so a rapid extra click in
+  // the same tick still sees armed===true in the closure and would send a
+  // second detach_widget_op. The ref flips synchronously.
+  const inFlightRef = useRef(false);
 
   // Clear the auto-reset timer when the component unmounts.
   useEffect(() => {
@@ -64,17 +68,17 @@ function DetachButton({
     };
   }, []);
 
-  const clearResetTimer = () => {
+  const clearResetTimer = useCallback(() => {
     if (resetTimerRef.current !== null) {
       clearTimeout(resetTimerRef.current);
       resetTimerRef.current = null;
     }
-  };
+  }, []);
 
   const disarm = useCallback(() => {
     clearResetTimer();
     setArmed(false);
-  }, []);
+  }, [clearResetTimer]);
 
   const isSingleNode = parentNodeCount <= 1;
   const isDisabled = isSingleNode || offline || !sessionId;
@@ -94,14 +98,19 @@ function DetachButton({
       // Second click: confirm detach.
       clearResetTimer();
       setArmed(false);
-      if (!sessionId) return;
+      if (!sessionId || inFlightRef.current) return;
+      inFlightRef.current = true;
       void backendTools
         .detach_widget_op(sessionId, { widgetId: parentWidgetId, nodeId })
         .then((res) => {
+          inFlightRef.current = false;
           if (res.ok) onDetached();
+        })
+        .catch(() => {
+          inFlightRef.current = false;
         });
     },
-    [armed, isDisabled, sessionId, parentWidgetId, nodeId, onDetached, disarm],
+    [armed, isDisabled, sessionId, parentWidgetId, nodeId, onDetached, disarm, clearResetTimer],
   );
 
   const handleBlur = useCallback(() => {
@@ -125,7 +134,7 @@ function DetachButton({
       onClick={handleClick}
       onBlur={handleBlur}
       className={[
-        'nodrag inline-flex items-center justify-center size-4 rounded-[3px] transition-colors shrink-0',
+        'nodrag inline-flex items-center justify-center size-4 rounded-sm transition-colors shrink-0',
         isDisabled
           ? 'text-text-tertiary cursor-not-allowed opacity-50'
           : armed

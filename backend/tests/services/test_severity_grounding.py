@@ -39,7 +39,7 @@ def _region(label: str, mean_luma: float) -> RegionStats:
 
 
 def _problem(kind: str, severity: float, **over) -> Problem:
-    return Problem(kind=kind, severity=severity, suggested_fused_tools=["x"], **over)
+    return Problem(kind=kind, severity=severity, suggested_ops=["light"], **over)
 
 
 # ---- cast --------------------------------------------------------------

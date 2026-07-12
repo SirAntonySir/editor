@@ -1,6 +1,11 @@
-"""Pick fused tools that fit the image's grade character and mint an
-autonomous Widget per resolved suggestion. Extracted from the deleted
-analyze_image mega-tool; called by the suggest_widgets MCP tool.
+"""Pick registry ops that fit the image's grade character and mint an
+autonomous Widget per resolved suggestion via the shared problem-minting
+helper.  Extracted from the deleted analyze_image mega-tool; called by
+the suggest_widgets MCP tool.
+
+Template references have been removed (T3 of feat/remove-fused-templates):
+suggestions are now driven by ``problem.suggested_ops`` (registry op ids)
+and the dedup/dismissal keys are op-signature strings.
 """
 
 from __future__ import annotations
@@ -44,13 +49,12 @@ def _journal(doc, payload: dict) -> None:
 async def mint_autonomous_suggestions(
     doc, ctx, anthropic, layer_id: str = "legacy", object_label: str | None = None,
 ) -> None:
-    """For each high-severity Problem, run the suggested fused tool with
-    origin.kind='mcp_autonomous'. Suggestions whose (fused_tool_id, scope)
-    matches an existing dismissal rule are skipped.
+    """For each high-severity Problem, resolve the suggested registry ops and
+    mint an autonomous Widget.  Suggestions whose op-signature + scope matches
+    an existing dismissal rule are skipped.
 
     Every minted widget's nodes are stamped with ``layer_id`` (the frontend's
-    real layer id) so the renderer applies them — the fused framework leaves
-    nodes on the "legacy" default otherwise.
+    real layer id) so the renderer applies them.
 
     ``object_label`` puts the pass in OBJECT MODE — suggest-on-a-cutout. The
     extracted node inherits the SOURCE image's context, so `ctx.problems`
@@ -58,49 +62,36 @@ async def mint_autonomous_suggestions(
     the object mint, and every minted scope is forced global: the cutout IS
     the region, so a named_region scope would re-trigger the selection
     chooser on an already-selected image.
+    """
+    from app.registry.loader import get_registry
+    from app.schemas.widget import Scope, WidgetOrigin  # noqa: F401 (Scope used below)
+    from app.services.problem_widgets import resolve_problem_widgets
 
-    Resolves run in parallel: selection (templates + dedup) is pure, fast,
-    and runs first; then every pick fires its resolver concurrently. Each
-    resolver makes a sync Anthropic call, so we route through
-    ``asyncio.to_thread`` to get real wall-clock concurrency rather than
-    serial waiting on the event loop."""
+    reg = get_registry()
 
-    def _stamp(widget) -> None:
-        for node in widget.nodes:
-            node.layer_id = layer_id
-    from app.schemas.widget import Scope, WidgetOrigin
-    from app.tools.fused import all_fused_templates
-    from app.tools.fused_framework import run_fused_tool
+    def _op_sig(op_ids: list[str]) -> str:
+        """Canonical dedup/dismissal key for a set of ops."""
+        return "+".join(sorted(op_ids))
 
-    templates = {t.id: t for t in all_fused_templates()}
-
-    def _canonical_targets(template) -> set[tuple[str, str]]:
-        """The `(node_type, param_key)` pairs the template will write to
-        canonical. Used to detect KNOB collisions — two suggestions both
-        binding `basic.saturation` produce two sliders fighting over the
-        same canonical param, last-write-wins. Drop the later one."""
-        node_types = {n.node_type for n in template.node_skeleton}
+    def _canonical_targets_for_ops(op_ids: list[str]) -> set[tuple[str, str]]:
+        """The ``(node_type, param_key)`` pairs these ops will write.
+        Used to detect KNOB collisions — two suggestions binding the same
+        canonical param produce two sliders fighting over the same value;
+        drop the later one."""
         result: set[tuple[str, str]] = set()
-        for b in template.bindings_skeleton:
-            node_id = b.target.node_id
-            hint = node_id[2:] if node_id.startswith("n_") else node_id
-            if hint in node_types:
-                result.add((hint, b.target.param_key))
+        for op_id in op_ids:
+            op = reg.ops.get(op_id)
+            if op is None:
+                continue
+            node_type = op.engine.node_type
+            for param_key in op.params:
+                result.add((node_type, param_key))
         return result
 
-    def _scope_for(problem) -> Scope:
+    def _scope_for(problem) -> "Scope":
         """Element-local problems get the region's scope when its SAM mask
-        was precomputed (`precompute_regions` registers one MaskRecord per
-        candidate region, labelled with the region label, before the
-        suggestion phase). Same scope shape the user-prompt path ships —
-        anchor chips, `named_region:<label>` dismissal signatures, and the
-        fused skin-safety check all engage unchanged. Rendering still
-        applies globally until the canonical projection carries scope
-        (step 2: scope-aware canonical); the scope recorded here is what
-        makes that step retroactively correct for existing widgets.
-
-        No resolvable mask → global, journaled as scope_fallback so the
-        degradation is measurable. Whole-image problems stay global."""
+        was precomputed.  No resolvable mask → global, journaled as
+        scope_fallback.  Whole-image problems stay global."""
         label = problem.region_label
         if not label:
             return Scope.model_validate({"kind": "global"})
@@ -111,7 +102,7 @@ async def mint_autonomous_suggestions(
                        "detail": "no precomputed mask for region"})
         return Scope.model_validate({"kind": "global"})
 
-    def _dismissed(fused_id: str, scope: Scope) -> bool:
+    def _dismissed(op_sig: str, scope: "Scope") -> bool:
         root = scope.root
         if root.kind == "global":
             sig = "global"
@@ -120,7 +111,7 @@ async def mint_autonomous_suggestions(
         else:
             sig = f"mask:{root.mask_id}"
         for rule in doc.dismissals:
-            if rule.fused_tool_id == fused_id and rule.scope_signature == sig:
+            if rule.fused_tool_id == op_sig and rule.scope_signature == sig:
                 return True
         return False
 
@@ -128,8 +119,9 @@ async def mint_autonomous_suggestions(
     # to MAX from the problem-driven pass if Claude flagged that many issues.
     TARGET_AUTONOMOUS_SUGGESTIONS = 3
     MAX_AUTONOMOUS_SUGGESTIONS = 5
-    origin = WidgetOrigin(kind="mcp_autonomous", prompt=None)
-    loop = asyncio.get_running_loop()
+
+    from app.config import get_app_config
+    resolve_timeout_s = get_app_config().runtime.anthropic_timeout_s
 
     initial_count = sum(
         1 for w in doc.widgets.values()
@@ -137,121 +129,25 @@ async def mint_autonomous_suggestions(
     )
 
     # Two-layer dedup, tracked across problem-driven + top-up passes:
-    #   - `used_fused_ids` — no widget shares its fused_tool_id with another;
-    #     prevents two identical templates landing at different scopes.
-    #   - `used_targets`   — no two widgets bind to the same canonical
-    #     `(node_type, param_key)`. Catches the saturation-triplet case
-    #     where cast_correct, warm_grade, subject_pop, etc. all want the
-    #     same `basic.saturation` knob — only the first wins; later
-    #     candidates fall through to their next suggestion.
-    used_fused_ids: set[str] = set()
+    #   - `used_op_sigs`  — no widget shares its op-signature with another;
+    #     prevents two identical op-sets at different scopes.
+    #   - `used_targets`  — no two widgets bind to the same canonical
+    #     (node_type, param_key). Catches the saturation-triplet case.
+    used_op_sigs: set[str] = set()
     used_targets: set[tuple[str, str]] = set()
 
-    # Per-resolve timeout — without it, one hung Anthropic call would
-    # park the gather (and the surrounding write-lock held by the
-    # suggest_widgets tool) forever, freezing the session. Falls back
-    # to `anthropic_timeout_s` so the bound matches the SDK's own.
-    from app.config import get_app_config
-    resolve_timeout_s = get_app_config().runtime.anthropic_timeout_s
+    # ---- Problem-driven pass: select first, resolve in batch ----------------
+    # Selection is sequential (dedup decisions depend on previous picks);
+    # resolution is ONE batch call to resolve_problem_widgets.
 
-    async def _resolve(template, intent: str, scope: Scope, instruction: str | None = None):
-        # Each fused template's `resolve()` is `async def` but internally
-        # makes a SYNC Anthropic SDK call. Awaiting one on the event loop
-        # blocks every other concurrent task — gather wouldn't actually
-        # parallelise. Run each in its own worker thread so the concurrent
-        # picks share wall-clock. `instruction` carries verification feedback
-        # on a retry (else None).
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(
-                    _run_fused_tool_sync,
-                    run_fused_tool, template, intent, scope, ctx, anthropic, origin,
-                    doc.session_id, instruction,
-                ),
-                timeout=resolve_timeout_s,
-            )
-        except asyncio.TimeoutError:
-            _journal(doc, {"event": "resolve_failed", "tool": template.id,
-                           "detail": f"timeout after {resolve_timeout_s}s"})
-            return None
-        except Exception as exc:  # noqa: BLE001
-            _journal(doc, {"event": "resolve_failed", "tool": template.id,
-                           "detail": str(exc)[:500]})
-            return None
-
-    async def _verify_corrective(template, intent, scope, problem, widget):
-        """For a corrective suggestion, check that applying its params actually
-        moves the problem's mechanical metric the right way (CPU preview +
-        cheap-pass re-measure). On failure, re-resolve ONCE with feedback and
-        keep the retry only if it verifies. Best-effort: any error, or an
-        unverifiable/unsupported widget, returns the widget unchanged — this
-        tunes suggestions, it never blocks them."""
-        if problem.kind not in _CORRECTIVE_KINDS:
-            return widget
-        from app.state.document import DEFAULT_IMAGE_NODE_ID
-
-        def _measure(w):
-            from app.services.suggestion_verification import measure_and_verify
-            image_bytes = doc.get_image_bytes(DEFAULT_IMAGE_NODE_ID)
-            mime = doc.get_mime_type(DEFAULT_IMAGE_NODE_ID)
-            return measure_and_verify(problem, image_bytes, mime, w, max_dim=384)
-
-        try:
-            result = await asyncio.to_thread(_measure, widget)
-        except Exception as exc:  # noqa: BLE001
-            _journal(doc, {"event": "verify_error", "tool": template.id,
-                           "problem": problem.kind, "detail": str(exc)[:300]})
-            return widget
-        if result is None:
-            _journal(doc, {"event": "verify_skipped", "reason": "unsupported_ops",
-                           "tool": template.id, "problem": problem.kind})
-            return widget
-        if result.improved:
-            _journal(doc, {"event": "verify_ok", "tool": template.id,
-                           "problem": problem.kind, "metric": result.metric,
-                           "before": round(result.before, 4), "after": round(result.after, 4)})
-            return widget
-
-        _journal(doc, {"event": "verify_failed", "tool": template.id,
-                       "problem": problem.kind, "metric": result.metric,
-                       "before": round(result.before, 4), "after": round(result.after, 4)})
-        feedback = (
-            f"A prior attempt moved {result.metric} from {result.before:.3f} to "
-            f"{result.after:.3f}, which does NOT correct the {problem.kind.replace('_', ' ')}. "
-            f"Apply a stronger correction in the right direction."
-        )
-        retry = await _resolve(template, intent, scope, instruction=feedback)
-        if retry is None:
-            return widget
-        try:
-            retry_result = await asyncio.to_thread(_measure, retry)
-        except Exception:  # noqa: BLE001
-            return widget
-        if retry_result is not None and retry_result.improved:
-            _journal(doc, {"event": "verify_retry_ok", "tool": template.id,
-                           "problem": problem.kind, "metric": retry_result.metric,
-                           "before": round(retry_result.before, 4),
-                           "after": round(retry_result.after, 4)})
-            return retry
-        _journal(doc, {"event": "verify_retry_failed", "tool": template.id,
-                       "problem": problem.kind})
-        return widget
-
-    # ---- Problem-driven pass: select first, resolve in parallel ----------
-    # Selection is the part that needs to be sequential — each pick's dedup
-    # decisions depend on previous picks' canonical targets. But selection
-    # is pure registry lookups, microseconds total. The resolves are the
-    # multi-second LLM calls — those fire concurrently.
-    Pick = tuple  # (template, intent, scope, fused_id, targets)
-    picks: list = []
+    # Pick = (problem, valid_ops, op_sig, targets, scope, intent)
+    picks: list[tuple] = []
     problem_budget = MAX_AUTONOMOUS_SUGGESTIONS - initial_count
+
     for problem in ctx.problems:
         if len(picks) >= problem_budget:
             break
         if problem.kind == "other":
-            # Escape-hatch observation: no tool mapping exists, so minting a
-            # widget would be noise — but the observation is exactly the data
-            # that grows the vocabulary. Journal it regardless of severity.
             _journal(doc, {"event": "observation", "problem": "other",
                            "severity": problem.severity,
                            "label": problem.display_label,
@@ -262,83 +158,106 @@ async def mint_autonomous_suggestions(
                            "problem": problem.kind, "severity": problem.severity})
             continue
         if object_label is not None:
-            # Object mode: only THIS object's problems mint. Whole-image
-            # problems (and other regions') were already suggested on the
-            # source — repeating them on the cutout is the "whole image
-            # again" noise the flow exists to avoid.
             if (problem.region_label or "").strip().lower() != object_label.strip().lower():
                 _journal(doc, {"event": "suggestion_skipped", "reason": "object_mismatch",
                                "problem": problem.kind,
                                "region_label": problem.region_label,
                                "object_label": object_label})
                 continue
-        for tool_index, fused_id in enumerate(problem.suggested_fused_tools):
-            if fused_id not in templates:
-                _journal(doc, {"event": "suggestion_skipped", "reason": "unknown_template",
-                               "problem": problem.kind, "tool": fused_id})
-                continue
-            if fused_id in used_fused_ids:
-                _journal(doc, {"event": "suggestion_skipped", "reason": "duplicate_fused_id",
-                               "problem": problem.kind, "tool": fused_id})
-                continue
-            template = templates[fused_id]
-            targets = _canonical_targets(template)
-            if targets & used_targets:
-                _journal(doc, {"event": "suggestion_skipped", "reason": "knob_collision",
-                               "problem": problem.kind, "tool": fused_id})
-                continue
-            # Object mode: the cutout is the whole layer — always global.
-            scope = (
-                Scope.model_validate({"kind": "global"})
-                if object_label is not None
-                else _scope_for(problem)
-            )
-            if _dismissed(fused_id, scope):
-                _journal(doc, {"event": "suggestion_skipped", "reason": "dismissed",
-                               "problem": problem.kind, "tool": fused_id})
-                continue
-            # Intent text: when we use the problem's PRIMARY suggestion the
-            # tool was hand-picked to match the problem, so naming the widget
-            # after the problem reads naturally ("strong color cast"). When
-            # we fall through to a later suggestion the tool no longer
-            # matches the problem name, so we label it after the TOOL
-            # instead. Problem context still lives in `widget.reasoning`.
-            # `intent` stays canonical (analytics key); the augment pass's
-            # free-text display_label becomes the card title the user reads.
-            intent = (
-                problem.kind.replace("_", " ") if tool_index == 0 else template.label
-            )
-            picks.append(Pick((template, intent, scope, fused_id, targets,
-                               problem.display_label, problem)))
-            used_fused_ids.add(fused_id)
-            used_targets |= targets
-            break  # one per problem
 
-    resolved = await asyncio.gather(
-        *[_resolve(t, i, s) for (t, i, s, _fid, _tgts, _lbl, _p) in picks]
-    )
+        valid_ops = [op_id for op_id in problem.suggested_ops if op_id in reg.ops]
+        if not valid_ops:
+            _journal(doc, {"event": "suggestion_skipped", "reason": "no_valid_ops",
+                           "problem": problem.kind})
+            continue
+
+        op_sig = _op_sig(valid_ops)
+        if op_sig in used_op_sigs:
+            _journal(doc, {"event": "suggestion_skipped", "reason": "duplicate_op_sig",
+                           "problem": problem.kind, "tool": op_sig})
+            continue
+
+        targets = _canonical_targets_for_ops(valid_ops)
+        if targets & used_targets:
+            _journal(doc, {"event": "suggestion_skipped", "reason": "knob_collision",
+                           "problem": problem.kind, "tool": op_sig})
+            continue
+
+        scope = (
+            Scope.model_validate({"kind": "global"})
+            if object_label is not None
+            else _scope_for(problem)
+        )
+        if _dismissed(op_sig, scope):
+            _journal(doc, {"event": "suggestion_skipped", "reason": "dismissed",
+                           "problem": problem.kind, "tool": op_sig})
+            continue
+
+        picks.append((problem, valid_ops, op_sig, targets, scope))
+        used_op_sigs.add(op_sig)
+        used_targets |= targets
+
+    # Resolve all picked problems in one batch call.
+    widgets_by_pick: list = [None] * len(picks)
+    if picks:
+        picked_problems = [p[0] for p in picks]
+        # scope_for wrapper that returns the pre-computed scope from the pick
+        pick_scope_map = {id(p[0]): p[4] for p in picks}
+
+        def _scope_for_picked(problem):
+            return pick_scope_map[id(problem)]
+
+        try:
+            batch_widgets = await asyncio.wait_for(
+                resolve_problem_widgets(
+                    doc, picked_problems,
+                    scope_for=_scope_for_picked,
+                    origin_kind="mcp_autonomous",
+                    anthropic=anthropic,
+                    session_id=doc.session_id,
+                ),
+                timeout=resolve_timeout_s * 2 + 5,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _journal(doc, {"event": "resolve_failed", "tool": "batch",
+                           "detail": str(exc)[:500]})
+            batch_widgets = []
+
+        # Map resolved widgets back to picks by order.
+        for i, w in enumerate(batch_widgets):
+            if i < len(picks):
+                widgets_by_pick[i] = w
+
+    # Verification + mint.
     successful = 0
     minted_problem_ids: set[int] = set()
-    for pick, widget in zip(picks, resolved):
+
+    for i, pick in enumerate(picks):
+        problem, valid_ops, op_sig, _targets, scope = pick
+        widget = widgets_by_pick[i]
         if widget is None:
             continue
-        template, intent, scope = pick[0], pick[1], pick[2]
-        problem = pick[6]
-        widget = await _verify_corrective(template, intent, scope, problem, widget)
-        widget.display_name = pick[5]  # image-specific label; None → UI falls back to intent
-        _stamp(widget)
+
+        widget = await _verify_corrective(
+            doc, anthropic, op_sig, scope, problem, widget,
+            resolve_timeout_s, resolve_problem_widgets,
+        )
+
+        # Layer stamp: _build_widget_multi sets layer_id from scope; override
+        # to the caller-supplied layer_id (matches the pre-rewrite _stamp).
+        for node in widget.nodes:
+            node.layer_id = layer_id
+
         doc.add_widget(widget)
         successful += 1
         minted_problem_ids.add(id(problem))
 
-    # ---- Top up via image-character match only when needed --------------
+    # ---- Top up via image-character match only when needed ------------------
     if initial_count + successful >= TARGET_AUTONOMOUS_SUGGESTIONS:
         return
 
-    # Never decorate a broken image: if any corrective problem relevant to this
-    # pass is still unresolved (gated, deduped, or resolve-failed), suppress the
-    # aesthetic top-up. Better to surface fewer cards than to answer "fix this
-    # cast" with "here's a teal-and-orange grade".
+    # Never decorate a broken image: if any corrective problem is still
+    # unresolved, suppress the aesthetic top-up.
     def _relevant(problem) -> bool:
         if object_label is None:
             return True
@@ -355,7 +274,7 @@ async def mint_autonomous_suggestions(
         _journal(doc, {"event": "topup_skipped", "reason": "open_corrective_problems"})
         return
 
-    already_used = {
+    already_used_sigs = {
         w.op_id for w in doc.widgets.values()
         if w.origin.kind == "mcp_autonomous" and w.op_id
     }
@@ -364,10 +283,11 @@ async def mint_autonomous_suggestions(
         if rule.scope_signature == "global"
     }
     needed = TARGET_AUTONOMOUS_SUGGESTIONS - (initial_count + successful)
-    exclude = list(already_used | dismissed_global)
+    exclude = list(already_used_sigs | dismissed_global)
+
     try:
         candidates = await asyncio.wait_for(
-            loop.run_in_executor(
+            asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: anthropic.suggest_fused_tools_for_character(
                     grade_character=ctx.grade_character,
@@ -382,8 +302,6 @@ async def mint_autonomous_suggestions(
             timeout=resolve_timeout_s,
         )
     except asyncio.TimeoutError:
-        # Top-up is best-effort — failing it just leaves fewer
-        # autonomous suggestions, not a broken session.
         _journal(doc, {"event": "topup_candidates_failed",
                        "detail": f"timeout after {resolve_timeout_s}s"})
         candidates = []
@@ -392,55 +310,155 @@ async def mint_autonomous_suggestions(
                        "candidates": list(candidates)})
 
     global_scope = Scope.model_validate({"kind": "global"})
-    topup_picks: list = []
-    for fused_id in candidates:
+
+    # Build synthetic problems from preset ops for the top-up batch.
+    from app.schemas.enriched_context import Problem as _Problem
+    topup_picks: list[tuple] = []  # (preset_id, preset, problem_like)
+
+    for preset_id in candidates:
         if len(topup_picks) >= needed:
             break
-        if fused_id not in templates or fused_id in already_used:
-            _journal(doc, {"event": "suggestion_skipped", "tool": fused_id,
-                           "reason": ("unknown_template" if fused_id not in templates
-                                      else "duplicate_fused_id")})
+        preset = reg.presets.get(preset_id)
+        if preset is None or preset_id in already_used_sigs:
+            _journal(doc, {"event": "suggestion_skipped", "tool": preset_id,
+                           "reason": ("unknown_preset" if preset is None
+                                      else "duplicate_op_sig")})
             continue
-        template = templates[fused_id]
-        targets = _canonical_targets(template)
+        preset_op_ids = [o.op_id for o in preset.ops if o.op_id in reg.ops]
+        if not preset_op_ids:
+            _journal(doc, {"event": "suggestion_skipped", "tool": preset_id,
+                           "reason": "no_valid_ops"})
+            continue
+        targets = _canonical_targets_for_ops(preset_op_ids)
         if targets & used_targets:
             _journal(doc, {"event": "suggestion_skipped", "reason": "knob_collision",
-                           "tool": fused_id})
+                           "tool": preset_id})
             continue
-        if _dismissed(fused_id, global_scope):
+        if _dismissed(preset_id, global_scope):
             _journal(doc, {"event": "suggestion_skipped", "reason": "dismissed",
-                           "tool": fused_id})
+                           "tool": preset_id})
             continue
-        topup_picks.append((template, template.label, global_scope, fused_id, targets))
-        used_targets |= targets
-        already_used.add(fused_id)
-
-    topup_resolved = await asyncio.gather(
-        *[_resolve(t, i, s) for (t, i, s, _fid, _tgts) in topup_picks]
-    )
-    for pick, widget in zip(topup_picks, topup_resolved):
-        if widget is None:
-            continue
-        widget.display_name = pick[0].label  # template label (no problem to name it after)
-        _stamp(widget)
-        doc.add_widget(widget)
-
-
-def _run_fused_tool_sync(run_fused_tool, template, intent, scope, ctx, anthropic, origin, session_id, instruction=None):
-    """Bridge from a worker thread back into `run_fused_tool` (async). Each
-    thread spins its own event loop via `asyncio.run` — the Anthropic SDK
-    call inside the resolver blocks that loop, not the caller's. Cheap:
-    loop setup is ~1ms vs the multi-second LLM round-trip we're protecting."""
-    return asyncio.run(
-        run_fused_tool(
-            template,
-            intent=intent,
-            scope=scope,
-            ctx=ctx,
-            prior=None,
-            instruction=instruction,
-            anthropic=anthropic,
-            origin=origin,
-            session_id=session_id,
+        # Synthesize a minimal Problem so resolve_problem_widgets can build the entry.
+        synthetic_problem = _Problem(
+            kind="other",  # top-up is aesthetic, not corrective
+            severity=1.0,  # gate already passed (candidate selection)
+            suggested_ops=preset_op_ids,
+            display_label=preset.display_name,
+            description=preset.description,
         )
+        topup_picks.append((preset_id, preset, synthetic_problem))
+        used_targets |= targets
+        already_used_sigs.add(preset_id)
+
+    if topup_picks:
+        topup_problems = [p[2] for p in topup_picks]
+
+        def _topup_scope(_p):
+            return global_scope
+
+        try:
+            topup_widgets = await asyncio.wait_for(
+                resolve_problem_widgets(
+                    doc, topup_problems,
+                    scope_for=_topup_scope,
+                    origin_kind="mcp_autonomous",
+                    anthropic=anthropic,
+                    session_id=doc.session_id,
+                ),
+                timeout=resolve_timeout_s * 2 + 5,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _journal(doc, {"event": "resolve_failed", "tool": "topup_batch",
+                           "detail": str(exc)[:500]})
+            topup_widgets = []
+
+        for pick, widget in zip(topup_picks, topup_widgets):
+            preset_id, preset, _sp = pick
+            if widget is None:
+                continue
+            # Top-up display name comes from the preset label.
+            widget.display_name = preset.display_name
+            for node in widget.nodes:
+                node.layer_id = layer_id
+            doc.add_widget(widget)
+
+
+async def _verify_corrective(doc, anthropic, op_sig: str, scope, problem, widget,
+                              resolve_timeout_s: float, resolve_problem_widgets):
+    """For a corrective suggestion, check that applying its params actually
+    moves the problem's mechanical metric the right way (CPU preview +
+    cheap-pass re-measure).  On failure, re-resolve ONCE with feedback and
+    keep the retry only if it verifies.  Best-effort: any error, or an
+    unverifiable/unsupported widget, returns the widget unchanged."""
+    if problem.kind not in _CORRECTIVE_KINDS:
+        return widget
+    from app.state.document import DEFAULT_IMAGE_NODE_ID
+
+    def _measure(w):
+        from app.services.suggestion_verification import measure_and_verify
+        image_bytes = doc.get_image_bytes(DEFAULT_IMAGE_NODE_ID)
+        mime = doc.get_mime_type(DEFAULT_IMAGE_NODE_ID)
+        return measure_and_verify(problem, image_bytes, mime, w, max_dim=384)
+
+    try:
+        result = await asyncio.to_thread(_measure, widget)
+    except Exception as exc:  # noqa: BLE001
+        _journal(doc, {"event": "verify_error", "tool": op_sig,
+                       "problem": problem.kind, "detail": str(exc)[:300]})
+        return widget
+    if result is None:
+        _journal(doc, {"event": "verify_skipped", "reason": "unsupported_ops",
+                       "tool": op_sig, "problem": problem.kind})
+        return widget
+    if result.improved:
+        _journal(doc, {"event": "verify_ok", "tool": op_sig,
+                       "problem": problem.kind, "metric": result.metric,
+                       "before": round(result.before, 4), "after": round(result.after, 4)})
+        return widget
+
+    _journal(doc, {"event": "verify_failed", "tool": op_sig,
+                   "problem": problem.kind, "metric": result.metric,
+                   "before": round(result.before, 4), "after": round(result.after, 4)})
+    feedback_text = (
+        f"A prior attempt moved {result.metric} from {result.before:.3f} to "
+        f"{result.after:.3f}, which does NOT correct the {problem.kind.replace('_', ' ')}. "
+        f"Apply a stronger correction in the right direction."
     )
+
+    pick_scope_map = {id(problem): scope}
+
+    def _scope_for_retry(p):
+        return pick_scope_map[id(p)]
+
+    try:
+        retry_widgets = await asyncio.wait_for(
+            resolve_problem_widgets(
+                doc, [problem],
+                scope_for=_scope_for_retry,
+                origin_kind="mcp_autonomous",
+                anthropic=anthropic,
+                session_id=doc.session_id,
+                feedback={problem.kind: feedback_text},
+            ),
+            timeout=resolve_timeout_s * 2 + 5,
+        )
+    except Exception:  # noqa: BLE001
+        return widget
+
+    retry = retry_widgets[0] if retry_widgets else None
+    if retry is None:
+        return widget
+
+    try:
+        retry_result = await asyncio.to_thread(_measure, retry)
+    except Exception:  # noqa: BLE001
+        return widget
+    if retry_result is not None and retry_result.improved:
+        _journal(doc, {"event": "verify_retry_ok", "tool": op_sig,
+                       "problem": problem.kind, "metric": retry_result.metric,
+                       "before": round(retry_result.before, 4),
+                       "after": round(retry_result.after, 4)})
+        return retry
+    _journal(doc, {"event": "verify_retry_failed", "tool": op_sig,
+                   "problem": problem.kind})
+    return widget

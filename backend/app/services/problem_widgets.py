@@ -49,6 +49,7 @@ async def resolve_problem_widgets(
     origin_kind: str,
     anthropic: Any,
     session_id: str,
+    feedback: "dict[str, str] | None" = None,
 ) -> "list[Widget]":
     """Mint widgets for a list of Problems via the registry-op path.
 
@@ -69,6 +70,11 @@ async def resolve_problem_widgets(
         Client with a ``resolve_stack_params`` method.
     session_id:
         For journaling.
+    feedback:
+        Optional mapping of ``problem.kind`` → feedback text to append to
+        each matching entry's op rationale.  Used by the verification
+        retry path in ``autonomous_suggestions`` to steer the resolver
+        after a first attempt failed the metric check.
 
     Returns
     -------
@@ -106,6 +112,10 @@ async def resolve_problem_widgets(
         entry_index = len(plan_entries)
         plan_index_to_problem[entry_index] = problem
         label = _humanize(problem.kind)
+        base_rationale = problem.description or problem.kind
+        extra = (feedback or {}).get(problem.kind)
+        if extra:
+            base_rationale = f"{base_rationale}. {extra}"
         entry: dict = {
             "widget_name": label,
             "driver_label": label,
@@ -113,7 +123,7 @@ async def resolve_problem_widgets(
             "ops": [
                 {
                     "op_id": op_id,
-                    "rationale": problem.description or problem.kind,
+                    "rationale": base_rationale,
                     "starting_params": None,
                 }
                 for op_id in valid_ops

@@ -25,7 +25,7 @@ def _cheap(**over) -> CheapPassResult:
 
 
 def _p(kind: str, **over) -> Problem:
-    return Problem(kind=kind, severity=0.6, suggested_fused_tools=["x"], **over)
+    return Problem(kind=kind, severity=0.6, suggested_ops=["light"], **over)
 
 
 # ---- cast --------------------------------------------------------------

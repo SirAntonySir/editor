@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Pin, Maximize2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Pin } from 'lucide-react';
 import type { Widget, ControlBinding } from '@/types/widget';
 import type { Anchor } from '@/lib/perceptual-dial/types';
 import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
@@ -162,13 +162,14 @@ function FusedOpSection({
           aria-pressed={brokenOut}
           onClick={onBreakOut}
         >
-          {/* Broken out → the sidebar's pin-to-canvas glyph, mirroring
-              ToolSection's "Pin to canvas" affordance. */}
-          {brokenOut ? (
-            <Pin className="size-2.5 shrink-0" aria-hidden />
-          ) : (
-            <Maximize2 className="size-2.5 shrink-0" aria-hidden />
-          )}
+          {/* The sidebar's pin-to-canvas glyph in BOTH states (mirrors
+              ToolSection's "Pin to canvas"): outline = available, filled
+              accent = already on canvas. */}
+          <Pin
+            className="size-2.5 shrink-0"
+            fill={brokenOut ? 'currentColor' : 'none'}
+            aria-hidden
+          />
         </button>
         {pinnedCount > 0 && (
           <button

@@ -274,26 +274,34 @@ describe('FusedSliceNode', () => {
     });
   });
 
-  describe('DetachButton — single-node guard', () => {
-    it('is disabled when the parent has only one node', () => {
-      // Default makeFusedWidget has 1 node.
+  describe('DetachButton — single-node un-fuse', () => {
+    it('is ENABLED for a single-node parent with the un-fuse wording', () => {
+      // Default makeFusedWidget has 1 node → detach degrades to un-fuse
+      // in place (backend strips the driver; no second widget minted).
       snapshotWidgets = [makeFusedWidget()];
       const sliceId = useEditorStore.getState().addFusedSliceNode(PARENT_ID, NODE_ID, { x: 0, y: 0 });
       const { getByTitle } = renderSlice(sliceId);
 
-      const btn = getByTitle('Only adjustment — dismiss the widget instead');
+      const btn = getByTitle('Detach from intent — remove the driver, keep this as a plain widget');
       expect(btn).toBeTruthy();
-      expect((btn as HTMLButtonElement).disabled).toBe(true);
+      expect((btn as HTMLButtonElement).disabled).toBe(false);
     });
 
-    it('clicking disabled button does not arm or call backend', () => {
+    it('arm + confirm on a single-node parent calls detach_widget_op', async () => {
+      vi.mocked(backendTools.detach_widget_op).mockResolvedValue({
+        ok: true,
+        output: { widget: makeFusedWidget(), parent: makeFusedWidget() },
+      } as never);
       snapshotWidgets = [makeFusedWidget()];
       const sliceId = useEditorStore.getState().addFusedSliceNode(PARENT_ID, NODE_ID, { x: 0, y: 0 });
-      const { getByTitle } = renderSlice(sliceId);
+      const { getByLabelText } = renderSlice(sliceId);
 
-      const btn = getByTitle('Only adjustment — dismiss the widget instead');
-      fireEvent.click(btn);
-      expect(backendTools.detach_widget_op).not.toHaveBeenCalled();
+      fireEvent.click(getByLabelText('Detach from intent'));
+      fireEvent.click(getByLabelText('Confirm detach from intent'));
+      expect(backendTools.detach_widget_op).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ widgetId: PARENT_ID, nodeId: NODE_ID }),
+      );
     });
   });
 

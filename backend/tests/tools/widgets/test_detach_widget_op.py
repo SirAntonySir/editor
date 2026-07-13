@@ -4,9 +4,9 @@ Uses the synchronous TestClient pattern (same as test_fused_driver.py) to
 exercise the full HTTP → handler path including serialisation.
 
 Fixture note: `_fused_candidate_widget` from test_fused_compound.py is
-single-node and cannot be detached (guard raises _SingleNodeWidget). The
-2-node fused widget built here by `_fused_2op_widget` is the base fixture for
-all detach tests.
+single-node — detaching its only node UN-FUSES in place (driver stripped,
+same widget). The 2-node fused widget built here by `_fused_2op_widget` is
+the base fixture for the split-into-standalone tests.
 """
 from __future__ import annotations
 
@@ -527,11 +527,12 @@ def test_canonical_params_unchanged_after_detach():
 
 
 # ---------------------------------------------------------------------------
-# Guard: single-node widget
+# Single-node widget → un-fuse in place
 # ---------------------------------------------------------------------------
 
-def test_single_node_widget_raises_error():
-    """Detaching the only node must return an error, not 500."""
+def test_single_node_widget_unfuses_in_place():
+    """Detaching the only node strips the driver (compound) in place:
+    same widget, no second widget minted, params + canonical untouched."""
     from tests.tools.widgets.test_fused_compound import (
         _FakeDoc,
         _fused_candidate_widget,
@@ -547,12 +548,22 @@ def test_single_node_widget_raises_error():
     w1.compound = synthesize_compound(w1, _FakeDoc(), driver_label="Blackness")
     w1.driver_value = 1.0
     doc.add_widget(w1)
+    widget_count_before = len(doc.widgets)
+    params_before = dict(w1.nodes[0].params)
 
     out = _call(client, sid, w1.id, "n_a")
-    # The registry wraps handler errors in a top-level error envelope.
-    assert "error" in out or out.get("ok") is False, (
-        f"Expected error for single-node detach, got: {out}"
-    )
+
+    # Same widget both slots — no new widget minted.
+    assert out["widget"]["id"] == w1.id
+    assert out["parent"]["id"] == w1.id
+    assert len(doc.widgets) == widget_count_before
+
+    # Driver stripped; node + params intact (pixel-neutral).
+    live = doc.widgets[w1.id]
+    assert live.compound is None
+    assert live.driver_value is None
+    assert len(live.nodes) == 1
+    assert live.nodes[0].params == params_before
 
 
 # ---------------------------------------------------------------------------

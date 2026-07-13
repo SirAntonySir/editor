@@ -48,11 +48,6 @@ class _NodeNotOnWidget(KeyError):
     pass
 
 
-class _SingleNodeWidget(ValueError):
-    """Cannot detach the only node — dismiss the widget instead."""
-    pass
-
-
 class _NotFusedWidget(ValueError):
     """detach_widget_op is only valid for fused (compound) widgets."""
     pass
@@ -127,10 +122,18 @@ class DetachWidgetOpTool(BackendTool[_Input, _Output]):
             )
 
         if len(w.nodes) <= 1:
-            raise _SingleNodeWidget(
-                f"widget {input.widget_id!r} has only one node — "
-                "dismiss the widget instead of detaching its only op"
-            )
+            # Single-node fused widget: there is nothing to split off — so
+            # "detach from intent" degrades to UN-FUSE IN PLACE. The driver
+            # (compound block) is stripped and the widget becomes a plain op
+            # widget; nodes, bindings, and canonical are untouched, so pixels
+            # don't move. No second widget is minted; the response carries the
+            # same widget as both `widget` and `parent`.
+            w.compound = None
+            w.driver_value = None
+            w.revision += 1
+            doc.update_widget(w)
+            dump = w.model_dump(mode="json", by_alias=True)
+            return _Output(widget=dump, parent=dump)
 
         # ------------------------------------------------------------------
         # 2. Build the new standalone widget

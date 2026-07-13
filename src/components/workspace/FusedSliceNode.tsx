@@ -41,8 +41,9 @@ interface DetachButtonProps {
   offline: boolean;
   parentWidgetId: string;
   nodeId: string;
-  /** Number of nodes in the parent widget. Used to guard the single-node case. */
-  parentNodeCount: number;
+  /** True when this is the parent's ONLY node — detach then un-fuses in
+   *  place (backend strips the driver; no second widget is minted). */
+  isOnlyNode: boolean;
   onDetached: () => void;
 }
 
@@ -51,7 +52,7 @@ function DetachButton({
   offline,
   parentWidgetId,
   nodeId,
-  parentNodeCount,
+  isOnlyNode,
   onDetached,
 }: DetachButtonProps) {
   const [armed, setArmed] = useState(false);
@@ -80,8 +81,7 @@ function DetachButton({
     setArmed(false);
   }, [clearResetTimer]);
 
-  const isSingleNode = parentNodeCount <= 1;
-  const isDisabled = isSingleNode || offline || !sessionId;
+  const isDisabled = offline || !sessionId;
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -117,10 +117,10 @@ function DetachButton({
     if (armed) disarm();
   }, [armed, disarm]);
 
-  const title = isSingleNode
-    ? 'Only adjustment — dismiss the widget instead'
-    : armed
-      ? 'Click again to confirm detach'
+  const title = armed
+    ? 'Click again to confirm detach'
+    : isOnlyNode
+      ? 'Detach from intent — remove the driver, keep this as a plain widget'
       : 'Detach from intent — make this a standalone widget';
 
   const ariaLabel = armed ? 'Confirm detach from intent' : 'Detach from intent';
@@ -327,7 +327,7 @@ export function FusedSliceNode({ data, selected }: FusedSliceNodeProps) {
             offline={offline}
             parentWidgetId={parentWidgetId}
             nodeId={nodeId ?? ''}
-            parentNodeCount={parent.nodes.length}
+            isOnlyNode={parent.nodes.length <= 1}
             onDetached={handleDetached}
           />
           <button

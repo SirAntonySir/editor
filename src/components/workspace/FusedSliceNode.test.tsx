@@ -188,7 +188,7 @@ describe('FusedSliceNode', () => {
     snapshotWidgets = [makeFusedWidget({ lockedParams: ['exposure'] })];
     const sliceId = useEditorStore.getState().addFusedSliceNode(PARENT_ID, NODE_ID, { x: 0, y: 0 });
     const { getByTitle } = renderSlice(sliceId);
-    expect(getByTitle('Pinned — click to release')).toBeTruthy();
+    expect(getByTitle('Locked — click to release')).toBeTruthy();
   });
 
   // ─── DetachButton tests ─────────────────────────────────────────────────────

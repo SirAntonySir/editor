@@ -260,7 +260,7 @@ describe('FusedWidgetBody', () => {
         />
       </ReactFlowProvider>,
     );
-    expect(getByTitle(/1 pinned/i)).toBeTruthy();
+    expect(getByTitle(/1 locked/i)).toBeTruthy();
   });
 
   // Fix 7c: changing driver slider calls setParam with '__driver' and value / 100
@@ -360,7 +360,7 @@ describe('FusedWidgetBody', () => {
       fireEvent.click(sectionButton!);
 
       // The per-param release button should appear inside the expanded section
-      const pinBtn = getByTitle('Pinned — click to release');
+      const pinBtn = getByTitle('Locked — click to release');
       expect(pinBtn).toBeTruthy();
     });
 
@@ -382,7 +382,7 @@ describe('FusedWidgetBody', () => {
       fireEvent.click(sectionButton!);
 
       // Click the per-param release button
-      const pinBtn = getByTitle('Pinned — click to release');
+      const pinBtn = getByTitle('Locked — click to release');
       fireEvent.click(pinBtn);
 
       expect(mockUnlock).toHaveBeenCalledWith('s-1', {
@@ -405,7 +405,7 @@ describe('FusedWidgetBody', () => {
       );
 
       // Click the section header pin indicator (release-all button)
-      const releaseAllBtn = getByTitle(/1 pinned — click to release all/i);
+      const releaseAllBtn = getByTitle(/1 locked — click to release all/i);
       fireEvent.click(releaseAllBtn);
 
       expect(mockUnlock).toHaveBeenCalledTimes(1);
@@ -433,7 +433,7 @@ describe('FusedWidgetBody', () => {
       expect(slidersBeforeClick).toBeNull();
 
       // Click the release-all button
-      const releaseAllBtn = getByTitle(/1 pinned — click to release all/i);
+      const releaseAllBtn = getByTitle(/1 locked — click to release all/i);
       fireEvent.click(releaseAllBtn);
 
       // Section should still be collapsed — no exposure slider in the DOM
@@ -441,7 +441,7 @@ describe('FusedWidgetBody', () => {
       expect(slidersAfterClick).toBeNull();
     });
 
-    it('unpinned params get no pin slot (no "Pinned — click to release" button)', async () => {
+    it('unpinned params get no pin slot (no "Locked — click to release" button)', async () => {
       // No lockedParams → exposure is not pinned
       const widget = makeFusedWidget({ lockedParams: [] });
       const { getByText, queryByTitle } = render(
@@ -459,7 +459,7 @@ describe('FusedWidgetBody', () => {
       fireEvent.click(sectionButton!);
 
       // No release button should appear for unpinned params
-      expect(queryByTitle('Pinned — click to release')).toBeNull();
+      expect(queryByTitle('Locked — click to release')).toBeNull();
     });
   });
 

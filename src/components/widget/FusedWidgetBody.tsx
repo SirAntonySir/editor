@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Pin } from 'lucide-react';
+import { ChevronDown, ChevronRight, Lock, Pin } from 'lucide-react';
 import type { Widget, ControlBinding } from '@/types/widget';
 import type { Anchor } from '@/lib/perceptual-dial/types';
 import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
@@ -15,8 +15,11 @@ import { strandColorVarForCategory } from '@/lib/tether-strands';
 
 // ---------------------------------------------------------------------------
 // FusedPinButton — module-scope to avoid inline component definition.
-// Renders a small accent-coloured Pin button for pinned params inside a
-// fused op section. Returns null for unpinned params.
+// Renders a small accent-coloured LOCK button for locked params inside a
+// fused op section (the driver skips locked params). Returns null when the
+// param isn't locked. Glyph note: the Pin glyph is reserved for "on canvas"
+// (sidebar Pin-to-canvas / section break-out) — param locks use Lock so one
+// glyph never carries two meanings.
 // ---------------------------------------------------------------------------
 export interface FusedPinButtonProps {
   widgetId: string;
@@ -40,13 +43,13 @@ export function FusedPinButton({ widgetId, paramKey, isPinned }: FusedPinButtonP
       type="button"
       onClick={handleClick}
       disabled={!sessionId || offline}
-      title="Pinned — click to release"
-      aria-label="Pinned — click to release"
+      title="Locked — click to release"
+      aria-label="Locked — click to release"
       className="inline-flex items-center text-accent
         hover:text-accent/70 p-0.5 rounded-sm
         disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
     >
-      <Pin size={10} aria-hidden />
+      <Lock size={10} aria-hidden />
     </button>
   );
 }
@@ -175,11 +178,11 @@ function FusedOpSection({
           <button
             type="button"
             className="flex items-center gap-0.5 px-2 py-1.5 text-[10px] text-text-secondary hover:text-accent transition-colors select-none shrink-0"
-            title={`${pinnedCount} pinned — click to release all`}
-            aria-label={`${pinnedCount} pinned — click to release all`}
+            title={`${pinnedCount} locked — click to release all`}
+            aria-label={`${pinnedCount} locked — click to release all`}
             onClick={onReleaseAll}
           >
-            <Pin className="size-2.5 shrink-0" />
+            <Lock className="size-2.5 shrink-0" />
             <span>{pinnedCount}</span>
           </button>
         )}

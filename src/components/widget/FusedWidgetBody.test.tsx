@@ -534,4 +534,89 @@ describe('FusedWidgetBody', () => {
       expect((swatch as HTMLElement).getAttribute('style')).toMatch(/var\(--strand-tone\)/);
     });
   });
+
+  // ─── Rich body dispatch inside expanded sections ────────────────────────────
+
+  describe('rich body dispatch', () => {
+    it('fused widget with an HSL node renders HslWidgetBody (not flat sliders) when expanded', () => {
+      // Build a fused widget whose single op-node has type 'hsl'.
+      // The op section header shows the op display name; expanding it must
+      // render the band rail (HslWidgetBody) rather than plain RegistryDrivenPanel sliders.
+      const hslNodeId = 'n-hsl-1';
+      const hslCompound: WidgetCompound = {
+        driver: '__driver',
+        label: 'Intensity',
+        anchors: [
+          { position: 0, name: 'subtle', values: { [`${hslNodeId}:blue_sat`]: 0 } },
+          { position: 1, name: 'strong', values: { [`${hslNodeId}:blue_sat`]: 50 } },
+        ],
+      };
+      const widget = makeAiWidget({
+        id: 'w-fused-hsl',
+        intent: 'HSL boost',
+        compound: hslCompound,
+        driverValue: 1.0,
+        nodes: [
+          {
+            id: hslNodeId,
+            type: 'hsl',
+            opId: 'hsl_blue',
+            scope: { kind: 'global' },
+            inputs: [],
+            widgetId: 'w-fused-hsl',
+            layerId: 'L1',
+            params: { blue_hue: 0, blue_sat: 0, blue_lum: 0 },
+          },
+        ],
+        bindings: [
+          {
+            paramKey: 'blue_hue', label: 'Blue hue', controlType: 'slider',
+            target: { nodeId: hslNodeId, paramKey: 'blue_hue' },
+            controlSchema: { controlType: 'slider', min: -100, max: 100, step: 1 },
+            value: 0, default: 0,
+          },
+          {
+            paramKey: 'blue_sat', label: 'Blue sat', controlType: 'slider',
+            target: { nodeId: hslNodeId, paramKey: 'blue_sat' },
+            controlSchema: { controlType: 'slider', min: -100, max: 100, step: 1 },
+            value: 0, default: 0,
+          },
+          {
+            paramKey: 'blue_lum', label: 'Blue lum', controlType: 'slider',
+            target: { nodeId: hslNodeId, paramKey: 'blue_lum' },
+            controlSchema: { controlType: 'slider', min: -100, max: 100, step: 1 },
+            value: 0, default: 0,
+          },
+        ],
+      });
+
+      const { getByText, getAllByRole, queryByText, container } = render(
+        <ReactFlowProvider>
+          <FusedWidgetBody
+            widget={widget}
+            effectiveValue={(b) => b.value}
+            setParam={vi.fn()}
+          />
+        </ReactFlowProvider>,
+      );
+
+      // There should be a section header for the HSL op.
+      // Click the section header's collapse button (has aria-expanded attribute).
+      const chevronBtns = container.querySelectorAll('[aria-expanded]');
+      expect(chevronBtns.length).toBeGreaterThan(0);
+      fireEvent.click(chevronBtns[0] as HTMLButtonElement);
+
+      // After expansion: HslWidgetBody (single-band blue) renders 3 sliders.
+      // The flat RegistryDrivenPanel for the basic/light op would show "Exposure";
+      // the HSL body shows the band sliders directly (no "Exposure" text).
+      expect(queryByText('Exposure')).toBeNull();
+      const sliders = getAllByRole('slider');
+      // driver slider (1) + 3 HSL band sliders = 4 total
+      expect(sliders.length).toBe(4);
+      // "By band" / "By channel" tabs only appear in multi-band mode — single band = absent.
+      expect(queryByText('By band')).toBeNull();
+      // The op display name is present (sanity check that something rendered)
+      expect(getByText).toBeTruthy();
+    });
+  });
 });

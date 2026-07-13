@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { Scissors, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
-import type { Widget } from '@/types/widget';
-import { RegistryDrivenPanel } from '@/components/inspector/RegistryDrivenPanel';
+import type { Widget, ControlBinding } from '@/types/widget';
+import { FusedOpBody } from '@/components/widget/FusedOpBody';
 import { FusedPinButton } from '@/components/widget/FusedWidgetBody';
 import { sliceWidgetByOp } from '@/lib/widget-slices';
 import { useBackendState, type OptimisticPatch } from '@/store/backend-state-slice';
@@ -283,12 +283,20 @@ export function FusedSliceNode({ data, selected }: FusedSliceNodeProps) {
 
   const lockedSet = new Set(parent.lockedParams ?? []);
 
-  // Live values: bindings' current value overlaid with any optimistic patch, so
-  // a parent driver drag reflects here immediately.
-  const values: Record<string, unknown> = {};
-  for (const b of opSlice.bindings) {
+  // Optimistic-aware value reader — mirrors WidgetShell.effectiveValue, scoped to
+  // the single op-node this satellite projects.  The `optimistic` subscription above
+  // covers the parent driver drags so rich bodies (HSL rail, histogram, curve editor)
+  // update live without any extra wiring.
+  function effectiveValue(b: ControlBinding): ControlBinding['value'] {
     const opt = optimistic?.bindings.find((p) => p.paramKey === b.target.paramKey);
-    values[b.paramKey] = opt !== undefined ? opt.value : b.value;
+    return opt !== undefined ? opt.value : b.value;
+  }
+
+  // setParam adapter: routes to the parent widget's set_widget_param path (same as
+  // onParamChange below, but surfaces the ControlBinding['value'] type signature that
+  // FusedOpBody and the rich bodies expect).
+  function setParam(paramKey: string, value: ControlBinding['value']) {
+    onParamChange(paramKey, value);
   }
 
   return (
@@ -301,7 +309,7 @@ export function FusedSliceNode({ data, selected }: FusedSliceNodeProps) {
       <Handle type="source" position={Position.Right} id="tether-out-right" className="tether-outlet" />
       <div
         className={`overlay w-fit ${selected ? 'workspace-node-selected' : ''}`}
-        style={{ minWidth: 226 }}
+        style={{ minWidth: 320 }}
       >
         {/* Header — op name + provenance ("from …") + detach + close (pure UI).
             The whole strip is the drag handle; action buttons opt out. */}
@@ -334,11 +342,14 @@ export function FusedSliceNode({ data, selected }: FusedSliceNodeProps) {
           </button>
         </div>
 
-        {/* Body — the op's real controls, edits routed to the parent widget. */}
-        <RegistryDrivenPanel
-          op={opSlice.op}
-          values={values}
-          onParamChange={onParamChange}
+        {/* Body — the op's real controls, edits routed to the parent widget.
+            FusedOpBody dispatches to rich bodies (HSL rail, Levels histogram,
+            Curves editor) when the slice qualifies, or falls back to flat sliders. */}
+        <FusedOpBody
+          parentWidget={parent}
+          slice={opSlice}
+          effectiveValue={effectiveValue}
+          setParam={setParam}
           disabled={offline}
           renderPinSlot={(paramKey) => {
             const binding = opSlice.bindings.find((b) => b.paramKey === paramKey);

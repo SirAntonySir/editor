@@ -292,4 +292,93 @@ describe('FusedSliceNode', () => {
       expect(backendTools.detach_widget_op).not.toHaveBeenCalled();
     });
   });
+
+  // ─── Rich body dispatch in satellites ─────────────────────────────────────
+
+  describe('rich body dispatch — HSL satellite', () => {
+    const HSL_NODE_ID = 'n-hsl-sat';
+
+    function makeFusedHslWidget(): Widget {
+      const compound: WidgetCompound = {
+        driver: '__driver',
+        label: 'Intensity',
+        anchors: [
+          { position: 0, name: 'subtle', values: { [`${HSL_NODE_ID}:blue_sat`]: 0 } },
+          { position: 1, name: 'strong', values: { [`${HSL_NODE_ID}:blue_sat`]: 50 } },
+        ],
+      };
+      return makeAiWidget({
+        id: PARENT_ID,
+        intent: 'HSL boost',
+        compound,
+        driverValue: 1.0,
+        nodes: [
+          {
+            id: HSL_NODE_ID,
+            type: 'hsl',
+            opId: 'hsl_blue',
+            scope: { kind: 'global' },
+            inputs: [],
+            widgetId: PARENT_ID,
+            layerId: 'L1',
+            params: { blue_hue: 0, blue_sat: 0, blue_lum: 0 },
+          },
+        ],
+        bindings: [
+          {
+            paramKey: 'blue_hue', label: 'Blue hue', controlType: 'slider',
+            target: { nodeId: HSL_NODE_ID, paramKey: 'blue_hue' },
+            controlSchema: { controlType: 'slider', min: -100, max: 100, step: 1 },
+            value: 0, default: 0,
+          },
+          {
+            paramKey: 'blue_sat', label: 'Blue sat', controlType: 'slider',
+            target: { nodeId: HSL_NODE_ID, paramKey: 'blue_sat' },
+            controlSchema: { controlType: 'slider', min: -100, max: 100, step: 1 },
+            value: 0, default: 0,
+          },
+          {
+            paramKey: 'blue_lum', label: 'Blue lum', controlType: 'slider',
+            target: { nodeId: HSL_NODE_ID, paramKey: 'blue_lum' },
+            controlSchema: { controlType: 'slider', min: -100, max: 100, step: 1 },
+            value: 0, default: 0,
+          },
+        ],
+      });
+    }
+
+    beforeEach(() => {
+      snapshotWidgets = [makeFusedHslWidget()];
+    });
+
+    it('satellite of an HSL node renders the HSL band rail (3 sliders)', () => {
+      const sliceId = useEditorStore.getState().addFusedSliceNode(PARENT_ID, HSL_NODE_ID, { x: 0, y: 0 });
+      const { getAllByRole, queryByText } = renderSlice(sliceId);
+
+      // HslWidgetBody single-band mode: 3 sliders (hue/sat/lum), no "By band" tabs.
+      expect(getAllByRole('slider').length).toBe(3);
+      expect(queryByText('By band')).toBeNull();
+      // No flat "Exposure" label from RegistryDrivenPanel.
+      expect(queryByText('Exposure')).toBeNull();
+    });
+
+    it('an HSL slider edit in the satellite routes set_widget_param to the PARENT widget id', () => {
+      vi.useFakeTimers();
+      const sliceId = useEditorStore.getState().addFusedSliceNode(PARENT_ID, HSL_NODE_ID, { x: 0, y: 0 });
+      const { getAllByRole } = renderSlice(sliceId);
+
+      // Drive the first slider (blue_hue) to max via keyboard.
+      const sliders = getAllByRole('slider');
+      expect(sliders.length).toBe(3);
+      fireEvent.keyDown(sliders[0], { key: 'End', code: 'End' });
+      vi.runAllTimers();
+
+      // Must route to the PARENT widget id, not the node id or the satellite.
+      expect(backendTools.set_widget_param).toHaveBeenCalledWith(
+        's-1',
+        expect.objectContaining({ widgetId: PARENT_ID }),
+      );
+      vi.useRealTimers();
+    });
+  });
 });

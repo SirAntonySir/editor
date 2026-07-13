@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Pin, Maximize2 } from 'lucide-react';
 import type { Widget, ControlBinding } from '@/types/widget';
 import type { Anchor } from '@/lib/perceptual-dial/types';
 import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
-import { RegistryDrivenPanel } from '@/components/inspector/RegistryDrivenPanel';
+import { FusedOpBody } from './FusedOpBody';
 import { interpolateExtended } from '@/lib/perceptual-dial/interpolate';
 import { sliceWidgetByOp } from '@/lib/widget-slices';
 import { useShallow } from 'zustand/react/shallow';
@@ -86,9 +86,14 @@ function toAnchors(
 }
 
 interface FusedOpSectionProps {
-  op: import('@shared/registry/schema').RegistryOp;
-  values: Record<string, unknown>;
-  onParamChange: (paramKey: string, value: unknown) => void;
+  /** The full parent widget — forwarded to FusedOpBody for the sliced view. */
+  widget: Widget;
+  /** The op-slice this section renders. */
+  slice: import('@/lib/widget-slices').OpSlice;
+  /** Optimistic-aware value reader from the parent WidgetShell. */
+  effectiveValue: (binding: ControlBinding) => ControlBinding['value'];
+  /** Write a param via the parent widget path. */
+  setParam: (paramKey: string, value: ControlBinding['value']) => void;
   disabled?: boolean;
   pinnedCount: number;
   /** The widget ID — forwarded to FusedPinButton for unlock calls. */
@@ -105,9 +110,10 @@ interface FusedOpSectionProps {
 
 /** Collapsible section for one op within a fused widget. */
 function FusedOpSection({
-  op,
-  values,
-  onParamChange,
+  widget,
+  slice,
+  effectiveValue,
+  setParam,
   disabled,
   pinnedCount,
   widgetId,
@@ -117,6 +123,7 @@ function FusedOpSection({
   brokenOut,
 }: FusedOpSectionProps) {
   const [open, setOpen] = useState(false);
+  const op = slice.op;
 
   return (
     <div className="border-t border-separator/50 first:border-t-0">
@@ -171,10 +178,11 @@ function FusedOpSection({
         )}
       </div>
       {open && (
-        <RegistryDrivenPanel
-          op={op}
-          values={values}
-          onParamChange={onParamChange}
+        <FusedOpBody
+          parentWidget={widget}
+          slice={slice}
+          effectiveValue={effectiveValue}
+          setParam={setParam}
           disabled={disabled}
           renderPinSlot={(paramKey) => (
             <FusedPinButton
@@ -239,14 +247,9 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
   // Fix 3: Build locked set to skip locked params in optimistic patch.
   const lockedSet = useMemo(() => new Set(widget.lockedParams ?? []), [widget.lockedParams]);
 
-  // Build anchors once; keys inside values will have nodeId stripped.
-  const anchors: Anchor[] = compound ? toAnchors(compound.anchors) : [];
-
-  // Interpolated per-paramKey values at current t. Used to seed RegistryDrivenPanel
-  // and the optimistic patch (keyed `"{paramKey}"`).
-  // NOTE: this is a fallback seed only — per-binding effectiveValue overwrites it below,
-  // and the per-op optimistic path does node-scoped key stripping via opInterpolated.
-  const interpolated = compound ? interpolateExtended(anchors, driverT) : {};
+  // NOTE: interpolated values at current t are now only used by handleDriverChange
+  // for the optimistic patch per-slice.  The per-op sections read through effectiveValue
+  // directly (via FusedOpBody) so there is no shared top-level `interpolated` map here.
 
   const handleDriverChange = useCallback((displayVal: number) => {
     const t = displayVal / 100;
@@ -340,14 +343,6 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
       {/* Per-op collapsible sections */}
       <div className="flex flex-col">
         {slices.map((slice) => {
-          // Build live values for this slice: prefer binding effectiveValue,
-          // then fall back to interpolated value.
-          const opValues: Record<string, unknown> = { ...interpolated };
-          for (const b of slice.bindings) {
-            const eff = effectiveValue(b);
-            opValues[b.paramKey] = eff;
-          }
-
           // Collect pinned paramKeys for this section's bindings.
           const sectionLockedKeys = new Set(
             slice.bindings
@@ -355,16 +350,6 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
               .map((b) => b.target.paramKey),
           );
           const pinnedCount = sectionLockedKeys.size;
-
-          const handleOpParamChange = (paramKey: string, value: unknown) => {
-            // Find the binding for this paramKey and call setParam.
-            const binding = slice.bindings.find(
-              (b) => b.paramKey === paramKey || b.target.paramKey === paramKey,
-            );
-            if (binding) {
-              setParam(binding.paramKey, value as ControlBinding['value']);
-            }
-          };
 
           // unlock_widget_param keys on BARE paramKey (widget-wide namespace) —
           // if two op sections share a param key, releasing here unlocks both.
@@ -384,9 +369,10 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
           return (
             <FusedOpSection
               key={slice.nodeId}
-              op={slice.op}
-              values={opValues}
-              onParamChange={handleOpParamChange}
+              widget={widget}
+              slice={slice}
+              effectiveValue={effectiveValue}
+              setParam={setParam}
               pinnedCount={pinnedCount}
               widgetId={widget.id}
               lockedParamKeys={sectionLockedKeys}

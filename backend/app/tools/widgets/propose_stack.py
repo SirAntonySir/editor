@@ -329,98 +329,20 @@ def _build_widget_multi(
 def _build_widget(
     *, op_id: str, params: dict, intent: str, scope: Scope,
     origin: WidgetOrigin, layer_id: str, image_node_layer_ids: list[str] | None,
-    exposed_param_keys: set[str] | None = None,
     display_name: str | None = None, category: str | None = None,
     doc: "SessionDocument | None" = None,
 ) -> Widget:
-    """Build a single-op widget.
-
-    If ``exposed_param_keys`` is given, only bindings whose ``param_key`` is in
-    that set are included in the widget's controls. The node still receives ALL
-    op params at their defaults so the shader pipeline stays complete.
-
-    For the common case (no param filtering), this is a thin wrapper around
-    ``_build_widget_multi``.
-    """
-    if exposed_param_keys is None:
-        return _build_widget_multi(
-            widget_name=display_name,
-            category=category,
-            ops=[(op_id, params)],
-            intent=intent,
-            scope=scope,
-            origin=origin,
-            layer_id=layer_id,
-            image_node_layer_ids=image_node_layer_ids,
-            doc=doc,
-        )
-
-    # Param-filtered path (used by preset spawning with per-band exposure).
-    reg = get_registry()
-    op = reg.ops[op_id]
-    widget_id = f"w_{uuid.uuid4().hex[:8]}"
-    node_id = f"n_{uuid.uuid4().hex[:6]}"
-
-    # Same precedence as _build_widget_multi: explicit params > existing
-    # canonical > registry default. Keeps presets that re-spawn an already-
-    # edited op from snapping back to identity.
-    canonical_for_op: dict[str, Any] = {}
-    if doc is not None:
-        canonical_for_op = (
-            doc.canonical.get(layer_id, {}).get(op.engine.node_type, {}) or {}
-        )
-    full_params = {
-        key: params[key] if key in params
-            else canonical_for_op.get(key, p.default)
-        for key, p in op.params.items()
-    }
-
-    node = WidgetNode(
-        id=node_id,
-        type=op.engine.node_type,
-        op_id=op_id,                # NEW — source registry op id for frontend identification
-        params=full_params,
-        scope=scope,
-        inputs=[],
-        widget_id=widget_id,
-        layer_id=(image_node_layer_ids[0] if image_node_layer_ids else layer_id),
-        layer_ids=image_node_layer_ids,
-    )
-
-    bindings: list[ControlBinding] = []
-    for b in op.bindings:
-        if b.param_key not in exposed_param_keys:
-            continue
-        bindings.append(ControlBinding(
-            param_key=b.param_key,
-            label=b.label,
-            control_type=b.control_type,
-            control_schema=_control_schema_for(op_id, b.param_key),
-            value=full_params[b.param_key],
-            default=op.params[b.param_key].default,
-            target=NodeParamTarget(node_id=node_id, param_key=b.param_key),
-        ))
-
-    # HSL widgets always bind all 8 bands so the frontend "+ add colour" can
-    # reveal any of them; a curated subset (e.g. the tone_red preset) only
-    # seeds the bands it tunes.
-    bindings = pad_hsl_bindings([node], bindings)
-
-    return Widget(
-        id=widget_id,
+    """Build a single-op widget. Thin wrapper around _build_widget_multi."""
+    return _build_widget_multi(
+        widget_name=display_name,
+        category=category,
+        ops=[(op_id, params)],
         intent=intent,
         scope=scope,
         origin=origin,
-        op_id=op_id,
-        composed=False,
-        nodes=[node],
-        bindings=bindings,
-        preview=WidgetPreview(kind="none", auto_before_after=False),
-        rejected_attempts=[],
-        status="active",
-        revision=1,
-        display_name=display_name,
-        category=category,
+        layer_id=layer_id,
+        image_node_layer_ids=image_node_layer_ids,
+        doc=doc,
     )
 
 
@@ -640,11 +562,15 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
     def _handle_preset_spawn(
         self, doc: SessionDocument, input: _Input, scope: Scope,
     ) -> _Output:
-        """Unfold a named registry preset into widgets. No LLM call.
+        """Unfold a named registry preset into ONE fused widget. No LLM call.
 
-        Each PresetOp in reg.presets[preset_id] becomes one widget via
-        _build_widget. Works for any origin (tool_invoked, mcp_user_prompt,
-        mcp_autonomous).
+        All PresetOp entries become nodes in a single _build_widget_multi call,
+        then _attach_fused_compound adds the synthesized driver (force=True to
+        bypass the origin gate — the user chose a named preset, which implies
+        the guided-dial experience). If synthesis declines (preset params all
+        equal baseline), the widget ships driverless.
+
+        Works for any origin (tool_invoked, mcp_user_prompt, mcp_autonomous).
         """
         assert input.preset_id is not None
         reg = get_registry()
@@ -664,30 +590,32 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             parent_widget_id=None,
         )
 
-        widgets: list[Widget] = []
-        for p in preset.ops:
-            if p.op_id not in reg.ops:
-                continue
-            # If the preset specifies only a subset of the op's params, expose
-            # only those as controls (the node still gets all defaults for the
-            # shader pipeline). This preserves per-band HSL semantics where
-            # tone_red only exposes {red_hue, red_sat, red_lum}.
-            exposed = set(p.params.keys()) if p.params else None
-            widget = _build_widget(
-                op_id=p.op_id,
-                params=p.params,
-                intent=input.intent,
-                scope=scope,
-                origin=origin,
-                layer_id=input.layer_id,
-                image_node_layer_ids=image_node_layer_ids,
-                exposed_param_keys=exposed if exposed else None,
-                doc=doc,
-            )
-            doc.add_widget(widget)
-            widgets.append(widget)
+        # Filter out any op_id not in the registry (safety net for stale presets).
+        ops = [
+            (p.op_id, p.params)
+            for p in preset.ops
+            if p.op_id in reg.ops
+        ]
+        if not ops:
+            raise ValueError(f"preset {input.preset_id!r} has no valid ops in the registry")
 
-        return _Output(widgets=[w.model_dump(mode="json", by_alias=True) for w in widgets])
+        widget = _build_widget_multi(
+            widget_name=preset.display_name,
+            category=preset.category,
+            ops=ops,
+            intent=input.intent,
+            scope=scope,
+            origin=origin,
+            layer_id=input.layer_id,
+            image_node_layer_ids=image_node_layer_ids,
+            doc=doc,
+        )
+        # force=True: bypass the origin gate so tool_invoked preset spawns also
+        # receive the driver (user picked a named preset = guided-dial intent).
+        _attach_fused_compound(widget, doc, driver_label=preset.display_name, force=True)
+        doc.add_widget(widget)
+
+        return _Output(widgets=[widget.model_dump(mode="json", by_alias=True)])
 
     def _handle_filter_spawn(
         self, doc: SessionDocument, input: _Input, scope: Scope,

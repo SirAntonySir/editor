@@ -172,8 +172,9 @@ async def test_toolrail_multi_op_spawns_multiple(make_doc):
 
 
 @pytest.mark.asyncio
-async def test_preset_id_unfolds_into_widgets(make_doc):
-    """preset_id='vintage' must unfold its ops (>=2) without an LLM call."""
+async def test_preset_id_unfolds_into_one_fused_widget(make_doc):
+    """preset_id='vintage' must produce ONE fused widget with all its ops as nodes,
+    a compound driver, and driverValue 1.0."""
     doc: SessionDocument = make_doc()
     tool = ProposeStackTool()
     out = await tool.handler(doc, _Input(
@@ -182,17 +183,27 @@ async def test_preset_id_unfolds_into_widgets(make_doc):
         origin="mcp_user_prompt",
         preset_id="vintage",
     ))
-    # vintage preset has 3 ops (levels, color, hsl)
-    assert len(out.widgets) >= 2
-    op_ids = {w["opId"] for w in out.widgets}
-    assert "levels" in op_ids
+    # vintage has 3 ops → one widget with 3 nodes (levels, color, hsl)
+    assert len(out.widgets) == 1
+    w = out.widgets[0]
+    # Display name from preset
+    assert w["displayName"] == "Vintage"
+    # One node per preset op
+    node_op_ids = {n["opId"] for n in w["nodes"]}
+    assert "levels" in node_op_ids
+    assert "color" in node_op_ids
+    assert "hsl" in node_op_ids
+    # Fused compound block synthesized
+    assert w["compound"] is not None
+    assert w["driverValue"] == 1.0
+    assert w["compound"]["label"] == "Vintage"
 
 
 @pytest.mark.asyncio
-async def test_preset_id_tone_red_binds_all_hsl_bands(make_doc):
-    """tone_red spawns one hsl widget bound to ALL 8 bands (24 params). The
-    frontend opens it on red and reaches the rest via "+ add colour", so every
-    band must be bound to stay editable."""
+async def test_preset_id_tone_red_spawns_fused_hsl_widget(make_doc):
+    """tone_red spawns one fused hsl widget. All 24 HSL bands are bound so the
+    frontend can reveal any of them via the HSL rich body. The driver synthesizes
+    even with partial params (red_hue/sat/lum ≠ baseline → compound present)."""
     doc: SessionDocument = make_doc()
     tool = ProposeStackTool()
     out = await tool.handler(doc, _Input(
@@ -204,10 +215,36 @@ async def test_preset_id_tone_red_binds_all_hsl_bands(make_doc):
     assert len(out.widgets) == 1
     w = out.widgets[0]
     assert w["opId"] == "hsl"
+    assert w["displayName"] == "Adjust red tones"
+    # 24 bindings (all HSL bands via pad_hsl_bindings)
     binding_keys = {b["paramKey"] for b in w["bindings"]}
     assert len(binding_keys) == 24
     assert {"red_hue", "red_sat", "red_lum"} <= binding_keys
     assert {"blue_hue", "blue_lum", "magenta_sat"} <= binding_keys
+    # Fused driver present because red params differ from baseline
+    assert w["compound"] is not None
+    assert w["driverValue"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_preset_id_tool_invoked_gets_fused_driver(make_doc):
+    """tool_invoked origin must still produce a fused compound (force=True path)."""
+    doc: SessionDocument = make_doc()
+    tool = ProposeStackTool()
+    out = await tool.handler(doc, _Input(
+        intent="golden hour",
+        scope={"kind": "global"},
+        origin="tool_invoked",
+        preset_id="golden_hour",
+    ))
+    assert len(out.widgets) == 1
+    w = out.widgets[0]
+    # golden_hour has 3 ops: kelvin, light, color
+    assert len(w["nodes"]) == 3
+    # Fused driver despite tool_invoked origin
+    assert w["compound"] is not None
+    assert w["driverValue"] == 1.0
+    assert w["compound"]["label"] == "Golden hour"
 
 
 @pytest.mark.asyncio

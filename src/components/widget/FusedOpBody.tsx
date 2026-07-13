@@ -68,6 +68,10 @@ export function FusedOpBody({
 
   // ── Rich body dispatch ──────────────────────────────────────────────────
 
+  // NOTE: HslWidgetBody keys its revealed-band UI state on widget.id, which on
+  // the sliced view is the PARENT's id. Safe today because the single `hsl`
+  // registry op means a fused widget carries at most one hsl node; if a second
+  // hsl-node-type op ever exists, key that state on `${widget.id}:${nodeId}`.
   if (isHslWidget(slicedView)) {
     return (
       <div className="px-1.5 py-1">

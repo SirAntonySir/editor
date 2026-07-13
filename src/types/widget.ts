@@ -229,7 +229,7 @@ export interface WidgetCompoundAnchor {
 export interface WidgetCompound {
   driver: string;
   label?: string | null;
-  interpolation?: 'catmull_rom_1d';
+  interpolation?: 'catmull_rom_1d' | 'linear_1d';
   anchors: WidgetCompoundAnchor[];
   topology?: 'linear' | 'wheel';
 }

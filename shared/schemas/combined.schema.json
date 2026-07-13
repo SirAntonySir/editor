@@ -293,7 +293,7 @@
           "type": "string"
         },
         "position": {
-          "maximum": 1.0,
+          "maximum": 2.0,
           "minimum": 0.0,
           "type": "number"
         },
@@ -1447,10 +1447,10 @@
           "type": "string"
         },
         "interpolation": {
-          "const": "catmull_rom_1d",
           "default": "catmull_rom_1d",
           "enum": [
-            "catmull_rom_1d"
+            "catmull_rom_1d",
+            "linear_1d"
           ],
           "type": "string"
         },

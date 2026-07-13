@@ -105,8 +105,15 @@ def test_driver_one_lands_on_resolved():
     assert w2.nodes[0].params["exposure"] == -80.0
 
 
-def test_driver_overshoot_extrapolates_and_clamps():
-    """__driver=1.5 extrapolates to −120, which must clamp to the registry floor (−100)."""
+def test_driver_at_max_reaches_op_extreme():
+    """__driver=1.5 reaches the max anchor = registry range lo (−100) for a negative proposal.
+
+    With 3-anchor linear synthesis:
+      anchor 0 (0.0) = 0.0 (as shot)
+      anchor 1 (1.0) = −80.0 (proposed)
+      anchor 2 (1.5) = −100.0 (range lo, sign-aware max)
+    Linear interpolation at t=1.5 → exactly −100.0 (no extrapolation, clamped by anchor).
+    """
     client = _client()
     sid = _session(client)
     w = _make_fused_widget(sid)
@@ -118,6 +125,30 @@ def test_driver_overshoot_extrapolates_and_clamps():
     w2 = doc.widgets[w.id]
     assert w2.nodes[0].params["exposure"] == -100.0
     assert w2.driver_value == 1.5
+
+
+def test_driver_linear_midpoint_is_exact():
+    """Linear interpolation: t=0.5 gives exactly halfway between as-shot and proposal.
+
+    anchor 0 (0.0) = 0.0
+    anchor 1 (1.0) = −80.0
+    → t=0.5: expected −40.0.
+
+    Also verifies monotonicity: value at t=0.9 is strictly between baseline (0) and proposal (-80).
+    """
+    client = _client()
+    sid = _session(client)
+    w = _make_fused_widget(sid)
+
+    _set_param(client, sid, w.id, "__driver", 0.5)
+    doc = deps.get_session_store().get_document(sid)
+    assert doc.widgets[w.id].nodes[0].params["exposure"] == -40.0
+
+    # Monotone 0→1: t=0.9 must be between baseline and proposal (no overshoot).
+    _set_param(client, sid, w.id, "__driver", 0.9)
+    doc = deps.get_session_store().get_document(sid)
+    v = doc.widgets[w.id].nodes[0].params["exposure"]
+    assert -80.0 <= v <= 0.0, f"Value {v} not in [−80, 0] — overshoot in 0→1 range"
 
 
 def test_driver_skips_locked_params():

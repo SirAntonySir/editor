@@ -1,6 +1,7 @@
 """Fused intent widgets — schema + synthesis tests."""
 from __future__ import annotations
 
+from app.registry.loader import get_registry
 from app.registry.schema import CompoundAnchor, OpCompoundConfig
 from app.schemas.widget import Widget
 
@@ -85,15 +86,56 @@ def _fused_candidate_widget() -> Widget:
     return w
 
 
-def test_synthesize_builds_two_anchors_from_default_baseline():
+def test_synthesize_builds_three_anchors_from_default_baseline():
+    """synthesize_compound emits 3 anchors: as-shot (0), proposal (1), max (1.5)."""
     w = _fused_candidate_widget()
     block = synthesize_compound(w, _FakeDoc(), driver_label="Blackness")
     assert block is not None
     assert block.driver == "__driver"
     assert block.label == "Blackness"
-    assert [a.position for a in block.anchors] == [0.0, 1.0]
-    assert block.anchors[0].values["n_a:exposure"] == 0.0     # registry default
-    assert block.anchors[1].values["n_a:exposure"] == -80.0   # resolved
+    assert block.interpolation == "linear_1d"
+    assert [a.position for a in block.anchors] == [0.0, 1.0, 1.5]
+    assert block.anchors[0].values["n_a:exposure"] == 0.0     # registry default (as shot)
+    assert block.anchors[1].values["n_a:exposure"] == -80.0   # resolved (proposed)
+    # delta = -80 - 0 = -80 (negative) → range lo = -100
+    assert block.anchors[2].values["n_a:exposure"] == -100.0  # max = range lo (sign-aware)
+
+
+def test_synthesize_max_anchor_positive_delta():
+    """Positive delta (proposal > baseline) → max anchor = range hi."""
+    w = _fused_candidate_widget()
+    # Override: exposure = +60 (baseline 0, delta +60 → max = range hi = 100)
+    w.nodes[0].params["exposure"] = 60.0
+    block = synthesize_compound(w, _FakeDoc())
+    assert block is not None
+    assert block.anchors[2].values["n_a:exposure"] == 100.0   # range hi
+
+
+def test_synthesize_max_anchor_no_range_uses_linear_continuation():
+    """Params without a registry range use linear continuation at 1.5×."""
+    from app.schemas.widget import ControlBinding, ControlSchema, NodeParamTarget, WidgetNode
+    from app.registry.schema import CompoundAnchor, OpCompoundConfig
+
+    # Build a widget whose node op has a param WITHOUT a range.
+    # We simulate this by using a non-registry op (returns None) — fall-through.
+    # Instead, directly call synthesize after patching a mock that has no range.
+    # Simplest: create a widget with a custom mock node.
+    import types
+    mock_param = types.SimpleNamespace(type="scalar", default=0.0, range=None)
+    mock_op = types.SimpleNamespace(params={"amount": mock_param})
+
+    w = _fused_candidate_widget()
+    # Replace the binding / node params to use 'amount' with no range.
+    w.nodes[0].op_id = "mock_op"
+    w.nodes[0].params = {"amount": 50.0}
+
+    reg_real = get_registry()
+    import unittest.mock as mock
+    with mock.patch.object(reg_real, "ops", {**reg_real.ops, "mock_op": mock_op}):
+        block = synthesize_compound(w, _FakeDoc())
+    assert block is not None
+    # baseline=0, proposal=50, delta=50 → max = 50 + 0.5*50 = 75 (linear continuation)
+    assert block.anchors[2].values["n_a:amount"] == 75.0
 
 
 def test_synthesize_baseline_prefers_canonical_over_default():
@@ -120,14 +162,44 @@ def test_synthesize_returns_none_for_unknown_op():
 
 
 def test_update_target_anchor_rewrites_unlocked_only():
+    """Refine rewrites the proposal anchor (position 1.0); locked keys stay."""
     w = _fused_candidate_widget()
     w.compound = synthesize_compound(w, _FakeDoc())
     assert w.compound is not None
+    # Sanity: 3-anchor compound after synthesis.
+    assert len(w.compound.anchors) == 3
+
+    # Refine to -40: proposal anchor must update; max anchor recomputed.
     update_target_anchor(w, {"exposure": -40.0})
-    assert w.compound.anchors[1].values["n_a:exposure"] == -40.0
+    proposal = next(a for a in w.compound.anchors if abs(a.position - 1.0) < 1e-9)
+    max_a = next(a for a in w.compound.anchors if abs(a.position - 1.5) < 1e-9)
+    assert proposal.values["n_a:exposure"] == -40.0
+    # delta = -40 - 0 = -40 (negative) → max = range lo = -100
+    assert max_a.values["n_a:exposure"] == -100.0
+
+    # Lock exposure; further refine must not change it.
     w.locked_params = ["exposure"]
     update_target_anchor(w, {"exposure": -10.0})
-    assert w.compound.anchors[1].values["n_a:exposure"] == -40.0  # locked → kept
+    proposal2 = next(a for a in w.compound.anchors if abs(a.position - 1.0) < 1e-9)
+    assert proposal2.values["n_a:exposure"] == -40.0  # locked → kept
+
+
+def test_update_target_anchor_legacy_2anchor_graceful():
+    """update_target_anchor on a legacy 2-anchor compound must not crash."""
+    w = _fused_candidate_widget()
+    # Manually build a 2-anchor legacy block (no max anchor).
+    from app.registry.schema import CompoundAnchor, OpCompoundConfig
+    w.compound = OpCompoundConfig(
+        driver="__driver",
+        anchors=[
+            CompoundAnchor(position=0.0, name="as shot", values={"n_a:exposure": 0.0}),
+            CompoundAnchor(position=1.0, name="proposed", values={"n_a:exposure": -80.0}),
+        ],
+    )
+    # Should not raise; proposal anchor must be rewritten; no max anchor → skip.
+    update_target_anchor(w, {"exposure": -50.0})
+    proposal = next(a for a in w.compound.anchors if abs(a.position - 1.0) < 1e-9)
+    assert proposal.values["n_a:exposure"] == -50.0
 
 
 from app.tools.widgets.propose_stack import _normalize_plan_entries, _attach_fused_compound

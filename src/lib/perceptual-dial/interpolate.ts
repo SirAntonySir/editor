@@ -43,16 +43,56 @@ export function interpolate1D(anchors: Anchor[], t: number): CompoundParams {
 }
 
 /**
- * `interpolate1D` plus linear extrapolation past the LAST anchor — mirrors
- * backend `interpolate_extended` (app/registry/interpolate.py) so fused-widget
- * optimistic previews match what the server will compute. Per-param range
- * clamping is the caller's job.
+ * Piecewise-linear interpolation across `anchors` at scalar `t` — mirrors
+ * backend `interpolate_linear_1d`. Out-of-range `t` clamps to nearest endpoint.
+ * Missing keys on a neighbour default to 0.
  */
-export function interpolateExtended(anchors: Anchor[], t: number): CompoundParams {
+export function interpolateLinear1D(anchors: Anchor[], t: number): CompoundParams {
+  if (anchors.length === 0) return {};
+  const sorted = [...anchors].sort((a, b) => a.position[0] - b.position[0]);
+  if (t <= sorted[0].position[0]) return { ...sorted[0].params };
+  if (t >= sorted[sorted.length - 1].position[0]) return { ...sorted[sorted.length - 1].params };
+
+  let i = 0;
+  while (i < sorted.length - 1 && sorted[i + 1].position[0] < t) i += 1;
+  const p1 = sorted[i];
+  const p2 = sorted[i + 1];
+
+  const span = p2.position[0] - p1.position[0];
+  const u = span > 0 ? (t - p1.position[0]) / span : 0;
+
+  const keys = new Set<string>([...Object.keys(p1.params), ...Object.keys(p2.params)]);
+  const out: CompoundParams = {};
+  for (const k of keys) {
+    const v1 = p1.params[k] ?? 0;
+    const v2 = p2.params[k] ?? 0;
+    out[k] = v1 + u * (v2 - v1);
+  }
+  return out;
+}
+
+/**
+ * `interpolate1D` / `interpolateLinear1D` plus linear extrapolation past the
+ * LAST anchor — mirrors backend `interpolate_extended`.
+ *
+ * `mode` selects in-range interpolation:
+ * - `'catmull_rom_1d'` (default) — Catmull-Rom (back-compat for 2-anchor tables)
+ * - `'linear_1d'` — piecewise-linear (3-anchor fused compounds)
+ *
+ * Extrapolation past the last anchor is always linear. Per-param range clamping
+ * is the caller's job.
+ */
+export function interpolateExtended(
+  anchors: Anchor[],
+  t: number,
+  mode: 'catmull_rom_1d' | 'linear_1d' = 'catmull_rom_1d',
+): CompoundParams {
   if (anchors.length < 2) return interpolate1D(anchors, t);
   const sorted = [...anchors].sort((a, b) => a.position[0] - b.position[0]);
   const last = sorted[sorted.length - 1];
-  if (t <= last.position[0]) return interpolate1D(anchors, t);
+  if (t <= last.position[0]) {
+    return mode === 'linear_1d' ? interpolateLinear1D(anchors, t) : interpolate1D(anchors, t);
+  }
 
   const prev = sorted[sorted.length - 2];
   const span = last.position[0] - prev.position[0];

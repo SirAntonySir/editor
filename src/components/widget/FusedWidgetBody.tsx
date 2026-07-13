@@ -290,7 +290,7 @@ export function FusedWidgetBody({ widget, effectiveValue, setParam }: FusedWidge
             })),
           )
         : [];
-      const opInterpolated = interpolateExtended(opAnchors, t);
+      const opInterpolated = interpolateExtended(opAnchors, t, compound?.interpolation ?? 'catmull_rom_1d');
       // Fix 3: Filter out locked params from the optimistic bindings.
       // Fix 1: Clamp each value to its binding's controlSchema range before applyOptimistic.
       const bindings = Object.entries(opInterpolated)

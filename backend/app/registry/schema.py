@@ -63,7 +63,7 @@ class OpEngineConfig(BaseModel):
 
 class CompoundAnchor(BaseModel):
     model_config = camel_config(extra="forbid")
-    position: float = Field(ge=0.0, le=1.0)
+    position: float = Field(ge=0.0, le=2.0)
     name: str
     values: dict[str, float]
     color: str | None = None    # CSS color string for wheel wedge
@@ -76,7 +76,7 @@ class OpCompoundConfig(BaseModel):
     # None (their dial UI labels itself); fused intent widgets carry the
     # planner's driver_label here ("Blackness", "Warmth").
     label: str | None = None
-    interpolation: Literal["catmull_rom_1d"] = "catmull_rom_1d"
+    interpolation: Literal["catmull_rom_1d", "linear_1d"] = "catmull_rom_1d"
     anchors: list[CompoundAnchor] = Field(min_length=2)
     topology: Literal["linear", "wheel"] = "linear"
 

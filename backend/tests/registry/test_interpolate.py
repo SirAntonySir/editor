@@ -2,6 +2,7 @@ import pytest
 
 from app.registry.interpolate import interpolate_1d
 from app.registry.interpolate import interpolate_extended
+from app.registry.interpolate import interpolate_linear_1d
 
 
 _ANCHORS = [
@@ -67,5 +68,71 @@ def test_extended_extrapolates_from_last_segment_of_many():
     ]
     # last-segment slope: (40 - 10) / 0.5 = 60 per unit → 40 + 0.25 * 60 = 55
     assert interpolate_extended(anchors, 1.25) == {"k": 55.0}
+
+
+# ---------------------------------------------------------------------------
+# interpolate_linear_1d — piecewise linear (mirrors frontend interpolateLinear1D)
+# ---------------------------------------------------------------------------
+
+def _three_anchors():
+    return [
+        {"position": 0.0, "name": "as shot",  "values": {"n_a:exposure": 0.0}},
+        {"position": 1.0, "name": "proposed", "values": {"n_a:exposure": -80.0}},
+        {"position": 1.5, "name": "max",      "values": {"n_a:exposure": -100.0}},
+    ]
+
+
+def test_linear_1d_endpoint_values():
+    a = _three_anchors()
+    assert interpolate_linear_1d(a, -0.1) == {"n_a:exposure": 0.0}
+    assert interpolate_linear_1d(a, 1.5)  == {"n_a:exposure": -100.0}
+    assert interpolate_linear_1d(a, 2.0)  == {"n_a:exposure": -100.0}
+
+
+def test_linear_1d_at_anchor_positions():
+    a = _three_anchors()
+    assert interpolate_linear_1d(a, 0.0)["n_a:exposure"] == pytest.approx(0.0)
+    assert interpolate_linear_1d(a, 1.0)["n_a:exposure"] == pytest.approx(-80.0)
+    assert interpolate_linear_1d(a, 1.5)["n_a:exposure"] == pytest.approx(-100.0)
+
+
+def test_linear_1d_midpoints_are_exact():
+    a = _three_anchors()
+    # t=0.5 → exactly halfway between 0 and -80 = -40
+    assert interpolate_linear_1d(a, 0.5)["n_a:exposure"] == pytest.approx(-40.0)
+    # t=1.25 → halfway between -80 and -100 = -90
+    assert interpolate_linear_1d(a, 1.25)["n_a:exposure"] == pytest.approx(-90.0)
+
+
+def test_linear_1d_no_overshoot_in_0_to_1_range():
+    """Piecewise-linear MUST NOT overshoot between anchor 0 and anchor 1."""
+    a = _three_anchors()
+    for t_tenths in range(0, 11):
+        t = t_tenths / 10.0
+        v = interpolate_linear_1d(a, t)["n_a:exposure"]
+        assert -80.0 <= v <= 0.0, f"Overshoot at t={t}: value={v}"
+
+
+# ---------------------------------------------------------------------------
+# interpolate_extended with mode="linear_1d"
+# ---------------------------------------------------------------------------
+
+def test_extended_linear_mode_dispatches_to_linear_1d():
+    """mode='linear_1d' must produce the same result as interpolate_linear_1d in-range."""
+    a = _three_anchors()
+    for t in (0.0, 0.5, 1.0, 1.25, 1.5):
+        ext = interpolate_extended(a, t, mode="linear_1d")
+        lin = interpolate_linear_1d(a, t)
+        for k in lin:
+            assert ext[k] == pytest.approx(lin[k]), f"Mismatch at t={t}, key={k!r}"
+
+
+def test_extended_catmull_rom_mode_unchanged():
+    """mode='catmull_rom_1d' (default) must produce same results as before."""
+    anchors = _two_anchors()
+    # Verify the 2-anchor linear 0→1 path is still CR (same as before, which happens
+    # to equal linear for 2 anchors anyway — but the dispatch must remain unchanged).
+    assert interpolate_extended(anchors, 0.5) == interpolate_1d(anchors, 0.5)
+    assert interpolate_extended(anchors, 1.5)["n_a:exposure"] == -120.0
 
 

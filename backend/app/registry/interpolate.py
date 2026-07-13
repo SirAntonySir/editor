@@ -62,12 +62,52 @@ def interpolate_1d(anchors: list[Any], t: float) -> dict[str, float]:
     return out
 
 
-def interpolate_extended(anchors: list[Any], t: float) -> dict[str, float]:
-    """`interpolate_1d`, plus linear extrapolation past the LAST anchor.
+def interpolate_linear_1d(anchors: list[Any], t: float) -> dict[str, float]:
+    """Piecewise-linear interpolation across `anchors` at position `t`.
 
-    Used by fused intent widgets whose driver overshoots the proposal
-    (t in (1.0, 1.5]): the value continues along the last segment's slope.
-    Below the first anchor it clamps exactly like `interpolate_1d`.
+    Same clamp-to-endpoint, missing-key-defaults-to-0, and key-union semantics
+    as `interpolate_1d`, but uses straight-line segments between neighbours
+    rather than Catmull-Rom splines. Used for 3-anchor fused compounds where
+    the extra anchor at position 1.5 must not cause overshoot in the 0→1 range.
+    """
+    if len(anchors) < 2:
+        raise ValueError("need at least 2 anchors")
+
+    if t <= _pos(anchors[0]):
+        return dict(_vals(anchors[0]))
+    if t >= _pos(anchors[-1]):
+        return dict(_vals(anchors[-1]))
+
+    # Find segment [p1, p2] containing t.
+    i = 0
+    while i < len(anchors) - 1 and _pos(anchors[i + 1]) < t:
+        i += 1
+    p1 = anchors[i]
+    p2 = anchors[i + 1]
+
+    span = _pos(p2) - _pos(p1)
+    u = (t - _pos(p1)) / span if span > 0 else 0.0
+
+    v1, v2 = _vals(p1), _vals(p2)
+    keys = set(v1.keys()) | set(v2.keys())
+    return {
+        k: v1.get(k, 0.0) + u * (v2.get(k, 0.0) - v1.get(k, 0.0))
+        for k in keys
+    }
+
+
+def interpolate_extended(
+    anchors: list[Any], t: float, mode: str = "catmull_rom_1d",
+) -> dict[str, float]:
+    """`interpolate_1d` / `interpolate_linear_1d`, plus linear extrapolation
+    past the LAST anchor.
+
+    `mode` selects the in-range interpolation:
+    - ``"catmull_rom_1d"`` — Catmull-Rom splines (default; back-compat).
+    - ``"linear_1d"`` — piecewise-linear (used by 3-anchor fused compounds).
+
+    Extrapolation past the last anchor is always linear (unchanged in both
+    modes). Below the first anchor it clamps exactly like `interpolate_1d`.
     Per-param range clamping is the CALLER's job (the registry knows ranges,
     this module doesn't).
     """
@@ -75,6 +115,8 @@ def interpolate_extended(anchors: list[Any], t: float) -> dict[str, float]:
         raise ValueError("need at least 2 anchors")
     last_pos = _pos(anchors[-1])
     if t <= last_pos:
+        if mode == "linear_1d":
+            return interpolate_linear_1d(anchors, t)
         return interpolate_1d(anchors, t)
 
     prev, last = anchors[-2], anchors[-1]

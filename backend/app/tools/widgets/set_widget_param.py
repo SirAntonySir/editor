@@ -98,7 +98,9 @@ class SetWidgetParamTool(BackendTool[_Input, _Output]):
 
             reg = get_registry()
             t = max(0.0, min(DRIVER_MAX, float(input.value)))
-            derived = interpolate_extended(w.compound.anchors, t)
+            derived = interpolate_extended(
+                w.compound.anchors, t, mode=w.compound.interpolation or "catmull_rom_1d",
+            )
             locked = set(w.locked_params)
             for qkey, raw_val in derived.items():
                 node_id, _, pkey = qkey.partition(":")

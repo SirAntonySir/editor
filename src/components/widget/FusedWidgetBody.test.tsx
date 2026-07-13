@@ -620,6 +620,52 @@ describe('FusedWidgetBody', () => {
     });
   });
 
+  // ─── 3-anchor linear_1d compound: UI 150 reaches max anchor ──────────────
+
+  it('3-anchor linear_1d compound: applyOptimistic at UI 150 receives the max-anchor value (clamped)', () => {
+    vi.useFakeTimers();
+    // 3-anchor synthesis: as shot=0, proposed=60, max=100 (range hi).
+    // At t=1.5 (display 150), linear interp hits the max anchor exactly = 100,
+    // which is also the clamp ceiling — so the optimistic value is exactly 100.
+    const nodeId = 'n-basic-1';
+    const widgetWith3Anchors = makeFusedWidget({
+      compound: {
+        driver: '__driver',
+        label: 'Intensity',
+        interpolation: 'linear_1d',
+        anchors: [
+          { position: 0,   name: 'as shot',  values: { [`${nodeId}:exposure`]: 0 } },
+          { position: 1,   name: 'proposed', values: { [`${nodeId}:exposure`]: 60 } },
+          { position: 1.5, name: 'max',      values: { [`${nodeId}:exposure`]: 100 } },
+        ],
+      },
+      driverValue: 1.0,
+    });
+    const setParam = vi.fn();
+    const { getAllByRole } = render(
+      <ReactFlowProvider>
+        <FusedWidgetBody
+          widget={widgetWith3Anchors}
+          effectiveValue={(b) => b.value as number}
+          setParam={setParam}
+        />
+      </ReactFlowProvider>,
+    );
+    const sliders = getAllByRole('slider', { name: /intensity/i });
+    // Press End to drive to display=150 (t=1.5).
+    fireEvent.keyDown(sliders[0], { key: 'End', code: 'End' });
+    vi.runAllTimers();
+    // applyOptimistic should have been called with exposure = 100 (max anchor, clamped to schema max).
+    const calls = mockApplyOptimistic.mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    const lastCall = calls[calls.length - 1];
+    const patchArg = lastCall[1] as { bindings: { paramKey: string; value: number }[] };
+    const exposureBinding = patchArg.bindings.find((b) => b.paramKey === 'exposure');
+    expect(exposureBinding).toBeDefined();
+    expect(exposureBinding!.value).toBe(100);
+    vi.useRealTimers();
+  });
+
   // ─── tool_invoked origin guard ─────────────────────────────────────────────
 
   it('tool_invoked origin preset widget still renders the driver slider (isFused is compound-gated)', () => {

@@ -278,7 +278,7 @@ export interface OpCompoundConfig {
    */
   anchors: [CompoundAnchor, CompoundAnchor, ...CompoundAnchor[]];
   driver: string;
-  interpolation: "catmull_rom_1d";
+  interpolation: "catmull_rom_1d" | "linear_1d";
   label: string | null;
   topology: "linear" | "wheel";
 }

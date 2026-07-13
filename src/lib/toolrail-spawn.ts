@@ -99,9 +99,9 @@ export function spawnRegistryOp(
   });
 }
 
-/** Spawn a preset's full widget stack by preset id. Routes through
- *  `proposeStack({preset_id})` so the backend unfolds preset.ops into one
- *  widget per op with the preset's baked-in param values. */
+/** Spawn a preset by id. Routes through `proposeStack({preset_id})`; the
+ *  backend builds ONE fused driver widget carrying all of the preset's ops
+ *  at their baked-in values (driver labeled by the preset name, at 100). */
 export function spawnRegistryPreset(presetId: string, intent?: string): void {
   const ctx = _resolveSpawnContext();
   if (!ctx) return;

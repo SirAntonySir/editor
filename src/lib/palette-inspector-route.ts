@@ -56,6 +56,41 @@ export function dispatchPreset(presetId: string, label?: string): void {
   else routePresetToInspector(presetId);
 }
 
+/**
+ * Params-carrying counterpart to {@link dispatchOp} for mechanical Auto
+ * specs (Auto Light / Color / Tone / Contrast): with the AI widget layer on,
+ * spawn a `tool_invoked` widget seeded with the computed params; in the
+ * baseline condition apply the params straight to canonical and open the
+ * op's inspector section — mirroring {@link routePresetToInspector}.
+ */
+export function dispatchOpWithParams(
+  opId: string,
+  intent: string,
+  params: Record<string, number | string | boolean>,
+): void {
+  if (getAiAccess()) {
+    spawnRegistryOp(opId, intent, params);
+    return;
+  }
+  const ctx = resolveSpawnContext();
+  if (!ctx) return;
+  const reg = loadRegistry();
+  const nodeType = reg.ops[opId]?.engine?.node_type;
+  if (!nodeType) return;
+  openAdjustmentsFor(ctx.layerId);
+  for (const [param, value] of Object.entries(params)) {
+    void backendTools.set_param(ctx.sid, {
+      layerId: ctx.layerId,
+      op: nodeType,
+      param,
+      value,
+    });
+  }
+  const editor = useEditorStore.getState();
+  editor.expandSection(opId);
+  editor.scrollToSection(opId);
+}
+
 /** Route a preset row into the inspector: apply its params to canonical, open
  *  the touched sections, scroll to the first. */
 export function routePresetToInspector(presetId: string): void {

@@ -17,8 +17,7 @@ import { useCanvasZoom } from '@/hooks/useCanvasZoom';
 import { useImageTransform } from '@/hooks/useImageTransform';
 import { UI } from '@/config';
 import { useAiAccess } from '@/lib/ai-access';
-import { spawnRegistryOp } from '@/lib/toolrail-spawn';
-import { dispatchOp } from '@/lib/palette-inspector-route';
+import { dispatchOp, dispatchOpWithParams } from '@/lib/palette-inspector-route';
 import { openPreferencesDialog } from '@/components/PreferencesDialog';
 import { loadRegistry } from '@/lib/registry/loader';
 import { useLiveMechanicalContext } from '@/hooks/useLiveMechanicalContext';
@@ -297,19 +296,21 @@ function ImageMenu({ transformImage }: { transformImage: (mode: 'rotateCW' | 'ro
 function AutoSubmenu() {
   const mech = useLiveMechanicalContext();
   const disabled = !mech;
+  // dispatchOpWithParams routes on aiAccess: widget in the AI condition,
+  // straight-to-inspector canonical application in the baseline.
   return (
     <Sub label="Auto">
       <Item disabled={disabled} onSelect={() => mech && (
-        ((spec) => spawnRegistryOp(spec.opId, spec.intent, spec.params))(autoLight(mech))
+        ((spec) => dispatchOpWithParams(spec.opId, spec.intent, spec.params))(autoLight(mech))
       )}>Auto Light</Item>
       <Item disabled={disabled} onSelect={() => mech && (
-        ((spec) => spawnRegistryOp(spec.opId, spec.intent, spec.params))(autoColor(mech))
+        ((spec) => dispatchOpWithParams(spec.opId, spec.intent, spec.params))(autoColor(mech))
       )}>Auto Color</Item>
       <Item disabled={disabled} onSelect={() => mech && (
-        ((spec) => spawnRegistryOp(spec.opId, spec.intent, spec.params))(autoTone(mech))
+        ((spec) => dispatchOpWithParams(spec.opId, spec.intent, spec.params))(autoTone(mech))
       )}>Auto Tone</Item>
       <Item disabled={disabled} onSelect={() => mech && (
-        ((spec) => spawnRegistryOp(spec.opId, spec.intent, spec.params))(autoContrast(mech))
+        ((spec) => dispatchOpWithParams(spec.opId, spec.intent, spec.params))(autoContrast(mech))
       )}>Auto Contrast</Item>
     </Sub>
   );

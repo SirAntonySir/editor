@@ -8,7 +8,7 @@ vi.mock('@/lib/backend-tools', () => ({
 }));
 vi.mock('@/components/ui/Toast', () => ({ toast: { info: vi.fn() } }));
 
-import { routeOpToInspector, routePresetToInspector, dispatchOp, dispatchPreset } from './palette-inspector-route';
+import { routeOpToInspector, routePresetToInspector, dispatchOp, dispatchPreset, dispatchOpWithParams } from './palette-inspector-route';
 import { backendTools } from '@/lib/backend-tools';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
@@ -99,6 +99,26 @@ describe('palette-inspector-route — dispatchOp / dispatchPreset (shared by Cmd
     expect(backendTools.proposeStack).toHaveBeenCalledWith('s1', expect.objectContaining({
       preset_id: 'blue_hour',
       origin: 'tool_invoked',
+    }));
+    expect(backendTools.set_param).not.toHaveBeenCalled();
+  });
+
+  it('dispatchOpWithParams (Auto items) gates the same way: canonical write in baseline, seeded widget when ON', () => {
+    useBackendState.setState({ snapshot: { aiAccess: false } as never });
+    dispatchOpWithParams('light', 'Auto Light', { exposure: 12, shadows: 8 });
+    expect(backendTools.proposeStack).not.toHaveBeenCalled();
+    expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layerId: 'l1', op: 'basic', param: 'exposure', value: 12 });
+    expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layerId: 'l1', op: 'basic', param: 'shadows', value: 8 });
+    expect(usePreferencesStore.getState().inspectorTab).toBe('adjustments');
+    expect(useEditorStore.getState().expandedSectionIds.has('light')).toBe(true);
+
+    vi.clearAllMocks();
+    useBackendState.setState({ snapshot: { aiAccess: true } as never });
+    dispatchOpWithParams('light', 'Auto Light', { exposure: 12 });
+    expect(backendTools.proposeStack).toHaveBeenCalledWith('s1', expect.objectContaining({
+      forced_ops: ['light'],
+      origin: 'tool_invoked',
+      forced_params: { light: { exposure: 12 } },
     }));
     expect(backendTools.set_param).not.toHaveBeenCalled();
   });

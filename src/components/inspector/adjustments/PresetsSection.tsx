@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { loadRegistry } from '@/lib/registry/loader';
-import { spawnRegistryPreset } from '@/lib/toolrail-spawn';
+import { dispatchPreset } from '@/lib/palette-inspector-route';
 import { UI } from '@/config';
 
 const PRESET_CATEGORY_ORDER = ['tone', 'color', 'bw', 'film', 'detail', 'mood', 'look'];
@@ -133,7 +133,10 @@ function PresetRowButton({ preset, onSelect }: { preset: PresetRow; onSelect: ()
     <button
       type="button"
       onClick={() => {
-        spawnRegistryPreset(preset.id, preset.display_name);
+        // dispatchPreset routes on aiAccess: widget canvas when the AI layer
+        // is on, straight-to-inspector param application in the baseline
+        // study condition. Never spawn directly from here.
+        dispatchPreset(preset.id, preset.display_name);
         onSelect();
       }}
       className="text-left px-2 py-1.5 rounded-[3px]

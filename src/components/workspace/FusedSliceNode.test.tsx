@@ -207,6 +207,10 @@ describe('FusedSliceNode', () => {
       expect(getByLabelText('Confirm detach from intent')).toBeTruthy();
       // No backend call yet.
       expect(backendTools.detach_widget_op).not.toHaveBeenCalled();
+      // Regression: the armed state must be VISIBLE. `text-color-accent`
+      // (a nonexistent utility) once made arming render with zero feedback,
+      // which read as "detach does nothing".
+      expect(getByLabelText('Confirm detach from intent').className).toContain('text-accent');
     });
 
     it('second click calls detach_widget_op with correct parentWidgetId + nodeId', async () => {

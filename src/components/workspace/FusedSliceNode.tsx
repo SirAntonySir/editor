@@ -138,7 +138,7 @@ function DetachButton({
         isDisabled
           ? 'text-text-tertiary cursor-not-allowed opacity-50'
           : armed
-            ? 'text-color-accent bg-color-accent/10 hover:bg-color-accent/20'
+            ? 'text-accent bg-accent/10 hover:bg-accent/20'
             : 'text-text-secondary hover:text-text-primary hover:bg-surface-secondary',
       ].join(' ')}
     >

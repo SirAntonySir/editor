@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { Scissors, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
@@ -14,9 +14,6 @@ import { loadRegistry } from '@/lib/registry/loader';
 
 const EMPTY_WIDGETS: Widget[] = [];
 
-/** How long (ms) the detach button stays "armed" before auto-resetting. */
-const DETACH_REARM_MS = 3000;
-
 /** Parent intent/displayName, mirroring WidgetShellHeader's resolveTitle. */
 function resolveParentTitle(widget: Widget): string {
   if (widget.displayName) return widget.displayName;
@@ -28,13 +25,10 @@ function resolveParentTitle(widget: Widget): string {
 
 // ─── DetachButton ──────────────────────────────────────────────────────────────
 //
-// Two-click inline confirm:
-//   click 1 → arms the button (accent color, title changes)
-//   click 2 → calls detach_widget_op and immediately removes the satellite
-//
-// Auto-resets if the user doesn't confirm within DETACH_REARM_MS or blurs away.
-// Hidden/disabled when the parent only has one node (detaching the only op
-// would leave the fused widget empty — dismiss it instead).
+// One click → detach_widget_op → the op spawns as a NORMAL widget on the
+// canvas (auto-tethered to its image node) and the satellite closes. No
+// confirm step: the operation is undoable and the result stays editable.
+// Single-node parents un-fuse in place instead (driver stripped, same widget).
 
 interface DetachButtonProps {
   sessionId: string | null;
@@ -55,50 +49,17 @@ function DetachButton({
   isOnlyNode,
   onDetached,
 }: DetachButtonProps) {
-  const [armed, setArmed] = useState(false);
-  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Double-fire guard: setArmed(false) is batched, so a rapid extra click in
-  // the same tick still sees armed===true in the closure and would send a
-  // second detach_widget_op. The ref flips synchronously.
+  // ONE click detaches — no confirm step (the operation is undoable, and the
+  // result is a normal widget the user can keep working with). The ref guards
+  // rapid double-clicks from firing two backend calls.
   const inFlightRef = useRef(false);
-
-  // Clear the auto-reset timer when the component unmounts.
-  useEffect(() => {
-    return () => {
-      if (resetTimerRef.current !== null) clearTimeout(resetTimerRef.current);
-    };
-  }, []);
-
-  const clearResetTimer = useCallback(() => {
-    if (resetTimerRef.current !== null) {
-      clearTimeout(resetTimerRef.current);
-      resetTimerRef.current = null;
-    }
-  }, []);
-
-  const disarm = useCallback(() => {
-    clearResetTimer();
-    setArmed(false);
-  }, [clearResetTimer]);
 
   const isDisabled = offline || !sessionId;
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (isDisabled) return;
-
-      if (!armed) {
-        // First click: arm the button.
-        setArmed(true);
-        resetTimerRef.current = setTimeout(disarm, DETACH_REARM_MS);
-        return;
-      }
-
-      // Second click: confirm detach.
-      clearResetTimer();
-      setArmed(false);
-      if (!sessionId || inFlightRef.current) return;
+      if (isDisabled || !sessionId || inFlightRef.current) return;
       inFlightRef.current = true;
       void backendTools
         .detach_widget_op(sessionId, { widgetId: parentWidgetId, nodeId })
@@ -110,36 +71,25 @@ function DetachButton({
           inFlightRef.current = false;
         });
     },
-    [armed, isDisabled, sessionId, parentWidgetId, nodeId, onDetached, disarm, clearResetTimer],
+    [isDisabled, sessionId, parentWidgetId, nodeId, onDetached],
   );
 
-  const handleBlur = useCallback(() => {
-    if (armed) disarm();
-  }, [armed, disarm]);
-
-  const title = armed
-    ? 'Click again to confirm detach'
-    : isOnlyNode
-      ? 'Detach from intent — remove the driver, keep this as a plain widget'
-      : 'Detach from intent — make this a standalone widget';
-
-  const ariaLabel = armed ? 'Confirm detach from intent' : 'Detach from intent';
+  const title = isOnlyNode
+    ? 'Detach from intent — remove the driver, keep this as a plain widget'
+    : 'Detach from intent — spawn as a standalone widget on the canvas';
 
   return (
     <button
       type="button"
-      aria-label={ariaLabel}
+      aria-label="Detach from intent"
       title={title}
       disabled={isDisabled}
       onClick={handleClick}
-      onBlur={handleBlur}
       className={[
         'nodrag inline-flex items-center justify-center size-4 rounded-sm transition-colors shrink-0',
         isDisabled
           ? 'text-text-tertiary cursor-not-allowed opacity-50'
-          : armed
-            ? 'text-accent bg-accent/10 hover:bg-accent/20'
-            : 'text-text-secondary hover:text-text-primary hover:bg-surface-secondary',
+          : 'text-text-secondary hover:text-accent hover:bg-surface-secondary',
       ].join(' ')}
     >
       <Scissors size={12} aria-hidden />

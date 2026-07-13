@@ -193,27 +193,8 @@ describe('FusedSliceNode', () => {
 
   // ─── DetachButton tests ─────────────────────────────────────────────────────
 
-  describe('DetachButton — armed/confirm flow', () => {
-    it('first click arms the button (aria-label changes to confirm)', () => {
-      // Multi-node parent so detach is enabled.
-      snapshotWidgets = [makeFusedWidgetMultiNode()];
-      const sliceId = useEditorStore.getState().addFusedSliceNode(PARENT_ID, NODE_ID, { x: 0, y: 0 });
-      const { getByLabelText } = renderSlice(sliceId);
-
-      const detachBtn = getByLabelText('Detach from intent');
-      fireEvent.click(detachBtn);
-
-      // After first click the button is armed → aria-label updates.
-      expect(getByLabelText('Confirm detach from intent')).toBeTruthy();
-      // No backend call yet.
-      expect(backendTools.detach_widget_op).not.toHaveBeenCalled();
-      // Regression: the armed state must be VISIBLE. `text-color-accent`
-      // (a nonexistent utility) once made arming render with zero feedback,
-      // which read as "detach does nothing".
-      expect(getByLabelText('Confirm detach from intent').className).toContain('text-accent');
-    });
-
-    it('second click calls detach_widget_op with correct parentWidgetId + nodeId', async () => {
+  describe('DetachButton — one-click detach', () => {
+    it('a SINGLE click calls detach_widget_op with parentWidgetId + nodeId', async () => {
       vi.mocked(backendTools.detach_widget_op).mockResolvedValue({
         ok: true,
         output: { widget: makeFusedWidgetMultiNode(), parent: makeFusedWidgetMultiNode() },
@@ -223,20 +204,18 @@ describe('FusedSliceNode', () => {
       const sliceId = useEditorStore.getState().addFusedSliceNode(PARENT_ID, NODE_ID, { x: 0, y: 0 });
       const { getByLabelText } = renderSlice(sliceId);
 
-      // Arm.
-      fireEvent.click(getByLabelText('Detach from intent'));
-      // Confirm.
       await act(async () => {
-        fireEvent.click(getByLabelText('Confirm detach from intent'));
+        fireEvent.click(getByLabelText('Detach from intent'));
       });
 
+      expect(backendTools.detach_widget_op).toHaveBeenCalledTimes(1);
       expect(backendTools.detach_widget_op).toHaveBeenCalledWith('s-1', {
         widgetId: PARENT_ID,
         nodeId: NODE_ID,
       });
     });
 
-    it('on success: removeFusedSliceNode is called to close the satellite', async () => {
+    it('on success: removeFusedSliceNode closes the satellite', async () => {
       vi.mocked(backendTools.detach_widget_op).mockResolvedValue({
         ok: true,
         output: { widget: makeFusedWidgetMultiNode(), parent: makeFusedWidgetMultiNode() },
@@ -247,35 +226,36 @@ describe('FusedSliceNode', () => {
       expect(useEditorStore.getState().fusedSliceNodes[sliceId]).toBeDefined();
 
       const { getByLabelText } = renderSlice(sliceId);
-      fireEvent.click(getByLabelText('Detach from intent'));
       await act(async () => {
-        fireEvent.click(getByLabelText('Confirm detach from intent'));
+        fireEvent.click(getByLabelText('Detach from intent'));
       });
 
       expect(useEditorStore.getState().fusedSliceNodes[sliceId]).toBeUndefined();
     });
 
-    it('auto-resets armed state after timeout without confirming', () => {
-      vi.useFakeTimers();
+    it('rapid double-click fires only one backend call (in-flight guard)', async () => {
+      let resolveCall: (v: unknown) => void = () => {};
+      vi.mocked(backendTools.detach_widget_op).mockReturnValue(
+        new Promise((res) => { resolveCall = res; }) as never,
+      );
+
       snapshotWidgets = [makeFusedWidgetMultiNode()];
       const sliceId = useEditorStore.getState().addFusedSliceNode(PARENT_ID, NODE_ID, { x: 0, y: 0 });
       const { getByLabelText } = renderSlice(sliceId);
 
-      fireEvent.click(getByLabelText('Detach from intent'));
-      expect(getByLabelText('Confirm detach from intent')).toBeTruthy();
+      const btn = getByLabelText('Detach from intent');
+      fireEvent.click(btn);
+      fireEvent.click(btn);
 
-      // Advance past DETACH_REARM_MS (3000ms).
-      act(() => { vi.advanceTimersByTime(3100); });
-
-      // Should be back to initial label.
-      expect(getByLabelText('Detach from intent')).toBeTruthy();
-      expect(backendTools.detach_widget_op).not.toHaveBeenCalled();
-      vi.useRealTimers();
+      expect(backendTools.detach_widget_op).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        resolveCall({ ok: true, output: {} });
+      });
     });
   });
 
   describe('DetachButton — single-node un-fuse', () => {
-    it('is ENABLED for a single-node parent with the un-fuse wording', () => {
+    it('is enabled for a single-node parent with the un-fuse wording', () => {
       // Default makeFusedWidget has 1 node → detach degrades to un-fuse
       // in place (backend strips the driver; no second widget minted).
       snapshotWidgets = [makeFusedWidget()];
@@ -287,7 +267,7 @@ describe('FusedSliceNode', () => {
       expect((btn as HTMLButtonElement).disabled).toBe(false);
     });
 
-    it('arm + confirm on a single-node parent calls detach_widget_op', async () => {
+    it('one click on a single-node parent calls detach_widget_op', async () => {
       vi.mocked(backendTools.detach_widget_op).mockResolvedValue({
         ok: true,
         output: { widget: makeFusedWidget(), parent: makeFusedWidget() },
@@ -296,8 +276,9 @@ describe('FusedSliceNode', () => {
       const sliceId = useEditorStore.getState().addFusedSliceNode(PARENT_ID, NODE_ID, { x: 0, y: 0 });
       const { getByLabelText } = renderSlice(sliceId);
 
-      fireEvent.click(getByLabelText('Detach from intent'));
-      fireEvent.click(getByLabelText('Confirm detach from intent'));
+      await act(async () => {
+        fireEvent.click(getByLabelText('Detach from intent'));
+      });
       expect(backendTools.detach_widget_op).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({ widgetId: PARENT_ID, nodeId: NODE_ID }),

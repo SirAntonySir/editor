@@ -86,3 +86,22 @@ def sample_image_context() -> dict:
         "model_version": "2026-01",
         "generated_at": "2026-05-11T10:00:00Z",
     }
+
+
+@pytest.fixture(autouse=True)
+def _isolated_sessions_dir(tmp_path, monkeypatch):
+    """Redirect ALL on-disk session I/O to a per-test temp dir.
+
+    TestClient-based tests create real sessions through POST /api/session;
+    without this redirect every suite run wrote ~100 junk sessions (1-byte
+    fixture images) into the developer's live backend/.sessions, which then
+    surfaced as phantom "users" in the admin views. Every consumer reads
+    `disk_session_io.SESSIONS_DIR` at call time (never imports the name
+    directly), so one module-attribute patch isolates the whole tree —
+    meta.json, events.jsonl, assets, and per-node images alike. Tests that
+    patch SESSIONS_DIR themselves simply override this (their setattr runs
+    later inside the test body).
+    """
+    monkeypatch.setattr(
+        "app.services.disk_session_io.SESSIONS_DIR", tmp_path / "sessions",
+    )

@@ -53,6 +53,23 @@ describe('WidgetNode tether handles', () => {
     expect(document.querySelector('[data-handleid="tether-out-top"]')).toBeTruthy();
     expect(document.querySelector('[data-handleid="tether-out-bottom"]')).toBeTruthy();
   });
+
+  // Regression: the break-out hub tether TARGETS the parent widget node.
+  // React Flow's strict connection mode silently drops edges whose target
+  // handle is a source-type handle, so widgets must expose real target
+  // anchors (mirrors the image node's tether-in-* set).
+  it('mounts target handles on all four sides for hub tethers', () => {
+    render(
+      <ReactFlowProvider>
+        <WidgetNode id="w-1" data={{ widget: makeAiWidget() }} selected={false} />
+      </ReactFlowProvider>,
+    );
+    for (const side of ['left', 'right', 'top', 'bottom']) {
+      const el = document.querySelector(`[data-handleid="tether-in-${side}"]`);
+      expect(el).toBeTruthy();
+      expect(el!.classList.contains('target')).toBe(true);
+    }
+  });
 });
 
 describe('WidgetNode tether handle anchoring', () => {

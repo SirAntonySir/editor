@@ -508,9 +508,9 @@ describe('FusedWidgetBody', () => {
           />
         </ReactFlowProvider>,
       );
-      // First click spawns; the button then reads "broken out".
+      // First click spawns; the button then swaps to the sidebar's pin glyph.
       fireEvent.click(getByLabelText('Open as widget on canvas'));
-      fireEvent.click(getByLabelText('Broken out — focus the satellite'));
+      fireEvent.click(getByLabelText('On canvas — pinned as widget'));
 
       expect(Object.keys(useEditorStore.getState().fusedSliceNodes)).toHaveLength(1);
     });

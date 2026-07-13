@@ -592,11 +592,6 @@ export function CanvasWorkspace() {
         y1: rfParent.position.y + rfParent.size.h,
       };
       const { sourceHandle, targetHandle } = pickTetherHandles(sliceCenter, parentBounds);
-      // The parent widget node exposes only `tether-out-*` handles (no
-      // `tether-in-*`), so remap the picked image-style target side to the
-      // widget's outlet on the same side — the edge just anchors to that
-      // handle's position.
-      const parentSide = targetHandle.slice('tether-in-'.length);
       // Hub tint: stroke the satellite→hub tether with the op's category token,
       // so a break-out reads as "this strand, lifted onto the canvas".
       const parentWidget = widgetById.get(slice.parentWidgetId);
@@ -613,7 +608,9 @@ export function CanvasWorkspace() {
         source: slice.id,
         target: slice.parentWidgetId,
         sourceHandle,
-        targetHandle: `tether-out-${parentSide}`,
+        // WidgetNode now exposes tether-in-* target anchors (strict connection
+        // mode drops edges that target a source-type handle).
+        targetHandle,
         type: 'tether',
         data: { scopeKind: 'node', variant: 'hub' as const, strandColorVar },
         selectable: false,

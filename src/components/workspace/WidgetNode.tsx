@@ -76,6 +76,15 @@ export function WidgetNode({ id, data, selected }: WidgetNodeProps) {
       <Handle type="source" position={Position.Bottom} id="tether-out-bottom" className="tether-outlet" />
       <Handle type="source" position={Position.Left} id="tether-out-left" className="tether-outlet" />
       <Handle type="source" position={Position.Right} id="tether-out-right" className="tether-outlet" />
+      {/* Invisible target anchors for edges that point AT this widget (the
+          break-out hub tether from a fused-slice satellite). React Flow's
+          default strict connection mode drops edges whose target handle is a
+          source-type handle, so widgets need a real target set — mirroring
+          the image node's tether-in-* anchors. */}
+      <Handle type="target" position={Position.Top} id="tether-in-top" style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Bottom} id="tether-in-bottom" style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Left} id="tether-in-left" style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Right} id="tether-in-right" style={{ opacity: 0 }} />
       {chromeVisible ? (
         // Outer box carries the SCALED footprint React Flow measures; the shell
         // inside is uniformly scaled from its top-left. `group` so the resize

@@ -157,12 +157,18 @@ function FusedOpSection({
           className={`inline-flex items-center px-1.5 py-1.5 text-[10px] transition-colors select-none shrink-0 ${
             brokenOut ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
           }`}
-          title={brokenOut ? 'Broken out — focus the satellite' : 'Open as widget on canvas'}
-          aria-label={brokenOut ? 'Broken out — focus the satellite' : 'Open as widget on canvas'}
+          title={brokenOut ? 'On canvas — pinned as widget' : 'Open as widget on canvas'}
+          aria-label={brokenOut ? 'On canvas — pinned as widget' : 'Open as widget on canvas'}
           aria-pressed={brokenOut}
           onClick={onBreakOut}
         >
-          <Maximize2 className="size-2.5 shrink-0" aria-hidden />
+          {/* Broken out → the sidebar's pin-to-canvas glyph, mirroring
+              ToolSection's "Pin to canvas" affordance. */}
+          {brokenOut ? (
+            <Pin className="size-2.5 shrink-0" aria-hidden />
+          ) : (
+            <Maximize2 className="size-2.5 shrink-0" aria-hidden />
+          )}
         </button>
         {pinnedCount > 0 && (
           <button

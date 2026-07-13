@@ -165,7 +165,14 @@ def _summarize_session(sid: str) -> dict[str, Any]:
     if meta_path.exists():
         try:
             meta = json.loads(meta_path.read_text())
-            summary["created_at"] = meta.get("created_at")
+            created = meta.get("created_at")
+            # Legacy metas persisted time.monotonic() (seconds since BOOT),
+            # which renders as a 1970-adjacent date. Anything below ~2001
+            # epoch can't be a real wall-clock stamp — fall back to the
+            # meta file's mtime, which is written at session creation.
+            if isinstance(created, (int, float)) and created < 1_000_000_000:
+                created = meta_path.stat().st_mtime
+            summary["created_at"] = created
             summary["mime_type"] = meta.get("mime_type")
             summary["ai_access"] = bool(meta.get("ai_access", True))
         except (OSError, json.JSONDecodeError):

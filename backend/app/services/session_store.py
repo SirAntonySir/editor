@@ -135,7 +135,14 @@ class SessionStore:
         # Persist immediately so the session survives a restart even before
         # any analyze runs. ai_access is stamped from the caller's cohort
         # default (see api/session.py) so the study condition is inherited.
-        disk_session_io.save_session(sid, image_bytes, mime_type, created_at=now, ai_access=ai_access)
+        # NOTE: the persisted created_at is WALL-CLOCK (epoch seconds) — the
+        # in-memory record uses time.monotonic() for TTL math, but meta.json
+        # feeds the admin views, which render it as a date. Persisting the
+        # monotonic value produced 1970-adjacent timestamps (seconds since
+        # boot read as seconds since epoch).
+        disk_session_io.save_session(
+            sid, image_bytes, mime_type, created_at=time.time(), ai_access=ai_access,
+        )
         return sid
 
     def get(self, sid: str) -> SessionRecord:

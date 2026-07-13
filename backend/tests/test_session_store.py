@@ -304,3 +304,16 @@ def test_last_activity_mtime_returns_newest(tmp_path) -> None:
     mtime = _last_activity_mtime(d)
     assert mtime is not None
     assert abs(mtime - (now - 30)) < 2  # the newest wins
+
+
+def test_persisted_created_at_is_wall_clock(tmp_path, monkeypatch) -> None:
+    """meta.json's created_at must be EPOCH seconds, not time.monotonic().
+    Persisting the monotonic value (seconds since boot) made the admin views
+    render 1970-adjacent dates."""
+    monkeypatch.setattr("app.services.disk_session_io.SESSIONS_DIR", tmp_path)
+    store = SessionStore(ttl_seconds=60)
+    before = time.time()
+    sid = store.create(image_bytes=b"abc", mime_type="image/jpeg")
+    meta = json.loads((tmp_path / sid / "meta.json").read_text())
+    assert meta["created_at"] >= before - 1
+    assert meta["created_at"] > 1_000_000_000  # sanity: definitely epoch, not uptime

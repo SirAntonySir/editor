@@ -16,6 +16,32 @@ const CATEGORY_LABELS: Record<string, string> = {
   look: 'Looks',
 };
 
+/**
+ * Preset category → strand token (CSS custom property name).
+ *
+ * IMPORTANT: preset categories (tone, color, bw, film, detail, mood, look)
+ * are a DIFFERENT vocabulary from op categories (tone, color, detail, texture,
+ * effect) defined in tether-strands.ts. This is a nearest-family mapping only.
+ *   film  → --strand-texture  (film grain / texture family)
+ *   mood  → --strand-effect   (creative-effect family)
+ *   bw    → --strand-default  (no dedicated bw token)
+ *   look  → --strand-default  (catch-all creative looks)
+ */
+const PRESET_STRAND_TOKEN: Record<string, string> = {
+  tone:   '--strand-tone',
+  color:  '--strand-color',
+  detail: '--strand-detail',
+  film:   '--strand-texture',
+  mood:   '--strand-effect',
+  bw:     '--strand-default',
+  look:   '--strand-default',
+};
+
+function presetStrandVar(category: string): string {
+  const token = PRESET_STRAND_TOKEN[category] ?? '--strand-default';
+  return `var(${token})`;
+}
+
 interface PresetRow {
   id: string;
   display_name: string;
@@ -63,15 +89,22 @@ export function PresetsSection() {
 
 function CategoryButton({ category, items }: { category: string; items: PresetRow[] }) {
   const [open, setOpen] = useState(false);
+  const colorVar = presetStrandVar(category);
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <button
           type="button"
-          className="text-[11px] px-2 py-1 rounded-[var(--radius-button)]
+          className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-[var(--radius-button)]
             bg-surface border border-separator text-text-primary
             hover:bg-surface-secondary transition-colors"
         >
+          <span
+            className="inline-block w-[7px] h-[7px] rounded-sm flex-shrink-0"
+            style={{ background: colorVar }}
+            data-strand-swatch={category}
+            aria-hidden
+          />
           {CATEGORY_LABELS[category] ?? category}
         </button>
       </Popover.Trigger>
@@ -85,26 +118,40 @@ function CategoryButton({ category, items }: { category: string; items: PresetRo
         >
           <div className="flex flex-col">
             {items.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  spawnRegistryPreset(p.id, p.display_name);
-                  setOpen(false);
-                }}
-                className="text-left px-2 py-1.5 rounded-[3px]
-                  hover:bg-surface-secondary text-[11px]"
-                title={p.description}
-              >
-                <div className="text-text-primary">{p.display_name}</div>
-                <div className="text-[10px] text-text-secondary truncate">
-                  {p.description}
-                </div>
-              </button>
+              <PresetRowButton key={p.id} preset={p} onSelect={() => setOpen(false)} />
             ))}
           </div>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
+  );
+}
+
+function PresetRowButton({ preset, onSelect }: { preset: PresetRow; onSelect: () => void }) {
+  const colorVar = presetStrandVar(preset.category);
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        spawnRegistryPreset(preset.id, preset.display_name);
+        onSelect();
+      }}
+      className="text-left px-2 py-1.5 rounded-[3px]
+        hover:bg-surface-secondary text-[11px]"
+      title={preset.description}
+    >
+      <div className="flex items-center gap-1 text-text-primary">
+        <span
+          className="inline-block w-[7px] h-[7px] rounded-sm flex-shrink-0"
+          style={{ background: colorVar }}
+          data-strand-swatch={preset.category}
+          aria-hidden
+        />
+        {preset.display_name}
+      </div>
+      <div className="text-[10px] text-text-secondary truncate">
+        {preset.description}
+      </div>
+    </button>
   );
 }

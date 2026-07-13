@@ -619,4 +619,38 @@ describe('FusedWidgetBody', () => {
       expect(getByText).toBeTruthy();
     });
   });
+
+  // ─── tool_invoked origin guard ─────────────────────────────────────────────
+
+  it('tool_invoked origin preset widget still renders the driver slider (isFused is compound-gated)', () => {
+    // Simulate a preset-spawned widget: origin=tool_invoked, but compound present.
+    // WidgetShell dispatches FusedWidgetBody for any widget with !!widget.compound,
+    // regardless of origin. This test guards that FusedWidgetBody itself does not
+    // accidentally check origin.kind before rendering the driver.
+    const widget = makeFusedWidget({
+      origin: {
+        kind: 'tool_invoked',
+      },
+      compound: {
+        driver: '__driver',
+        label: 'Golden hour',
+        anchors: [
+          { position: 0, name: 'as shot',  values: { 'n-basic-1:exposure': 0 } },
+          { position: 1, name: 'proposed', values: { 'n-basic-1:exposure': 50 } },
+        ],
+      },
+      driverValue: 1.0,
+    });
+    const { getByRole } = render(
+      <ReactFlowProvider>
+        <FusedWidgetBody
+          widget={widget}
+          effectiveValue={(b) => b.value as number}
+          setParam={vi.fn()}
+        />
+      </ReactFlowProvider>,
+    );
+    // The driver slider must be present (label from compound.label = 'Golden hour').
+    expect(getByRole('slider', { name: /golden hour/i })).toBeTruthy();
+  });
 });

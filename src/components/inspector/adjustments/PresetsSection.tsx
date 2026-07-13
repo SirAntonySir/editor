@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
-import * as Popover from '@radix-ui/react-popover';
+import { useMemo } from 'react';
+import { ChevronRight, ChevronDown } from 'lucide-react';
+import { useEditorStore } from '@/store';
 import { loadRegistry } from '@/lib/registry/loader';
 import { dispatchPreset } from '@/lib/palette-inspector-route';
-import { UI } from '@/config';
+import { PresetThumb } from './PresetThumb';
 
 const PRESET_CATEGORY_ORDER = ['tone', 'color', 'bw', 'film', 'detail', 'mood', 'look'];
 
@@ -49,10 +50,10 @@ interface PresetRow {
   category: string;
 }
 
-/** Inspector section that lists preset categories. Each category opens a
- *  popover with that category's presets; clicking a preset spawns it via
- *  the same helper Cmd+K uses. Replaces the temporarily removed Filters
- *  section. */
+/** Inspector section that lists preset categories as accordion rows — the
+ *  same collapsible pattern as the tool sections above (ToolSection).
+ *  Expanding a category shows its presets as thumbnail rows; clicking a
+ *  preset dispatches it via the same helper Cmd+K uses. */
 export function PresetsSection() {
   const grouped = useMemo(() => {
     const reg = loadRegistry();
@@ -79,55 +80,55 @@ export function PresetsSection() {
   }, []);
 
   return (
-    <div className="flex flex-wrap gap-1.5 px-2 py-1.5">
+    <div className="flex flex-col">
       {grouped.map(({ cat, items }) => (
-        <CategoryButton key={cat} category={cat} items={items} />
+        <CategorySection key={cat} category={cat} items={items} />
       ))}
     </div>
   );
 }
 
-function CategoryButton({ category, items }: { category: string; items: PresetRow[] }) {
-  const [open, setOpen] = useState(false);
+function CategorySection({ category, items }: { category: string; items: PresetRow[] }) {
+  const sectionId = `preset:${category}`;
+  const expanded = useEditorStore((s) => s.expandedSectionIds.has(sectionId));
+  const toggle = useEditorStore((s) => s.toggleSectionExpanded);
+  const layerId = useEditorStore((s) => s.activeLayerId);
   const colorVar = presetStrandVar(category);
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-[var(--radius-button)]
-            bg-surface border border-separator text-text-primary
-            hover:bg-surface-secondary transition-colors"
-        >
-          <span
-            className="inline-block w-[7px] h-[7px] rounded-sm flex-shrink-0"
-            style={{ background: colorVar }}
-            data-strand-swatch={category}
-            aria-hidden
-          />
+    <div data-section-id={sectionId}>
+      <button
+        type="button"
+        onClick={() => toggle(sectionId)}
+        className="w-full flex items-center gap-2 px-2.5 py-2 text-left min-w-0"
+      >
+        {/* Chevron leads the row so the disclosure state is the first thing
+            the eye lands on — same rhythm as ToolSection. The strand swatch
+            takes the tool icon's slot. */}
+        <span className="text-text-secondary inline-flex items-center w-3">
+          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        </span>
+        <span
+          className="inline-block w-[7px] h-[7px] rounded-sm flex-shrink-0"
+          style={{ background: colorVar }}
+          data-strand-swatch={category}
+          aria-hidden
+        />
+        <span className="flex-1 truncate text-xs font-medium text-text-primary">
           {CATEGORY_LABELS[category] ?? category}
-        </button>
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          className="overlay w-[260px] p-1"
-          style={{ zIndex: UI.zPopover }}
-          side="bottom"
-          align="start"
-          sideOffset={6}
-        >
-          <div className="flex flex-col">
-            {items.map((p) => (
-              <PresetRowButton key={p.id} preset={p} onSelect={() => setOpen(false)} />
-            ))}
-          </div>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+        </span>
+      </button>
+      {expanded && (
+        <div className="flex flex-col gap-0.5 px-2 pb-2">
+          {items.map((p) => (
+            <PresetRowButton key={p.id} preset={p} layerId={layerId} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
-function PresetRowButton({ preset, onSelect }: { preset: PresetRow; onSelect: () => void }) {
+function PresetRowButton({ preset, layerId }: { preset: PresetRow; layerId: string | null }) {
   const colorVar = presetStrandVar(preset.category);
   return (
     <button
@@ -137,24 +138,26 @@ function PresetRowButton({ preset, onSelect }: { preset: PresetRow; onSelect: ()
         // is on, straight-to-inspector param application in the baseline
         // study condition. Never spawn directly from here.
         dispatchPreset(preset.id, preset.display_name);
-        onSelect();
       }}
-      className="text-left px-2 py-1.5 rounded-[3px]
-        hover:bg-surface-secondary text-[11px]"
+      className="flex items-center gap-2 text-left px-1.5 py-1 rounded-[3px]
+        hover:bg-surface-secondary"
       title={preset.description}
     >
-      <div className="flex items-center gap-1 text-text-primary">
-        <span
-          className="inline-block w-[7px] h-[7px] rounded-sm flex-shrink-0"
-          style={{ background: colorVar }}
-          data-strand-swatch={preset.category}
-          aria-hidden
-        />
-        {preset.display_name}
-      </div>
-      <div className="text-[10px] text-text-secondary truncate">
-        {preset.description}
-      </div>
+      <PresetThumb presetId={preset.id} layerId={layerId} />
+      <span className="flex flex-col min-w-0">
+        <span className="flex items-center gap-1 text-[11px] text-text-primary">
+          <span
+            className="inline-block w-[7px] h-[7px] rounded-sm flex-shrink-0"
+            style={{ background: colorVar }}
+            data-strand-swatch={preset.category}
+            aria-hidden
+          />
+          <span className="truncate">{preset.display_name}</span>
+        </span>
+        <span className="text-[10px] text-text-secondary truncate">
+          {preset.description}
+        </span>
+      </span>
     </button>
   );
 }

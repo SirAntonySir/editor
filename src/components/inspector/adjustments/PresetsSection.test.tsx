@@ -1,9 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { PresetsSection } from './PresetsSection';
+import { useEditorStore } from '@/store';
 
-vi.mock('@/lib/toolrail-spawn', () => ({
-  spawnRegistryPreset: vi.fn(),
+vi.mock('@/lib/palette-inspector-route', () => ({
+  dispatchPreset: vi.fn(),
+}));
+vi.mock('@/lib/preset-thumbs', () => ({
+  // Resolve a real (drawable) canvas standing in for the ImageBitmap — jsdom's
+  // drawImage rejects plain objects.
+  getPresetThumb: vi.fn(async () => {
+    const c = document.createElement('canvas');
+    c.width = 96;
+    c.height = 54;
+    return c as unknown as ImageBitmap;
+  }),
 }));
 vi.mock('@/lib/registry/loader', () => ({
   loadRegistry: () => ({
@@ -14,87 +25,107 @@ vi.mock('@/lib/registry/loader', () => ({
         display_name: 'Golden Hour',
         description: 'Warm sunset grade',
         category: 'tone',
-        icon: 'wb_sunny',
+        ops: [],
       },
       cool_grade: {
         id: 'cool_grade',
         display_name: 'Cool Grade',
         description: 'Cyan-blue cast',
         category: 'tone',
-        icon: 'ac_unit',
+        ops: [],
       },
       teal_orange: {
         id: 'teal_orange',
         display_name: 'Teal & Orange',
         description: 'Cinematic split-tone',
         category: 'look',
-        icon: 'movie',
+        ops: [],
       },
     },
   }),
 }));
 
-import { spawnRegistryPreset } from '@/lib/toolrail-spawn';
+import { dispatchPreset } from '@/lib/palette-inspector-route';
+import { getPresetThumb } from '@/lib/preset-thumbs';
 
 describe('PresetsSection', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('renders one button per preset category', () => {
-    render(<PresetsSection />);
-    expect(screen.getByRole('button', { name: /tone/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /look/i })).toBeTruthy();
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useEditorStore.setState({
+      expandedSectionIds: new Set<string>(),
+      activeLayerId: 'L1',
+    } as never);
   });
 
-  it('opens a popover listing presets in the clicked category', () => {
+  it('renders one accordion row per category with a strand swatch', () => {
+    render(<PresetsSection />);
+    const tone = screen.getByRole('button', { name: /tone/i });
+    const look = screen.getByRole('button', { name: /look/i });
+    expect(tone.querySelector('[data-strand-swatch="tone"]')).not.toBeNull();
+    expect(look.querySelector('[data-strand-swatch="look"]')).not.toBeNull();
+  });
+
+  it('keeps preset rows hidden until the category is expanded', () => {
+    render(<PresetsSection />);
+    expect(screen.queryByText('Golden Hour')).toBeNull();
+    expect(screen.queryByText('Teal & Orange')).toBeNull();
+  });
+
+  it('clicking a category header expands it via expandedSectionIds', () => {
     render(<PresetsSection />);
     fireEvent.click(screen.getByRole('button', { name: /tone/i }));
     expect(screen.getByText('Golden Hour')).toBeTruthy();
     expect(screen.getByText('Cool Grade')).toBeTruthy();
+    expect(useEditorStore.getState().expandedSectionIds.has('preset:tone')).toBe(true);
+    // Other categories stay collapsed.
+    expect(screen.queryByText('Teal & Orange')).toBeNull();
   });
 
-  it('spawning a preset calls spawnRegistryPreset with the preset id + display name', () => {
+  it('honours pre-expanded state from the store', () => {
+    useEditorStore.setState({ expandedSectionIds: new Set(['preset:look']) } as never);
     render(<PresetsSection />);
-    fireEvent.click(screen.getByRole('button', { name: /tone/i }));
+    expect(screen.getByText('Teal & Orange')).toBeTruthy();
+  });
+
+  it('shows the preset description in the row', () => {
+    useEditorStore.setState({ expandedSectionIds: new Set(['preset:tone']) } as never);
+    render(<PresetsSection />);
+    expect(screen.getByText('Warm sunset grade')).toBeTruthy();
+  });
+
+  it('clicking a preset row dispatches it (id + display name)', () => {
+    useEditorStore.setState({ expandedSectionIds: new Set(['preset:tone']) } as never);
+    render(<PresetsSection />);
     fireEvent.click(screen.getByText('Golden Hour'));
-    expect(spawnRegistryPreset).toHaveBeenCalledWith('golden_hour', 'Golden Hour');
+    expect(dispatchPreset).toHaveBeenCalledWith('golden_hour', 'Golden Hour');
   });
 
-  it('tone category chip contains a swatch dot with data-strand-swatch="tone"', () => {
+  it('requests one thumbnail per preset for the active layer when expanded', async () => {
+    useEditorStore.setState({ expandedSectionIds: new Set(['preset:tone']) } as never);
     render(<PresetsSection />);
-    // The chip button's accessible name includes "Tone"; find it and check for swatch.
-    const toneChip = screen.getByRole('button', { name: /tone/i });
-    const swatch = toneChip.querySelector('[data-strand-swatch="tone"]');
-    expect(swatch).not.toBeNull();
+    await waitFor(() => {
+      expect(getPresetThumb).toHaveBeenCalledWith('golden_hour', 'L1');
+      expect(getPresetThumb).toHaveBeenCalledWith('cool_grade', 'L1');
+    });
+    // Collapsed categories cost nothing.
+    expect(getPresetThumb).not.toHaveBeenCalledWith('teal_orange', 'L1');
   });
 
-  it('look category chip contains a swatch dot with data-strand-swatch="look"', () => {
+  it('renders a placeholder and skips rendering when there is no active layer', () => {
+    useEditorStore.setState({
+      activeLayerId: null,
+      expandedSectionIds: new Set(['preset:tone']),
+    } as never);
     render(<PresetsSection />);
-    const lookChip = screen.getByRole('button', { name: /look/i });
-    const swatch = lookChip.querySelector('[data-strand-swatch="look"]');
-    expect(swatch).not.toBeNull();
+    expect(screen.getAllByTestId('preset-thumb-placeholder').length).toBe(2);
+    expect(getPresetThumb).not.toHaveBeenCalled();
   });
 
-  it('tone swatch dot uses the --strand-tone CSS variable', () => {
+  it('falls back to the placeholder when the thumbnail render fails', async () => {
+    vi.mocked(getPresetThumb).mockResolvedValue(null);
+    useEditorStore.setState({ expandedSectionIds: new Set(['preset:tone']) } as never);
     render(<PresetsSection />);
-    const toneChip = screen.getByRole('button', { name: /tone/i });
-    const swatch = toneChip.querySelector('[data-strand-swatch="tone"]') as HTMLElement;
-    expect(swatch.style.background).toMatch(/var\(--strand-tone\)/);
-  });
-
-  it('look swatch dot uses --strand-default CSS variable (no dedicated look token)', () => {
-    render(<PresetsSection />);
-    const lookChip = screen.getByRole('button', { name: /look/i });
-    const swatch = lookChip.querySelector('[data-strand-swatch="look"]') as HTMLElement;
-    expect(swatch.style.background).toMatch(/var\(--strand-default\)/);
-  });
-
-  it('popover preset rows contain swatch dots after opening the category', () => {
-    render(<PresetsSection />);
-    fireEvent.click(screen.getByRole('button', { name: /tone/i }));
-    // After opening, there should be swatch dots inside the popover rows.
-    // The mock has 2 tone presets; we expect 2 row swatches in the portal.
-    const swatches = document.querySelectorAll('[data-strand-swatch="tone"]');
-    // At least 3: one in the chip, two in the popover rows = 3 total.
-    expect(swatches.length).toBeGreaterThanOrEqual(3);
+    await waitFor(() => expect(getPresetThumb).toHaveBeenCalled());
+    expect(screen.getAllByTestId('preset-thumb-placeholder').length).toBe(2);
   });
 });

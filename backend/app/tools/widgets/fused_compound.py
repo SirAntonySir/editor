@@ -150,7 +150,10 @@ def update_target_anchor(widget: Any, resolved: dict) -> None:
             )
             new_delta = float(value) - base_val
             if abs(new_delta) < _EPSILON:
-                # Delta collapsed — keep existing max value (don't drive noise).
+                # Delta collapsed — flatten the max onto the new proposal so
+                # the 1.0→1.5 segment goes nowhere, instead of keeping a stale
+                # extreme that points in the OLD direction.
+                max_anchor.values[qkey] = float(value)
                 continue
             # Find the registry range for this param to do sign-aware extreme.
             node_id = binding.target.node_id

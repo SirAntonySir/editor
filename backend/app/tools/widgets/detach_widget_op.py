@@ -192,7 +192,8 @@ class DetachWidgetOpTool(BackendTool[_Input, _Output]):
         # Remove the detached bindings.
         w.bindings = remaining_bindings
 
-        # Drop anchor entries keyed with this node's prefix from BOTH anchors.
+        # Drop anchor entries keyed with this node's prefix from EVERY anchor
+        # (baseline / proposal / max).
         if w.compound is not None and w.compound.anchors:
             for anchor in w.compound.anchors:
                 anchor.values = {

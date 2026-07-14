@@ -61,6 +61,25 @@ def _log_cache_stats(call: str, session_id: str | None, response: Any) -> None:
             cache_create=create,
             cache_read=read,
         )
+    elif session_id:
+        # No active doc — the caller lost the contextvar (e.g. a worker
+        # thread entered without a copied context). Journal the usage
+        # directly so the admin cockpit's cost sums stay complete; the
+        # cockpit reads the journal, not the SSE stream. Warn because a
+        # mis-threaded call site is a bug worth fixing (use
+        # asyncio.to_thread, not run_in_executor, around client calls).
+        from app.services.event_journal import write_event
+        logger.warning(
+            "call=%s session=%s usage journaled without active doc — "
+            "call site loses the contextvar", call, session_id,
+        )
+        write_event(session_id, "mcp.usage", {
+            "call": call,
+            "input_tokens": total_input,
+            "output_tokens": total_output,
+            "cache_create": create,
+            "cache_read": read,
+        })
 
 ANALYZE_SYSTEM_PROMPT = """You are a photo-editing assistant. Given an image, \
 produce a structured ImageContext capturing subjects, lighting, dominant \

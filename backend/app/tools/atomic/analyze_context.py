@@ -77,13 +77,15 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
         # Claude analyze (LLM).
         doc._emit_phase_started("ai_context", index=3, total=4)
         start = time.monotonic()
-        base_ctx = await loop.run_in_executor(
-            None,
-            lambda: client.analyze_image(
-                image_bytes=doc.get_image_bytes(DEFAULT_IMAGE_NODE_ID),
-                mime_type=doc.get_mime_type(DEFAULT_IMAGE_NODE_ID),
-                session_id=doc.session_id,
-            ),
+        # asyncio.to_thread (NOT run_in_executor) — it copies contextvars,
+        # so the active-doc contextvar reaches the worker thread and
+        # _log_cache_stats can emit the mcp.usage event (admin cost sums,
+        # frontend live token counter).
+        base_ctx = await asyncio.to_thread(
+            client.analyze_image,
+            image_bytes=doc.get_image_bytes(DEFAULT_IMAGE_NODE_ID),
+            mime_type=doc.get_mime_type(DEFAULT_IMAGE_NODE_ID),
+            session_id=doc.session_id,
         )
         doc._emit_phase_completed(
             "ai_context", duration_ms=int((time.monotonic() - start) * 1000),
@@ -117,8 +119,8 @@ class AnalyzeContextTool(BackendTool[_Input, _Output]):
 
         # Soft fields (LLM, slower) + region_stats (cv2) — region_stats
         # depends on the base context regions.
-        soft = await loop.run_in_executor(
-            None,
+        # to_thread for the same contextvar reason as analyze_image above.
+        soft = await asyncio.to_thread(
             lambda: client.augment_context_soft_fields(
                 image_bytes=doc.get_image_bytes(DEFAULT_IMAGE_NODE_ID),
                 mime_type=doc.get_mime_type(DEFAULT_IMAGE_NODE_ID),

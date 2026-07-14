@@ -323,18 +323,19 @@ async def mint_autonomous_suggestions(
     exclude = list(used_preset_ids | dismissed_global)
 
     try:
+        # asyncio.to_thread (NOT run_in_executor) — it copies contextvars,
+        # so _log_cache_stats sees the active doc and the mcp.usage event
+        # reaches the journal (admin cost sums).
         candidates = await asyncio.wait_for(
-            asyncio.get_running_loop().run_in_executor(
-                None,
-                lambda: anthropic.suggest_fused_tools_for_character(
-                    grade_character=ctx.grade_character,
-                    lighting=ctx.lighting,
-                    dominant_tones=ctx.dominant_tones,
-                    subjects=ctx.subjects,
-                    exclude=exclude,
-                    n=needed,
-                    session_id=doc.session_id,
-                ),
+            asyncio.to_thread(
+                anthropic.suggest_fused_tools_for_character,
+                grade_character=ctx.grade_character,
+                lighting=ctx.lighting,
+                dominant_tones=ctx.dominant_tones,
+                subjects=ctx.subjects,
+                exclude=exclude,
+                n=needed,
+                session_id=doc.session_id,
             ),
             timeout=resolve_timeout_s,
         )

@@ -135,6 +135,25 @@ it('widget menu: the last checked target is disabled', async () => {
   expect(setWidgetTargetChecked).not.toHaveBeenCalled();
 });
 
+it('renders Light and Color as separate rows without duplicate keys', () => {
+  // Both defs project to canon:<layer>:basic — the rows must be keyed per
+  // def, not per canon node, or React logs a duplicate-key error.
+  const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+  seedBackend({
+    nodes: [{
+      id: 'canon:L1:basic', type: 'basic', layerId: 'L1',
+      params: { exposure: 0.4, saturation: -21 },
+    }],
+  });
+  useEditorStore.setState({ expandedSectionIds: new Set(['layeradj:L1']) } as never);
+  render(<LayerAdjustmentsList layerId="L1" imageNodeId="node1" />);
+  expect(screen.getByText('Light')).toBeTruthy();
+  expect(screen.getByText('Color')).toBeTruthy();
+  const dupKey = consoleError.mock.calls.find((c) => String(c[0]).includes('same key'));
+  expect(dupKey).toBeUndefined();
+  consoleError.mockRestore();
+});
+
 it('disables mutation menu items when offline', async () => {
   seedBackend({ widgets: [makeWidget(['L1', 'L2'])] });
   useBackendState.setState({ sseStatus: 'closed' } as never);

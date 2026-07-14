@@ -97,7 +97,9 @@ export function useLayerAdjustments(layerId: string): LayerAdjustmentEntry[] {
     }
 
     for (const w of snap.widgets) {
-      if (w.status !== 'active') continue;
+      // Accepted widgets still shape the layer's pixels — only dismissed
+      // ones stop applying.
+      if (w.status === 'dismissed') continue;
       const targets = widgetTargetLayerIds(w);
       if (!targets.includes(layerId)) continue;
       entries.push({

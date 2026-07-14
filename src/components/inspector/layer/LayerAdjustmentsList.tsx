@@ -63,7 +63,8 @@ export function LayerAdjustmentsList({
         <div className="flex flex-col">
           {entries.map((e) => (
             <EntryRow
-              key={e.id}
+              // defId-qualified: light + color share one canon node id.
+              key={e.defId ? `${e.id}:${e.defId}` : e.id}
               entry={e}
               layerId={layerId}
               nodeLayers={nodeLayers}

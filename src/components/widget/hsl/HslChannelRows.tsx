@@ -13,8 +13,8 @@ const TRACK: Record<HslChannel, (centerHue: number) => string> = {
 
 const CHANNEL_OPTS: SegmentedOption<HslChannel>[] = [
   { value: 'hue', label: 'Hue' },
-  { value: 'sat', label: 'Sat' },
-  { value: 'lum', label: 'Lum' },
+  { value: 'sat', label: 'Saturation' },
+  { value: 'lum', label: 'Luminance' },
 ];
 
 interface HslChannelRowsProps {

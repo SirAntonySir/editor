@@ -55,3 +55,6 @@ public/ort/
 
 # PlantUML jar (downloaded on demand by `make diagram`)
 tools/plantuml/plantuml.jar
+
+# playwright-cli verification artifacts (snapshots/screenshots)
+.playwright-cli/

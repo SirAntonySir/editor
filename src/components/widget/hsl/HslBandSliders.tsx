@@ -7,8 +7,8 @@ export type RenderSlider = (param: string, label: string, trackGradient: string)
 
 const CHANNELS = [
   { key: 'hue', label: 'Hue', track: hueTrack },
-  { key: 'sat', label: 'Sat', track: satTrack },
-  { key: 'lum', label: 'Lum', track: lumTrack },
+  { key: 'sat', label: 'Saturation', track: satTrack },
+  { key: 'lum', label: 'Luminance', track: lumTrack },
 ] as const;
 
 /** By-band body: the active band's three colour-track sliders. */

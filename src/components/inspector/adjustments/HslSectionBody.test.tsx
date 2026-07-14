@@ -74,7 +74,7 @@ it('selecting a band routes writes to that band', () => {
 it('channel view maps the row + active tab to the right param', () => {
   render(<HslSectionBody layerId="L1" />);
   fireEvent.click(screen.getByText('By channel'));
-  fireEvent.click(screen.getByText('Sat'));
+  fireEvent.click(screen.getByText('Saturation'));
   typeInto(screen.getAllByTitle(SCRUB_TITLE)[5], '40'); // row 5 = blue
   vi.advanceTimersByTime(300);
   expect(backendTools.set_param).toHaveBeenCalledWith('s1', { layerId: 'L1', op: 'hsl', param: 'blue_sat', value: 40 });

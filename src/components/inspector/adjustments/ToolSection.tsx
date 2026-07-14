@@ -6,23 +6,12 @@ import type { ControlValue } from '@/types/widget';
 import { loadRegistry } from '@/lib/registry/loader';
 import { backendTools } from '@/lib/backend-tools';
 
-const CURVE_CHANNELS = ['rgb', 'red', 'green', 'blue'] as const;
-const IDENTITY_CURVE_PAIRS: [number, number][] = [[0, 0], [255, 255]];
-
-/** True when a canonical curves param holds the identity ramp
- *  `[[0, 0], [255, 255]]`. Undefined / missing / shape-mismatched values
- *  count as identity so the touched badge stays silent for fresh sessions
- *  and legacy documents that haven't been touched. */
-function isIdentityPairs(v: unknown): boolean {
-  if (v === undefined || v === null) return true;
-  if (!Array.isArray(v) || v.length !== 2) return false;
-  const [a, b] = v as [unknown, unknown];
-  return (
-    Array.isArray(a) && a.length === 2 && a[0] === 0 && a[1] === 0 &&
-    Array.isArray(b) && b.length === 2 && b[0] === 255 && b[1] === 255
-  );
-}
-import { sectionSummary } from './section-summary';
+import {
+  CURVE_CHANNELS,
+  IDENTITY_CURVE_PAIRS,
+  isIdentityCurvePairs,
+  sectionSummary,
+} from './section-summary';
 import { ScalarSectionBody } from './ScalarSectionBody';
 import { RegistryDrivenSectionBody } from './RegistryDrivenSectionBody';
 import { CurvesSectionBody } from './CurvesSectionBody';
@@ -59,7 +48,7 @@ export function ToolSection({ def, layerId }: ToolSectionProps) {
   // the same ↺ N reset badge other ops show.
   const isCurves = def.adjustmentType === 'curves';
   const curvesTouchedChannels = isCurves
-    ? CURVE_CHANNELS.filter((ch) => !isIdentityPairs(canonical[ch]))
+    ? CURVE_CHANNELS.filter((ch) => !isIdentityCurvePairs(canonical[ch]))
     : [];
   const { touchedCount: scalarTouched } = sectionSummary(def.params, canonical);
   const touchedCount = scalarTouched + curvesTouchedChannels.length;

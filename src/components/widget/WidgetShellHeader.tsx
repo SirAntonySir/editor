@@ -8,7 +8,7 @@ import {
   X,
 } from 'lucide-react';
 import type { Widget } from '@/types/widget';
-import { loadRegistry } from '@/lib/registry/loader';
+import { resolveWidgetTitle } from '@/lib/widget-title';
 import { Tooltip } from '@/components/ui/Tooltip';
 
 /** Plain "?" glyph sized to match the lucide icon row. Used instead of
@@ -24,13 +24,6 @@ function QuestionGlyph() {
   );
 }
 
-function resolveTitle(widget: Widget): string {
-  if (widget.displayName) return widget.displayName;
-  const reg = loadRegistry();
-  const op = widget.opId ? reg.ops[widget.opId] : undefined;
-  if (op) return op.display_name;
-  return widget.intent;
-}
 
 interface WidgetShellHeaderProps {
   widget: Widget;
@@ -149,7 +142,7 @@ export function WidgetShellHeader({
         />
       )}
       <span className="text-[11px] font-medium flex-1 min-w-0 truncate text-text-primary widget-title-ellipsis">
-        {resolveTitle(widget)}
+        {resolveWidgetTitle(widget)}
       </span>
       {scope && (
         <span className="inline-flex items-center gap-1 text-[9px] text-text-secondary bg-surface-secondary border border-separator rounded-[3px] px-1.5 py-px leading-[1.4]">

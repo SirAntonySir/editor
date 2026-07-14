@@ -7,6 +7,7 @@ import { editorDocument } from '@/core/document';
 import { duplicateLayerInPlace, duplicateLayerToNewImageNode } from '@/lib/layer-node-actions';
 import { AdjustmentSlider } from '@/components/ui/AdjustmentSlider';
 import { LayerThumb } from '@/components/ui/LayerThumb';
+import { LayerAdjustmentsList } from './LayerAdjustmentsList';
 import type { Layer, BlendMode } from '@/store/layer-slice';
 
 const BLEND_MODES: BlendMode[] = [
@@ -153,6 +154,10 @@ export function LayerRow({
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
       </div>
+
+      {/* Everything hitting this layer (canonical edits + widgets), with
+          visibility + reassignment controls. Renders nothing when empty. */}
+      {imageNodeId && <LayerAdjustmentsList layerId={layer.id} imageNodeId={imageNodeId} />}
     </div>
       </ContextMenu.Trigger>
       <ContextMenu.Portal>

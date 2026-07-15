@@ -695,3 +695,37 @@ describe('BackendStateSlice — session persistence', () => {
     expect(getPersistedSessionId()).toBeNull();
   });
 });
+
+describe('standalone suggest run re-arms the status bar', () => {
+  const phaseEvent = (kind: string, phase: string, index = 5) => ({
+    revision: 1,
+    kind,
+    payload: { phase, index },
+    emittedAt: new Date().toISOString(),
+  }) as never;
+
+  it('a fresh widget_mint start after a completed analyze un-latches mcpAnalyzeComplete', () => {
+    const s = useBackendState.getState();
+    // Full analyze: fresh run start, then terminal phase completes.
+    s.applyEvent(phaseEvent('phase.started', 'update', 1));
+    s.applyEvent(phaseEvent('phase.completed', 'widget_mint'));
+    expect(useBackendState.getState().mcpAnalyzeComplete).toBe(true);
+
+    // Standalone "Suggest something" run: only widget_mint fires.
+    s.applyEvent(phaseEvent('phase.started', 'widget_mint'));
+    const st = useBackendState.getState();
+    expect(st.mcpAnalyzeComplete).toBe(false);
+    expect(st.phases?.widget_mint.status).toBe('active');
+  });
+
+  it('mid-analyze widget_mint start does not reset the phase map', () => {
+    const s = useBackendState.getState();
+    s.applyEvent(phaseEvent('phase.started', 'update', 1));
+    s.applyEvent(phaseEvent('phase.completed', 'update'));
+    s.applyEvent(phaseEvent('phase.started', 'widget_mint'));
+    const st = useBackendState.getState();
+    // The earlier phase's done state survives — no spurious reset mid-run.
+    expect(st.phases?.update.status).toBe('done');
+    expect(st.phases?.widget_mint.status).toBe('active');
+  });
+});

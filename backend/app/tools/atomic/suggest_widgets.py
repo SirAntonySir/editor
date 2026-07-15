@@ -9,6 +9,7 @@ waiting for; widget suggestions can arrive asynchronously via SSE.
 from __future__ import annotations
 
 import time
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -55,6 +56,10 @@ class _Input(BaseModel):
 class _Output(BaseModel):
     model_config = camel_config(extra="forbid")
     widget_ids: list[str]
+    # Why widget_ids is empty — the frontend toasts a truthful per-case
+    # message ("just refreshed" vs "nothing stood out"). None when ≥1 widget
+    # minted. Spec: docs/superpowers/specs/2026-07-15-suggest-feedback-design.md
+    reason: Literal["cooldown", "no_context", "nothing_to_suggest"] | None = None
 
 
 class SuggestWidgetsTool(BackendTool[_Input, _Output]):
@@ -77,7 +82,7 @@ class SuggestWidgetsTool(BackendTool[_Input, _Output]):
         if _recent_run(doc.session_id, now):
             doc._emit_phase_started("widget_mint", index=5, total=5)
             doc._emit_phase_completed("widget_mint", duration_ms=0)
-            return _Output(widget_ids=[])
+            return _Output(widget_ids=[], reason="cooldown")
 
         ctx = doc.get_image_context(DEFAULT_IMAGE_NODE_ID)
         if not isinstance(ctx, EnrichedImageContext):
@@ -86,7 +91,7 @@ class SuggestWidgetsTool(BackendTool[_Input, _Output]):
             # spinning forever on a no-op call.
             doc._emit_phase_started("widget_mint", index=5, total=5)
             doc._emit_phase_completed("widget_mint", duration_ms=0)
-            return _Output(widget_ids=[])
+            return _Output(widget_ids=[], reason="no_context")
         from app.services.autonomous_suggestions import mint_autonomous_suggestions
 
         client = deps.get_anthropic_client()
@@ -106,4 +111,8 @@ class SuggestWidgetsTool(BackendTool[_Input, _Output]):
             doc._emit_phase_completed("widget_mint", duration_ms=duration_ms)
         _last_run_ts[doc.session_id] = time.monotonic()
         after = set(doc.widgets.keys())
-        return _Output(widget_ids=sorted(after - before))
+        minted = sorted(after - before)
+        return _Output(
+            widget_ids=minted,
+            reason=None if minted else "nothing_to_suggest",
+        )

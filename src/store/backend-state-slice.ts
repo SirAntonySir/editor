@@ -230,6 +230,18 @@ export const useBackendState = create<BackendState>()(
               s.mcpAnalyzeCancelled = false;
               s.cancelling = false;
               s.usage = null;
+            } else if (phase === 'widget_mint' && s.mcpAnalyzeComplete) {
+              // Standalone "Suggest something" run: only widget_mint fires,
+              // so without this the completion latch from the previous
+              // analyze keeps the status bar hidden for the whole run. The
+              // pre-phases are marked done — context already exists, this
+              // run is just the terminal mint.
+              s.phases = makePendingPhases();
+              for (const key of Object.keys(s.phases)) {
+                if (key !== 'widget_mint') s.phases[key as PhaseName].status = 'done';
+              }
+              s.mcpAnalyzeComplete = false;
+              s.mcpAnalyzeCancelled = false;
             }
             if (s.phases[phase]) s.phases[phase].status = 'active';
             return;

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createSession, pushSessionContext } from '@/lib/ai-client';
-import { backendTools } from '@/lib/backend-tools';
+import { backendTools, type SuggestWidgetsOutput } from '@/lib/backend-tools';
 import { downscaleForUpload, yieldToDisplay } from '@/lib/downscale-for-upload';
 import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
@@ -535,7 +535,9 @@ async function doAnalyseImageLayer(
  * the node. When context already exists, skips the (expensive) re-analyze and
  * just asks the backend to (re)suggest for that node's image layer.
  */
-export async function suggestForImageNode(imageNodeId: string): Promise<void> {
+export async function suggestForImageNode(
+  imageNodeId: string,
+): Promise<SuggestWidgetsOutput | null> {
   // Join a mid-flight analyze (auto-analyze on load, or an Analyze click
   // moments earlier) instead of kicking off a second pipeline; once it lands,
   // the context check below routes straight to suggest_widgets.
@@ -548,8 +550,10 @@ export async function suggestForImageNode(imageNodeId: string): Promise<void> {
   const hasContext =
     ai.context != null || useBackendState.getState().snapshot?.imageContext != null;
   if (!hasContext || !sessionId) {
+    // Analyze-with-suggest path: feedback flows through the status bar +
+    // chips; the caller gets null (no zero-result toast on this path).
     await analyseImageLayer(imageNodeId, { suggest: true });
-    return;
+    return null;
   }
   const { setActiveImageNode, activeImageNodeId, imageNodes } = useEditorStore.getState();
   if (activeImageNodeId !== imageNodeId) setActiveImageNode(imageNodeId);
@@ -561,10 +565,11 @@ export async function suggestForImageNode(imageNodeId: string): Promise<void> {
   // whole-image suggestions, no region chooser on an already-selected image.
   const node = imageNodes[imageNodeId];
   const objectLabel = node?.sourceImageNodeId ? node.name : undefined;
-  await backendTools.suggest_widgets(sessionId, {
+  const envelope = await backendTools.suggest_widgets(sessionId, {
     ...(layerId ? { layerId } : {}),
     ...(objectLabel ? { objectLabel } : {}),
   });
+  return envelope.ok ? (envelope.output as SuggestWidgetsOutput) : null;
 }
 
 /**

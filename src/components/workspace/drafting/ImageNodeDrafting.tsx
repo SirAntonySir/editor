@@ -28,7 +28,8 @@ import { useEditorStore } from '@/store';
 import { useBackendState } from '@/store/backend-state-slice';
 import { usePreferencesStore } from '@/store/preferences-store';
 import { useImageNodeObjects } from '@/hooks/useImageNodeObjects';
-import { analyseImageLayer, suggestForImageNode, useIsImageNodeAnalysed } from '@/hooks/useImageContext';
+import { analyseImageLayer, useIsImageNodeAnalysed } from '@/hooks/useImageContext';
+import { suggestWithFeedback } from '@/lib/suggest-feedback';
 import { useAiAccess } from '@/lib/ai-access';
 import { backendTools } from '@/lib/backend-tools';
 import { editorDocument } from '@/core/document';
@@ -328,7 +329,7 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
               first when needed. */}
           <Item
             className={itemClass}
-            onSelect={() => void suggestForImageNode(id)}
+            onSelect={() => void suggestWithFeedback(id)}
           >
             <span className="flex items-center gap-1.5">
               <Lightbulb size={11} className="text-[var(--color-ai)]" />
@@ -554,7 +555,7 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
           showSuggest={aiAccess && !offline}
           onSuggest={() => {
             setSuggestBusy(true);
-            void suggestForImageNode(id).finally(() => setSuggestBusy(false));
+            void suggestWithFeedback(id).finally(() => setSuggestBusy(false));
           }}
           suggestBusy={suggestBusy}
           renderMenuItems={renderMenuItems}

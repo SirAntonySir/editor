@@ -16,6 +16,8 @@ export interface PrecomputeRegionsOutput {
 
 export interface SuggestWidgetsOutput {
   widgetIds: string[];
+  /** Why widgetIds is empty (frontend toasts per case); null when ≥1 minted. */
+  reason?: 'cooldown' | 'no_context' | 'nothing_to_suggest' | null;
 }
 
 export interface ProposeMaskInput {

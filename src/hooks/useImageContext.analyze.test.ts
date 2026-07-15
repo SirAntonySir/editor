@@ -11,7 +11,7 @@ vi.mock('@/lib/backend-tools', () => ({
   },
 }));
 
-import { useAiSession } from './useImageContext';
+import { suggestForImageNode, useAiSession } from './useImageContext';
 import { backendTools } from '@/lib/backend-tools';
 import { useBackendState } from '@/store/backend-state-slice';
 
@@ -57,5 +57,27 @@ describe('runAnalyse — autonomous suggestion gating', () => {
     await useAiSession.getState().runAnalyse({ suggest: true });
     await flush();
     expect(backendTools.suggest_widgets).toHaveBeenCalled();
+  });
+});
+
+describe('suggestForImageNode — result threading', () => {
+  it('returns the suggest_widgets output on the has-context path', async () => {
+    vi.mocked(backendTools.suggest_widgets).mockResolvedValue({
+      ok: true,
+      output: { widgetIds: [], reason: 'nothing_to_suggest' },
+    } as never);
+    useAiSession.setState({
+      sessionId: 's1',
+      context: { subjects: [] } as never,
+      status: 'ready',
+    });
+    const out = await suggestForImageNode('node1');
+    expect(out).toEqual({ widgetIds: [], reason: 'nothing_to_suggest' });
+  });
+
+  it('returns null when the analyze path was taken instead', async () => {
+    useAiSession.setState({ sessionId: 's1', context: null, status: 'idle' });
+    const out = await suggestForImageNode('node1');
+    expect(out).toBeNull();
   });
 });

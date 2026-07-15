@@ -51,6 +51,18 @@ describe('TopMarginalia suggest button', () => {
     expect(onSuggest).not.toHaveBeenCalled();
   });
 
+  it('swaps the bulb for a spinner while busy', () => {
+    renderMarginalia({ showSuggest: true, onSuggest: vi.fn(), suggestBusy: true });
+    const btn = screen.getByRole('button', { name: 'Suggest something' });
+    expect(btn.querySelector('.animate-spin')).not.toBeNull();
+  });
+
+  it('shows the plain bulb (no spinner) when idle', () => {
+    renderMarginalia({ showSuggest: true, onSuggest: vi.fn(), suggestBusy: false });
+    const btn = screen.getByRole('button', { name: 'Suggest something' });
+    expect(btn.querySelector('.animate-spin')).toBeNull();
+  });
+
   it('no longer renders the header "Analyze with AI" button', () => {
     renderMarginalia({ showSuggest: true, onSuggest: vi.fn() });
     expect(screen.queryByRole('button', { name: 'Analyze with AI' })).toBeNull();

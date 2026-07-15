@@ -1,4 +1,4 @@
-import { Eye, Lasso, Lightbulb, MoreHorizontal, MousePointerClick, ScanSearch, Wand2 } from 'lucide-react';
+import { Eye, Lasso, Lightbulb, Loader2, MoreHorizontal, MousePointerClick, ScanSearch, Wand2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { ReactNode } from 'react';
@@ -164,12 +164,14 @@ export function TopMarginalia({
               disabled={suggestBusy}
               onClick={(e) => { e.stopPropagation(); onSuggest(); }}
               className={`inline-flex items-center justify-center w-5 h-5 rounded-[3px] text-[var(--color-ai)] ${
-                suggestBusy
-                  ? 'opacity-60 animate-pulse cursor-default'
-                  : 'hover:bg-surface-secondary cursor-pointer'
+                suggestBusy ? 'cursor-default' : 'hover:bg-surface-secondary cursor-pointer'
               }`}
             >
-              <Lightbulb size={12} aria-hidden />
+              {suggestBusy ? (
+                <Loader2 size={12} className="animate-spin" aria-hidden />
+              ) : (
+                <Lightbulb size={12} aria-hidden />
+              )}
             </button>
           )}
           {objectsActive && onSelectObjectTool && (

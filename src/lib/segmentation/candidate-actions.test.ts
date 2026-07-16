@@ -95,7 +95,7 @@ describe('runCandidateVerb', () => {
   });
 
   it("'keep' commits the mask on the CURRENT layer — no copy, no new layer/node", async () => {
-    // The "Draw it myself" redraw landing: the redrawn region replaces the
+    // The "Adjust the selection" redraw landing: the redrawn region replaces the
     // deleted object in place, like an automatic tag-selection.
     const id = await runCandidateVerb('keep', sel, ctx);
     expect(id).toBe('new-mask');

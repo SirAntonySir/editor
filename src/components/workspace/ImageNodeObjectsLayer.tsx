@@ -342,7 +342,7 @@ function ObjectLabel({
             className="text-[12px] px-2 py-1.5 rounded-[3px] hover:bg-surface-secondary cursor-pointer outline-none"
             onSelect={() => void redrawObject(obj.id, imageNodeId)}
           >
-            Draw it myself
+            Adjust the selection
           </ContextMenu.Item>
           <ContextMenu.Separator className="my-1 h-px bg-separator" />
           <ContextMenu.Item

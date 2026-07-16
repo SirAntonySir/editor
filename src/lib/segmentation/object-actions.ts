@@ -300,7 +300,7 @@ export async function deleteObject(maskId: string): Promise<void> {
   if (!env.ok) toast.info(`Delete failed: ${env.error?.message ?? 'unknown error'}`);
 }
 
-/** "Draw it myself": the post-result escape hatch when an automatic tag
+/** "Adjust the selection": the post-result escape hatch when an automatic tag
  *  selection came out wrong. Drops the bad mask, then arms the node for a fresh
  *  manual magic-lasso draw (objects mode + magic tool) so the user can redraw
  *  the object by hand. */

@@ -68,7 +68,7 @@ export async function exportImageNode(
   await saveAs(blob, `${baseName}.${ext}`);
 }
 
-/** "Draw it myself" on an extracted tag-selection result: discard this extracted
+/** "Adjust the selection" on an extracted tag-selection result: discard this extracted
  *  node entirely (its cutout + any AI edits on it), then arm the SOURCE image for
  *  a fresh manual magic-lasso draw. Unlike {@link rejoinSourceImage}, the bad
  *  cutout is NOT merged back — the source keeps its full original image, so the

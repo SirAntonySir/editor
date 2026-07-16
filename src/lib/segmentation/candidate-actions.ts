@@ -96,7 +96,7 @@ export type CandidateVerb = 'keep' | 'copy-node' | 'copy-layer' | 'genfill';
  *
  *  'keep' commits the mask as an OBJECT ON THE CURRENT LAYER — exactly what an
  *  automatic tag-selection produces; no copy, no new layer/node. It is the
- *  natural landing for the "Draw it myself" redraw flow, where the redrawn
+ *  natural landing for the "Adjust the selection" redraw flow, where the redrawn
  *  region should replace the deleted object in place. */
 export async function runCandidateVerb(
   verb: CandidateVerb,

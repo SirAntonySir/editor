@@ -361,7 +361,7 @@ describe('deleteObject / renameObject session resolution', () => {
   });
 });
 
-// ─── redrawObject — post-result "Draw it myself" ────────────────────────────
+// ─── redrawObject — post-result "Adjust the selection" ────────────────────────────
 describe('redrawObject', () => {
   it('deletes the bad mask and arms the magic-lasso tool on the node', async () => {
     const { useBackendState } = await import('@/store/backend-state-slice');

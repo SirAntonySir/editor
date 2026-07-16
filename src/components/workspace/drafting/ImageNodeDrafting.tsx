@@ -384,7 +384,7 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
         >
           <span className="flex items-center gap-1.5">
             <Lasso size={11} className="text-text-secondary" />
-            <span>Draw it myself</span>
+            <span>Adjust the selection</span>
           </span>
         </Item>
       )}
@@ -418,7 +418,7 @@ export function ImageNodeDrafting({ id, data, selected }: ImageNodeDraftingProps
           >
             <span className="flex items-center gap-1.5">
               <Lasso size={11} className="text-text-secondary" />
-              <span>Draw it myself</span>
+              <span>Adjust the selection</span>
             </span>
           </Item>
           <Item

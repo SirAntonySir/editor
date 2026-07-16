@@ -2,6 +2,7 @@ import { createContext, useContext, useRef, useCallback, useEffect, type ReactNo
 import { useEditorStore } from '@/store';
 import { CanvasToolRegistry } from '@/lib/canvas-tool-registry';
 import { useBackendSession } from '@/hooks/useBackendSession';
+import { useBackendState } from '@/store/backend-state-slice';
 import { useAutoTetherAiSuggestions } from '@/hooks/useAutoTetherAiSuggestions';
 import type { ToolContext, ToolDefinition } from '@/types/tool';
 
@@ -83,6 +84,22 @@ export function EditorProvider({ children }: EditorProviderProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTool]);
+
+  // Confirm before the tab closes while a backend session is live. Editing
+  // state survives (sessions persist + reattach), but a stray Cmd/Ctrl-W
+  // mid-study still costs the participant their place (observed in the
+  // pilot: block-1 questionnaire lost to Ctrl-W). The browser shows its
+  // generic leave-site dialog; custom copy is ignored by modern browsers.
+  useEffect(() => {
+    const guard = (e: BeforeUnloadEvent) => {
+      if (!useBackendState.getState().sessionId) return;
+      e.preventDefault();
+      // Chrome requires returnValue to be set for the dialog to appear.
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', guard);
+    return () => window.removeEventListener('beforeunload', guard);
+  }, []);
 
   return (
     <EditorContext.Provider value={{ registry: CanvasToolRegistry, toolContext, getActiveTool }}>

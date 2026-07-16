@@ -225,6 +225,7 @@ def _build_widget_multi(
     layer_id: str,
     image_node_layer_ids: list[str] | None,
     doc: "SessionDocument | None" = None,
+    reasoning: str | None = None,
 ) -> Widget:
     """Build a single Widget composed of one or more ops. One WidgetNode per op."""
     if not ops:
@@ -311,6 +312,7 @@ def _build_widget_multi(
     return Widget(
         id=widget_id,
         intent=intent,
+        reasoning=reasoning,
         scope=scope,
         origin=origin,
         op_id=ops[0][0],          # first op's id for back-compat
@@ -531,6 +533,14 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
                 ops_for_entry.append((op_id, params))
             if not ops_for_entry:
                 continue   # nothing valid planned for this entry
+            # The planner's per-op rationales feed the widget's "?" popover.
+            # They were previously carried all the way through normalization
+            # and dedup, then dropped here — the explanation button rendered
+            # its "no reasoning" placeholder for every widget.
+            rationales = [
+                str(o.get("rationale") or "").strip() for o in entry["ops"]
+            ]
+            reasoning = " · ".join(r for r in rationales if r) or None
             widget = _build_widget_multi(
                 widget_name=entry.get("widget_name"),
                 category=entry.get("category"),
@@ -541,7 +551,16 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
                 layer_id=input.layer_id,
                 image_node_layer_ids=image_node_layer_ids,
                 doc=doc,
+                reasoning=reasoning,
             )
+            if not widget.bindings:
+                # An empty card teaches the user nothing and looks broken —
+                # skip it loudly instead of minting a husk.
+                write_event(doc.session_id, "proposal.health", {
+                    "stage": "build", "event": "empty_widget_skipped",
+                    "ops": [op_id for op_id, _ in ops_for_entry],
+                })
+                continue
             _attach_fused_compound(widget, doc, entry.get("driver_label"))
             doc.add_widget(widget)
             widgets.append(widget)
@@ -609,6 +628,9 @@ class ProposeStackTool(BackendTool[_Input, _Output]):
             layer_id=input.layer_id,
             image_node_layer_ids=image_node_layer_ids,
             doc=doc,
+            # Preset spawns have no LLM rationale — the curated description
+            # is the honest answer to the "?" popover.
+            reasoning=preset.description or None,
         )
         # force=True: bypass the origin gate so tool_invoked preset spawns also
         # receive the driver (user picked a named preset = guided-dial intent).

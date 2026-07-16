@@ -197,6 +197,9 @@ async def test_preset_id_unfolds_into_one_fused_widget(make_doc):
     assert w["compound"] is not None
     assert w["driverValue"] == 1.0
     assert w["compound"]["label"] == "Vintage"
+    # The "?" popover reads widget.reasoning — preset spawns carry the
+    # curated description (LLM-path widgets carry planner rationales).
+    assert w["reasoning"], "preset widget must ship a non-empty reasoning"
 
 
 @pytest.mark.asyncio

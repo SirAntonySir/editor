@@ -249,6 +249,11 @@ async def resolve_problem_widgets(
         # Use first layer id in image_node_layer_ids as layer_id, same as propose_stack.
         layer_id = image_node_layer_ids[0] if image_node_layer_ids else "legacy"
 
+        # The entry's op rationale (problem description + any retry feedback)
+        # feeds the widget's "?" popover.
+        entry_rationale = next(
+            (str(o.get("rationale") or "").strip() for o in entry["ops"]), "",
+        ) or None
         widget = _build_widget_multi(
             widget_name=entry.get("widget_name"),
             category=entry.get("category"),
@@ -259,6 +264,7 @@ async def resolve_problem_widgets(
             layer_id=layer_id,
             image_node_layer_ids=image_node_layer_ids,
             doc=doc,
+            reasoning=entry_rationale,
         )
 
         driver_label: str | None = entry.get("driver_label")

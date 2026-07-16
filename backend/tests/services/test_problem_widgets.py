@@ -131,6 +131,9 @@ async def test_valid_problem_mints_widget_with_compound(doc_with_ctx, journal):
     # driver_label should derive from the humanized problem kind
     expected_label = _humanize("clipped_highlights")
     assert w.compound.label == expected_label
+    # The "?" popover reads widget.reasoning — autonomous widgets carry the
+    # problem's rationale (description or kind).
+    assert w.reasoning, "autonomous widget must ship a non-empty reasoning"
 
 
 @pytest.mark.asyncio

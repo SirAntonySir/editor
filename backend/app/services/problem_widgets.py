@@ -135,7 +135,8 @@ async def resolve_problem_widgets(
         # human name — use it as the driver/name so the widget card shows the
         # preset display name rather than the generic "Other" label.
         label = problem.display_label if (problem.kind == "other" and problem.display_label) else _humanize(problem.kind)
-        base_rationale = problem.description or problem.kind
+        # Resolver prompt rationale: humanized, never the raw kind slug.
+        base_rationale = problem.description or _humanize(problem.kind)
         # feedback is keyed by problem index (not kind) to avoid collision when
         # two problems share the same kind.
         extra = (feedback or {}).get(problem_index)
@@ -249,11 +250,19 @@ async def resolve_problem_widgets(
         # Use first layer id in image_node_layer_ids as layer_id, same as propose_stack.
         layer_id = image_node_layer_ids[0] if image_node_layer_ids else "legacy"
 
-        # The entry's op rationale (problem description + any retry feedback)
-        # feeds the widget's "?" popover.
-        entry_rationale = next(
-            (str(o.get("rationale") or "").strip() for o in entry["ops"]), "",
-        ) or None
+        # The "?" popover must show a REAL explanation or nothing: the
+        # problem's description (plus any retry feedback), never the kind
+        # slug or a humanized duplicate of the title (P01: the popover
+        # rendered `dull_subject` for description-less problems). The
+        # resolver-prompt rationale above keeps its humanized fallback —
+        # this only gates what the user sees.
+        entry_rationale = (problem.description or "").strip() or None
+        retry_feedback = (feedback or {}).get(problem_index)
+        if retry_feedback:
+            entry_rationale = (
+                f"{entry_rationale}. {retry_feedback}" if entry_rationale
+                else retry_feedback
+            )
         # intent feeds journals + analysis scripts, not just the header — a
         # top-up preset must NOT be logged as "Other" (P01: every top-up row
         # in the journal read `proposal 'Other'`, hiding which preset it was).

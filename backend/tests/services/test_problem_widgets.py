@@ -21,11 +21,17 @@ from app.schemas.enriched_context import Problem
 # ---------------------------------------------------------------------------
 
 
-def _problem(kind="clipped_highlights", severity=0.7, suggested_ops=None) -> Problem:
+def _problem(
+    kind="clipped_highlights",
+    severity=0.7,
+    suggested_ops=None,
+    description="Highlights are blown in the sky; pull them back.",
+) -> Problem:
     return Problem(
         kind=kind,
         severity=severity,
         suggested_ops=suggested_ops or ["light"],
+        description=description,
     )
 
 
@@ -132,8 +138,32 @@ async def test_valid_problem_mints_widget_with_compound(doc_with_ctx, journal):
     expected_label = _humanize("clipped_highlights")
     assert w.compound.label == expected_label
     # The "?" popover reads widget.reasoning — autonomous widgets carry the
-    # problem's rationale (description or kind).
-    assert w.reasoning, "autonomous widget must ship a non-empty reasoning"
+    # problem's DESCRIPTION (a real explanation), never the kind slug.
+    assert w.reasoning == "Highlights are blown in the sky; pull them back."
+
+
+@pytest.mark.asyncio
+async def test_descriptionless_problem_ships_no_reasoning(doc_with_ctx, journal):
+    """No description → reasoning is None (popover shows its placeholder).
+    The raw kind slug must NEVER leak into the user-facing explanation
+    (P01 pilot: the popover rendered `dull_subject`)."""
+    from app.services.problem_widgets import resolve_problem_widgets
+    from app.registry.loader import get_registry
+
+    op = get_registry().ops["light"]
+    resolved_params = {k: p.default for k, p in op.params.items()}
+    resolved_params["exposure"] = -80
+
+    problem = _problem(kind="dull_subject", suggested_ops=["light"], description=None)
+    anthropic = _FakeAnthropic(by_entry={0: {"light": resolved_params}})
+    pairs = await resolve_problem_widgets(
+        doc_with_ctx, [problem],
+        scope_for=_global_scope_for, origin_kind="mcp_autonomous",
+        anthropic=anthropic, session_id="test-session",
+    )
+    _, w = pairs[0]
+    assert w.reasoning is None
+    assert "dull_subject" not in (w.reasoning or "")
 
 
 @pytest.mark.asyncio

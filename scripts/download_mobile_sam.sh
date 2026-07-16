@@ -10,31 +10,44 @@ cd "$(dirname "$0")/.."
 DEST="public/models/mobile-sam"
 mkdir -p "$DEST"
 
+# Primary: HuggingFace (canonical source). Fallback: a GitHub release mirror
+# on this repo (models-v1) — HF gateway 504s killed a Vercel deploy, and a
+# build must not depend on a single upstream. Env vars override the primary.
 ENCODER_URL="${MOBILE_SAM_ENCODER_URL:-https://huggingface.co/Acly/MobileSAM/resolve/main/mobile_sam_image_encoder.onnx}"
 DECODER_URL="${MOBILE_SAM_DECODER_URL:-https://huggingface.co/Acly/MobileSAM/resolve/main/sam_mask_decoder_single.onnx}"
+MIRROR_BASE="https://github.com/SirAntonySir/editor/releases/download/models-v1"
+
+fetch() {
+  local url="$1"
+  local out="$2"
+  # --retry-all-errors: also retry HTTP 5xx. 4 tries × 5s ≈ 30s per source.
+  curl -L --fail --progress-bar \
+    --retry 4 --retry-delay 5 --retry-all-errors --retry-max-time 120 \
+    -o "$out.partial" "$url" && mv "$out.partial" "$out"
+}
 
 download() {
   local url="$1"
-  local out="$2"
+  local mirror="$2"
+  local out="$3"
   if [ -f "$out" ]; then
     echo "✓ $out already present — skipping"
     return 0
   fi
   local size_hint
-  if echo "$url" | grep -q encoder; then size_hint="~28 MB"; else size_hint="~16 MB"; fi
+  if echo "$out" | grep -q encoder; then size_hint="~28 MB"; else size_hint="~16 MB"; fi
   echo "↓ Downloading $(basename "$out") ($size_hint)..."
-  # --retry-all-errors: also retry HTTP 5xx (a HuggingFace 504 killed a
-  # Vercel deploy — one transient gateway timeout must not fail the build).
-  # 6 tries with 5s delays covers ~3 minutes of upstream flake.
-  curl -L --fail --progress-bar \
-    --retry 6 --retry-delay 5 --retry-all-errors --retry-max-time 180 \
-    -o "$out.partial" "$url"
-  mv "$out.partial" "$out"
-  echo "✓ $out"
+  if fetch "$url" "$out"; then
+    echo "✓ $out"
+    return 0
+  fi
+  echo "⚠ primary failed ($url) — trying mirror..."
+  fetch "$mirror" "$out"
+  echo "✓ $out (mirror)"
 }
 
-download "$ENCODER_URL" "$DEST/encoder.onnx"
-download "$DECODER_URL" "$DEST/decoder.onnx"
+download "$ENCODER_URL" "$MIRROR_BASE/encoder.onnx" "$DEST/encoder.onnx"
+download "$DECODER_URL" "$MIRROR_BASE/decoder.onnx" "$DEST/decoder.onnx"
 
 # Copy ONNX Runtime Web's bundled WASM assets into public/ort/. ORT-Web fetches
 # these at runtime via `ort.env.wasm.wasmPaths`; without them Vite returns

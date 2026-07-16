@@ -254,11 +254,19 @@ async def resolve_problem_widgets(
         entry_rationale = next(
             (str(o.get("rationale") or "").strip() for o in entry["ops"]), "",
         ) or None
+        # intent feeds journals + analysis scripts, not just the header — a
+        # top-up preset must NOT be logged as "Other" (P01: every top-up row
+        # in the journal read `proposal 'Other'`, hiding which preset it was).
+        widget_intent = (
+            problem.display_label
+            if (problem.kind == "other" and problem.display_label)
+            else _humanize(problem.kind)
+        )
         widget = _build_widget_multi(
             widget_name=entry.get("widget_name"),
             category=entry.get("category"),
             ops=ops_for_entry,
-            intent=_humanize(problem.kind),
+            intent=widget_intent,
             scope=scope,
             origin=origin,
             layer_id=layer_id,

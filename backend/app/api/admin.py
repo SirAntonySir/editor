@@ -774,6 +774,26 @@ async function sessionDetail(sid) {
     <span style="color:var(--text-mute); font-size:10px;">applies to this participant — survives reloads &amp; new sessions</span>
   </div>`;
 
+  // Study block/part markers — POST /admin/sessions/{sid}/block writes a
+  // `study.block` journal event. compute_study_measures segments the event
+  // stream by these markers; without them `study_measures.parts` is empty
+  // (P01 pilot). One click per part at the moment it begins.
+  html += `<div style="margin:0 0 16px; display:flex; align-items:center; gap:8px; font-size:12px; flex-wrap:wrap;">
+    <span style="color:var(--text-mute);">Mark part start:</span>
+    <select id="block-num" style="background:transparent; color:var(--text); border:1px solid var(--border); border-radius:6px; padding:3px 6px; font-size:11px;">
+      <option value="1">Block 1</option>
+      <option value="2">Block 2</option>
+    </select>
+    ${['corrective', 'creative', 'sky'].map((p) => `
+      <button class="block-mark" data-part="${p}"
+        style="cursor:pointer; border:1px solid var(--border); border-radius:6px; padding:4px 10px;
+               font-size:11px; background:transparent; color:var(--text);">${p}</button>`).join('')}
+    <button class="block-mark" data-part="__end"
+      style="cursor:pointer; border:1px solid var(--border); border-radius:6px; padding:4px 10px;
+             font-size:11px; background:transparent; color:var(--text-mute);">end block</button>
+    <span id="block-mark-status" style="color:var(--text-mute); font-size:10px;"></span>
+  </div>`;
+
   // Left: image + summary
   html += '<div style="flex:0 0 340px;">';
   html += `<img class="img-preview" src="${withTok('/admin/sessions/' + sid + '/image')}" alt="source" onerror="this.style.display='none'" />`;
@@ -849,6 +869,30 @@ async function sessionDetail(sid) {
       }
     });
   }
+
+  // Study block/part markers → study.block journal events.
+  const markStatus = document.getElementById('block-mark-status');
+  document.querySelectorAll('.block-mark').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const isEnd = btn.dataset.part === '__end';
+      const block = parseInt(document.getElementById('block-num').value, 10);
+      try {
+        const r = await fetch(withTok('/admin/sessions/' + encodeURIComponent(sid) + '/block'), {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(isEnd
+            ? { block, part: 'end', action: 'end' }
+            : { block, part: btn.dataset.part, action: 'start' }),
+        });
+        if (!r.ok) throw new Error('marker failed: ' + r.status);
+        const j = await r.json();
+        markStatus.textContent = 'marked: block ' + j.marker.block + ' · ' +
+          j.marker.part + ' · ' + j.marker.action + ' (' + (j.marker.condition || '?') + ')';
+      } catch (e) {
+        markStatus.textContent = String(e.message || e);
+      }
+    });
+  });
 }
 
 function route() {

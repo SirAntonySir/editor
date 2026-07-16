@@ -23,7 +23,12 @@ download() {
   local size_hint
   if echo "$url" | grep -q encoder; then size_hint="~28 MB"; else size_hint="~16 MB"; fi
   echo "↓ Downloading $(basename "$out") ($size_hint)..."
-  curl -L --fail --progress-bar -o "$out.partial" "$url"
+  # --retry-all-errors: also retry HTTP 5xx (a HuggingFace 504 killed a
+  # Vercel deploy — one transient gateway timeout must not fail the build).
+  # 6 tries with 5s delays covers ~3 minutes of upstream flake.
+  curl -L --fail --progress-bar \
+    --retry 6 --retry-delay 5 --retry-all-errors --retry-max-time 180 \
+    -o "$out.partial" "$url"
   mv "$out.partial" "$out"
   echo "✓ $out"
 }

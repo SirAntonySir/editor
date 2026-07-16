@@ -87,12 +87,17 @@ export async function materializeCandidate(
   return maskId;
 }
 
-export type CandidateVerb = 'copy-node' | 'copy-layer' | 'genfill';
+export type CandidateVerb = 'keep' | 'copy-node' | 'copy-layer' | 'genfill';
 
 /** Run a committing verb on a live selection: materialize the mask, then run
  *  the matching object action with the new id. Returns the new mask id, or null
  *  if materialize failed (in which case no action runs and the caller keeps the
- *  selection). Select Inverted is NOT here — it stays transient (see invertMask). */
+ *  selection). Select Inverted is NOT here — it stays transient (see invertMask).
+ *
+ *  'keep' commits the mask as an OBJECT ON THE CURRENT LAYER — exactly what an
+ *  automatic tag-selection produces; no copy, no new layer/node. It is the
+ *  natural landing for the "Draw it myself" redraw flow, where the redrawn
+ *  region should replace the deleted object in place. */
 export async function runCandidateVerb(
   verb: CandidateVerb,
   sel: LiveSelection,
@@ -103,6 +108,7 @@ export async function runCandidateVerb(
   if (verb === 'copy-node') copyObjectToImageNode(id, ctx.imageNodeId);
   else if (verb === 'copy-layer') copyObjectToLayer(id, ctx.imageNodeId);
   else if (verb === 'genfill') await spawnGenfillFromMask(id, ctx.imageNodeId);
+  // 'keep': materializeCandidate already did everything.
   return id;
 }
 

@@ -94,6 +94,15 @@ describe('runCandidateVerb', () => {
     expect(objectActions.copyObjectToLayer).toHaveBeenCalledWith('new-mask', 'in-1');
   });
 
+  it("'keep' commits the mask on the CURRENT layer — no copy, no new layer/node", async () => {
+    // The "Draw it myself" redraw landing: the redrawn region replaces the
+    // deleted object in place, like an automatic tag-selection.
+    const id = await runCandidateVerb('keep', sel, ctx);
+    expect(id).toBe('new-mask');
+    expect(objectActions.copyObjectToImageNode).not.toHaveBeenCalled();
+    expect(objectActions.copyObjectToLayer).not.toHaveBeenCalled();
+  });
+
   it('returns null and runs no action when materialize fails', async () => {
     (backendTools.propose_mask as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, error: { message: 'boom' } });
     const id = await runCandidateVerb('copy-node', sel, ctx);

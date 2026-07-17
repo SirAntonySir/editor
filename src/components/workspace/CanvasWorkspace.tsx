@@ -220,6 +220,14 @@ export function CanvasWorkspace() {
   // Study condition: the layers node is a working-with-widgets affordance,
   // withheld from the baseline (aiAccess=false) alongside the other AI surfaces.
   const aiAccess = useAiAccess();
+  // Objects mode owns the SHIFT key: shift+click appends SAM refinement
+  // points to a live lasso/magic-lasso candidate. React Flow's default
+  // Shift bindings (selection box + multi-select) swallowed that gesture,
+  // so both are handed back to segmentation while ANY node is in objects
+  // mode; group select works as before in layers mode.
+  const anyObjectsMode = useEditorStore(
+    (s) => Object.values(s.imageNodeMode).includes('objects'),
+  );
   const tetherEdges = useEditorStore((s) => s.tetherEdges);
   const setActiveImageNode = useEditorStore((s) => s.setActiveImageNode);
   const addImageNode = useEditorStore((s) => s.addImageNode);
@@ -878,6 +886,10 @@ export function CanvasWorkspace() {
         proOptions={{ hideAttribution: true }}
         minZoom={0.05}
         maxZoom={4}
+        // undefined = React Flow's platform defaults (Shift box-select etc.);
+        // null while in objects mode = Shift belongs to SAM refinement.
+        selectionKeyCode={anyObjectsMode ? null : undefined}
+        multiSelectionKeyCode={anyObjectsMode ? null : undefined}
         fitView
       >
         <Background color="var(--color-separator)" gap={16} size={1} />

@@ -317,7 +317,8 @@ export function SegmentHitLayer({
         imageNodeId: string;
         mask: { width: number; height: number; data: Uint8Array };
         label?: string;
-        origin?: 'client_refinement' | 'client_new' | 'client_extracted';
+        origin?: 'client_refinement' | 'client_new' | 'client_extracted' | 'client_lasso';
+        paths?: [number, number][][];
       }>).detail;
       if (!detail || detail.imageNodeId !== imageNodeId) return;
       decodeSeqRef.current += 1; // invalidate any in-flight SAM decode
@@ -326,6 +327,7 @@ export function SegmentHitLayer({
         mask: detail.mask,
         label: detail.label,
         origin: detail.origin,
+        paths: detail.paths,
       });
     };
     window.addEventListener('segment-hit:external-candidate', handler);
@@ -483,6 +485,27 @@ export function SegmentHitLayer({
       if (!el) return;
       const [nx, ny] = clientToNormalised(e, el);
 
+      // SHIFT+click with a live candidate = refinement, and it OUTRANKS the
+      // committed-object hit-test below — the region being refined routinely
+      // overlaps existing objects' pixels, and object-select was eating the
+      // refine clicks (magic lasso felt dead). Positive point (label 1)
+      // outside the current mask, negative (label 0) inside — the SAM
+      // convention. Candidates without prompt points (plain-lasso polygon,
+      // incl. the magic-lasso low-confidence fallback) refine too: the box
+      // prompt is synthesized from the drawn loop, exactly like
+      // finishMagicLasso does for a fresh draw.
+      if (objectsMode && !lassoActive && e.shiftKey && candidate?.mask) {
+        const insideMask = isInsideMask(nx, ny, candidate.mask);
+        const point: SamPoint = { x: nx, y: ny, label: insideMask ? 0 : 1 };
+        const basePoints = candidate.points.length > 0
+          ? candidate.points
+          : candidate.paths?.[0]
+            ? boxPrompt(bboxOfPath(candidate.paths[0] as [number, number][]))
+            : [];
+        void runDecode([...basePoints, point]);
+        return;
+      }
+
       // Object-pixel hit-test runs in both modes: clicking on a committed
       // object selects it (sets the active mask scope) so subsequent
       // adjustments target that object. Image-node selection still happens
@@ -514,18 +537,7 @@ export function SegmentHitLayer({
       // plain click above (object select) or nothing.
       if (lassoActive) return;
 
-      // Objects mode — fall through to SAM. Shift-click while a candidate
-      // is live: append a refinement point. Positive (label 1) if outside
-      // the current mask, negative (label 0) if inside — mirrors the SAM
-      // convention for click-driven refinement. Works for point-tool and
-      // magic-lasso SAM candidates alike (both carry prompt points). Plain
-      // lasso candidates are not SAM-refinable (no prompt points to extend).
-      if (e.shiftKey && candidate && candidate.origin !== 'client_lasso') {
-        const insideMask = isInsideMask(nx, ny, candidate.mask);
-        const point: SamPoint = { x: nx, y: ny, label: insideMask ? 0 : 1 };
-        void runDecode([...candidate.points, point]);
-        return;
-      }
+      // Shift-refine already handled above (it must outrank object select).
 
       // Magic lasso: fresh selection happens by drawing a loop, not by a plain
       // click. Only the shift-refine path above applies to clicks.

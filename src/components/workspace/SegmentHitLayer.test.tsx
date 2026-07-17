@@ -234,6 +234,60 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
     }
   });
 
+  it('shift-refine outranks object select and works on fallback lasso candidates', async () => {
+    // Regression (magic lasso felt dead): the committed-object hit-test ran
+    // before the refine branch and ate shift-clicks landing on object pixels;
+    // and low-confidence magic-lasso fallbacks (origin client_lasso, no prompt
+    // points) were excluded from refinement entirely.
+    // 1) Seed a committed object over the top-left quadrant.
+    const m = fakeMask();
+    const ref = maskStore.register({
+      layerId: 'L1', width: m.width, height: m.height, data: m.data,
+      source: 'sam-point', createdAt: 0, label: 'can',
+    });
+    objectOwnership.set(ref, 'in-1');
+    useBackendState.setState({
+      snapshot: {
+        sessionId: 'sess-1', revision: 1, widgets: [],
+        masksIndex: [{ id: ref, width: m.width, height: m.height, source: 'sam-point', label: 'can', imageNodeId: 'in-1' }],
+        operationGraph: { id: 'g', userGoal: '', nodes: [], panelBindings: [], metadata: {} },
+        imageContext: null, aiAccess: true,
+      } as never,
+    });
+    useEditorStore.getState().setObjectSelectTool('magic');
+    try {
+      const { findByTestId } = render(
+        <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,
+      );
+      const layer = await findByTestId('segment-hit-layer');
+      stubRect(layer);
+      // 2) Inject a magic-lasso fallback candidate: polygon mask, no prompt
+      //    points, the drawn loop carried in paths.
+      fireEvent(window, new CustomEvent('segment-hit:external-candidate', {
+        detail: {
+          imageNodeId: 'in-1', mask: fakeMask(), origin: 'client_lasso',
+          paths: [[[0.1, 0.1], [0.45, 0.1], [0.45, 0.45], [0.1, 0.45]]],
+        },
+      }));
+      await waitFor(() => expect(layer.querySelector('[data-candidate-trigger]')).not.toBeNull());
+      // 3) Shift-click ON the committed object's pixels (0.25, 0.25 → inside
+      //    the seeded quadrant AND inside the candidate mask).
+      fireEvent.click(layer, { clientX: 100, clientY: 75, shiftKey: true });
+      await new Promise((r) => setTimeout(r, 0));
+      // Refine ran: box prompt synthesized from the loop + the negative point.
+      expect(decodeMock).toHaveBeenCalledTimes(1);
+      const points = decodeMock.mock.calls[0][0];
+      expect(points).toHaveLength(3);
+      expect(points[0].label).toBe(2); // box top-left
+      expect(points[1].label).toBe(3); // box bottom-right
+      expect(points[2].label).toBe(0); // inside candidate mask → negative
+      // Object select did NOT eat the click.
+      expect(useEditorStore.getState().activeObjectId).toBeNull();
+    } finally {
+      useEditorStore.getState().setObjectSelectTool('point');
+    }
+  });
+
   it('new plain click while a candidate exists starts a fresh decode (one more call)', async () => {
     const { findByTestId } = render(
       <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,

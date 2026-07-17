@@ -3,7 +3,9 @@ import {
   bboxFromTuple,
   bboxOfPath,
   boxPrompt,
+  combineMasks,
   isMaskAcceptable,
+  maskOverlapFraction,
   type Bbox,
 } from './magic-lasso';
 import type { LassoPoint } from './lasso';
@@ -91,5 +93,66 @@ describe('isMaskAcceptable', () => {
   it('rejects when the bbox is degenerate (zero area)', () => {
     const mask = maskWithRect(64, 64, bbox);
     expect(isMaskAcceptable(mask, { x0: 0.5, y0: 0.5, x1: 0.5, y1: 0.5 })).toBe(false);
+  });
+});
+
+describe('maskOverlapFraction', () => {
+  it('is 1 when the overlay sits fully inside the base', () => {
+    const base = maskWithRect(64, 64, { x0: 0, y0: 0, x1: 0.5, y1: 0.5 });
+    const overlay = maskWithRect(64, 64, { x0: 0.1, y0: 0.1, x1: 0.4, y1: 0.4 });
+    expect(maskOverlapFraction(overlay, base)).toBe(1);
+  });
+
+  it('is 0 when the overlay is fully outside the base', () => {
+    const base = maskWithRect(64, 64, { x0: 0, y0: 0, x1: 0.25, y1: 0.25 });
+    const overlay = maskWithRect(64, 64, { x0: 0.5, y0: 0.5, x1: 0.75, y1: 0.75 });
+    expect(maskOverlapFraction(overlay, base)).toBe(0);
+  });
+
+  it('handles half overlap across different resolutions', () => {
+    // Base at 64², overlay at 32² — left half of the overlay covers base.
+    const base = maskWithRect(64, 64, { x0: 0, y0: 0, x1: 0.5, y1: 1 });
+    const overlay = maskWithRect(32, 32, { x0: 0.25, y0: 0.25, x1: 0.75, y1: 0.75 });
+    expect(maskOverlapFraction(overlay, base)).toBeCloseTo(0.5, 1);
+  });
+
+  it('is 0 for an empty overlay', () => {
+    const base = maskWithRect(64, 64, { x0: 0, y0: 0, x1: 1, y1: 1 });
+    const overlay = maskWithRect(64, 64, { x0: 0, y0: 0, x1: 0, y1: 0 });
+    expect(maskOverlapFraction(overlay, base)).toBe(0);
+  });
+});
+
+describe('combineMasks', () => {
+  const on = (m: DecodedMask, nx: number, ny: number) =>
+    m.data[Math.floor(ny * m.height) * m.width + Math.floor(nx * m.width)] === 255;
+
+  it('union adds the overlay region and keeps the base', () => {
+    const base = maskWithRect(64, 64, { x0: 0, y0: 0, x1: 0.5, y1: 0.5 });
+    const overlay = maskWithRect(64, 64, { x0: 0.5, y0: 0.5, x1: 1, y1: 1 });
+    const out = combineMasks(base, overlay, 'union');
+    expect(on(out, 0.25, 0.25)).toBe(true); // base kept
+    expect(on(out, 0.75, 0.75)).toBe(true); // overlay added
+    expect(on(out, 0.75, 0.25)).toBe(false); // neither
+  });
+
+  it('subtract carves the overlay out of the base', () => {
+    const base = maskWithRect(64, 64, { x0: 0, y0: 0, x1: 1, y1: 1 });
+    const overlay = maskWithRect(64, 64, { x0: 0.25, y0: 0.25, x1: 0.75, y1: 0.75 });
+    const out = combineMasks(base, overlay, 'subtract');
+    expect(on(out, 0.5, 0.5)).toBe(false); // carved out
+    expect(on(out, 0.1, 0.1)).toBe(true); // base kept
+  });
+
+  it('resamples an overlay of a different resolution and leaves the base untouched', () => {
+    const base = maskWithRect(64, 64, { x0: 0, y0: 0, x1: 0.5, y1: 1 });
+    const overlay = maskWithRect(16, 16, { x0: 0.5, y0: 0, x1: 1, y1: 1 });
+    const out = combineMasks(base, overlay, 'union');
+    expect(out.width).toBe(64);
+    expect(out.height).toBe(64);
+    expect(on(out, 0.25, 0.5)).toBe(true);
+    expect(on(out, 0.75, 0.5)).toBe(true);
+    // input base unchanged
+    expect(on(base, 0.75, 0.5)).toBe(false);
   });
 });

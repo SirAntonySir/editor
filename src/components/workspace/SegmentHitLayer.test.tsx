@@ -288,6 +288,75 @@ describe('SegmentHitLayer — plain-click SAM 2 flow', () => {
     }
   });
 
+  it('magic lasso: shift+drag over a live candidate draws a refine loop (SAM box union)', async () => {
+    // Regression: shift over a live candidate was hard-gated to point refine,
+    // so the magic lasso could never draw a refinement loop.
+    if (!HTMLElement.prototype.setPointerCapture) {
+      HTMLElement.prototype.setPointerCapture = () => {};
+    }
+    useEditorStore.getState().setObjectSelectTool('magic');
+    try {
+      const { findByTestId, getByTestId } = render(
+        <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,
+      );
+      const layer = await findByTestId('segment-hit-layer');
+      stubRect(layer);
+      // Live candidate: top-left quadrant.
+      fireEvent(window, new CustomEvent('segment-hit:external-candidate', {
+        detail: { imageNodeId: 'in-1', mask: fakeMask() },
+      }));
+      await waitFor(() => expect(layer.querySelector('[data-candidate-trigger]')).not.toBeNull());
+      decodeMock.mockClear();
+      // Shift+drag a loop in the bottom-right — outside the candidate → add.
+      fireEvent.pointerDown(layer, { button: 0, shiftKey: true, clientX: 240, clientY: 180, pointerId: 1 });
+      fireEvent.pointerMove(layer, { clientX: 360, clientY: 180, pointerId: 1 });
+      fireEvent.pointerMove(layer, { clientX: 360, clientY: 270, pointerId: 1 });
+      fireEvent.pointerMove(layer, { clientX: 240, clientY: 270, pointerId: 1 });
+      fireEvent.pointerUp(layer, { pointerId: 1 });
+      // The loop went to SAM as a box prompt (labels 2/3) — NOT a point refine.
+      await waitFor(() => expect(decodeMock).toHaveBeenCalledTimes(1));
+      const points = decodeMock.mock.calls[0][0];
+      expect(points).toHaveLength(2);
+      expect(points.map((p) => p.label)).toEqual([2, 3]);
+      expect(points[0].x).toBeCloseTo(0.6, 1);
+      expect(points[1].x).toBeCloseTo(0.9, 1);
+      // Decode resolves → the composed candidate is live again.
+      await waitFor(() => expect(getByTestId('segment-candidate-hint').dataset.state).toBe('ready'));
+    } finally {
+      useEditorStore.getState().setObjectSelectTool('point');
+    }
+  });
+
+  it('magic lasso: shift+drag mostly inside the candidate carves without SAM', async () => {
+    if (!HTMLElement.prototype.setPointerCapture) {
+      HTMLElement.prototype.setPointerCapture = () => {};
+    }
+    useEditorStore.getState().setObjectSelectTool('magic');
+    try {
+      const { findByTestId, getByTestId } = render(
+        <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,
+      );
+      const layer = await findByTestId('segment-hit-layer');
+      stubRect(layer);
+      fireEvent(window, new CustomEvent('segment-hit:external-candidate', {
+        detail: { imageNodeId: 'in-1', mask: fakeMask() },
+      }));
+      await waitFor(() => expect(layer.querySelector('[data-candidate-trigger]')).not.toBeNull());
+      decodeMock.mockClear();
+      // Loop fully inside the top-left quadrant → subtract, purely local.
+      fireEvent.pointerDown(layer, { button: 0, shiftKey: true, clientX: 20, clientY: 15, pointerId: 1 });
+      fireEvent.pointerMove(layer, { clientX: 80, clientY: 15, pointerId: 1 });
+      fireEvent.pointerMove(layer, { clientX: 80, clientY: 60, pointerId: 1 });
+      fireEvent.pointerMove(layer, { clientX: 20, clientY: 60, pointerId: 1 });
+      fireEvent.pointerUp(layer, { pointerId: 1 });
+      await new Promise((r) => setTimeout(r, 0));
+      expect(decodeMock).not.toHaveBeenCalled();
+      expect(getByTestId('segment-candidate-hint').dataset.state).toBe('ready');
+    } finally {
+      useEditorStore.getState().setObjectSelectTool('point');
+    }
+  });
+
   it('new plain click while a candidate exists starts a fresh decode (one more call)', async () => {
     const { findByTestId } = render(
       <SegmentHitLayer imageNodeId="in-1" widthPx={400} heightPx={300} objectsMode={true} />,

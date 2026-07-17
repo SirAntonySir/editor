@@ -62,6 +62,52 @@ export function boxPrompt(bbox: Bbox): SamPoint[] {
 }
 
 /**
+ * Fraction of the overlay's "on" pixels that land inside the base mask.
+ * Resolution-independent — overlay pixels are looked up in the base via
+ * normalized coordinates, so a lasso raster and a SAM mask of different
+ * sizes compare directly. 0 = fully outside the base, 1 = fully inside.
+ */
+export function maskOverlapFraction(overlay: DecodedMask, base: DecodedMask): number {
+  let on = 0;
+  let inside = 0;
+  for (let y = 0; y < overlay.height; y++) {
+    for (let x = 0; x < overlay.width; x++) {
+      if (overlay.data[y * overlay.width + x] !== 255) continue;
+      on++;
+      const bx = Math.min(base.width - 1, Math.floor(((x + 0.5) / overlay.width) * base.width));
+      const by = Math.min(base.height - 1, Math.floor(((y + 0.5) / overlay.height) * base.height));
+      if (base.data[by * base.width + bx] === 255) inside++;
+    }
+  }
+  return on === 0 ? 0 : inside / on;
+}
+
+/**
+ * Boolean-combine two masks in pixel space. The result stays at the base
+ * mask's resolution; the overlay is nearest-neighbour sampled via normalized
+ * coordinates so masks of different sizes (SAM output vs lasso raster)
+ * compose without a resize pass.
+ */
+export function combineMasks(
+  base: DecodedMask,
+  overlay: DecodedMask,
+  op: 'union' | 'subtract',
+): DecodedMask {
+  const data = new Uint8Array(base.data);
+  const value = op === 'union' ? 255 : 0;
+  for (let y = 0; y < base.height; y++) {
+    for (let x = 0; x < base.width; x++) {
+      const ox = Math.min(overlay.width - 1, Math.floor(((x + 0.5) / base.width) * overlay.width));
+      const oy = Math.min(overlay.height - 1, Math.floor(((y + 0.5) / base.height) * overlay.height));
+      if (overlay.data[oy * overlay.width + ox] === 255) {
+        data[y * base.width + x] = value;
+      }
+    }
+  }
+  return { data, width: base.width, height: base.height };
+}
+
+/**
  * Confidence gate for a SAM box-prompt result. Rejects masks that are empty,
  * effectively full-frame (background grab), or a sliver relative to the loop's
  * bounding box. A rejected mask tells the caller to fall back to the drawn

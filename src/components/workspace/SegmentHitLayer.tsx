@@ -22,7 +22,7 @@ import {
   shouldAppendPoint,
   type LassoPoint,
 } from '@/lib/segmentation/lasso';
-import { bboxOfPath, boxPrompt, isMaskAcceptable } from '@/lib/segmentation/magic-lasso';
+import { bboxOfPath, boxPrompt, combineMasks, isMaskAcceptable, maskOverlapFraction } from '@/lib/segmentation/magic-lasso';
 import type { SamPoint, DecodedMask } from '@/lib/segmentation/mobile-sam-types';
 
 interface SegmentHitLayerProps {
@@ -195,9 +195,11 @@ export function SegmentHitLayer({
         // Lasso / magic-lasso freehand draw. Pointer capture keeps every move
         // on this element and away from React Flow.
         if (e.button !== 0) return;
-        // Magic-lasso SAM-point refinement: shift over a live candidate appends
-        // a SAM point via handleClick instead of drawing. Fall through.
-        if (magicActive && e.shiftKey && candidate?.mask) return;
+        // Shift over a live candidate arms a draw too: shift+DRAG draws a
+        // refine loop (finishMagicLasso edits the candidate), while a
+        // shift+CLICK leaves a degenerate path that rasterizes to nothing —
+        // finishMagicLasso no-ops and the ensuing click point-refines via
+        // handleClick. Both refinement gestures stay live at once.
         // Draw-gate: the FIRST selection draws on a plain press. Once a
         // selection exists (a live candidate or any committed object), a plain
         // press is instead a point-select gesture — grab + drag-to-extract
@@ -272,6 +274,41 @@ export function SegmentHitLayer({
     const pathCopy = path.map(([x, y]) => [x, y]);
     const bbox = bboxOfPath(path);
     const box = boxPrompt(bbox);
+
+    // Refine mode: a live candidate exists, so the loop EDITS it instead of
+    // replacing it. Mirrors the SAM point convention (inside = negative):
+    // a loop drawn mostly inside the selection carves that region out; drawn
+    // outside, it adds the region — SAM-snapped like a fresh magic stroke,
+    // falling back to the drawn polygon when SAM is unavailable or grabs
+    // garbage. The composed mask has no equivalent SAM prompt, so points
+    // reset to [] — a later shift+click point-refine restarts from the
+    // union bbox of all drawn loops (see handleClick).
+    const base = candidate?.mask ?? null;
+    if (base) {
+      const prevPaths = candidate?.paths ?? [];
+      if (maskOverlapFraction(polygonMask, base) > 0.5) {
+        setCandidate({
+          points: [],
+          mask: combineMasks(base, polygonMask, 'subtract'),
+          origin: 'client_refinement',
+          paths: [...prevPaths, pathCopy],
+        });
+        return;
+      }
+      const refineSeq = ++decodeSeqRef.current;
+      setCandidate({ points: box, mask: null }); // pending → "Segmenting…"
+      const snapped = await samCapability.decode(box);
+      if (refineSeq !== decodeSeqRef.current) return; // superseded
+      const addition = snapped && isMaskAcceptable(snapped, bbox) ? snapped : polygonMask;
+      setCandidate({
+        points: [],
+        mask: combineMasks(base, addition, 'union'),
+        origin: 'client_refinement',
+        paths: [...prevPaths, pathCopy],
+      });
+      return;
+    }
+
     const seq = ++decodeSeqRef.current;
     setCandidate({ points: box, mask: null }); // pending → "Segmenting…"
     const samMask = await samCapability.decode(box);
@@ -284,7 +321,7 @@ export function SegmentHitLayer({
       // No confident object → fall back to the drawn polygon (plain-lasso result).
       setCandidate({ points: [], mask: polygonMask, origin: 'client_lasso', paths: [pathCopy] });
     }
-  }, [sourceWidth, sourceHeight, widthPx, heightPx, samCapability]);
+  }, [sourceWidth, sourceHeight, widthPx, heightPx, samCapability, candidate]);
 
   // Esc discards the live selection. (There is no Enter-to-save — committing
   // happens only via an explicit action verb.)
@@ -499,8 +536,8 @@ export function SegmentHitLayer({
         const point: SamPoint = { x: nx, y: ny, label: insideMask ? 0 : 1 };
         const basePoints = candidate.points.length > 0
           ? candidate.points
-          : candidate.paths?.[0]
-            ? boxPrompt(bboxOfPath(candidate.paths[0] as [number, number][]))
+          : candidate.paths?.length
+            ? boxPrompt(bboxOfPath(candidate.paths.flat() as [number, number][]))
             : [];
         void runDecode([...basePoints, point]);
         return;
@@ -644,10 +681,11 @@ export function SegmentHitLayer({
           {candidate.mask ? (
             <>
               {/* With a live selection, a plain press drags-to-extract; Shift
-                  draws the next refine stroke (lasso) or adds a SAM point
-                  (magic). */}
+                  draws the next refine stroke (lasso), or — magic tool —
+                  draws a loop to add/remove a region and clicks to add a
+                  SAM point. */}
               <Kbd keys="shift" className="ml-0" />
-              <span>{magicActive ? '+ click refine' : '+ draw refine'}</span>
+              <span>{magicActive ? '+ click or draw refine' : '+ draw refine'}</span>
               <span className="opacity-40">·</span>
               <Kbd keys="esc" className="ml-0" />
               <span>discard</span>
